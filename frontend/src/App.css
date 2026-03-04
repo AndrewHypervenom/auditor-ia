@@ -1,0 +1,266 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+/* Mejoras para prevenir overflow de texto */
+.audit-card-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.audit-card-subtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  font-size: 0.875rem;
+  color: #94a3b8;
+}
+
+/* Mejoras para los badges */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Mejoras para las cards en grid view */
+.audit-grid-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.audit-grid-card:hover {
+  transform: translateY(-2px);
+}
+
+/* Mejoras para tabla */
+.audit-table-cell {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-table-cell-expandable {
+  cursor: help;
+}
+
+.audit-table-cell-expandable:hover {
+  position: relative;
+  overflow: visible;
+  z-index: 10;
+}
+
+/* Animación para el botón de exportar */
+@keyframes pulse-green {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.export-button-loading {
+  animation: pulse-green 1.5s ease-in-out infinite;
+}
+
+/* Mejoras para KPI cards */
+.kpi-card {
+  transition: all 0.3s ease;
+}
+
+.kpi-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .audit-card-title {
+    font-size: 1rem;
+  }
+  
+  .status-badge {
+    font-size: 0.625rem;
+    padding: 0.25rem 0.5rem;
+  }
+  
+  .audit-table-cell {
+    max-width: 150px;
+  }
+}
+
+@media (max-width: 640px) {
+  .audit-card-title {
+    font-size: 0.875rem;
+  }
+  
+  .audit-table-cell {
+    max-width: 100px;
+  }
+}
+
+/* Estilos para tooltips de celdas truncadas */
+.truncate-tooltip {
+  position: relative;
+}
+
+.truncate-tooltip:hover::after {
+  content: attr(data-full-text);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.5rem 0.75rem;
+  background-color: #1e293b;
+  color: white;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  white-space: normal;
+  max-width: 250px;
+  z-index: 50;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  border: 1px solid #334155;
+  margin-bottom: 0.25rem;
+  word-wrap: break-word;
+}
+
+.truncate-tooltip:hover::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #1e293b;
+  z-index: 51;
+}
+
+/* Mejoras para el loading state */
+.loading-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Mejoras para filtros */
+.filter-panel {
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scroll suave para la tabla */
+.audit-table-container {
+  scrollbar-width: thin;
+  scrollbar-color: #475569 #1e293b;
+}
+
+.audit-table-container::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.audit-table-container::-webkit-scrollbar-track {
+  background: #1e293b;
+  border-radius: 4px;
+}
+
+.audit-table-container::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+.audit-table-container::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Mejoras para accesibilidad */
+.focus-visible:focus {
+  outline: 2px solid #10b981;
+  outline-offset: 2px;
+}
+
+/* Print styles para mejor impresión */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .audit-grid-card,
+  .audit-table-container {
+    break-inside: avoid;
+  }
+}

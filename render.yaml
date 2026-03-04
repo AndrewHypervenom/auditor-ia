@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: auditoria-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: node dist/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      # Las siguientes variables se configuran manualmente en el dashboard de Render:
+      # OPENAI_API_KEY
+      # ASSEMBLYAI_API_KEY
+      # SUPABASE_URL
+      # SUPABASE_ANON_KEY
+      # SUPABASE_SERVICE_ROLE_KEY
+      # CORS_ORIGIN
+      # GPF_APP_TOKEN
+      # GPF_API_URL_TEST
+      # GPF_API_URL_PROD
+      # GPF_EMAIL
+      # GPF_PASSWORD
