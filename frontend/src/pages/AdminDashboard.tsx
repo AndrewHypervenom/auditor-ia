@@ -76,13 +76,13 @@ export default function AdminDashboard() {
   const [gpfLoginLoading, setGpfLoginLoading] = useState(false);
   const [gpfEndpoint, setGpfEndpoint] = useState('/api/login');
   const [gpfMethod, setGpfMethod] = useState('POST');
-  const [gpfBody, setGpfBody] = useState(
-    JSON.stringify({ email: 'quality_control_user@positivosmais.com', password: '4j#B763]6$2x' }, null, 2)
-  );
+  const [gpfBody, setGpfBody] = useState('');
   const [gpfQueryString, setGpfQueryString] = useState('');
   const [gpfResponse, setGpfResponse] = useState<GpfProxyResponse | null>(null);
   const [gpfRequestLoading, setGpfRequestLoading] = useState(false);
   const [gpfTableView, setGpfTableView] = useState(false);
+  const [gpfEndpointNeedsId, setGpfEndpointNeedsId] = useState(false);
+  const [gpfIdAtencion, setGpfIdAtencion] = useState('');
 
   const [systemStats, setSystemStats] = useState<SystemStats>({
     totalUsers: 0,
@@ -266,9 +266,19 @@ export default function AdminDashboard() {
         }
       }
 
+      if (gpfEndpointNeedsId && !gpfIdAtencion.trim()) {
+        toast.error('Ingresa el ID de atención para este endpoint');
+        setGpfRequestLoading(false);
+        return;
+      }
+
+      const finalEndpoint = gpfEndpointNeedsId
+        ? `${gpfEndpoint}${gpfIdAtencion.trim()}`
+        : gpfEndpoint;
+
       const result = await gpfService.proxy({
         env: gpfEnv,
-        endpoint: gpfEndpoint,
+        endpoint: finalEndpoint,
         method: gpfMethod,
         token: gpfToken || undefined,
         body: parsedBody,
@@ -293,12 +303,14 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleGpfEndpointPreset = (preset: string, method: string, sampleBody?: string) => {
+  const handleGpfEndpointPreset = (preset: string, method: string, sampleBody?: string, needsId?: boolean) => {
     setGpfEndpoint(preset);
     setGpfMethod(method);
     if (sampleBody !== undefined) setGpfBody(sampleBody);
     setGpfResponse(null);
     setGpfTableView(false);
+    setGpfEndpointNeedsId(!!needsId);
+    setGpfIdAtencion('');
   };
 
   const getStatusColor = (status: number) => {
@@ -317,29 +329,18 @@ export default function AdminDashboard() {
 
   const renderGpfPanel = () => {
     const GPF_ENDPOINTS = [
-      { label: 'Login / Obtener Token', path: '/api/login', method: 'POST', body: JSON.stringify({ email: 'quality_control_user@positivosmais.com', password: '4j#B763]6$2x' }, null, 2), confirmed: true },
-      { label: 'Detalle de Llamada', path: '/api/quality-control/v1/attentions-quality-control', method: 'GET', body: '', confirmed: true },
-      { label: 'Capturas y Comentarios', path: '/api/capturas-comentarios', method: 'GET', body: '', confirmed: false },
-      { label: 'Historia de Transacciones', path: '/api/historia-transacciones', method: 'GET', body: '', confirmed: false },
-      { label: 'Historial de Comentarios', path: '/api/historial-comentarios', method: 'GET', body: '', confirmed: false },
-      { label: 'Historial de Validaciones OT', path: '/api/historial-validaciones-ot', method: 'GET', body: '', confirmed: false },
-      { label: 'Descarga Base Inbound', path: '/api/descarga-base-inbound', method: 'GET', body: '', confirmed: false },
-    ];
-
-    const CALL_DETAIL_FIELDS = [
-      'Llamada en curso', 'Estado llamada', 'Calificación', 'Sub-calificación',
-      'Origen validación', 'Actualización de datos', 'Socio', 'Correo cliente',
-      'Teléfono cliente', 'Caso', 'Agente', 'Resultado dictamen', '4 dígitos TC',
-      'Tiene afectación', 'Folio BI', 'Comercio', 'Fecha de la compra',
-      'Monto de la compra', 'Estatus correo preventivo', 'Estatus SMS preventivo',
-      'Cliente no requiere re-plastificación'
+      { label: 'Detalle de Llamadas', path: '/api/quality-control/v1/attentions-quality-control', method: 'GET', body: '', needsId: false, confirmed: true },
+      { label: 'Capturas y Comentarios', path: '/api/quality-control/v1/captures-comments/', method: 'GET', body: '', needsId: true, confirmed: true },
+      { label: 'Transacciones', path: '/api/quality-control/v1/transactions/', method: 'GET', body: '', needsId: true, confirmed: true },
+      { label: 'Comentarios', path: '/api/quality-control/v1/comments/', method: 'GET', body: '', needsId: true, confirmed: true },
     ];
 
     const isSuccess = gpfResponse?.data?.is_success === true;
     const hasResponse = gpfResponse !== null;
     const responseArray: any[] = Array.isArray(gpfResponse?.data?.data) ? gpfResponse!.data.data : [];
-    const isCallDetailEndpoint = gpfEndpoint === '/api/quality-control/v1/attentions-quality-control';
-    const canShowTable = isCallDetailEndpoint && responseArray.length > 0;
+    // Detecta columnas dinámicamente desde la primera fila de respuesta
+    const tableColumns: string[] = responseArray.length > 0 ? Object.keys(responseArray[0]) : [];
+    const canShowTable = responseArray.length > 0 && tableColumns.length > 0;
 
     return (
       <div className="space-y-6">
@@ -366,6 +367,47 @@ export default function AdminDashboard() {
                 </span>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* Guía de uso */}
+        <div className="p-4 bg-slate-800/60 border border-slate-700 rounded-xl">
+          <p className="text-xs font-semibold text-slate-300 mb-3 uppercase tracking-wide">Guia de uso — Flujo completo</p>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="flex items-start gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-600 text-white text-xs flex items-center justify-center font-bold">1</span>
+              <div>
+                <p className="text-xs font-medium text-slate-300">Seleccionar ambiente</p>
+                <p className="text-xs text-slate-500">Pruebas (ngrok) o Productivo. Las credenciales se usan automaticamente desde el servidor.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-600 text-white text-xs flex items-center justify-center font-bold">2</span>
+              <div>
+                <p className="text-xs font-medium text-slate-300">Obtener Token</p>
+                <p className="text-xs text-slate-500">Clic en "Obtener Token de Sesion". El token dura 3 dias y se llena automaticamente.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-600 text-white text-xs flex items-center justify-center font-bold">3</span>
+              <div>
+                <p className="text-xs font-medium text-slate-300">Elegir endpoint</p>
+                <p className="text-xs text-slate-500">Clic en cualquier endpoint del listado. Los que requieren ID de Atencion mostraran un campo extra.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-600 text-white text-xs flex items-center justify-center font-bold">4</span>
+              <div>
+                <p className="text-xs font-medium text-slate-300">Ejecutar y ver resultados</p>
+                <p className="text-xs text-slate-500">Clic en "Ejecutar Request". Visualiza la respuesta en JSON o en Tabla interactiva.</p>
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-slate-700 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-500">
+            <div><span className="text-slate-400 font-medium">Pruebas:</span> classic-routinely-beagle.ngrok-free.app</div>
+            <div><span className="text-slate-400 font-medium">Productivo:</span> gpf.prevencion.algartech.com.mx:6443</div>
+            <div><span className="text-slate-400 font-medium">Autenticacion:</span> X-App-Token + Bearer token (obtenido en paso 2)</div>
+            <div><span className="text-slate-400 font-medium">Formato:</span> Todas las respuestas tienen <code className="text-teal-400">data</code>, <code className="text-teal-400">error</code>, <code className="text-teal-400">is_success</code>, <code className="text-teal-400">status</code></div>
           </div>
         </div>
 
@@ -452,7 +494,7 @@ export default function AdminDashboard() {
               {GPF_ENDPOINTS.map((ep) => (
                 <button
                   key={ep.path}
-                  onClick={() => handleGpfEndpointPreset(ep.path, ep.method, ep.body)}
+                  onClick={() => handleGpfEndpointPreset(ep.path, ep.method, ep.body, ep.needsId)}
                   title={ep.confirmed ? ep.path : `Ruta pendiente de confirmar · ${ep.path}`}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                     gpfEndpoint === ep.path
@@ -481,8 +523,6 @@ export default function AdminDashboard() {
               >
                 <option value="GET">GET</option>
                 <option value="POST">POST</option>
-                <option value="PUT">PUT</option>
-                <option value="DELETE">DELETE</option>
               </select>
             </div>
             <div className="md:col-span-3">
@@ -508,6 +548,28 @@ export default function AdminDashboard() {
               className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 font-mono focus:outline-none focus:border-teal-500"
             />
           </div>
+
+          {/* ID de Atención (para endpoints que lo requieren) */}
+          {gpfEndpointNeedsId && (
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                ID de Atención <span className="text-red-400">*</span>
+                <span className="ml-2 text-slate-500 font-normal">— se agrega al final del endpoint</span>
+              </label>
+              <input
+                type="text"
+                value={gpfIdAtencion}
+                onChange={(e) => setGpfIdAtencion(e.target.value)}
+                placeholder="Ej: 12345"
+                className="w-full px-3 py-2 bg-slate-800 border border-teal-500/50 rounded-lg text-sm text-slate-300 font-mono focus:outline-none focus:border-teal-400"
+              />
+              {gpfIdAtencion && (
+                <p className="text-xs text-slate-500 mt-1 font-mono">
+                  URL final: <span className="text-teal-400">{gpfEndpoint}{gpfIdAtencion}</span>
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Body */}
           {!['GET', 'HEAD'].includes(gpfMethod) && (
@@ -594,16 +656,16 @@ export default function AdminDashboard() {
                   </div>
                 )}
 
-                {/* Vista tabla - Detalle de llamadas */}
+                {/* Vista tabla - dinámica según respuesta */}
                 {canShowTable && gpfTableView ? (
                   <div className="overflow-x-auto rounded-lg border border-slate-700">
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="bg-slate-800 border-b border-slate-700">
                           <th className="px-3 py-2 text-left text-slate-400 font-medium whitespace-nowrap">#</th>
-                          {CALL_DETAIL_FIELDS.map((field) => (
-                            <th key={field} className="px-3 py-2 text-left text-slate-400 font-medium whitespace-nowrap">
-                              {field}
+                          {tableColumns.map((col) => (
+                            <th key={col} className="px-3 py-2 text-left text-slate-400 font-medium whitespace-nowrap">
+                              {col}
                             </th>
                           ))}
                         </tr>
@@ -612,9 +674,9 @@ export default function AdminDashboard() {
                         {responseArray.map((row: any, idx: number) => (
                           <tr key={idx} className={`border-b border-slate-800 hover:bg-slate-800/50 transition-colors ${idx % 2 === 0 ? '' : 'bg-slate-900/30'}`}>
                             <td className="px-3 py-2 text-slate-500 font-mono">{idx + 1}</td>
-                            {CALL_DETAIL_FIELDS.map((field) => (
-                              <td key={field} className="px-3 py-2 text-slate-300 whitespace-nowrap max-w-[200px] truncate" title={row[field] ?? ''}>
-                                {row[field] ?? <span className="text-slate-600">—</span>}
+                            {tableColumns.map((col) => (
+                              <td key={col} className="px-3 py-2 text-slate-300 whitespace-nowrap max-w-[200px] truncate" title={String(row[col] ?? '')}>
+                                {row[col] != null ? String(row[col]) : <span className="text-slate-600">—</span>}
                               </td>
                             ))}
                           </tr>
@@ -622,7 +684,7 @@ export default function AdminDashboard() {
                       </tbody>
                     </table>
                     <div className="px-4 py-2 bg-slate-800/50 border-t border-slate-700 flex items-center justify-between">
-                      <span className="text-xs text-slate-500">{responseArray.length} registros · {CALL_DETAIL_FIELDS.length} columnas</span>
+                      <span className="text-xs text-slate-500">{responseArray.length} registros · {tableColumns.length} columnas</span>
                       <button
                         onClick={() => { navigator.clipboard.writeText(JSON.stringify(gpfResponse!.data, null, 2)); toast.success('JSON copiado'); }}
                         className="flex items-center gap-1 px-2 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-xs text-slate-400 hover:text-white transition-all"
