@@ -396,6 +396,16 @@ export interface GpfProxyResponse {
   error?: string;
 }
 
+export interface GpfDownloadReportParams {
+  env: 'test' | 'prod';
+  token?: string;
+  export_id: number;
+}
+
+export type GpfDownloadReportResult =
+  | { isFile: false; data: GpfProxyResponse }
+  | { isFile: true; blob: Blob; filename: string };
+
 export const gpfService = {
   async login(params: GpfLoginParams): Promise<GpfProxyResponse> {
     const response = await api.post('/gpf/login', params);
@@ -405,6 +415,20 @@ export const gpfService = {
   async proxy(params: GpfProxyParams): Promise<GpfProxyResponse> {
     const response = await api.post('/gpf/proxy', params);
     return response.data;
+  },
+
+  async downloadReport(params: GpfDownloadReportParams): Promise<GpfDownloadReportResult> {
+    const response = await api.post('/gpf/download-report', params, { responseType: 'arraybuffer' });
+    const contentType: string = response.headers['content-type'] || '';
+    if (contentType.includes('application/json')) {
+      const text = new TextDecoder().decode(response.data as ArrayBuffer);
+      return { isFile: false, data: JSON.parse(text) };
+    }
+    const disposition: string = response.headers['content-disposition'] || '';
+    const match = disposition.match(/filename[^;=\n]*=['"]?([^'"\n;]+)['"]?/i);
+    const filename = match ? match[1] : `export_${params.export_id}.xlsx`;
+    const blob = new Blob([response.data as ArrayBuffer], { type: contentType || 'application/octet-stream' });
+    return { isFile: true, blob, filename };
   }
 };
 

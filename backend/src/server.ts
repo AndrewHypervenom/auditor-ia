@@ -999,6 +999,53 @@ app.post('/api/gpf/proxy', authenticateUser, requireAdmin, async (req: Request, 
   }
 });
 
+// GPF Download Report — puede retornar JSON de progreso (0-100) o archivo binario
+app.post('/api/gpf/download-report', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { env = 'test', token, export_id } = req.body;
+
+    if (export_id === undefined || export_id === null) {
+      return res.status(400).json({ error: 'export_id es requerido' });
+    }
+
+    const baseUrl = getGpfBaseUrl(env);
+    if (!baseUrl) {
+      return res.status(500).json({ error: 'URL de GPF no configurada' });
+    }
+
+    const start = Date.now();
+    const response = await fetch(`${baseUrl}/api/quality-control/v1/download-report`, {
+      method: 'POST',
+      headers: buildGpfHeaders(token),
+      body: JSON.stringify({ export_id })
+    });
+    const elapsed = Date.now() - start;
+
+    const contentType = response.headers.get('content-type') || '';
+
+    if (contentType.includes('application/json')) {
+      const data = await response.json();
+      logger.info('GPF download-report progress', { env, export_id, status: response.status, elapsed });
+      return res.status(200).json({ gpf_status: response.status, elapsed_ms: elapsed, data });
+    }
+
+    // Archivo listo — devolver como stream
+    const contentDisposition = response.headers.get('content-disposition') || `attachment; filename="export_${export_id}.xlsx"`;
+    const buffer = await response.arrayBuffer();
+    logger.info('GPF download-report file', { env, export_id, bytes: buffer.byteLength, elapsed });
+    res.set({
+      'Content-Type': contentType || 'application/octet-stream',
+      'Content-Disposition': contentDisposition,
+      'X-GPF-Status': response.status.toString(),
+      'X-GPF-Elapsed': elapsed.toString()
+    });
+    res.send(Buffer.from(buffer));
+  } catch (error: any) {
+    logger.error('GPF download-report error:', error);
+    res.status(502).json({ error: `Error conectando con GPF: ${error.message}` });
+  }
+});
+
 // Manejador de errores
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   logger.error('Unhandled error:', err);

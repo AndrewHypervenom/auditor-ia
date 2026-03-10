@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { auditService, gpfService, getAuditTotalCost, type Audit, type GpfProxyResponse } from '../services/api';
+import { FileDown, CalendarRange } from 'lucide-react';
 import { 
   Sparkles,
   LogOut,
@@ -83,6 +84,21 @@ export default function AdminDashboard() {
   const [gpfTableView, setGpfTableView] = useState(false);
   const [gpfEndpointNeedsId, setGpfEndpointNeedsId] = useState(false);
   const [gpfIdAtencion, setGpfIdAtencion] = useState('');
+
+  // Estados para exportación Excel GPF
+  const [gpfExportId, setGpfExportId] = useState<number | null>(null);
+  const [gpfExportProgress, setGpfExportProgress] = useState<number | null>(null);
+  const [gpfExportLoading, setGpfExportLoading] = useState(false);
+  const [gpfDownloadLoading, setGpfDownloadLoading] = useState(false);
+  const [gpfExportForm, setGpfExportForm] = useState({
+    initial_date: '',
+    final_date: '',
+    phone: '',
+    case_number: '',
+    qualification: '',
+    agent: '',
+    date_type: '' as '' | 'alta' | 'edicion'
+  });
 
   const [systemStats, setSystemStats] = useState<SystemStats>({
     totalUsers: 0,
@@ -238,7 +254,8 @@ export default function AdminDashboard() {
         setGpfTokenUser(result.data.data.user || null);
         toast.success('Token obtenido correctamente');
       } else {
-        const msg = result.data?.error?.message || 'Credenciales inválidas';
+        const err = result.data?.error;
+        const msg = (typeof err === 'string' ? err : err?.message) || 'Credenciales inválidas';
         toast.error(`Error: ${msg}`);
       }
     } catch (error: any) {
@@ -313,6 +330,75 @@ export default function AdminDashboard() {
     setGpfIdAtencion('');
   };
 
+  const handleGpfGenerateExport = async () => {
+    if (!gpfExportForm.initial_date || !gpfExportForm.final_date) {
+      toast.error('Fecha inicial y final son requeridas');
+      return;
+    }
+    try {
+      setGpfExportLoading(true);
+      setGpfExportId(null);
+      setGpfExportProgress(null);
+      const result = await gpfService.proxy({
+        env: gpfEnv,
+        endpoint: '/api/quality-control/v1/generate-report',
+        method: 'POST',
+        token: gpfToken || undefined,
+        body: Object.fromEntries(
+          Object.entries(gpfExportForm).filter(([, v]) => v !== '')
+        )
+      });
+      if (result.data?.is_success && result.data?.data?.export_id != null) {
+        setGpfExportId(result.data.data.export_id);
+        toast.success(`Exportación generada · ID: ${result.data.data.export_id}`);
+      } else {
+        const err = result.data?.error;
+        toast.error((typeof err === 'string' ? err : err?.message) || 'Error al generar exportación');
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || error.message || 'Error de conexión');
+    } finally {
+      setGpfExportLoading(false);
+    }
+  };
+
+  const handleGpfDownloadExport = async () => {
+    if (gpfExportId === null) return;
+    try {
+      setGpfDownloadLoading(true);
+      setGpfExportProgress(null);
+      const result = await gpfService.downloadReport({
+        env: gpfEnv,
+        token: gpfToken || undefined,
+        export_id: gpfExportId
+      });
+      if (result.isFile) {
+        const url = window.URL.createObjectURL(result.blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = result.filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        toast.success(`Archivo descargado: ${result.filename}`);
+        setGpfExportProgress(100);
+      } else {
+        const progress = (result as { isFile: false; data: GpfProxyResponse }).data?.data?.export_progress ?? null;
+        setGpfExportProgress(progress);
+        if (progress !== null) {
+          toast(`Procesando exportación: ${progress}%`, { icon: '⏳' });
+        } else {
+          toast.error('Respuesta inesperada del servidor');
+        }
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || error.message || 'Error al descargar');
+    } finally {
+      setGpfDownloadLoading(false);
+    }
+  };
+
   const getStatusColor = (status: number) => {
     if (status >= 200 && status < 300) return 'text-emerald-400';
     if (status >= 400 && status < 500) return 'text-yellow-400';
@@ -333,14 +419,27 @@ export default function AdminDashboard() {
       { label: 'Capturas y Comentarios', path: '/api/quality-control/v1/captures-comments/', method: 'GET', body: '', needsId: true, confirmed: true },
       { label: 'Transacciones', path: '/api/quality-control/v1/transactions/', method: 'GET', body: '', needsId: true, confirmed: true },
       { label: 'Comentarios', path: '/api/quality-control/v1/comments/', method: 'GET', body: '', needsId: true, confirmed: true },
+      { label: 'Validaciones OTP', path: '/api/quality-control/v1/otp-validations/', method: 'GET', body: '', needsId: true, confirmed: true },
     ];
 
     const isSuccess = gpfResponse?.data?.is_success === true;
     const hasResponse = gpfResponse !== null;
-    const responseArray: any[] = Array.isArray(gpfResponse?.data?.data) ? gpfResponse!.data.data : [];
-    // Detecta columnas dinámicamente desde la primera fila de respuesta
+    const responseData = gpfResponse?.data?.data;
+
+    // Detectar tipo de respuesta según la estructura documentada en la API GPF
+    const isArray = Array.isArray(responseData);
+    const responseArray: any[] = isArray ? responseData : [];
     const tableColumns: string[] = responseArray.length > 0 ? Object.keys(responseArray[0]) : [];
     const canShowTable = responseArray.length > 0 && tableColumns.length > 0;
+
+    // Detectar respuestas estructuradas (no-array) según doc:
+    // captures-comments → { captures: string[], comments: string[] }
+    // transactions      → { transactions: { date, commerce_name, amount }[] }
+    // comments          → { comments: { date, comment, agent }[] }
+    const hasCaptures = !isArray && responseData != null && Array.isArray(responseData?.captures);
+    const hasTransactions = !isArray && Array.isArray(responseData?.transactions);
+    const hasCommentsObj = !isArray && Array.isArray(responseData?.comments) && responseData.comments.length > 0 && typeof responseData.comments[0] === 'object';
+    const hasOtpValidations = !isArray && Array.isArray(responseData?.otpValidations);
 
     return (
       <div className="space-y-6">
@@ -634,10 +733,20 @@ export default function AdminDashboard() {
                     {isSuccess ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-red-400" />}
                     <span className={`text-sm font-medium ${isSuccess ? 'text-emerald-300' : 'text-red-300'}`}>
                       {isSuccess
-                        ? `Solicitud exitosa${canShowTable ? ` · ${responseArray.length} registros encontrados` : ''}`
-                        : (gpfResponse.data?.error?.message || 'Solicitud fallida')}
+                        ? (() => {
+                            if (canShowTable) return `${responseArray.length} registros encontrados`;
+                            if (hasCaptures) return `${responseData.captures.length} capturas · ${(responseData.comments as string[]).length} comentarios`;
+                            if (hasTransactions) return `${responseData.transactions.length} transacciones`;
+                            if (hasCommentsObj) return `${responseData.comments.length} comentarios`;
+                            if (hasOtpValidations) return `${responseData.otpValidations.length} validaciones OTP`;
+                            return 'Solicitud exitosa';
+                          })()
+                        : (() => {
+                            const err = gpfResponse.data?.error;
+                            return (typeof err === 'string' ? err : err?.message) || 'Solicitud fallida';
+                          })()}
                     </span>
-                    {canShowTable && (
+                    {(canShowTable || hasTransactions || hasCommentsObj || hasOtpValidations) && (
                       <div className="ml-auto flex items-center rounded-lg overflow-hidden border border-slate-700">
                         <button
                           onClick={() => setGpfTableView(false)}
@@ -656,8 +765,74 @@ export default function AdminDashboard() {
                   </div>
                 )}
 
-                {/* Vista tabla - dinámica según respuesta */}
-                {canShowTable && gpfTableView ? (
+                {/* Vista estructurada: captures-comments */}
+                {isSuccess && hasCaptures && (
+                  <div className="space-y-4">
+                    {/* Capturas (imágenes) */}
+                    <div>
+                      <p className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wide">
+                        Capturas ({(responseData.captures as string[]).length})
+                      </p>
+                      {(responseData.captures as string[]).length === 0 ? (
+                        <p className="text-slate-500 text-sm italic">Sin capturas</p>
+                      ) : (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                          {(responseData.captures as string[]).map((url: string, idx: number) => (
+                            <a key={idx} href={url} target="_blank" rel="noopener noreferrer"
+                              className="block rounded-lg overflow-hidden border border-slate-700 hover:border-teal-500/60 transition-all group"
+                            >
+                              <img
+                                src={url}
+                                alt={`Captura ${idx + 1}`}
+                                className="w-full h-32 object-cover group-hover:opacity-90 transition-opacity"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                  (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden');
+                                }}
+                              />
+                              <div className="hidden px-2 py-3 text-xs text-teal-400 font-mono break-all bg-slate-800/80">
+                                {url}
+                              </div>
+                              <p className="text-xs text-slate-500 px-2 py-1 bg-slate-900 truncate" title={url}>
+                                {idx + 1} · {url.split('/').pop()}
+                              </p>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* Comentarios de captures-comments (strings) */}
+                    <div>
+                      <p className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wide">
+                        Comentarios ({(responseData.comments as string[]).length})
+                      </p>
+                      {(responseData.comments as string[]).length === 0 ? (
+                        <p className="text-slate-500 text-sm italic">Sin comentarios</p>
+                      ) : (
+                        <ul className="space-y-1">
+                          {(responseData.comments as string[]).map((c: string, idx: number) => (
+                            <li key={idx} className="flex items-start gap-2 px-3 py-2 bg-slate-800/60 rounded-lg border border-slate-700 text-sm text-slate-300">
+                              <span className="text-slate-600 font-mono text-xs mt-0.5">{idx + 1}.</span>
+                              {c}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(JSON.stringify(gpfResponse!.data, null, 2)); toast.success('JSON copiado'); }}
+                        className="flex items-center gap-1 px-2 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-xs text-slate-400 hover:text-white transition-all"
+                      >
+                        <Copy className="w-3 h-3" />
+                        Copiar JSON
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Vista tabla: attentions-quality-control (array plano) */}
+                {isSuccess && canShowTable && gpfTableView && !hasCaptures && (
                   <div className="overflow-x-auto rounded-lg border border-slate-700">
                     <table className="w-full text-xs">
                       <thead>
@@ -694,8 +869,128 @@ export default function AdminDashboard() {
                       </button>
                     </div>
                   </div>
-                ) : (
-                  /* JSON viewer */
+                )}
+
+                {/* Vista tabla: transactions */}
+                {isSuccess && hasTransactions && gpfTableView && (
+                  <div className="overflow-x-auto rounded-lg border border-slate-700">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-slate-800 border-b border-slate-700">
+                          <th className="px-3 py-2 text-left text-slate-400 font-medium">#</th>
+                          <th className="px-3 py-2 text-left text-slate-400 font-medium">Fecha</th>
+                          <th className="px-3 py-2 text-left text-slate-400 font-medium">Comercio</th>
+                          <th className="px-3 py-2 text-left text-slate-400 font-medium">Monto</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {responseData.transactions.map((t: any, idx: number) => (
+                          <tr key={idx} className={`border-b border-slate-800 hover:bg-slate-800/50 transition-colors ${idx % 2 === 0 ? '' : 'bg-slate-900/30'}`}>
+                            <td className="px-3 py-2 text-slate-500 font-mono">{idx + 1}</td>
+                            <td className="px-3 py-2 text-slate-300 whitespace-nowrap">{t.date ?? '—'}</td>
+                            <td className="px-3 py-2 text-slate-300 whitespace-nowrap max-w-[200px] truncate" title={t.commerce_name}>{t.commerce_name ?? '—'}</td>
+                            <td className="px-3 py-2 text-emerald-400 font-semibold whitespace-nowrap">{t.amount ?? '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="px-4 py-2 bg-slate-800/50 border-t border-slate-700 flex items-center justify-between">
+                      <span className="text-xs text-slate-500">{responseData.transactions.length} transacciones</span>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(JSON.stringify(gpfResponse!.data, null, 2)); toast.success('JSON copiado'); }}
+                        className="flex items-center gap-1 px-2 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-xs text-slate-400 hover:text-white transition-all"
+                      >
+                        <Copy className="w-3 h-3" />
+                        Copiar JSON
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Vista tabla: comments (objetos con date, comment, agent) */}
+                {isSuccess && hasCommentsObj && gpfTableView && (
+                  <div className="overflow-x-auto rounded-lg border border-slate-700">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-slate-800 border-b border-slate-700">
+                          <th className="px-3 py-2 text-left text-slate-400 font-medium">#</th>
+                          <th className="px-3 py-2 text-left text-slate-400 font-medium">Fecha</th>
+                          <th className="px-3 py-2 text-left text-slate-400 font-medium">Agente</th>
+                          <th className="px-3 py-2 text-left text-slate-400 font-medium">Comentario</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {responseData.comments.map((c: any, idx: number) => (
+                          <tr key={idx} className={`border-b border-slate-800 hover:bg-slate-800/50 transition-colors ${idx % 2 === 0 ? '' : 'bg-slate-900/30'}`}>
+                            <td className="px-3 py-2 text-slate-500 font-mono">{idx + 1}</td>
+                            <td className="px-3 py-2 text-slate-400 whitespace-nowrap">{c.date ?? '—'}</td>
+                            <td className="px-3 py-2 text-teal-400 whitespace-nowrap">{c.agent ?? '—'}</td>
+                            <td className="px-3 py-2 text-slate-300">{c.comment ?? '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="px-4 py-2 bg-slate-800/50 border-t border-slate-700 flex items-center justify-between">
+                      <span className="text-xs text-slate-500">{responseData.comments.length} comentarios</span>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(JSON.stringify(gpfResponse!.data, null, 2)); toast.success('JSON copiado'); }}
+                        className="flex items-center gap-1 px-2 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-xs text-slate-400 hover:text-white transition-all"
+                      >
+                        <Copy className="w-3 h-3" />
+                        Copiar JSON
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Vista tabla: validaciones OTP { date, agent, resultado: boolean } */}
+                {isSuccess && hasOtpValidations && gpfTableView && (
+                  <div className="overflow-x-auto rounded-lg border border-slate-700">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-slate-800 border-b border-slate-700">
+                          <th className="px-3 py-2 text-left text-slate-400 font-medium">#</th>
+                          <th className="px-3 py-2 text-left text-slate-400 font-medium">Fecha</th>
+                          <th className="px-3 py-2 text-left text-slate-400 font-medium">Agente</th>
+                          <th className="px-3 py-2 text-left text-slate-400 font-medium">Resultado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {responseData.otpValidations.map((v: any, idx: number) => (
+                          <tr key={idx} className={`border-b border-slate-800 hover:bg-slate-800/50 transition-colors ${idx % 2 === 0 ? '' : 'bg-slate-900/30'}`}>
+                            <td className="px-3 py-2 text-slate-500 font-mono">{idx + 1}</td>
+                            <td className="px-3 py-2 text-slate-400 whitespace-nowrap">{v.date ?? '—'}</td>
+                            <td className="px-3 py-2 text-teal-400 whitespace-nowrap">{v.agent ?? '—'}</td>
+                            <td className="px-3 py-2">
+                              {v.resultado === true || v.resultado === 'true' ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-semibold">
+                                  <CheckCircle2 className="w-3 h-3" /> Validado
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-red-400 font-semibold">
+                                  <XCircle className="w-3 h-3" /> Fallido
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="px-4 py-2 bg-slate-800/50 border-t border-slate-700 flex items-center justify-between">
+                      <span className="text-xs text-slate-500">{responseData.otpValidations.length} validaciones</span>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(JSON.stringify(gpfResponse!.data, null, 2)); toast.success('JSON copiado'); }}
+                        className="flex items-center gap-1 px-2 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-xs text-slate-400 hover:text-white transition-all"
+                      >
+                        <Copy className="w-3 h-3" />
+                        Copiar JSON
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* JSON viewer — se muestra cuando no hay vista estructurada o el usuario eligió JSON */}
+                {(!isSuccess || (!hasCaptures && !gpfTableView)) && (
                   <div className="relative">
                     <button
                       onClick={() => { navigator.clipboard.writeText(JSON.stringify(gpfResponse.data, null, 2)); toast.success('JSON copiado'); }}
@@ -713,6 +1008,158 @@ export default function AdminDashboard() {
             )}
           </div>
         )}
+
+        {/* PASO 3: Exportación Excel */}
+        <div className="card">
+          <h3 className="section-header">
+            <FileDown className="w-5 h-5 text-teal-400" />
+            <span>Paso 3 — Exportación Excel</span>
+            {!gpfToken && <span className="ml-auto text-xs text-yellow-400 font-normal flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Requiere token</span>}
+          </h3>
+          <p className="text-xs text-slate-500 mb-4">
+            Genera un reporte filtrado y descárgalo como Excel. <span className="text-teal-400 font-medium">initial_date</span> y <span className="text-teal-400 font-medium">final_date</span> son requeridos.
+          </p>
+
+          {/* Fechas */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                Fecha inicial <span className="text-red-400">*</span>
+              </label>
+              <div className="relative">
+                <CalendarRange className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                <input
+                  type="date"
+                  value={gpfExportForm.initial_date}
+                  onChange={(e) => setGpfExportForm(f => ({ ...f, initial_date: e.target.value }))}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-teal-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                Fecha final <span className="text-red-400">*</span>
+              </label>
+              <div className="relative">
+                <CalendarRange className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                <input
+                  type="date"
+                  value={gpfExportForm.final_date}
+                  onChange={(e) => setGpfExportForm(f => ({ ...f, final_date: e.target.value }))}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-teal-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Filtros opcionales */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">Teléfono</label>
+              <input
+                type="text"
+                value={gpfExportForm.phone}
+                onChange={(e) => setGpfExportForm(f => ({ ...f, phone: e.target.value }))}
+                placeholder="Opcional"
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-teal-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">Número de caso</label>
+              <input
+                type="text"
+                value={gpfExportForm.case_number}
+                onChange={(e) => setGpfExportForm(f => ({ ...f, case_number: e.target.value }))}
+                placeholder="Opcional"
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-teal-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">Calificación</label>
+              <input
+                type="text"
+                value={gpfExportForm.qualification}
+                onChange={(e) => setGpfExportForm(f => ({ ...f, qualification: e.target.value }))}
+                placeholder="Nombre de calificación"
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-teal-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">Agente (email)</label>
+              <input
+                type="text"
+                value={gpfExportForm.agent}
+                onChange={(e) => setGpfExportForm(f => ({ ...f, agent: e.target.value }))}
+                placeholder="email@ejemplo.com"
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-teal-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1.5">Tipo de fecha</label>
+              <select
+                value={gpfExportForm.date_type}
+                onChange={(e) => setGpfExportForm(f => ({ ...f, date_type: e.target.value as '' | 'alta' | 'edicion' }))}
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-teal-500"
+              >
+                <option value="">Sin filtro</option>
+                <option value="alta">alta</option>
+                <option value="edicion">edicion</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Botones de acción */}
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleGpfGenerateExport}
+              disabled={gpfExportLoading || !gpfExportForm.initial_date || !gpfExportForm.final_date}
+              className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
+            >
+              {gpfExportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+              {gpfExportLoading ? 'Generando...' : 'Generar exportación'}
+            </button>
+
+            {gpfExportId !== null && (
+              <button
+                onClick={handleGpfDownloadExport}
+                disabled={gpfDownloadLoading || gpfExportProgress === 100}
+                className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
+              >
+                {gpfDownloadLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {gpfDownloadLoading ? 'Descargando...' : `Descargar (ID: ${gpfExportId})`}
+              </button>
+            )}
+          </div>
+
+          {/* Estado del progreso */}
+          {gpfExportId !== null && (
+            <div className="mt-4 p-3 bg-slate-800/60 border border-slate-700 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-slate-300">
+                  Export ID: <span className="text-teal-400 font-mono">{gpfExportId}</span>
+                </span>
+                {gpfExportProgress !== null && (
+                  <span className={`text-xs font-semibold ${gpfExportProgress === 100 ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                    {gpfExportProgress === 100 ? 'Completado ✓' : `${gpfExportProgress}% procesando...`}
+                  </span>
+                )}
+              </div>
+              {gpfExportProgress !== null && gpfExportProgress < 100 && (
+                <>
+                  <div className="w-full bg-slate-700 rounded-full h-1.5 mb-2">
+                    <div
+                      className="bg-teal-500 h-1.5 rounded-full transition-all duration-500"
+                      style={{ width: `${gpfExportProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    El archivo aún está procesándose. Haz clic en "Descargar" nuevamente en unos segundos.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     );
   };
