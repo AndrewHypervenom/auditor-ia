@@ -87,9 +87,12 @@ export default function AdminDashboard() {
 
   // Estados para exportación Excel GPF
   const [gpfExportId, setGpfExportId] = useState<number | null>(null);
+  const [gpfExportIdInput, setGpfExportIdInput] = useState('');
   const [gpfExportProgress, setGpfExportProgress] = useState<number | null>(null);
   const [gpfExportLoading, setGpfExportLoading] = useState(false);
   const [gpfDownloadLoading, setGpfDownloadLoading] = useState(false);
+  const [gpfGenerateRawResponse, setGpfGenerateRawResponse] = useState<any>(null);
+  const [gpfDownloadError, setGpfDownloadError] = useState<string | null>(null);
   const [gpfExportForm, setGpfExportForm] = useState({
     initial_date: '',
     final_date: '',
@@ -338,7 +341,10 @@ export default function AdminDashboard() {
     try {
       setGpfExportLoading(true);
       setGpfExportId(null);
+      setGpfExportIdInput('');
       setGpfExportProgress(null);
+      setGpfGenerateRawResponse(null);
+      setGpfDownloadError(null);
       const result = await gpfService.proxy({
         env: gpfEnv,
         endpoint: '/api/quality-control/v1/generate-report',
@@ -348,9 +354,12 @@ export default function AdminDashboard() {
           Object.entries(gpfExportForm).filter(([, v]) => v !== '')
         )
       });
+      setGpfGenerateRawResponse(result);
       if (result.data?.is_success && result.data?.data?.export_id != null) {
-        setGpfExportId(result.data.data.export_id);
-        toast.success(`Exportación generada · ID: ${result.data.data.export_id}`);
+        const id = result.data.data.export_id;
+        setGpfExportId(id);
+        setGpfExportIdInput(String(id));
+        toast.success(`Exportación generada · ID: ${id}`);
       } else {
         const err = result.data?.error;
         toast.error((typeof err === 'string' ? err : err?.message) || 'Error al generar exportación');
@@ -363,14 +372,19 @@ export default function AdminDashboard() {
   };
 
   const handleGpfDownloadExport = async () => {
-    if (gpfExportId === null) return;
+    const idToUse = gpfExportId ?? (gpfExportIdInput.trim() ? parseInt(gpfExportIdInput.trim(), 10) : null);
+    if (idToUse === null || isNaN(idToUse)) {
+      toast.error('Ingresa un export_id válido');
+      return;
+    }
     try {
       setGpfDownloadLoading(true);
       setGpfExportProgress(null);
+      setGpfDownloadError(null);
       const result = await gpfService.downloadReport({
         env: gpfEnv,
         token: gpfToken || undefined,
-        export_id: gpfExportId
+        export_id: idToUse
       });
       if (result.isFile) {
         const url = window.URL.createObjectURL(result.blob);
@@ -383,23 +397,32 @@ export default function AdminDashboard() {
         document.body.removeChild(a);
         toast.success(`Archivo descargado: ${result.filename}`);
         setGpfExportProgress(100);
+        setGpfDownloadError(null);
       } else {
         // result.data = respuesta del backend { gpf_status, elapsed_ms, data: <GPF body> }
         // result.data.data = GPF body { data: { export_progress }, is_success, ... }
-        // result.data.data.data = { export_progress: number }
         const gpfBody = (result as any).data?.data;
+        const gpfStatus: number = (result as any).data?.gpf_status ?? 0;
         const progress: number | null = gpfBody?.data?.export_progress ?? null;
         const isSuccess: boolean = gpfBody?.is_success ?? false;
-        console.log('[GPF download-report]', { gpfBody, progress, isSuccess });
-        setGpfExportProgress(progress);
+
         if (progress !== null) {
-          toast(`Procesando exportación: ${progress}%`, { icon: '⏳' });
+          setGpfExportProgress(progress);
+          setGpfDownloadError(null);
+          toast(`Procesando: ${progress}%`, { icon: '⏳' });
         } else if (isSuccess) {
-          // El servidor respondió OK pero sin progreso — podría significar que está listo
-          toast.success('Exportación lista, vuelve a intentar la descarga');
+          setGpfExportProgress(null);
+          setGpfDownloadError(null);
+          toast.success('Respuesta OK sin progreso — reintenta la descarga');
         } else {
-          const errMsg = typeof gpfBody?.error === 'string' ? gpfBody.error : gpfBody?.error?.message || 'Error en la exportación';
-          toast.error(errMsg || 'Respuesta inesperada del servidor');
+          // Error de GPF — mostrar completo
+          const errObj = gpfBody?.error;
+          const errMsg = typeof errObj === 'string'
+            ? errObj
+            : errObj?.message || JSON.stringify(errObj) || 'Error desconocido';
+          const fullError = `GPF ${gpfStatus}: ${errMsg}`;
+          setGpfDownloadError(JSON.stringify({ gpf_status: gpfStatus, gpfBody }, null, 2));
+          toast.error(fullError);
         }
       }
     } catch (error: any) {
@@ -1118,57 +1141,82 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Botones de acción */}
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={handleGpfGenerateExport}
-              disabled={gpfExportLoading || !gpfExportForm.initial_date || !gpfExportForm.final_date}
-              className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
-            >
-              {gpfExportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
-              {gpfExportLoading ? 'Generando...' : 'Generar exportación'}
-            </button>
+          {/* Botón generar */}
+          <button
+            onClick={handleGpfGenerateExport}
+            disabled={gpfExportLoading || !gpfExportForm.initial_date || !gpfExportForm.final_date}
+            className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
+          >
+            {gpfExportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+            {gpfExportLoading ? 'Generando...' : 'Generar exportación'}
+          </button>
 
-            {gpfExportId !== null && (
-              <button
-                onClick={handleGpfDownloadExport}
-                disabled={gpfDownloadLoading || gpfExportProgress === 100}
-                className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
-              >
-                {gpfDownloadLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                {gpfDownloadLoading ? 'Descargando...' : `Descargar (ID: ${gpfExportId})`}
-              </button>
-            )}
-          </div>
-
-          {/* Estado del progreso */}
-          {gpfExportId !== null && (
-            <div className="mt-4 p-3 bg-slate-800/60 border border-slate-700 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-slate-300">
-                  Export ID: <span className="text-teal-400 font-mono">{gpfExportId}</span>
-                </span>
-                {gpfExportProgress !== null && (
-                  <span className={`text-xs font-semibold ${gpfExportProgress === 100 ? 'text-emerald-400' : 'text-yellow-400'}`}>
-                    {gpfExportProgress === 100 ? 'Completado ✓' : `${gpfExportProgress}% procesando...`}
-                  </span>
-                )}
-              </div>
-              {gpfExportProgress !== null && gpfExportProgress < 100 && (
-                <>
-                  <div className="w-full bg-slate-700 rounded-full h-1.5 mb-2">
-                    <div
-                      className="bg-teal-500 h-1.5 rounded-full transition-all duration-500"
-                      style={{ width: `${gpfExportProgress}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    El archivo aún está procesándose. Haz clic en "Descargar" nuevamente en unos segundos.
-                  </p>
-                </>
-              )}
+          {/* Respuesta de generate-report */}
+          {gpfGenerateRawResponse !== null && (
+            <div className={`mt-4 p-3 rounded-lg border text-xs ${gpfGenerateRawResponse?.data?.is_success ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+              <p className="font-semibold text-slate-300 mb-1">
+                {gpfGenerateRawResponse?.data?.is_success
+                  ? `✓ Exportación creada · export_id: ${gpfGenerateRawResponse?.data?.data?.export_id}`
+                  : `✗ Error al generar · GPF ${gpfGenerateRawResponse?.gpf_status}`}
+              </p>
+              <pre className="text-slate-400 font-mono overflow-x-auto whitespace-pre-wrap break-all max-h-24 overflow-y-auto">
+                {JSON.stringify(gpfGenerateRawResponse?.data, null, 2)}
+              </pre>
             </div>
           )}
+
+          {/* Sección de descarga — export_id manual o automático */}
+          <div className="mt-4 p-4 bg-slate-800/60 border border-slate-700 rounded-xl space-y-3">
+            <p className="text-xs font-semibold text-slate-300 uppercase tracking-wide">Descargar exportación</p>
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                  export_id <span className="text-slate-500 font-normal">(se llena automáticamente al generar, o ingrésalo manual)</span>
+                </label>
+                <input
+                  type="number"
+                  value={gpfExportIdInput}
+                  onChange={(e) => { setGpfExportIdInput(e.target.value); setGpfExportId(null); }}
+                  placeholder="Ej: 42"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 font-mono focus:outline-none focus:border-teal-500"
+                />
+              </div>
+              <button
+                onClick={handleGpfDownloadExport}
+                disabled={gpfDownloadLoading || gpfExportProgress === 100 || (!gpfExportId && !gpfExportIdInput.trim())}
+                className="flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all whitespace-nowrap"
+              >
+                {gpfDownloadLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {gpfDownloadLoading ? 'Consultando...' : 'Descargar'}
+              </button>
+            </div>
+
+            {/* Barra de progreso */}
+            {gpfExportProgress !== null && gpfExportProgress < 100 && (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-yellow-400 font-medium">Procesando: {gpfExportProgress}%</span>
+                  <span className="text-xs text-slate-500">Vuelve a hacer clic en "Descargar" en unos segundos</span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-1.5">
+                  <div className="bg-teal-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${gpfExportProgress}%` }} />
+                </div>
+              </div>
+            )}
+            {gpfExportProgress === 100 && (
+              <p className="text-xs text-emerald-400 font-semibold">✓ Descarga completada</p>
+            )}
+
+            {/* Error detallado de download-report */}
+            {gpfDownloadError && (
+              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                <p className="text-xs font-semibold text-red-400 mb-1">Respuesta de GPF al descargar:</p>
+                <pre className="text-xs text-slate-400 font-mono overflow-x-auto whitespace-pre-wrap break-all max-h-32 overflow-y-auto">
+                  {gpfDownloadError}
+                </pre>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
