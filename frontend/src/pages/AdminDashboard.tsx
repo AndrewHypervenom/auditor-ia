@@ -384,12 +384,22 @@ export default function AdminDashboard() {
         toast.success(`Archivo descargado: ${result.filename}`);
         setGpfExportProgress(100);
       } else {
-        const progress = (result as { isFile: false; data: GpfProxyResponse }).data?.data?.export_progress ?? null;
+        // result.data = respuesta del backend { gpf_status, elapsed_ms, data: <GPF body> }
+        // result.data.data = GPF body { data: { export_progress }, is_success, ... }
+        // result.data.data.data = { export_progress: number }
+        const gpfBody = (result as any).data?.data;
+        const progress: number | null = gpfBody?.data?.export_progress ?? null;
+        const isSuccess: boolean = gpfBody?.is_success ?? false;
+        console.log('[GPF download-report]', { gpfBody, progress, isSuccess });
         setGpfExportProgress(progress);
         if (progress !== null) {
           toast(`Procesando exportación: ${progress}%`, { icon: '⏳' });
+        } else if (isSuccess) {
+          // El servidor respondió OK pero sin progreso — podría significar que está listo
+          toast.success('Exportación lista, vuelve a intentar la descarga');
         } else {
-          toast.error('Respuesta inesperada del servidor');
+          const errMsg = typeof gpfBody?.error === 'string' ? gpfBody.error : gpfBody?.error?.message || 'Error en la exportación';
+          toast.error(errMsg || 'Respuesta inesperada del servidor');
         }
       }
     } catch (error: any) {
