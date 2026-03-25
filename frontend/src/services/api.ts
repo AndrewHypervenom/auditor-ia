@@ -299,6 +299,17 @@ export const auditService = {
   async deleteAudit(auditId: string): Promise<void> {
     const response = await api.delete(`/audits/${auditId}`);
     return response.data;
+  },
+
+  async evaluateFromGpf(params: {
+    attentionId: string | number;
+    env: 'test' | 'prod';
+    excelType: 'INBOUND' | 'MONITOREO';
+    sseClientId: string;
+    attentionObject?: GpfAttention;
+  }): Promise<{ success: boolean; auditId: string; excelFilename: string; costs?: any }> {
+    const response = await api.post('/evaluate-from-gpf', params);
+    return response.data;
   }
 };
 
@@ -372,6 +383,41 @@ export function getAuditScore(audit: Audit | null | undefined): number | null {
   return null;
 }
 
+// ✅ GPF Attention interface — matches the API documentation field names exactly
+export interface GpfAttention {
+  // Primary key
+  id_atencion?: string | number;
+  // Spanish display-name fields from API docs
+  'Llamada en curso'?: string;
+  'Estado llamada'?: string;
+  'Calificación'?: string;
+  'Sub-calificación'?: string;
+  'Origen validación'?: string;
+  'Actualización de datos'?: string;
+  'Socio'?: string;
+  'Correo cliente'?: string;
+  'Teléfono cliente'?: string;
+  'Caso'?: string;
+  'Agente'?: string;
+  'Resultado dictamen'?: string;
+  '4 dígitos TC'?: string;
+  'Tiene afectación'?: string;
+  'Folio BI'?: string;
+  'Comercio'?: string;
+  'Fecha de la compra'?: string;
+  'Monto de la compra'?: string;
+  'Estatus correo preventivo'?: string;
+  'Estatus SMS preventivo'?: string;
+  'Cliente no requiere re-plastificación'?: string;
+  // Fallback camelCase fields
+  id?: string | number;
+  executive_name?: string;
+  client_id?: string | number;
+  call_date?: string;
+  created_at?: string;
+  [key: string]: any;
+}
+
 // ✅ GPF API integration
 export interface GpfLoginParams {
   env: 'test' | 'prod';
@@ -407,6 +453,11 @@ export type GpfDownloadReportResult =
   | { isFile: true; blob: Blob; filename: string };
 
 export const gpfService = {
+  async getAttentions(env: 'test' | 'prod'): Promise<{ attentions: GpfAttention[]; count: number }> {
+    const response = await api.get(`/gpf/attentions?env=${env}`);
+    return response.data;
+  },
+
   async login(params: GpfLoginParams): Promise<GpfProxyResponse> {
     const response = await api.post('/gpf/login', params);
     return response.data;

@@ -17,7 +17,11 @@ import { evaluatorService } from './services/evaluator.service.js';
 import { excelService } from './services/excel.service.js';
 import { databaseService } from './services/database.service.js';
 import { costCalculatorService } from './services/cost-calculator.service.js';
-import { authenticateUser, requireAdmin } from './middleware/auth.middleware.js';
+import { authenticateUser, requireAdmin, requireAdminOrAnalyst } from './middleware/auth.middleware.js';
+import { gpfTokenService } from './services/gpf-token.service.js';
+import { gpfDataService } from './services/gpf-data.service.js';
+import { buildSyntheticTranscript } from './utils/synthetic-transcript.js';
+import { downloadImagesToTemp } from './utils/image-downloader.js';
 import { supabase, supabaseAdmin } from './config/supabase.js';
 import { progressBroadcaster } from './services/progress-broadcaster.js';
 import type { AuditInput } from './types/index.js';
@@ -1043,6 +1047,192 @@ app.post('/api/gpf/download-report', authenticateUser, requireAdmin, async (req:
   } catch (error: any) {
     logger.error('GPF download-report error:', error);
     res.status(502).json({ error: `Error conectando con GPF: ${error.message}` });
+  }
+});
+
+// ============================================
+// GPF ATTENTIONS (auto-auth)
+// ============================================
+
+app.get('/api/gpf/attentions', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+  try {
+    const env = (req.query.env as string) || 'test';
+    const token = await gpfTokenService.getTokenWithRetry(env);
+    const attentions = await gpfDataService.getAttentions(env, token);
+    res.json({ attentions, count: attentions.length });
+  } catch (error: any) {
+    logger.error('Error fetching GPF attentions:', error);
+
+    // If 401, invalidate token and let client retry
+    if (error.message?.includes('401')) {
+      gpfTokenService.invalidate((req.query.env as string) || 'test');
+    }
+
+    res.status(502).json({ error: `Error obteniendo atenciones GPF: ${error.message}` });
+  }
+});
+
+// ============================================
+// EVALUATE FROM GPF (no file upload needed)
+// ============================================
+
+app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+  const startTime = Date.now();
+  let auditId: string | null = null;
+  const tempFilePaths: string[] = [];
+
+  // attentionObject: the full attention row from the attentions list (passed by frontend)
+  const { attentionId, env = 'test', excelType, sseClientId: clientSseId, attentionObject } = req.body;
+  const sseClientId = clientSseId || uuidv4();
+
+  try {
+    if (!attentionId) {
+      return res.status(400).json({ error: 'attentionId es requerido' });
+    }
+
+    logger.info('🚀 Starting GPF-sourced audit', { attentionId, env, userId: req.user!.id });
+
+    // ── 1. Fetch attention data ──────────────────────────────────────────────
+    progressBroadcaster.progress(sseClientId, 'upload', 10, 'Obteniendo datos de atención...');
+
+    const token = await gpfTokenService.getTokenWithRetry(env);
+    const attentionData = await gpfDataService.fetchAttentionData(env, attentionId, token);
+
+    const rawExcelType = excelType || '';
+    const resolvedExcelType: 'INBOUND' | 'MONITOREO' =
+      rawExcelType === 'MONITOREO' ? 'MONITOREO' : 'INBOUND';
+
+    // Use the full attention object from the list for rich metadata
+    const metadata = {
+      ...gpfDataService.normalizeMetadata(attentionObject || {}, attentionId),
+      excelType: resolvedExcelType
+    };
+
+    // ── 2. Download images ───────────────────────────────────────────────────
+    progressBroadcaster.progress(sseClientId, 'upload', 20, 'Descargando capturas...');
+
+    const { localPaths } = await downloadImagesToTemp(attentionData.imageUrls, token);
+    tempFilePaths.push(...localPaths);
+    metadata.imagePaths = localPaths;
+
+    // ── 3. Create audit record ───────────────────────────────────────────────
+    progressBroadcaster.progress(sseClientId, 'upload', 25, 'Creando registro de auditoría...');
+
+    auditId = await databaseService.createAudit({
+      userId: req.user!.id,
+      auditInput: metadata,
+      audioFilename: 'gpf-sourced',
+      imageFilenames: localPaths.map(p => path.basename(p))
+    });
+
+    logger.success('✅ Audit record created', { auditId });
+
+    // ── 4. Analyze images ────────────────────────────────────────────────────
+    progressBroadcaster.progress(sseClientId, 'analysis', 50, 'Analizando imágenes con IA...');
+
+    const imageAnalyses = localPaths.length > 0
+      ? await openAIService.analyzeMultipleImages(localPaths)
+      : [];
+
+    const imageAnalysisSummary = imageAnalyses.length > 0
+      ? imageAnalyses.map(img => `${img.system}: ${JSON.stringify(img.data)}`).join('\n\n')
+      : 'No se encontraron capturas para analizar';
+
+    // ── 5. Build synthetic transcript ────────────────────────────────────────
+    progressBroadcaster.progress(sseClientId, 'analysis', 55, 'Procesando datos de atención...');
+
+    const syntheticTranscript = buildSyntheticTranscript(
+      attentionData.comments,
+      attentionData.transactions,
+      attentionData.otpValidations,
+      attentionData.rawComments
+    );
+
+    // ── 6. Evaluate ──────────────────────────────────────────────────────────
+    progressBroadcaster.progress(sseClientId, 'evaluation', 75, 'Evaluando con IA...');
+
+    const evaluation = await evaluatorService.evaluate(
+      metadata,
+      syntheticTranscript,
+      imageAnalyses
+    );
+
+    logger.success('✅ Evaluation completed', {
+      totalScore: evaluation.totalScore,
+      percentage: evaluation.percentage
+    });
+
+    // ── 7. Generate Excel ────────────────────────────────────────────────────
+    progressBroadcaster.progress(sseClientId, 'excel', 88, 'Generando reporte Excel...');
+
+    const excelResult = await excelService.generateExcelReport(metadata, evaluation);
+
+    // ── 8. Calculate costs (audio duration = 0 → $0 AssemblyAI) ─────────────
+    const costs = costCalculatorService.calculateTotalCost(
+      0, // no audio
+      localPaths.length,
+      0,
+      0,
+      evaluation.usage?.inputTokens || 0,
+      evaluation.usage?.outputTokens || 0
+    );
+
+    // ── 9. Persist to DB ─────────────────────────────────────────────────────
+    const excelBase64 = excelResult.buffer.toString('base64');
+
+    await databaseService.completeAudit(auditId, {
+      transcription: syntheticTranscript.text,
+      transcriptionWords: syntheticTranscript.words,
+      imageAnalysis: imageAnalysisSummary,
+      evaluation,
+      excelFilename: excelResult.filename,
+      excelBase64,
+      processingTimeMs: Date.now() - startTime,
+      costs
+    });
+
+    logger.success('✅ GPF audit completed', {
+      auditId,
+      totalTime: `${((Date.now() - startTime) / 1000).toFixed(2)}s`
+    });
+
+    // ── 10. Cleanup & respond ────────────────────────────────────────────────
+    cleanupTempFiles(tempFilePaths);
+
+    progressBroadcaster.progress(sseClientId, 'completed', 100, '¡Auditoría completada!');
+
+    await databaseService.logAuditActivity(
+      auditId,
+      req.user!.id,
+      'created',
+      null,
+      req.ip,
+      req.headers['user-agent']
+    );
+
+    res.json({
+      success: true,
+      auditId,
+      excelFilename: excelResult.filename,
+      processingTime: Date.now() - startTime,
+      costs
+    });
+
+  } catch (error: any) {
+    logger.error('❌ Error processing GPF audit:', error);
+
+    if (auditId) {
+      await databaseService.markAuditError(auditId, error.message);
+    }
+
+    progressBroadcaster.progress(sseClientId, 'error', 0, `Error: ${error.message}`);
+    cleanupTempFiles(tempFilePaths);
+
+    res.status(500).json({
+      error: 'Error procesando auditoría GPF',
+      details: error.message,
+      auditId
+    });
   }
 });
 

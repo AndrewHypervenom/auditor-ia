@@ -26,7 +26,7 @@ class OpenAIService {
       const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
 
       const response = await this.client.chat.completions.create({
-        model: 'gpt-4o',
+        model: 'gpt-5.1',
         max_tokens: 4000,
         temperature: 0,
         seed: 42,
