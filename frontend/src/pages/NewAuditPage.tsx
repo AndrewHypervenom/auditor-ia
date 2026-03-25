@@ -146,11 +146,11 @@ export default function NewAuditPage() {
       const result = await gpfService.getAttentions(env);
       setAttentions(result.attentions || []);
       if ((result.attentions || []).length === 0) {
-        toast('No se encontraron atenciones para este ambiente.', { icon: 'ℹ️' });
+        toast('No se encontraron casos para este ambiente.', { icon: 'ℹ️' });
       }
     } catch (error: any) {
       console.error('Error loading attentions:', error);
-      toast.error(error.response?.data?.error || 'Error al cargar atenciones GPF');
+      toast.error(error.response?.data?.error || 'Error al cargar casos GPF');
     } finally {
       setLoadingAttentions(false);
     }
@@ -169,7 +169,7 @@ export default function NewAuditPage() {
       setState('confirming');
     } catch (error: any) {
       console.error('Error loading attention detail:', error);
-      toast.error(error.response?.data?.error || 'Error al cargar detalle de la atención');
+      toast.error(error.response?.data?.error || 'Error al cargar detalle del caso');
       // Still allow confirming even without detail
       setState('confirming');
     }
@@ -297,7 +297,7 @@ export default function NewAuditPage() {
           <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-800 shadow-2xl p-8">
             <h2 className="text-xl font-semibold text-slate-200 mb-6 flex items-center gap-2">
               <Database className="w-5 h-5 text-blue-400" />
-              Seleccionar Atención GPF
+              Seleccionar Caso GPF
             </h2>
 
             {/* Env selector + load button */}
@@ -323,7 +323,7 @@ export default function NewAuditPage() {
                 className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg flex items-center gap-2"
               >
                 {loadingAttentions ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
-                {loadingAttentions ? 'Cargando...' : 'Cargar Atenciones'}
+                {loadingAttentions ? 'Cargando...' : 'Cargar Casos'}
               </button>
 
               {attentions.length > 0 && (
@@ -348,8 +348,8 @@ export default function NewAuditPage() {
               {attentions.length > 0 && (
                 <span className="text-sm text-slate-500 ml-auto self-center">
                   {filteredAttentions.length === attentions.length
-                    ? `${attentions.length} atenciones`
-                    : `${filteredAttentions.length} de ${attentions.length} atenciones`}
+                    ? `${attentions.length} casos`
+                    : `${filteredAttentions.length} de ${attentions.length} casos`}
                 </span>
               )}
             </div>
@@ -488,7 +488,7 @@ export default function NewAuditPage() {
                 {filteredAttentions.length === 0 ? (
                   <div className="text-center py-12 text-slate-500">
                     <Search className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                    <p>No hay atenciones que coincidan con los filtros</p>
+                    <p>No hay casos que coincidan con los filtros</p>
                     <button onClick={clearFilters} className="mt-2 text-sm text-blue-400 hover:text-blue-300 underline">
                       Limpiar filtros
                     </button>
@@ -498,9 +498,9 @@ export default function NewAuditPage() {
                     <table className="w-full text-sm text-slate-300">
                       <thead>
                         <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider">
-                          <th className="px-4 py-3 text-left">Fecha compra</th>
+                          <th className="px-4 py-3 text-left">Fecha</th>
                           <th className="px-4 py-3 text-left">Agente</th>
-                          <th className="px-4 py-3 text-left">ID Atención</th>
+                          <th className="px-4 py-3 text-left">ID Caso</th>
                           <th className="px-4 py-3 text-left">Calificación</th>
                           <th className="px-4 py-3 text-left">Estado</th>
                           <th className="px-4 py-3 text-left">Cliente / Caso</th>
@@ -557,7 +557,7 @@ export default function NewAuditPage() {
                       </tbody>
                     </table>
                     <div className="px-4 py-2 bg-slate-800/40 border-t border-slate-700 text-xs text-slate-500">
-                      {filteredAttentions.length} atención{filteredAttentions.length !== 1 ? 'es' : ''} mostrada{filteredAttentions.length !== 1 ? 's' : ''}
+                      {filteredAttentions.length} caso{filteredAttentions.length !== 1 ? 's' : ''} mostrado{filteredAttentions.length !== 1 ? 's' : ''}
                     </div>
                   </div>
                 )}
@@ -568,7 +568,7 @@ export default function NewAuditPage() {
             {!loadingAttentions && attentions.length === 0 && (
               <div className="text-center py-16 text-slate-500">
                 <Database className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p>Carga las atenciones para comenzar</p>
+                <p>Carga los casos para comenzar</p>
               </div>
             )}
           </div>
@@ -578,7 +578,7 @@ export default function NewAuditPage() {
         {state === 'loading-detail' && selectedAttention && (
           <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-800 shadow-2xl p-12 max-w-2xl mx-auto text-center">
             <Loader2 className="w-10 h-10 text-purple-400 animate-spin mx-auto mb-4" />
-            <p className="text-slate-300 font-medium text-lg mb-1">Cargando detalle de la atención</p>
+            <p className="text-slate-300 font-medium text-lg mb-1">Cargando detalle del caso</p>
             <p className="text-slate-500 text-sm">
               ID: <span className="font-mono text-blue-400">{String(getAttentionId(selectedAttention))}</span>
               {' · '}Obteniendo capturas, transacciones y comentarios...
@@ -594,7 +594,7 @@ export default function NewAuditPage() {
               <div>
                 <h2 className="text-xl font-semibold text-slate-200">Confirmar Auditoría</h2>
                 <p className="text-slate-500 text-sm">
-                  Atención <span className="font-mono text-blue-400">{String(getAttentionId(selectedAttention))}</span>
+                  Caso <span className="font-mono text-blue-400">{String(getAttentionId(selectedAttention))}</span>
                   {' · '}{env.toUpperCase()}
                 </p>
               </div>
@@ -635,7 +635,7 @@ export default function NewAuditPage() {
             {detailTab === 'info' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
                 {[
-                  ['ID Atención', String(getAttentionId(selectedAttention))],
+                  ['ID Caso', String(getAttentionId(selectedAttention))],
                   ['Ejecutivo / Agente', getAttentionExecutive(selectedAttention)],
                   ['Calificación', getAttentionCalificacion(selectedAttention)],
                   ['Sub-calificación', selectedAttention['Sub-calificación'] ?? ''],
