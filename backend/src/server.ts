@@ -1072,6 +1072,26 @@ app.get('/api/gpf/attentions', authenticateUser, requireAdminOrAnalyst, async (r
   }
 });
 
+// GET /api/gpf/attention-detail?env=test&id=123
+// Fetches captures, transactions, comments and OTP validations for one attention
+app.get('/api/gpf/attention-detail', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+  try {
+    const env = (req.query.env as string) || 'test';
+    const id = req.query.id as string;
+    if (!id) return res.status(400).json({ error: 'El parámetro id es requerido' });
+
+    const token = await gpfTokenService.getTokenWithRetry(env);
+    const data = await gpfDataService.fetchAttentionData(env, id, token);
+    res.json(data);
+  } catch (error: any) {
+    logger.error('Error fetching GPF attention detail:', error);
+    if (error.message?.includes('401')) {
+      gpfTokenService.invalidate((req.query.env as string) || 'test');
+    }
+    res.status(502).json({ error: `Error obteniendo detalle de atención GPF: ${error.message}` });
+  }
+});
+
 // ============================================
 // EVALUATE FROM GPF (no file upload needed)
 // ============================================

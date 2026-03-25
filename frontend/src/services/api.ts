@@ -452,9 +452,22 @@ export type GpfDownloadReportResult =
   | { isFile: false; data: GpfProxyResponse }
   | { isFile: true; blob: Blob; filename: string };
 
+export interface GpfAttentionDetail {
+  imageUrls: string[];
+  rawComments: string[];
+  transactions: { date: string; commerce_name: string; amount: string }[];
+  comments: { date: string; comment: string; agent: string }[];
+  otpValidations: { date: string; agent: string; resultado: boolean }[];
+}
+
 export const gpfService = {
   async getAttentions(env: 'test' | 'prod'): Promise<{ attentions: GpfAttention[]; count: number }> {
     const response = await api.get(`/gpf/attentions?env=${env}`);
+    return response.data;
+  },
+
+  async getAttentionDetail(env: 'test' | 'prod', id: string | number): Promise<GpfAttentionDetail> {
+    const response = await api.get(`/gpf/attention-detail?env=${env}&id=${encodeURIComponent(String(id))}`);
     return response.data;
   },
 
