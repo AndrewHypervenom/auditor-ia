@@ -99,7 +99,7 @@ export default function NewAuditPage() {
  const [filterClient, setFilterClient] = useState('');
  const [filterCalificacion, setFilterCalificacion] = useState('');
  const [filterEstado, setFilterEstado] = useState('');
- const [showFilters, setShowFilters] = useState(false);
+ const [showFilters, setShowFilters] = useState(true);
 
  const activeFilterCount = [filterDateFrom, filterDateTo, filterAgent, filterClient, filterCalificacion, filterEstado]
  .filter(Boolean).length;
@@ -141,7 +141,6 @@ export default function NewAuditPage() {
 
  const handleLoadAttentions = async () => {
  setLoadingAttentions(true);
- clearFilters();
  try {
  const result = await gpfService.getAttentions(env);
  setAttentions(result.attentions || []);
@@ -305,7 +304,7 @@ export default function NewAuditPage() {
  <div className="relative">
  <select
  value={env}
- onChange={(e) => { setEnv(e.target.value as 'test' | 'prod'); setAttentions([]); clearFilters(); }}
+ onChange={(e) => { setEnv(e.target.value as 'test' | 'prod'); setAttentions([]); }}
  className="w-40 px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-200 appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
  >
  <option value="test">Test</option>
@@ -324,7 +323,6 @@ export default function NewAuditPage() {
  {loadingAttentions ? 'Cargando...' : 'Cargar Casos'}
  </button>
 
- {attentions.length > 0 && (
  <button
  onClick={() => setShowFilters(!showFilters)}
  className={`px-4 py-3 rounded-lg font-medium flex items-center gap-2 border transition-all ${
@@ -341,7 +339,6 @@ export default function NewAuditPage() {
  </span>
  )}
  </button>
- )}
 
  {attentions.length > 0 && (
  <span className="text-sm text-slate-500 ml-auto self-center">
@@ -353,7 +350,7 @@ export default function NewAuditPage() {
  </div>
 
  {/* Filters panel */}
- {showFilters && attentions.length > 0 && (
+ {showFilters && (
  <div className="mb-6 p-4 bg-slate-800/40 border border-slate-700 rounded-xl">
  <div className="flex items-center justify-between mb-3">
  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
@@ -486,12 +483,30 @@ export default function NewAuditPage() {
  </div>
  )}
 
- {/* Skeleton loader */}
+ {/* Dynamic loader */}
  {loadingAttentions && (
- <div className="space-y-3">
- {[...Array(5)].map((_, i) => (
- <div key={i} className="h-12 bg-slate-800/60 rounded-lg animate-pulse" />
+ <div className="flex flex-col items-center justify-center py-16 gap-6">
+ {/* Spinner doble-anillo */}
+ <div className="relative w-16 h-16">
+ <div className="absolute inset-0 rounded-full border-4 border-slate-700" />
+ <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-500 border-r-purple-500 animate-spin" />
+ </div>
+ {/* Texto descriptivo */}
+ <div className="text-center">
+ <p className="text-slate-300 font-medium text-lg">Cargando casos</p>
+ <p className="text-slate-500 text-sm mt-1 animate-pulse">Consultando la API de GPF...</p>
+ </div>
+ {/* Filas shimmer escalonadas */}
+ <div className="w-full max-w-md space-y-3">
+ {[...Array(4)].map((_, i) => (
+ <div key={i} className="h-10 bg-slate-800/60 rounded-lg overflow-hidden relative">
+ <div
+ className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-700/50 to-transparent animate-shimmer"
+ style={{ animationDelay: `${i * 200}ms` }}
+ />
+ </div>
  ))}
+ </div>
  </div>
  )}
 
