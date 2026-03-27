@@ -23,7 +23,6 @@ const getApiBaseUrl = (): string => {
 
 const API_BASE_URL = getApiBaseUrl();
 
-console.log(' API Base URL:', API_BASE_URL);
 
 const api = axios.create({
  baseURL: `${API_BASE_URL}/api`,
@@ -227,9 +226,7 @@ export const auditService = {
  totalCosts?: number;
  }> {
  try {
- console.log(' Fetching stats from /api/audits/stats...');
  const response = await api.get('/audits/stats');
- console.log(' Stats received:', response.data);
  
  // Asegurar que todos los campos existen con valores por defecto
  const stats = response.data || {};

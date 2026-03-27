@@ -207,8 +207,6 @@ export default function NewAuditPage() {
  if (message.data?.auditId) completedAuditId = message.data.auditId;
  setProcessing({ stage: 'completed', progress: 100, message: '¡Auditoría completada!' });
  eventSource.close();
- console.log(`%c GPF audit completed in ${formatTime(Date.now() - startTime)}`, 'color: #10b981; font-weight: bold');
- console.log(message.data);
  setTimeout(() => {
  if (completedAuditId) {
  toast.success('¡Evaluación completada exitosamente!', { duration: 4000, icon: '' });

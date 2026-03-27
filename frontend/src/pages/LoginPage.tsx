@@ -18,7 +18,6 @@ export default function LoginPage() {
  // Redirigir si ya está autenticado Y tiene perfil activo
  useEffect(() => {
  if (!authLoading && user && profile) {
- console.log(' User already authenticated, redirecting...');
  const from = (location.state as any)?.from?.pathname || '/dashboard';
  navigate(from, { replace: true });
  }
@@ -35,7 +34,6 @@ export default function LoginPage() {
  setLoading(true);
 
  try {
- console.log(' Attempting login...');
  await signIn(email, password);
  
  // Esperar a que el AuthContext procese el perfil

@@ -71,23 +71,18 @@ export default function SupervisorDashboard() {
  const loadAudits = async () => {
  try {
  setLoading(true);
- console.log('ðŸ“‹ Loading audits...');
  const response = await auditService.getUserAudits();
- console.log('âœ… Audits loaded:', response);
  
  // âœ… Verificar que response y response.audits existen
  if (!response || !response.audits) {
- console.warn('âš ï¸ Invalid response from getUserAudits:', response);
  setAudits([]);
  return;
  }
  
  // âœ… Asegurar que audits es un array
  const auditsArray = Array.isArray(response.audits) ? response.audits : [];
- console.log('âœ… Setting audits:', auditsArray.length);
  setAudits(auditsArray);
  } catch (error: any) {
- console.error('âŒ Error loading audits:', error);
  toast.error('Error al cargar auditorías');
  setAudits([]); // âœ… Asegurar array vacío en caso de error
  } finally {
@@ -98,13 +93,10 @@ export default function SupervisorDashboard() {
  const loadStats = async () => {
  try {
  setLoadingStats(true);
- console.log('ðŸ“Š Loading stats...');
  const statsData = await auditService.getStats();
- console.log('âœ… Stats loaded:', statsData);
  
  // âœ… Verificar que statsData existe
  if (!statsData || typeof statsData !== 'object') {
- console.warn('âš ï¸ Invalid stats response:', statsData);
  setStats({
  totalAudits: 0,
  completedAudits: 0,
@@ -129,7 +121,6 @@ export default function SupervisorDashboard() {
  totalCosts: statsData.totalCosts || 0
  });
  } catch (error: any) {
- console.error('âŒ Error loading stats:', error);
  toast.error('Error al cargar estadísticas');
  // âœ… Valores por defecto en caso de error
  setStats({

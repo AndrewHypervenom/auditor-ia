@@ -44,18 +44,12 @@ export function setupAutoRefresh(): () => void {
  try {
  const { data: { session } } = await supabase.auth.getSession();
  
- if (!session) {
- console.log('ℹ No active session to refresh');
- return;
- }
+ if (!session) return;
 
  const remaining = getSessionTimeRemaining();
- 
- // Si quedan menos de 10 minutos, refrescar el token
+
  if (remaining > 0 && remaining <= SESSION_CONFIG.REFRESH_THRESHOLD_SECONDS) {
- console.log(' Refreshing token...');
  await supabase.auth.refreshSession();
- console.log(' Token refreshed successfully');
  }
  } catch (error) {
  console.error(' Error in auto-refresh:', error);

@@ -152,15 +152,9 @@ export default function AdminDashboard() {
 
  const loadSystemStats = async () => {
  try {
- console.log(' Cargando estadísticas...');
- 
- // Obtener estadísticas reales de auditorías
  const stats = await auditService.getStats();
- console.log(' Stats del backend:', stats);
- 
- // Verificar que stats existe
+
  if (!stats || typeof stats !== 'object') {
- console.warn(' Invalid stats response:', stats);
  setSystemStats({
  totalUsers: 0,
  activeUsers: 0,
@@ -175,10 +169,7 @@ export default function AdminDashboard() {
  // Obtener todas las auditorías para calcular costos totales
  const response = await auditService.getUserAudits();
  const allAudits = (response && Array.isArray(response.audits)) ? response.audits : [];
- console.log(' Total auditorías encontradas:', allAudits.length);
- 
  const totalCosts = allAudits.reduce((sum, audit) => sum + getAuditTotalCost(audit), 0);
- console.log(' Costos totales calculados:', totalCosts);
 
  setSystemStats({
  totalUsers: stats.totalExecutives || 0,
@@ -188,10 +179,7 @@ export default function AdminDashboard() {
  averageScore: Math.round(stats.averageScore || 0),
  totalCosts: totalCosts
  });
-
- console.log(' Estadísticas actualizadas correctamente');
  } catch (error) {
- console.error(' Error al cargar estadísticas:', error);
  toast.error('Error al cargar estadísticas');
  // Valores por defecto si falla
  setSystemStats({

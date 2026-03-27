@@ -44,8 +44,6 @@ const logAuthEvent = (event: string, data?: any) => {
  ...data
  };
  
- console.log(` [AUTH] ${event}`, data || '');
- 
  try {
  const logs = JSON.parse(localStorage.getItem('auth_logs') || '[]');
  logs.unshift(logEntry);
@@ -72,22 +70,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  // ============================================
  const loadUserProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
  if (isLoadingProfile.current) {
- console.log(' Profile load already in progress, skipping');
  return null;
  }
 
  // Verificar caché
  const cached = profileCache.get(userId);
  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
- console.log(' Using cached profile');
  return cached.profile;
  }
 
  isLoadingProfile.current = true;
 
  try {
- console.log(' Loading user profile...', userId);
- 
  const timeoutPromise = new Promise<never>((_, reject) => {
  setTimeout(() => reject(new Error('Profile load timeout')), PROFILE_LOAD_TIMEOUT);
  });
@@ -104,13 +98,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  ]) as any;
 
  if (error) {
- console.error(' Error loading profile:', error);
  logAuthEvent('PROFILE_LOAD_ERROR', { userId, error: error.message });
  return null;
  }
 
  if (!userProfile) {
- console.warn(' No profile found for user');
  logAuthEvent('PROFILE_NOT_FOUND', { userId });
  return null;
  }
@@ -119,7 +111,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  // VERIFICAR SI LA CUENTA ESTÁ DESACTIVADA
  // ============================================
  if (userProfile.is_active === false) {
- console.warn(' User account is inactive, logging out...');
  logAuthEvent('ACCOUNT_INACTIVE_AUTO_LOGOUT', { 
  userId, 
  email: userProfile.email 
@@ -140,17 +131,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  timestamp: Date.now()
  });
 
- console.log(' Profile loaded successfully');
  logAuthEvent('PROFILE_LOADED', { userId, role: userProfile.role });
  
  return userProfile;
  } catch (error: any) {
- console.error(' Profile load error:', error);
  logAuthEvent('PROFILE_LOAD_TIMEOUT', { userId });
- 
- if (error.message === 'Profile load timeout') {
- console.warn(' Profile load timeout, user can still access basic features');
- }
  return null;
  } finally {
  isLoadingProfile.current = false;
@@ -162,8 +147,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  // ============================================
  const refreshProfile = useCallback(async () => {
  if (!user?.id) return;
- 
- console.log(' Refreshing profile...');
  profileCache.delete(user.id);
  
  const userProfile = await loadUserProfile(user.id);
@@ -181,12 +164,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
  const initAuth = async () => {
  try {
- console.log(' Initializing authentication...');
  logAuthEvent('AUTH_INIT_START');
- 
+
  const initTimeout = setTimeout(() => {
  if (!initializationComplete.current && isMounted) {
- console.warn(' Auth initialization timeout');
  logAuthEvent('AUTH_INIT_TIMEOUT');
  setLoading(false);
  }
@@ -197,7 +178,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  if (!isMounted) return;
 
  if (error) {
- console.error(' Error getting session:', error);
  logAuthEvent('SESSION_ERROR', { error: error.message });
  setLoading(false);
  clearTimeout(initTimeout);
@@ -208,10 +188,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  setUser(initialSession?.user ?? null);
  
  if (initialSession?.user) {
- console.log(' Session found');
- logAuthEvent('SESSION_FOUND', { 
+ logAuthEvent('SESSION_FOUND', {
  userId: initialSession.user.id,
- email: initialSession.user.email 
+ email: initialSession.user.email
  });
  
  const userProfile = await loadUserProfile(initialSession.user.id);
@@ -223,7 +202,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  autoRefreshCleanup.current = setupAutoRefresh();
  }
  } else {
- console.log('ℹ No active session');
  logAuthEvent('NO_SESSION');
  }
  
@@ -235,7 +213,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  }
 
  } catch (error) {
- console.error(' Auth initialization error:', error);
  logAuthEvent('AUTH_INIT_ERROR', { error });
  if (isMounted) {
  setLoading(false);
@@ -249,7 +226,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  const {
  data: { subscription },
  } = supabase.auth.onAuthStateChange(async (event, newSession) => {
- console.log(' Auth state changed:', event);
  logAuthEvent('AUTH_STATE_CHANGE', { event });
  
  if (!isMounted) return;
@@ -337,7 +313,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  setSessionTimeRemaining(remaining);
  
  if (remaining > 0 && remaining <= 30 * 60 && remaining > 29 * 60) {
- console.warn(' Session expires in 30 minutes');
  logAuthEvent('SESSION_EXPIRING_SOON', { remainingMinutes: 30 });
  }
  };
@@ -352,7 +327,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  // SIGN IN
  // ============================================
  const signIn = async (email: string, password: string) => {
- console.log(' Signing in...');
  logAuthEvent('SIGN_IN_ATTEMPT', { email });
  
  const { error } = await supabase.auth.signInWithPassword({
@@ -372,7 +346,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  // SIGN OUT
  // ============================================
  const signOut = async () => {
- console.log(' Signing out...');
  logAuthEvent('SIGN_OUT_ATTEMPT', { userId: user?.id });
  
  const { error } = await supabase.auth.signOut();
