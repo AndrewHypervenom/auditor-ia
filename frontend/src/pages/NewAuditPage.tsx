@@ -438,7 +438,6 @@ export default function NewAuditPage() {
  </div>
  </div>
  {/* Calificación */}
- {uniqueCalificaciones.length > 0 && (
  <div>
  <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
  <Tag className="w-3 h-3" /> Calificación
@@ -457,9 +456,7 @@ export default function NewAuditPage() {
  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
  </div>
  </div>
- )}
  {/* Estado */}
- {uniqueEstados.length > 0 && (
  <div>
  <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
  <Tag className="w-3 h-3" /> Estado llamada
@@ -477,8 +474,6 @@ export default function NewAuditPage() {
  </select>
  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
  </div>
- </div>
- )}
  </div>
  </div>
  )}
