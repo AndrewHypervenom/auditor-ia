@@ -600,13 +600,33 @@ export default function NewAuditPage() {
 
  {/* ── LOADING DETAIL STATE ──────────────────────────────────────────── */}
  {state === 'loading-detail' && selectedAttention && (
- <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-800 shadow-2xl p-12 max-w-2xl mx-auto text-center">
- <Loader2 className="w-10 h-10 text-purple-400 animate-spin mx-auto mb-4" />
- <p className="text-slate-300 font-medium text-lg mb-1">Cargando detalle del caso</p>
- <p className="text-slate-500 text-sm">
+ <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-800 shadow-2xl p-12 max-w-2xl mx-auto">
+ <div className="flex flex-col items-center justify-center gap-6">
+ {/* Spinner doble-anillo */}
+ <div className="relative w-16 h-16">
+ <div className="absolute inset-0 rounded-full border-4 border-slate-700" />
+ <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-purple-500 border-r-blue-500 animate-spin" />
+ </div>
+ {/* Texto */}
+ <div className="text-center">
+ <p className="text-slate-300 font-medium text-lg">Cargando detalle del caso</p>
+ <p className="text-slate-500 text-sm mt-1">
  ID: <span className="font-mono text-blue-400">{String(getAttentionId(selectedAttention))}</span>
- {' · '}Obteniendo capturas, transacciones y comentarios...
  </p>
+ <p className="text-slate-500 text-sm animate-pulse mt-0.5">Obteniendo capturas, transacciones y comentarios...</p>
+ </div>
+ {/* Filas shimmer escalonadas */}
+ <div className="w-full max-w-md space-y-3">
+ {[...Array(4)].map((_, i) => (
+ <div key={i} className="h-10 bg-slate-800/60 rounded-lg overflow-hidden relative">
+ <div
+ className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-700/50 to-transparent animate-shimmer"
+ style={{ animationDelay: `${i * 200}ms` }}
+ />
+ </div>
+ ))}
+ </div>
+ </div>
  </div>
  )}
 
