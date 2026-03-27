@@ -476,6 +476,7 @@ export default function NewAuditPage() {
  </div>
  </div>
  </div>
+ </div>
  )}
 
  {/* Dynamic loader */}
