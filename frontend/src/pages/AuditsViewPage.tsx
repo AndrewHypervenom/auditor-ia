@@ -1,5 +1,4 @@
 // frontend/src/pages/AuditsViewPage.tsx
-// Vista mejorada de auditorÃ­as con mejor UX/UI y exportaciÃ³n Excel optimizada
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -662,6 +661,14 @@ export default function AuditsViewPage() {
  case 'today':
  if (auditDate.toDateString() !== now.toDateString()) return false;
  break;
+ case 'yesterday': {
+ // Usa timezone local del navegador (funciona para Colombia UTC-5 y México UTC-6)
+ const y = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+ const startOfYesterday = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 0, 0, 0, 0);
+ const endOfYesterday   = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 23, 59, 59, 999);
+ if (auditDate < startOfYesterday || auditDate > endOfYesterday) return false;
+ break;
+ }
  case 'week':
  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
  if (auditDate < weekAgo) return false;
@@ -901,7 +908,37 @@ export default function AuditsViewPage() {
 
  {/* Panel de Filtros */}
  {showFilters && (
- <div className="mt-4 pt-4 border-t border-slate-700 grid grid-cols-1 md:grid-cols-3 gap-4">
+ <div className="mt-4 pt-4 border-t border-slate-700">
+ {/* Accesos rápidos */}
+ <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+ <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Accesos rápidos</span>
+ <div className="flex flex-wrap gap-2">
+ <button
+ onClick={() => setDateFilter('yesterday')}
+ className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+ dateFilter === 'yesterday'
+ ? 'bg-amber-600 text-white'
+ : 'bg-slate-800 text-amber-400 hover:bg-amber-600/20 border border-amber-600/40'
+ }`}
+ >
+ <Calendar className="w-3.5 h-3.5" />
+ Día vencido
+ </button>
+ <button
+ onClick={() => {
+ setSearchTerm('');
+ setStatusFilter('all');
+ setCallTypeFilter('all');
+ setDateFilter('all');
+ }}
+ className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 border border-slate-700"
+ >
+ <X className="w-3.5 h-3.5" />
+ Limpiar filtros
+ </button>
+ </div>
+ </div>
+ <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
  <div>
  <label className="block text-sm text-slate-400 mb-2 font-medium">Estado</label>
  <select
@@ -938,9 +975,11 @@ export default function AuditsViewPage() {
  >
  <option value="all">Ã°Å¸â€œâ€¦ Todo el tiempo</option>
  <option value="today">Hoy</option>
+ <option value="yesterday">Ayer (día vencido)</option>
  <option value="week">Ãšltima semana</option>
  <option value="month">Ãšltimo mes</option>
  </select>
+ </div>
  </div>
  </div>
  )}
