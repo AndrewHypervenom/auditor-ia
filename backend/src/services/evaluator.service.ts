@@ -8,254 +8,254 @@ import { getScriptForCallType } from '../config/scripts-content.js';
 import * as fs from 'fs';
 
 class EvaluatorService {
-  private client: OpenAI;
+ private client: OpenAI;
 
-  constructor() {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OPENAI_API_KEY is not configured');
-    }
-    this.client = new OpenAI({ apiKey });
-  }
+ constructor() {
+ const apiKey = process.env.OPENAI_API_KEY;
+ if (!apiKey) {
+ throw new Error('OPENAI_API_KEY is not configured');
+ }
+ this.client = new OpenAI({ apiKey });
+ }
 
-  async evaluate(
-    auditInput: AuditInput,
-    transcript: TranscriptResult,
-    imageAnalyses: ImageAnalysis[]
-  ): Promise<Omit<EvaluationResult, 'excelUrl'> & { usage?: { inputTokens: number; outputTokens: number; totalTokens: number } }> {
-    try {
-      logger.info('Starting ENHANCED evaluation', {
-        callType: auditInput.callType,
-        executiveId: auditInput.executiveId
-      });
+ async evaluate(
+ auditInput: AuditInput,
+ transcript: TranscriptResult,
+ imageAnalyses: ImageAnalysis[]
+ ): Promise<Omit<EvaluationResult, 'excelUrl'> & { usage?: { inputTokens: number; outputTokens: number; totalTokens: number } }> {
+ try {
+ logger.info('Starting ENHANCED evaluation', {
+ callType: auditInput.callType,
+ executiveId: auditInput.executiveId
+ });
 
-      // ✅ NUEVO: Acumuladores de tokens
-      let totalInputTokens = 0;
-      let totalOutputTokens = 0;
+ // NUEVO: Acumuladores de tokens
+ let totalInputTokens = 0;
+ let totalOutputTokens = 0;
 
-      // PASO 1: Análisis estructurado de evidencia visual MEJORADO
-      const { visualEvidence, tokensUsed: visualTokens } = await this.extractVisualEvidenceEnhanced(auditInput.imagePaths || []);
+ // PASO 1: Análisis estructurado de evidencia visual MEJORADO
+ const { visualEvidence, tokensUsed: visualTokens } = await this.extractVisualEvidenceEnhanced(auditInput.imagePaths || []);
 
-      // ✅ NUEVO: Acumular tokens de análisis visual
-      totalInputTokens += visualTokens.input;
-      totalOutputTokens += visualTokens.output;
-      
-      logger.info('Visual evidence extracted with enhanced detection', {
-        systemsFound: Object.keys(visualEvidence).length,
-        totalFindings: Object.values(visualEvidence).flat().length,
-        tokensUsed: `${visualTokens.input} input + ${visualTokens.output} output`
-      });
+ // NUEVO: Acumular tokens de análisis visual
+ totalInputTokens += visualTokens.input;
+ totalOutputTokens += visualTokens.output;
 
-      // PASO 2: Análisis de transcripción
-      const verbalEvidence = this.extractVerbalEvidence(transcript);
-      
-      logger.info('Verbal evidence extracted', {
-        totalMentions: verbalEvidence.length
-      });
+ logger.info('Visual evidence extracted with enhanced detection', {
+ systemsFound: Object.keys(visualEvidence).length,
+ totalFindings: Object.values(visualEvidence).flat().length,
+ tokensUsed: `${visualTokens.input} input + ${visualTokens.output} output`
+ });
 
-      // PASO 3: Obtener criterios
-      const criteria = getCriteriaForCallType(auditInput.callType);
-      
-      // PASO 4: Evaluación con MATCHING MEJORADO
-      const { evaluation, tokensUsed: evalTokens } = await this.evaluateWithEnhancedMatching(
-        criteria,
-        visualEvidence,
-        verbalEvidence,
-        transcript,
-        auditInput
-      );
+ // PASO 2: Análisis de transcripción
+ const verbalEvidence = this.extractVerbalEvidence(transcript);
 
-      // ✅ NUEVO: Acumular tokens de evaluación
-      totalInputTokens += evalTokens.input;
-      totalOutputTokens += evalTokens.output;
+ logger.info('Verbal evidence extracted', {
+ totalMentions: verbalEvidence.length
+ });
 
-      logger.success('Evaluation completed with enhanced matching', {
-        totalScore: evaluation.total_score,
-        percentage: evaluation.percentage,
-        tokensUsed: `${evalTokens.input} input + ${evalTokens.output} output`
-      });
+ // PASO 3: Obtener criterios
+ const criteria = getCriteriaForCallType(auditInput.callType);
 
-      // Transformar a formato de respuesta
-      const detailedScores: Array<{
-        criterion: string;
-        score: number;
-        maxScore: number;
-        observations: string;
-      }> = evaluation.evaluations.map((ev: any) => ({
-        criterion: `[${ev.block}] ${ev.topic}`,
-        score: ev.score,
-        maxScore: ev.max_score,
-        observations: ev.justification
-      }));
+ // PASO 4: Evaluación con MATCHING MEJORADO
+ const { evaluation, tokensUsed: evalTokens } = await this.evaluateWithEnhancedMatching(
+ criteria,
+ visualEvidence,
+ verbalEvidence,
+ transcript,
+ auditInput
+ );
 
-      const keyMoments: Array<{
-        timestamp: string;
-        type: string;
-        description: string;
-      }> = evaluation.key_moments?.map((moment: any) => ({
-        timestamp: moment.timestamp,
-        type: moment.event,
-        description: moment.description
-      })) || [];
+ // NUEVO: Acumular tokens de evaluación
+ totalInputTokens += evalTokens.input;
+ totalOutputTokens += evalTokens.output;
 
-      const result: Omit<EvaluationResult, 'excelUrl'> & { usage: { inputTokens: number; outputTokens: number; totalTokens: number } } = {
-        totalScore: evaluation.total_score,
-        maxPossibleScore: evaluation.max_possible_score,
-        percentage: evaluation.percentage,
-        detailedScores,
-        observations: evaluation.observations,
-        recommendations: evaluation.recommendations || [],
-        keyMoments,
-        usage: {
-          inputTokens: totalInputTokens,
-          outputTokens: totalOutputTokens,
-          totalTokens: totalInputTokens + totalOutputTokens
-        }
-      };
+ logger.success('Evaluation completed with enhanced matching', {
+ totalScore: evaluation.total_score,
+ percentage: evaluation.percentage,
+ tokensUsed: `${evalTokens.input} input + ${evalTokens.output} output`
+ });
 
-      logger.info('💰 Total evaluation tokens', {
-        input: totalInputTokens.toLocaleString(),
-        output: totalOutputTokens.toLocaleString(),
-        total: (totalInputTokens + totalOutputTokens).toLocaleString()
-      });
+ // Transformar a formato de respuesta
+ const detailedScores: Array<{
+ criterion: string;
+ score: number;
+ maxScore: number;
+ observations: string;
+ }> = evaluation.evaluations.map((ev: any) => ({
+ criterion: `[${ev.block}] ${ev.topic}`,
+ score: ev.score,
+ maxScore: ev.max_score,
+ observations: ev.justification
+ }));
 
-      return result;
+ const keyMoments: Array<{
+ timestamp: string;
+ type: string;
+ description: string;
+ }> = evaluation.key_moments?.map((moment: any) => ({
+ timestamp: moment.timestamp,
+ type: moment.event,
+ description: moment.description
+ })) || [];
 
-    } catch (error) {
-      logger.error('Error in evaluation', error);
-      throw error;
-    }
-  }
+ const result: Omit<EvaluationResult, 'excelUrl'> & { usage: { inputTokens: number; outputTokens: number; totalTokens: number } } = {
+ totalScore: evaluation.total_score,
+ maxPossibleScore: evaluation.max_possible_score,
+ percentage: evaluation.percentage,
+ detailedScores,
+ observations: evaluation.observations,
+ recommendations: evaluation.recommendations || [],
+ keyMoments,
+ usage: {
+ inputTokens: totalInputTokens,
+ outputTokens: totalOutputTokens,
+ totalTokens: totalInputTokens + totalOutputTokens
+ }
+ };
 
-  /**
-   * MEJORADO: Extrae evidencia visual con detección más precisa y captura tokens
-   */
-  private async extractVisualEvidenceEnhanced(imagePaths: string[]): Promise<{
-    visualEvidence: Record<string, any[]>;
-    tokensUsed: { input: number; output: number };
-  }> {
-    const evidence: Record<string, any[]> = {};
-    // ✅ NUEVO: Acumuladores de tokens
-    let totalInputTokens = 0;
-    let totalOutputTokens = 0;
+ logger.info(' Total evaluation tokens', {
+ input: totalInputTokens.toLocaleString(),
+ output: totalOutputTokens.toLocaleString(),
+ total: (totalInputTokens + totalOutputTokens).toLocaleString()
+ });
 
-    for (let i = 0; i < imagePaths.length; i++) {
-      const imagePath = imagePaths[i];
-      let attempts = 0;
-      const maxAttempts = 3;
-      let success = false;
+ return result;
 
-      while (attempts < maxAttempts && !success) {
-        try {
-          attempts++;
-          
-          const imageBuffer = fs.readFileSync(imagePath);
-          const imageBase64 = imageBuffer.toString('base64');
-          const ext = imagePath.split('.').pop()?.toLowerCase();
-          const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+ } catch (error) {
+ logger.error('Error in evaluation', error);
+ throw error;
+ }
+ }
 
-          const response = await this.client.chat.completions.create({
-            model: 'gpt-5.1',
-            max_tokens: 4000,
-            temperature: 0,
-            seed: 42,
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: 'image_url',
-                    image_url: {
-                      url: `data:${mimeType};base64,${imageBase64}`,
-                      detail: 'high'
-                    }
-                  },
-                  {
-                    type: 'text',
-                    text: this.getEnhancedAnalysisPrompt()
-                  }
-                ]
-              }
-            ]
-          });
+ /**
+ * MEJORADO: Extrae evidencia visual con detección más precisa y captura tokens
+ */
+ private async extractVisualEvidenceEnhanced(imagePaths: string[]): Promise<{
+ visualEvidence: Record<string, any[]>;
+ tokensUsed: { input: number; output: number };
+ }> {
+ const evidence: Record<string, any[]> = {};
+ // NUEVO: Acumuladores de tokens
+ let totalInputTokens = 0;
+ let totalOutputTokens = 0;
 
-          // ✅ NUEVO: Capturar tokens de uso
-          if (response.usage) {
-            totalInputTokens += response.usage.prompt_tokens;
-            totalOutputTokens += response.usage.completion_tokens;
-            logger.info(`📊 Image ${i + 1} analysis tokens: ${response.usage.prompt_tokens} input + ${response.usage.completion_tokens} output`);
-          }
+ for (let i = 0; i < imagePaths.length; i++) {
+ const imagePath = imagePaths[i];
+ let attempts = 0;
+ const maxAttempts = 3;
+ let success = false;
 
-          const content = response.choices[0]?.message?.content;
-          if (!content) {
-            throw new Error('Empty response from OpenAI');
-          }
+ while (attempts < maxAttempts && !success) {
+ try {
+ attempts++;
 
-          // Limpieza robusta
-          let cleanedContent = content.trim();
-          cleanedContent = cleanedContent.replace(/```json\n?/gi, '');
-          cleanedContent = cleanedContent.replace(/```\n?/g, '');
-          cleanedContent = cleanedContent.replace(/^\uFEFF/, '');
-          cleanedContent = cleanedContent.replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, '\\\\');
+ const imageBuffer = fs.readFileSync(imagePath);
+ const imageBase64 = imageBuffer.toString('base64');
+ const ext = imagePath.split('.').pop()?.toLowerCase();
+ const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
 
-          const parsed = JSON.parse(cleanedContent);
-          
-          if (!parsed.system || !parsed.data) {
-            throw new Error('Invalid JSON structure');
-          }
+ const response = await this.client.chat.completions.create({
+ model: 'gpt-5.1',
+ max_tokens: 4000,
+ temperature: 0,
+ seed: 42,
+ messages: [
+ {
+ role: 'user',
+ content: [
+ {
+ type: 'image_url',
+ image_url: {
+ url: `data:${mimeType};base64,${imageBase64}`,
+ detail: 'high'
+ }
+ },
+ {
+ type: 'text',
+ text: this.getEnhancedAnalysisPrompt()
+ }
+ ]
+ }
+ ]
+ });
 
-          const system = parsed.system;
-          if (!evidence[system]) {
-            evidence[system] = [];
-          }
+ // NUEVO: Capturar tokens de uso
+ if (response.usage) {
+ totalInputTokens += response.usage.prompt_tokens;
+ totalOutputTokens += response.usage.completion_tokens;
+ logger.info(` Image ${i + 1} analysis tokens: ${response.usage.prompt_tokens} input + ${response.usage.completion_tokens} output`);
+ }
 
-          // Guardar TODA la data estructurada con metadatos
-          evidence[system].push({
-            imagePath,
-            data: parsed.data,
-            findings: parsed.findings || [],
-            confidence: parsed.confidence || 0.9,
-            critical_fields: parsed.critical_fields || {}
-          });
+ const content = response.choices[0]?.message?.content;
+ if (!content) {
+ throw new Error('Empty response from OpenAI');
+ }
 
-          success = true;
-          logger.info(`Image ${i + 1}/${imagePaths.length} analyzed successfully (attempt ${attempts})`, {
-            system,
-            fieldsFound: Object.keys(parsed.data).length,
-            criticalFieldsFound: Object.keys(parsed.critical_fields || {}).length
-          });
+ // Limpieza robusta
+ let cleanedContent = content.trim();
+ cleanedContent = cleanedContent.replace(/```json\n?/gi, '');
+ cleanedContent = cleanedContent.replace(/```\n?/g, '');
+ cleanedContent = cleanedContent.replace(/^\uFEFF/, '');
+ cleanedContent = cleanedContent.replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, '\\\\');
 
-        } catch (error: any) {
-          logger.warn(`Error analyzing image ${i + 1}, attempt ${attempts}/${maxAttempts}`, {
-            error: error.message
-          });
+ const parsed = JSON.parse(cleanedContent);
 
-          if (attempts >= maxAttempts) {
-            logger.error(`Failed to analyze image ${i + 1} after ${maxAttempts} attempts`);
-          } else {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-        }
-      }
-    }
+ if (!parsed.system || !parsed.data) {
+ throw new Error('Invalid JSON structure');
+ }
 
-    // ✅ NUEVO: Retornar evidencia Y tokens
-    logger.info(`💰 Visual evidence extraction total tokens: ${totalInputTokens} input + ${totalOutputTokens} output`);
-    
-    return {
-      visualEvidence: evidence,
-      tokensUsed: {
-        input: totalInputTokens,
-        output: totalOutputTokens
-      }
-    };
-  }
+ const system = parsed.system;
+ if (!evidence[system]) {
+ evidence[system] = [];
+ }
 
-  /**
-   * MEJORADO: Prompt con mejor detección de campos críticos
-   */
-  private getEnhancedAnalysisPrompt(): string {
-    return `Analiza esta captura de pantalla de sistema bancario con MÁXIMA PRECISIÓN y EXTRAE TODOS LOS DATOS VISIBLES.
+ // Guardar TODA la data estructurada con metadatos
+ evidence[system].push({
+ imagePath,
+ data: parsed.data,
+ findings: parsed.findings || [],
+ confidence: parsed.confidence || 0.9,
+ critical_fields: parsed.critical_fields || {}
+ });
+
+ success = true;
+ logger.info(`Image ${i + 1}/${imagePaths.length} analyzed successfully (attempt ${attempts})`, {
+ system,
+ fieldsFound: Object.keys(parsed.data).length,
+ criticalFieldsFound: Object.keys(parsed.critical_fields || {}).length
+ });
+
+ } catch (error: any) {
+ logger.warn(`Error analyzing image ${i + 1}, attempt ${attempts}/${maxAttempts}`, {
+ error: error.message
+ });
+
+ if (attempts >= maxAttempts) {
+ logger.error(`Failed to analyze image ${i + 1} after ${maxAttempts} attempts`);
+ } else {
+ await new Promise(resolve => setTimeout(resolve, 1000));
+ }
+ }
+ }
+ }
+
+ // NUEVO: Retornar evidencia Y tokens
+ logger.info(` Visual evidence extraction total tokens: ${totalInputTokens} input + ${totalOutputTokens} output`);
+
+ return {
+ visualEvidence: evidence,
+ tokensUsed: {
+ input: totalInputTokens,
+ output: totalOutputTokens
+ }
+ };
+ }
+
+ /**
+ * MEJORADO: Prompt con mejor detección de campos críticos
+ */
+ private getEnhancedAnalysisPrompt(): string {
+ return `Analiza esta captura de pantalla de sistema bancario con MÁXIMA PRECISIÓN y EXTRAE TODOS LOS DATOS VISIBLES.
 
 **PASO 1: IDENTIFICA EL SISTEMA**
 
@@ -335,35 +335,35 @@ Lee CADA LÍNEA de texto visible. Para cada sistema, extrae:
 Para cada hallazgo importante, márcalo en "critical_fields":
 
 {
-  "has_case_number": true/false,
-  "has_blocked_status": true/false,
-  "has_folio_number": true/false,
-  "has_transactions": true/false,
-  "has_fraud_checkboxes": true/false,
-  "has_block_codes": true/false
+ "has_case_number": true/false,
+ "has_blocked_status": true/false,
+ "has_folio_number": true/false,
+ "has_transactions": true/false,
+ "has_fraud_checkboxes": true/false,
+ "has_block_codes": true/false
 }
 
 **FORMATO DE RESPUESTA JSON:**
 
 \`\`\`json
 {
-  "system": "FALCON|VCAS|VISION|VRM|BI|FRONT|OTRO",
-  "confidence": 0.95,
-  "data": {
-    "todos_los_campos": "valores_extraidos",
-    "lee_todo_el_texto": "visible",
-    "no_omitas_nada": "importante"
-  },
-  "critical_fields": {
-    "has_case_number": true,
-    "has_blocked_status": false,
-    "has_folio_number": true
-  },
-  "findings": [
-    "campo1: valor exacto encontrado con contexto",
-    "campo2: true - explicación de dónde se vio",
-    "campo3: lista de valores [a, b, c]"
-  ]
+ "system": "FALCON|VCAS|VISION|VRM|BI|FRONT|OTRO",
+ "confidence": 0.95,
+ "data": {
+ "todos_los_campos": "valores_extraidos",
+ "lee_todo_el_texto": "visible",
+ "no_omitas_nada": "importante"
+ },
+ "critical_fields": {
+ "has_case_number": true,
+ "has_blocked_status": false,
+ "has_folio_number": true
+ },
+ "findings": [
+ "campo1: valor exacto encontrado con contexto",
+ "campo2: true - explicación de dónde se vio",
+ "campo3: lista de valores [a, b, c]"
+ ]
 }
 \`\`\`
 
@@ -378,73 +378,73 @@ Para cada hallazgo importante, márcalo en "critical_fields":
 
 EJEMPLO DE RESPUESTA CORRECTA:
 {
-  "system": "FALCON",
-  "confidence": 0.98,
-  "data": {
-    "case_number": "6788724",
-    "checkboxes_checked": ["Cliente contactado", "Reporte de fraude", "SMS", "Eliminar bloqueo"],
-    "transactions_marked": true,
-    "transaction_count": 6,
-    "fraud_type": "Fraude de pedido por Internet",
-    "comment_text": "Cliente no reconoce movs del 12/10/2025"
-  },
-  "critical_fields": {
-    "has_case_number": true,
-    "has_fraud_checkboxes": true,
-    "has_transactions": true
-  },
-  "findings": [
-    "case_number: 6788724 visible en Número de caso",
-    "checkboxes_checked: 4 checkboxes marcados",
-    "transactions_marked: 6 transacciones con marca CNF en tabla",
-    "comment_text: Comentario del cliente visible en panel derecho"
-  ]
+ "system": "FALCON",
+ "confidence": 0.98,
+ "data": {
+ "case_number": "6788724",
+ "checkboxes_checked": ["Cliente contactado", "Reporte de fraude", "SMS", "Eliminar bloqueo"],
+ "transactions_marked": true,
+ "transaction_count": 6,
+ "fraud_type": "Fraude de pedido por Internet",
+ "comment_text": "Cliente no reconoce movs del 12/10/2025"
+ },
+ "critical_fields": {
+ "has_case_number": true,
+ "has_fraud_checkboxes": true,
+ "has_transactions": true
+ },
+ "findings": [
+ "case_number: 6788724 visible en Número de caso",
+ "checkboxes_checked: 4 checkboxes marcados",
+ "transactions_marked: 6 transacciones con marca CNF en tabla",
+ "comment_text: Comentario del cliente visible en panel derecho"
+ ]
 }`;
-  }
+ }
 
-  /**
-   * MEJORADO: Evaluación con matching más preciso y captura de tokens
-   */
-  private async evaluateWithEnhancedMatching(
-    criteria: EvaluationBlock[],
-    visualEvidence: Record<string, any[]>,
-    verbalEvidence: string[],
-    transcript: TranscriptResult,
-    auditInput: AuditInput
-  ): Promise<{
-    evaluation: any;
-    tokensUsed: { input: number; output: number };
-  }> {
-    const topicsToEvaluate = criteria.flatMap(block => 
-      block.topics
-        .filter(topic => topic.applies)
-        .map(topic => ({
-          block: block.blockName,
-          topic: topic.topic,
-          criticality: topic.criticality,
-          maxScore: topic.points as number,
-          whatToLookFor: topic.whatToLookFor || '',
-          system: this.getSystemFromBlock(block.blockName)
-        }))
-    );
+ /**
+ * MEJORADO: Evaluación con matching más preciso y captura de tokens
+ */
+ private async evaluateWithEnhancedMatching(
+ criteria: EvaluationBlock[],
+ visualEvidence: Record<string, any[]>,
+ verbalEvidence: string[],
+ transcript: TranscriptResult,
+ auditInput: AuditInput
+ ): Promise<{
+ evaluation: any;
+ tokensUsed: { input: number; output: number };
+ }> {
+ const topicsToEvaluate = criteria.flatMap(block =>
+ block.topics
+ .filter(topic => topic.applies)
+ .map(topic => ({
+ block: block.blockName,
+ topic: topic.topic,
+ criticality: topic.criticality,
+ maxScore: topic.points as number,
+ whatToLookFor: topic.whatToLookFor || '',
+ system: this.getSystemFromBlock(block.blockName)
+ }))
+ );
 
-    const maxPossibleScore = topicsToEvaluate.reduce((sum, t) => sum + t.maxScore, 0);
+ const maxPossibleScore = topicsToEvaluate.reduce((sum, t) => sum + t.maxScore, 0);
 
-    // Construir prompt con MATCHING MEJORADO
-    const prompt = this.buildEnhancedMatchingPrompt(
-      auditInput,
-      visualEvidence,
-      verbalEvidence,
-      topicsToEvaluate,
-      maxPossibleScore
-    );
+ // Construir prompt con MATCHING MEJORADO
+ const prompt = this.buildEnhancedMatchingPrompt(
+ auditInput,
+ visualEvidence,
+ verbalEvidence,
+ topicsToEvaluate,
+ maxPossibleScore
+ );
 
-    const response = await this.client.chat.completions.create({
-      model: 'gpt-5.1',
-      messages: [
-        {
-          role: 'system',
-          content: `Eres un auditor experto que evalúa con MÁXIMA PRECISIÓN basándose en EVIDENCIA CONCRETA.
+ const response = await this.client.chat.completions.create({
+ model: 'gpt-5.1',
+ messages: [
+ {
+ role: 'system',
+ content: `Eres un auditor experto que evalúa con MÁXIMA PRECISIÓN basándose en EVIDENCIA CONCRETA.
 
 **FILOSOFÍA DE CALIFICACIÓN:**
 
@@ -455,119 +455,119 @@ Si hay duda → Revisa toda la evidencia disponible antes de decidir
 **REGLAS DE MATCHING:**
 
 1. CAMPOS CRÍTICOS tienen prioridad absoluta:
-   - has_case_number = true → Hay número de caso
-   - has_blocked_status = true → La tarjeta está bloqueada
-   - has_folio_number = true → El folio fue creado
-   - has_fraud_checkboxes = true → Los checkboxes están marcados
-   - has_transactions = true → Hay transacciones calificadas
+ - has_case_number = true → Hay número de caso
+ - has_blocked_status = true → La tarjeta está bloqueada
+ - has_folio_number = true → El folio fue creado
+ - has_fraud_checkboxes = true → Los checkboxes están marcados
+ - has_transactions = true → Hay transacciones calificadas
 
 2. Para cada tópico, BUSCA la evidencia específica:
-   - "Cierre correcto del caso" → Busca en transcripción menciones de pasos siguientes
-   - "Creación y llenado correcto del caso" → Busca case_number + checkboxes + comentarios
-   - "Bloquea tarjeta" → Busca account_status: BLOCKED o block_types_marked
-   - "Crea el Folio Correctamente" → Busca folio_number y folio_created: true
+ - "Cierre correcto del caso" → Busca en transcripción menciones de pasos siguientes
+ - "Creación y llenado correcto del caso" → Busca case_number + checkboxes + comentarios
+ - "Bloquea tarjeta" → Busca account_status: BLOCKED o block_types_marked
+ - "Crea el Folio Correctamente" → Busca folio_number y folio_created: true
 
 3. PENALIZA SOLO si la evidencia contradice el criterio:
-   - Si dice "Bloquea tarjeta" pero account_status = "ACTIVE" → 0 puntos
-   - Si dice "Crea folio" pero folio_created = false → 0 puntos
+ - Si dice "Bloquea tarjeta" pero account_status = "ACTIVE" → 0 puntos
+ - Si dice "Crea folio" pero folio_created = false → 0 puntos
 
 4. NO PENALICES por ausencia de evidencia si el sistema no aplica:
-   - Si no hay imagen de VRM → No se puede validar VRM
-   - Si no hay imagen de BI → No se puede validar folio
+ - Si no hay imagen de VRM → No se puede validar VRM
+ - Si no hay imagen de BI → No se puede validar folio
 
 5. USA TODA LA EVIDENCIA:
-   - Combina visual + verbal
-   - Si el agente menciona algo en audio Y se ve en imagen → Puntos completos
-   - Si solo está en uno → Evalúa si es suficiente
+ - Combina visual + verbal
+ - Si el agente menciona algo en audio Y se ve en imagen → Puntos completos
+ - Si solo está en uno → Evalúa si es suficiente
 
 **CRITERIO DE PUNTUACIÓN:**
 
 - Evidencia CLARA y COMPLETA → Puntos completos (100%)
-- Evidencia PARCIAL pero válida → Puntos parciales (50-80%)  
+- Evidencia PARCIAL pero válida → Puntos parciales (50-80%)
 - SIN evidencia o evidencia contradictoria → 0 puntos
 
 **NO SEAS CONSERVADOR - SI LA EVIDENCIA EXISTE, ÚSALA**`
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0,
-      seed: 12345,
-      response_format: { type: 'json_object' }
-    });
+ },
+ {
+ role: 'user',
+ content: prompt
+ }
+ ],
+ temperature: 0,
+ seed: 12345,
+ response_format: { type: 'json_object' }
+ });
 
-    // ✅ NUEVO: Capturar tokens de evaluación
-    const tokensUsed = {
-      input: response.usage?.prompt_tokens || 0,
-      output: response.usage?.completion_tokens || 0
-    };
+ // NUEVO: Capturar tokens de evaluación
+ const tokensUsed = {
+ input: response.usage?.prompt_tokens || 0,
+ output: response.usage?.completion_tokens || 0
+ };
 
-    logger.info(`💰 Evaluation tokens: ${tokensUsed.input} input + ${tokensUsed.output} output`);
+ logger.info(` Evaluation tokens: ${tokensUsed.input} input + ${tokensUsed.output} output`);
 
-    const content = response.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error('No response from OpenAI');
-    }
+ const content = response.choices[0]?.message?.content;
+ if (!content) {
+ throw new Error('No response from OpenAI');
+ }
 
-    // ✅ NUEVO: Retornar evaluación Y tokens
-    return {
-      evaluation: JSON.parse(content),
-      tokensUsed
-    };
-  }
+ // NUEVO: Retornar evaluación Y tokens
+ return {
+ evaluation: JSON.parse(content),
+ tokensUsed
+ };
+ }
 
-  /**
-   * MEJORADO: Prompt con evidencia estructurada más clara
-   */
-  private buildEnhancedMatchingPrompt(
-    auditInput: AuditInput,
-    visualEvidence: Record<string, any[]>,
-    verbalEvidence: string[],
-    topics: any[],
-    maxScore: number
-  ): string {
-    // Formatear evidencia estructurada de forma más clara
-    const structuredEvidence = Object.entries(visualEvidence)
-      .map(([system, images]) => {
-        const fieldsSection = images.map((img, idx) => {
-          const dataFields = Object.entries(img.data)
-            .map(([key, value]) => {
-              const valueStr = typeof value === 'object' 
-                ? JSON.stringify(value) 
-                : String(value);
-              return `    ${key}: ${valueStr}`;
-            })
-            .join('\n');
+ /**
+ * MEJORADO: Prompt con evidencia estructurada más clara
+ */
+ private buildEnhancedMatchingPrompt(
+ auditInput: AuditInput,
+ visualEvidence: Record<string, any[]>,
+ verbalEvidence: string[],
+ topics: any[],
+ maxScore: number
+ ): string {
+ // Formatear evidencia estructurada de forma más clara
+ const structuredEvidence = Object.entries(visualEvidence)
+ .map(([system, images]) => {
+ const fieldsSection = images.map((img, idx) => {
+ const dataFields = Object.entries(img.data)
+ .map(([key, value]) => {
+ const valueStr = typeof value === 'object'
+ ? JSON.stringify(value)
+ : String(value);
+ return ` ${key}: ${valueStr}`;
+ })
+ .join('\n');
 
-          const criticalFields = img.critical_fields 
-            ? Object.entries(img.critical_fields)
-                .map(([key, value]) => `    ${key}: ${value}`)
-                .join('\n')
-            : '';
-          
-          return `📸 Imagen ${idx + 1}: ${img.imagePath.split(/[/\\]/).pop()}
+ const criticalFields = img.critical_fields
+ ? Object.entries(img.critical_fields)
+ .map(([key, value]) => ` ${key}: ${value}`)
+ .join('\n')
+ : '';
+
+ return ` Imagen ${idx + 1}: ${img.imagePath.split(/[/\\]/).pop()}
 
 DATOS EXTRAÍDOS:
 ${dataFields}
 
 CAMPOS CRÍTICOS DETECTADOS:
-${criticalFields || '    (ninguno marcado)'}
+${criticalFields || ' (ninguno marcado)'}
 
 HALLAZGOS ESPECÍFICOS:
-${img.findings.map((f: string) => `  ✓ ${f}`).join('\n')}`;
-        }).join('\n\n');
+${img.findings.map((f: string) => ` ${f}`).join('\n')}`;
+ }).join('\n\n');
 
-        return `╔═════════════════════════════════════╗
+ return `╔═════════════════════════════════════╗
 SISTEMA: ${system}
 ╚═════════════════════════════════════╝
 
 ${fieldsSection}`;
-      })
-      .join('\n\n');
+ })
+ .join('\n\n');
 
-    return `# AUDITORÍA CON EVIDENCIA ESTRUCTURADA MEJORADA
+ return `# AUDITORÍA CON EVIDENCIA ESTRUCTURADA MEJORADA
 
 **Información de la Auditoría:**
 - Tipo: ${auditInput.callType}
@@ -633,38 +633,38 @@ Responde con JSON válido siguiendo este formato:
 
 \`\`\`json
 {
-  "evaluations": [
-    {
-      "block": "Nombre del bloque",
-      "topic": "Nombre del tópico",
-      "score": 0 o puntos_completos o puntos_parciales,
-      "max_score": puntos_maximos,
-      "justification": "EVIDENCIA CONCRETA ENCONTRADA: [cita campos específicos]. Por lo tanto, [conclusión].",
-      "evidence": [
-        "data.campo1: valor - Fuente: Sistema X, Imagen Y",
-        "data.campo2: valor - Fuente: Transcripción, minuto Z",
-        "critical_fields.has_xxx: true - Confirmado en análisis visual"
-      ],
-      "completed": true
-    }
-  ],
-  "total_score": suma_total,
-  "max_possible_score": ${maxScore},
-  "percentage": (total_score / max_possible_score) * 100,
-  "observations": "Resumen detallado basado en evidencia encontrada",
-  "recommendations": [
-    "Recomendación específica 1",
-    "Recomendación específica 2",
-    "Recomendación específica 3"
-  ],
-  "key_moments": [
-    {
-      "timestamp": "MM:SS",
-      "event": "Evento importante",
-      "description": "Descripción del evento",
-      "impact": "positive|negative|neutral"
-    }
-  ]
+ "evaluations": [
+ {
+ "block": "Nombre del bloque",
+ "topic": "Nombre del tópico",
+ "score": 0 o puntos_completos o puntos_parciales,
+ "max_score": puntos_maximos,
+ "justification": "EVIDENCIA CONCRETA ENCONTRADA: [cita campos específicos]. Por lo tanto, [conclusión].",
+ "evidence": [
+ "data.campo1: valor - Fuente: Sistema X, Imagen Y",
+ "data.campo2: valor - Fuente: Transcripción, minuto Z",
+ "critical_fields.has_xxx: true - Confirmado en análisis visual"
+ ],
+ "completed": true
+ }
+ ],
+ "total_score": suma_total,
+ "max_possible_score": ${maxScore},
+ "percentage": (total_score / max_possible_score) * 100,
+ "observations": "Resumen detallado basado en evidencia encontrada",
+ "recommendations": [
+ "Recomendación específica 1",
+ "Recomendación específica 2",
+ "Recomendación específica 3"
+ ],
+ "key_moments": [
+ {
+ "timestamp": "MM:SS",
+ "event": "Evento importante",
+ "description": "Descripción del evento",
+ "impact": "positive|negative|neutral"
+ }
+ ]
 }
 \`\`\`
 
@@ -677,24 +677,24 @@ Responde con JSON válido siguiendo este formato:
 5. Si otorgas puntos completos, explica QUÉ evidencia lo sustenta
 6. NO seas conservador si la evidencia existe
 7. SÉ preciso y específico en cada evaluación`;
-  }
+ }
 
-  /**
-   * MEJORADO: Reglas de matching más específicas
-   */
-  private getEnhancedMatchingRulesForTopic(topic: string, system: string): string {
-    const rules: Record<string, string> = {
-      'Cierre correcto del caso': `
+ /**
+ * MEJORADO: Reglas de matching más específicas
+ */
+ private getEnhancedMatchingRulesForTopic(topic: string, system: string): string {
+ const rules: Record<string, string> = {
+ 'Cierre correcto del caso': `
 BUSCAR EN:
 - Transcripción: palabras clave ["bloqueé", "bloqueada", "reposición", "nueva tarjeta", "5 días", "sucursal"]
 - Frases que indiquen pasos a seguir al cliente
 
 CRITERIO:
-✓ Si el agente menciona bloqueo Y pasos siguientes (reposición/sucursal) → PUNTOS COMPLETOS
-✓ Si solo menciona una parte → PUNTOS PARCIALES
-✗ Si no menciona el cierre → 0 puntos`,
+ Si el agente menciona bloqueo Y pasos siguientes (reposición/sucursal) → PUNTOS COMPLETOS
+ Si solo menciona una parte → PUNTOS PARCIALES
+ Si no menciona el cierre → 0 puntos`,
 
-      'Creación y llenado correcto del caso: (creación correcto del caso, selección de casillas, calificación de transacciones, comentarios correctos)': `
+ 'Creación y llenado correcto del caso: (creación correcto del caso, selección de casillas, calificación de transacciones, comentarios correctos)': `
 BUSCAR EN:
 - FALCON: data.case_number (debe existir y tener formato válido)
 - FALCON: data.checkboxes_checked (debe tener 3+ items)
@@ -702,20 +702,20 @@ BUSCAR EN:
 - FALCON: data.comment_text (debe tener contenido sustancial >20 chars)
 
 CRITERIO:
-✓ Si case_number existe Y checkboxes_checked tiene 3+ items Y transactions_marked = true Y comment_text tiene contenido → PUNTOS COMPLETOS
-✓ Si faltan 1-2 elementos → PUNTOS PARCIALES
-✗ Si falta case_number o todos están vacíos → 0 puntos`,
+ Si case_number existe Y checkboxes_checked tiene 3+ items Y transactions_marked = true Y comment_text tiene contenido → PUNTOS COMPLETOS
+ Si faltan 1-2 elementos → PUNTOS PARCIALES
+ Si falta case_number o todos están vacíos → 0 puntos`,
 
-      'Codificación correcta del caso': `
+ 'Codificación correcta del caso': `
 BUSCAR EN:
 - FRONT: data.case_code (debe contener "Fraude" o "Cerrado - Fraude")
 - FRONT: data.case_type
 
 CRITERIO:
-✓ Si case_code contiene "Fraude" → PUNTOS COMPLETOS
-✗ Si no existe o tiene otro valor → 0 puntos`,
+ Si case_code contiene "Fraude" → PUNTOS COMPLETOS
+ Si no existe o tiene otro valor → 0 puntos`,
 
-      'Llenado correcto del front (caso correcto, comentarios acorde a la gestión, tienen afectación/ sin afectación)': `
+ 'Llenado correcto del front (caso correcto, comentarios acorde a la gestión, tienen afectación/ sin afectación)': `
 BUSCAR EN (PRIORIDAD):
 1. FRONT: data.comments_section (debe tener texto)
 2. FRONT: data.has_afectacion (debe ser true o false, NO null)
@@ -726,15 +726,15 @@ BÚSQUEDA ALTERNATIVA (si NO hay FRONT):
 5. FALCON: data.case_number existe (implica que hay caso registrado)
 
 CRITERIO FLEXIBLE:
-✓ Si FRONT existe con comments_section Y has_afectacion válido → PUNTOS COMPLETOS (5)
-✓ Si NO hay FRONT pero SÍ hay comment_text en FALCON >20 chars → PUNTOS COMPLETOS (5)
-✓ Si solo hay comentarios parciales → PUNTOS PARCIALES (3)
-✗ Si NO hay ningún comentario → 0 puntos
+ Si FRONT existe con comments_section Y has_afectacion válido → PUNTOS COMPLETOS (5)
+ Si NO hay FRONT pero SÍ hay comment_text en FALCON >20 chars → PUNTOS COMPLETOS (5)
+ Si solo hay comentarios parciales → PUNTOS PARCIALES (3)
+ Si NO hay ningún comentario → 0 puntos
 
 JUSTIFICACIÓN:
 "Comentarios encontrados en [FRONT/FALCON]: [extracto]. Llenado considerado correcto."`,
 
-      'Colocar capturas completas y correctas': `
+ 'Colocar capturas completas y correctas': `
 EVALUAR CALIDAD Y CORRECCIÓN (no solo contar sistemas):
 
 Para FRAUDE - verificar estados correctos:
@@ -745,35 +745,35 @@ Para FRAUDE - verificar estados correctos:
 - BI presente: folio_number debe existir
 
 CRITERIO:
-✓ 4+ sistemas con estados correctos → PUNTOS COMPLETOS (5)
-✓ 4+ sistemas pero con 1-2 estados incorrectos → PUNTOS PARCIALES (3)
-✓ 3 sistemas con estados correctos → PUNTOS PARCIALES (2)
-✗ Menos de 3 sistemas O mayoría con estados incorrectos → 0 puntos
+ 4+ sistemas con estados correctos → PUNTOS COMPLETOS (5)
+ 4+ sistemas pero con 1-2 estados incorrectos → PUNTOS PARCIALES (3)
+ 3 sistemas con estados correctos → PUNTOS PARCIALES (2)
+ Menos de 3 sistemas O mayoría con estados incorrectos → 0 puntos
 
 DIFERENCIA CLAVE: Captura de VCAS con account_status=ACTIVE en caso FRAUDE NO es válida.`,
 
-      'Subir Excel': `
-⚠️ REGLA CRÍTICA - NO CONFUNDIR SISTEMA CON ARCHIVO:
+ 'Subir Excel': `
+ REGLA CRÍTICA - NO CONFUNDIR SISTEMA CON ARCHIVO:
 
 BUSCAR EN:
 - OTRO: data.excel_visible = true
 - OTRO: data.content_type = "EXCEL_FILE"
 - OTRO: data.is_bi_system debe ser FALSE
 
-⛔ NO ACEPTAR:
+ NO ACEPTAR:
 - Sistema BI con "Transacciones seleccionadas" (NO es Excel subido)
 - Tablas dentro de interfaces del sistema
 - Pantallas con logos Bradescard/VISA (es sistema)
 
-✅ SÍ ACEPTAR:
+ SÍ ACEPTAR:
 - Captura de Microsoft Excel con columnas A, B, C
 - Interfaz de Excel abierto
 - Archivo Excel con datos de transacciones
 
 CRITERIO ESTRICTO:
-✓ Si excel_visible = true Y content_type = "EXCEL_FILE" Y is_bi_system = false → PUNTOS COMPLETOS (5)
-✗ Si is_bi_system = true (aunque haya transacciones) → 0 puntos
-✗ Si NO hay evidencia de archivo Excel real → 0 puntos
+ Si excel_visible = true Y content_type = "EXCEL_FILE" Y is_bi_system = false → PUNTOS COMPLETOS (5)
+ Si is_bi_system = true (aunque haya transacciones) → 0 puntos
+ Si NO hay evidencia de archivo Excel real → 0 puntos
 
 JUSTIFICACIÓN SI OTORGA PUNTOS:
 "Excel subido visible: [nombre_archivo o descripción del archivo]"
@@ -781,7 +781,7 @@ JUSTIFICACIÓN SI OTORGA PUNTOS:
 JUSTIFICACIÓN SI NO OTORGA PUNTOS:
 "Solo se observan pantallas del sistema BI. No hay evidencia de archivo Excel subido."`,
 
-      'Bloquea tarjeta': `
+ 'Bloquea tarjeta': `
 BUSCAR EN:
 - VCAS: data.account_status = "BLOCKED"
 - VISION: data.block_types_marked contiene "BLKI"
@@ -789,62 +789,62 @@ BUSCAR EN:
 - Transcripción: menciones de "bloqueé", "bloqueada", "bloqueamos"
 
 CRITERIO:
-✓ Si account_status = BLOCKED O block_types_marked contiene BLKI O agente menciona bloqueo → PUNTOS COMPLETOS
-✗ Si account_status = ACTIVE y no hay menciones → 0 puntos`,
+ Si account_status = BLOCKED O block_types_marked contiene BLKI O agente menciona bloqueo → PUNTOS COMPLETOS
+ Si account_status = ACTIVE y no hay menciones → 0 puntos`,
 
-      'Califica transacciones': `
+ 'Califica transacciones': `
 BUSCAR EN:
 - VCAS: data.transactions_marked = true
 - FALCON: data.transactions_marked = true
 - FALCON: data.transaction_count > 0
 
 CRITERIO:
-✓ Si transactions_marked = true en cualquier sistema → PUNTOS COMPLETOS
-✗ Si no hay transacciones marcadas → 0 puntos`,
+ Si transactions_marked = true en cualquier sistema → PUNTOS COMPLETOS
+ Si no hay transacciones marcadas → 0 puntos`,
 
-      'Comentarios correctos en ASHI': `
+ 'Comentarios correctos en ASHI': `
 BUSCAR EN:
 - VISION: data.ashi_comments (debe existir)
 - VISION: data.ashi_detailed = true
 - VISION: cualquier campo de comentarios con contenido
 
 CRITERIO:
-✓ Si ashi_comments existe con texto O ashi_detailed = true → PUNTOS COMPLETOS
-✗ Si no hay comentarios → 0 puntos`,
+ Si ashi_comments existe con texto O ashi_detailed = true → PUNTOS COMPLETOS
+ Si no hay comentarios → 0 puntos`,
 
-      'Bloqueo correcto': `
+ 'Bloqueo correcto': `
 BUSCAR EN:
 - VISION: data.block_types_marked debe contener "BLKI"
 - VISION: data.block_code = "F" (para fraude)
 - VISION: data.block_date existe
 
 CRITERIO:
-✓ Si block_types_marked contiene "BLKI" → PUNTOS COMPLETOS
-✗ Si no hay BLKI o está vacío → 0 puntos`,
+ Si block_types_marked contiene "BLKI" → PUNTOS COMPLETOS
+ Si no hay BLKI o está vacío → 0 puntos`,
 
-      'Valida compras en ARTD y ARSD': `
+ 'Valida compras en ARTD y ARSD': `
 BUSCAR EN:
 - VRM: data.search_attempted = true
 - VRM: data.account_searched existe
 - VRM: cualquier indicador de validación
 
 CRITERIO:
-✓ Si search_attempted = true O account_searched tiene valor → PUNTOS COMPLETOS
-✗ Si no hay evidencia de búsqueda en VRM → 0 puntos
+ Si search_attempted = true O account_searched tiene valor → PUNTOS COMPLETOS
+ Si no hay evidencia de búsqueda en VRM → 0 puntos
 
 NOTA: Si la imagen de VRM muestra "No se encontraron cuentas", esto CUENTA como validación intentada → PUNTOS COMPLETOS`,
 
-      'Calificación de transacciones, comentarios y aplica mantenimiento': `
+ 'Calificación de transacciones, comentarios y aplica mantenimiento': `
 BUSCAR EN:
 - VRM: data.maintenance_applied = true
 - VRM: data.maintenance_code existe
 - VRM: cualquier indicador de mantenimiento
 
 CRITERIO:
-✓ Si maintenance_applied = true O hay código de mantenimiento → PUNTOS COMPLETOS
-✗ Si no hay evidencia de mantenimiento → 0 puntos`,
+ Si maintenance_applied = true O hay código de mantenimiento → PUNTOS COMPLETOS
+ Si no hay evidencia de mantenimiento → 0 puntos`,
 
-      'Crea el Folio Correctamente': `
+ 'Crea el Folio Correctamente': `
 BUSCAR EN:
 - BI: data.folio_created = true
 - BI: data.folio_number existe (formato: 10 dígitos)
@@ -853,61 +853,61 @@ BUSCAR EN:
 - BI: mensaje "Se ha creado el folio" visible
 
 CRITERIO:
-✓ folio_number existe Y bi_category contiene "Fraude" → PUNTOS COMPLETOS (10)
-✓ folio_number existe pero sin info de categoría → PUNTOS PARCIALES (7)
-✗ folio_number existe pero bi_category es diferente a "Fraude" → 0 PUNTOS
-   JUSTIFICACIÓN: "Folio creado en categoría incorrecta '[bi_category]'. Debe ser 'Fraude'."
-✗ Sin folio_number → 0 puntos`,
+ folio_number existe Y bi_category contiene "Fraude" → PUNTOS COMPLETOS (10)
+ folio_number existe pero sin info de categoría → PUNTOS PARCIALES (7)
+ folio_number existe pero bi_category es diferente a "Fraude" → 0 PUNTOS
+ JUSTIFICACIÓN: "Folio creado en categoría incorrecta '[bi_category]'. Debe ser 'Fraude'."
+ Sin folio_number → 0 puntos`,
 
-      'Cumple con el script': `
+ 'Cumple con el script': `
 COMPARAR transcripción contra el SCRIPT OFICIAL incluido arriba.
 
 VERIFICAR los siguientes pasos obligatorios en ORDEN:
 
 FRAUDE/INBOUND:
-  1. Bienvenida: "Monitoreo bradescard, te atiende [nombre]... ¿con quién tengo el gusto?"
-  2. Autenticación: Caller ID (últimos 4 dígitos) O OTP (código de seguridad) O preguntas de seguridad
-  3. Sondeo: Preguntar fecha/comercio/monto del cargo no reconocido
-  4. Información del proceso de bloqueo: mencionar que se bloqueará la tarjeta
-  5. Recapitulación: Confirmar número de aclaración, comercios, fechas
-  6. Información de reposición: sucursal O domicilio según socio
-  7. Despedida: mencionar app, nombre del agente, encuesta de satisfacción
+ 1. Bienvenida: "Monitoreo bradescard, te atiende [nombre]... ¿con quién tengo el gusto?"
+ 2. Autenticación: Caller ID (últimos 4 dígitos) O OTP (código de seguridad) O preguntas de seguridad
+ 3. Sondeo: Preguntar fecha/comercio/monto del cargo no reconocido
+ 4. Información del proceso de bloqueo: mencionar que se bloqueará la tarjeta
+ 5. Recapitulación: Confirmar número de aclaración, comercios, fechas
+ 6. Información de reposición: sucursal O domicilio según socio
+ 7. Despedida: mencionar app, nombre del agente, encuesta de satisfacción
 
 TH CONFIRMA:
-  1. Inicio: Saludo con nombre del cliente
-  2. Presentación: "Me comunico de Bradescard México para confirmar compras"
-  3. Confirmación de movimientos: Mencionar fecha/monto/comercio, preguntar si reconoce
-  4. Acción del sistema: Mantenimiento aplicado / aprobación de hotlist
-  5. Despedida con nombre del agente
+ 1. Inicio: Saludo con nombre del cliente
+ 2. Presentación: "Me comunico de Bradescard México para confirmar compras"
+ 3. Confirmación de movimientos: Mencionar fecha/monto/comercio, preguntar si reconoce
+ 4. Acción del sistema: Mantenimiento aplicado / aprobación de hotlist
+ 5. Despedida con nombre del agente
 
 MONITOREO:
-  1. Inicio: "Buenos días/tardes, ¿se encuentra [nombre del cliente]?"
-  2. Presentación: "Me comunico de Bradescard México para confirmar compras"
-  3. Mención de compras: Mencionar fecha, monto y comercio de cada transacción
-  4. Confirmación/no reconocimiento: "¿Reconoce este movimiento?"
-  5. Acción: mantenimiento (si confirma) O bloqueo (si no reconoce)
-  6. Reposición si aplica
-  7. Despedida con nombre del agente
+ 1. Inicio: "Buenos días/tardes, ¿se encuentra [nombre del cliente]?"
+ 2. Presentación: "Me comunico de Bradescard México para confirmar compras"
+ 3. Mención de compras: Mencionar fecha, monto y comercio de cada transacción
+ 4. Confirmación/no reconocimiento: "¿Reconoce este movimiento?"
+ 5. Acción: mantenimiento (si confirma) O bloqueo (si no reconoce)
+ 6. Reposición si aplica
+ 7. Despedida con nombre del agente
 
 CRITERIO:
-✓ Siguió 6-7 pasos en orden correcto → PUNTOS COMPLETOS (17 o 5 según tipo)
-✓ Siguió 4-5 pasos → PUNTOS PARCIALES (proporcional)
-✗ Menos de 4 pasos o orden muy incorrecto → PUNTOS BAJOS
+ Siguió 6-7 pasos en orden correcto → PUNTOS COMPLETOS (17 o 5 según tipo)
+ Siguió 4-5 pasos → PUNTOS PARCIALES (proporcional)
+ Menos de 4 pasos o orden muy incorrecto → PUNTOS BAJOS
 
 IMPORTANTE: No solo verificar QUE se dijo, sino que se dijo en el MOMENTO CORRECTO.
 La autenticación debe ser ANTES de discutir cargos. La recapitulación ANTES de despedida.`,
 
-      'Desbloquea tarjeta BLKI, BLKT, BPT0, BNFC': `
+ 'Desbloquea tarjeta BLKI, BLKT, BPT0, BNFC': `
 BUSCAR EN (para TH CONFIRMA - el cliente confirmó sus movimientos):
 - VISION: data.block_types_marked muestra código de desbloqueo retirado (BLKI/BLKT/BPT0/BNFC)
 - VCAS: account_status = ACTIVE (fue desbloqueada)
 - Transcripción: agente menciona "desbloquear", "quitar el bloqueo", "habilitar tarjeta"
 
 CRITERIO:
-✓ block_types_marked muestra un código de desbloqueo retirado O VCAS muestra ACTIVE → PUNTOS COMPLETOS
-✗ Sin evidencia de desbloqueo → 0 puntos`,
+ block_types_marked muestra un código de desbloqueo retirado O VCAS muestra ACTIVE → PUNTOS COMPLETOS
+ Sin evidencia de desbloqueo → 0 puntos`,
 
-      'Ingresa a HOTLIST_APROBAR': `
+ 'Ingresa a HOTLIST_APROBAR': `
 BUSCAR EN (para TH CONFIRMA):
 - FALCON: Evidencia de acceso a sección HOTLIST o APROBAR_HOTLIST
 - FALCON: data.hotlist_action = "APROBAR" o similar
@@ -915,20 +915,20 @@ BUSCAR EN (para TH CONFIRMA):
 - NOTA del script: "Ingresar tarjeta a APROBAR_HOTLIST en Falcon por 30+1 días calendario"
 
 CRITERIO:
-✓ Evidencia de HOTLIST_APROBAR en Falcon O transcripción menciona aprobación → PUNTOS COMPLETOS
-✗ Sin evidencia de ingreso a HOTLIST → 0 puntos`,
+ Evidencia de HOTLIST_APROBAR en Falcon O transcripción menciona aprobación → PUNTOS COMPLETOS
+ Sin evidencia de ingreso a HOTLIST → 0 puntos`,
 
-      'Califica correctamente la llamada': `
+ 'Califica correctamente la llamada': `
 BUSCAR EN (para TH CONFIRMA):
 - FRONT: data.calificacion_tipo_llamada debe coincidir con tipo de llamada
 - FRONT: Para TH CONFIRMA, debe mostrar "Confirma movimientos" o "TH CONFIRMA" o similar
 - FRONT: data.case_code o subcalificación visible
 
 CRITERIO:
-✓ Calificación coincide con tipo de llamada TH CONFIRMA → PUNTOS COMPLETOS
-✗ Calificación incorrecta o no visible → 0 puntos`,
+ Calificación coincide con tipo de llamada TH CONFIRMA → PUNTOS COMPLETOS
+ Calificación incorrecta o no visible → 0 puntos`,
 
-      'Autentica correctamente': `
+ 'Autentica correctamente': `
 BUSCAR EN TRANSCRIPCIÓN (primeros 3 minutos):
 
 Métodos de autenticación válidos:
@@ -946,11 +946,11 @@ Palabras clave EXACTAS:
 - "preguntas de seguridad"
 
 CRITERIO ESTRICTO:
-✓ Si menciona CallerID → PUNTOS COMPLETOS (11)
-✓ Si menciona OTP/código → PUNTOS COMPLETOS (11)
-✓ Si hace preguntas de seguridad específicas (último cargo, saldo) → PUNTOS COMPLETOS (11)
-✓ Si dice "verifico identidad" o "validó" explícitamente → PUNTOS COMPLETOS (11)
-✗ Si NO hay NINGUNA mención de autenticación → 0 puntos
+ Si menciona CallerID → PUNTOS COMPLETOS (11)
+ Si menciona OTP/código → PUNTOS COMPLETOS (11)
+ Si hace preguntas de seguridad específicas (último cargo, saldo) → PUNTOS COMPLETOS (11)
+ Si dice "verifico identidad" o "validó" explícitamente → PUNTOS COMPLETOS (11)
+ Si NO hay NINGUNA mención de autenticación → 0 puntos
 
 REGLA TEMPORAL:
 - La autenticación debe estar en los PRIMEROS 2-3 minutos de llamada
@@ -961,101 +961,101 @@ JUSTIFICACIÓN SI OTORGA PUNTOS:
 
 JUSTIFICACIÓN SI NO OTORGA PUNTOS:
 "No se encontró evidencia de autenticación al inicio de la llamada."`
-    };
+ };
 
-    return rules[topic] || `
+ return rules[topic] || `
 BUSCAR EN:
 - Sistema ${system}: Busca evidencia relevante en data estructurada
 - Transcripción: Busca menciones relacionadas
 
 CRITERIO:
-✓ Si encuentras evidencia clara → PUNTOS COMPLETOS
-✓ Si evidencia parcial → PUNTOS PARCIALES
-✗ Si no hay evidencia → 0 puntos`;
-  }
+ Si encuentras evidencia clara → PUNTOS COMPLETOS
+ Si evidencia parcial → PUNTOS PARCIALES
+ Si no hay evidencia → 0 puntos`;
+ }
 
-  private getSystemFromBlock(blockName: string): string {
-    const mapping: Record<string, string> = {
-      'Falcon': 'FALCON',
-      'Front': 'FRONT',
-      'Vcas': 'VCAS',
-      'Vision': 'VISION',
-      'VRM': 'VRM',
-      'B.I': 'BI',
-      'Manejo de llamada': 'TRANSCRIPCIÓN'
-    };
-    return mapping[blockName] || blockName;
-  }
+ private getSystemFromBlock(blockName: string): string {
+ const mapping: Record<string, string> = {
+ 'Falcon': 'FALCON',
+ 'Front': 'FRONT',
+ 'Vcas': 'VCAS',
+ 'Vision': 'VISION',
+ 'VRM': 'VRM',
+ 'B.I': 'BI',
+ 'Manejo de llamada': 'TRANSCRIPCIÓN'
+ };
+ return mapping[blockName] || blockName;
+ }
 
-  private extractVerbalEvidence(transcript: TranscriptResult): string[] {
-    const evidence: string[] = [];
-    const keywords = [
-      'bloque', 'bloqu', 'tarjeta',
-      'folio', 'caso', 'número',
-      'transacción', 'compra', 'cargo',
-      'confirmo', 'confirmó', 'reconoce', 'reconozco',
-      'fraude', 'fraudulent',
-      'excel', 'archivo', 'documento',
-      'autenticación', 'autentica', 'verifico', 'valido',
-      'sistema', 'vcas', 'falcon', 'vision',
-      'reposición', 'pasos a seguir', 'plástico',
-      'sucursal', 'días', 'nueva',
-      'callerid', 'caller id', 'identificador de llamada',
-      'otp', 'código', 'clave', 'pin', 'token',
-      'verificar', 'validar', 'corroborar',
-      'identidad', 'identificación',
-      'preguntas de seguridad',
-      'último cargo', 'últimos movimientos', 'saldo',
-      'código de seguridad'
-    ];
+ private extractVerbalEvidence(transcript: TranscriptResult): string[] {
+ const evidence: string[] = [];
+ const keywords = [
+ 'bloque', 'bloqu', 'tarjeta',
+ 'folio', 'caso', 'número',
+ 'transacción', 'compra', 'cargo',
+ 'confirmo', 'confirmó', 'reconoce', 'reconozco',
+ 'fraude', 'fraudulent',
+ 'excel', 'archivo', 'documento',
+ 'autenticación', 'autentica', 'verifico', 'valido',
+ 'sistema', 'vcas', 'falcon', 'vision',
+ 'reposición', 'pasos a seguir', 'plástico',
+ 'sucursal', 'días', 'nueva',
+ 'callerid', 'caller id', 'identificador de llamada',
+ 'otp', 'código', 'clave', 'pin', 'token',
+ 'verificar', 'validar', 'corroborar',
+ 'identidad', 'identificación',
+ 'preguntas de seguridad',
+ 'último cargo', 'últimos movimientos', 'saldo',
+ 'código de seguridad'
+ ];
 
-    transcript.utterances.forEach(utt => {
-      const lowerText = utt.text.toLowerCase();
-      const hasKeyword = keywords.some(kw => lowerText.includes(kw));
-      
-      if (hasKeyword && utt.text.length > 15) {
-        const timestamp = this.formatTime(utt.start);
-        evidence.push(`[${timestamp}] ${utt.speaker}: "${utt.text}"`);
-      }
-    });
+ transcript.utterances.forEach(utt => {
+ const lowerText = utt.text.toLowerCase();
+ const hasKeyword = keywords.some(kw => lowerText.includes(kw));
 
-    return evidence;
-  }
+ if (hasKeyword && utt.text.length > 15) {
+ const timestamp = this.formatTime(utt.start);
+ evidence.push(`[${timestamp}] ${utt.speaker}: "${utt.text}"`);
+ }
+ });
 
-  private formatTranscript(transcript: TranscriptResult): string {
-    if (transcript.utterances.length === 0) {
-      return transcript.text;
-    }
+ return evidence;
+ }
 
-    return transcript.utterances
-      .map((utt) => {
-        const timestamp = this.formatTime(utt.start);
-        return `[${timestamp}] ${utt.speaker}: ${utt.text}`;
-      })
-      .join('\n\n');
-  }
+ private formatTranscript(transcript: TranscriptResult): string {
+ if (transcript.utterances.length === 0) {
+ return transcript.text;
+ }
 
-  private formatTime(timeValue: number): string {
-    const totalSeconds = timeValue >= 1000 ? Math.floor(timeValue / 1000) : timeValue;
-    
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = Math.floor(totalSeconds % 60);
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  }
+ return transcript.utterances
+ .map((utt) => {
+ const timestamp = this.formatTime(utt.start);
+ return `[${timestamp}] ${utt.speaker}: ${utt.text}`;
+ })
+ .join('\n\n');
+ }
+
+ private formatTime(timeValue: number): string {
+ const totalSeconds = timeValue >= 1000 ? Math.floor(timeValue / 1000) : timeValue;
+
+ const mins = Math.floor(totalSeconds / 60);
+ const secs = Math.floor(totalSeconds % 60);
+ return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+ }
 }
 
 export { EvaluatorService };
 
 let instance: EvaluatorService | null = null;
 export const getEvaluatorService = () => {
-  if (!instance) {
-    instance = new EvaluatorService();
-  }
-  return instance;
+ if (!instance) {
+ instance = new EvaluatorService();
+ }
+ return instance;
 };
 
 export const evaluatorService = {
-  evaluate: async (auditInput: any, transcript: any, imageAnalyses: any) => {
-    return getEvaluatorService().evaluate(auditInput, transcript, imageAnalyses);
-  }
+ evaluate: async (auditInput: any, transcript: any, imageAnalyses: any) => {
+ return getEvaluatorService().evaluate(auditInput, transcript, imageAnalyses);
+ }
 };

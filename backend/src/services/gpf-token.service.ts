@@ -5,100 +5,100 @@
 import { logger } from '../utils/logger.js';
 
 interface TokenCache {
-  token: string;
-  expiresAt: number;
+ token: string;
+ expiresAt: number;
 }
 
-const BUFFER_MS = 10 * 60 * 1000;             // 10 min buffer
+const BUFFER_MS = 10 * 60 * 1000; // 10 min buffer
 const TOKEN_TTL_MS = 3 * 24 * 60 * 60 * 1000; // 3 days (per API docs)
 
 class GpfTokenService {
-  private cache: Map<string, TokenCache> = new Map();
+ private cache: Map<string, TokenCache> = new Map();
 
-  private getBaseUrl(env: string): string {
-    return env === 'prod'
-      ? (process.env.GPF_API_URL_PROD || '')
-      : (process.env.GPF_API_URL_TEST || '');
-  }
+ private getBaseUrl(env: string): string {
+ return env === 'prod'
+ ? (process.env.GPF_API_URL_PROD || '')
+ : (process.env.GPF_API_URL_TEST || '');
+ }
 
-  private buildHeaders(): Record<string, string> {
-    return {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'X-App-Token': process.env.GPF_APP_TOKEN || '',
-      'ngrok-skip-browser-warning': 'true'
-    };
-  }
+ private buildHeaders(): Record<string, string> {
+ return {
+ 'Accept': 'application/json',
+ 'Content-Type': 'application/json',
+ 'X-App-Token': process.env.GPF_APP_TOKEN || '',
+ 'ngrok-skip-browser-warning': 'true'
+ };
+ }
 
-  private async login(env: string): Promise<string> {
-    const baseUrl = this.getBaseUrl(env);
-    if (!baseUrl) throw new Error(`GPF URL not configured for env: ${env}`);
+ private async login(env: string): Promise<string> {
+ const baseUrl = this.getBaseUrl(env);
+ if (!baseUrl) throw new Error(`GPF URL not configured for env: ${env}`);
 
-    const email = process.env.GPF_EMAIL || '';
-    const password = process.env.GPF_PASSWORD || '';
+ const email = process.env.GPF_EMAIL || '';
+ const password = process.env.GPF_PASSWORD || '';
 
-    if (!email || !password) {
-      throw new Error('GPF_EMAIL and GPF_PASSWORD must be configured');
-    }
+ if (!email || !password) {
+ throw new Error('GPF_EMAIL and GPF_PASSWORD must be configured');
+ }
 
-    logger.info('🔑 GPF auto-login', { env });
+ logger.info(' GPF auto-login', { env });
 
-    const response = await fetch(`${baseUrl}/api/login`, {
-      method: 'POST',
-      headers: this.buildHeaders(),
-      body: JSON.stringify({ email, password })
-    });
+ const response = await fetch(`${baseUrl}/api/login`, {
+ method: 'POST',
+ headers: this.buildHeaders(),
+ body: JSON.stringify({ email, password })
+ });
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`GPF login failed: ${response.status} — ${text}`);
-    }
+ if (!response.ok) {
+ const text = await response.text();
+ throw new Error(`GPF login failed: ${response.status} — ${text}`);
+ }
 
-    // API shape: { data: { token: "...", user: {...} }, is_success: true, ... }
-    const body: any = await response.json();
+ // API shape: { data: { token: "...", user: {...} }, is_success: true, ... }
+ const body: any = await response.json();
 
-    if (!body?.is_success) {
-      throw new Error(`GPF login error: ${body?.error?.message || 'unknown'}`);
-    }
+ if (!body?.is_success) {
+ throw new Error(`GPF login error: ${body?.error?.message || 'unknown'}`);
+ }
 
-    const token = body?.data?.token;
-    if (!token) {
-      throw new Error(`GPF login response did not contain data.token: ${JSON.stringify(body)}`);
-    }
+ const token = body?.data?.token;
+ if (!token) {
+ throw new Error(`GPF login response did not contain data.token: ${JSON.stringify(body)}`);
+ }
 
-    return token as string;
-  }
+ return token as string;
+ }
 
-  async getToken(env: string): Promise<string> {
-    const cached = this.cache.get(env);
-    if (cached && Date.now() < cached.expiresAt) {
-      return cached.token;
-    }
+ async getToken(env: string): Promise<string> {
+ const cached = this.cache.get(env);
+ if (cached && Date.now() < cached.expiresAt) {
+ return cached.token;
+ }
 
-    const token = await this.login(env);
-    this.cache.set(env, {
-      token,
-      expiresAt: Date.now() + TOKEN_TTL_MS - BUFFER_MS
-    });
+ const token = await this.login(env);
+ this.cache.set(env, {
+ token,
+ expiresAt: Date.now() + TOKEN_TTL_MS - BUFFER_MS
+ });
 
-    logger.success('✅ GPF token obtained and cached', { env });
-    return token;
-  }
+ logger.success(' GPF token obtained and cached', { env });
+ return token;
+ }
 
-  invalidate(env: string): void {
-    this.cache.delete(env);
-    logger.info('🗑️ GPF token cache invalidated', { env });
-  }
+ invalidate(env: string): void {
+ this.cache.delete(env);
+ logger.info(' GPF token cache invalidated', { env });
+ }
 
-  /** Returns a valid token, retrying once after cache invalidation on failure. */
-  async getTokenWithRetry(env: string): Promise<string> {
-    try {
-      return await this.getToken(env);
-    } catch {
-      this.invalidate(env);
-      return await this.getToken(env);
-    }
-  }
+ /** Returns a valid token, retrying once after cache invalidation on failure. */
+ async getTokenWithRetry(env: string): Promise<string> {
+ try {
+ return await this.getToken(env);
+ } catch {
+ this.invalidate(env);
+ return await this.getToken(env);
+ }
+ }
 }
 
 export const gpfTokenService = new GpfTokenService();

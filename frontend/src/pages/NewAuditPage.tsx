@@ -8,904 +8,904 @@ import { auditService, gpfService } from '../services/api';
 import type { GpfAttention, GpfAttentionDetail } from '../services/api';
 import { EXCEL_TYPES } from '../types';
 import {
-  Sparkles,
-  ArrowLeft,
-  RefreshCw,
-  ChevronDown,
-  Database,
-  CheckCircle2,
-  XCircle,
-  Search,
-  Filter,
-  X,
-  Image,
-  MessageSquare,
-  CreditCard,
-  ShieldCheck,
-  Loader2,
-  CalendarRange,
-  User,
-  Tag,
-  ChevronRight
+ Sparkles,
+ ArrowLeft,
+ RefreshCw,
+ ChevronDown,
+ Database,
+ CheckCircle2,
+ XCircle,
+ Search,
+ Filter,
+ X,
+ Image,
+ MessageSquare,
+ CreditCard,
+ ShieldCheck,
+ Loader2,
+ CalendarRange,
+ User,
+ Tag,
+ ChevronRight
 } from 'lucide-react';
 
 type AppState = 'selecting' | 'loading-detail' | 'confirming' | 'processing';
 
 interface SSEMessage {
-  type: 'info' | 'success' | 'error' | 'progress' | 'stage' | 'result';
-  stage?: string;
-  progress?: number;
-  message: string;
-  data?: any;
-  timestamp: string;
+ type: 'info' | 'success' | 'error' | 'progress' | 'stage' | 'result';
+ stage?: string;
+ progress?: number;
+ message: string;
+ data?: any;
+ timestamp: string;
 }
 
 // ── Helpers — field names match the GPF API documentation exactly ─────────────
 
 const getAttentionId = (a: GpfAttention): string | number =>
-  a['id_atencion'] ?? a.id ?? '';
+ a['id_atencion'] ?? a.id ?? '';
 
 const getAttentionDate = (a: GpfAttention): string =>
-  a['Fecha de la compra'] ?? a.call_date ?? a.created_at?.split('T')[0] ?? '';
+ a['Fecha de la compra'] ?? a.call_date ?? a.created_at?.split('T')[0] ?? '';
 
 const getAttentionExecutive = (a: GpfAttention): string =>
-  a['Agente'] ?? a.executive_name ?? '';
+ a['Agente'] ?? a.executive_name ?? '';
 
 const getAttentionCallType = (a: GpfAttention): string =>
-  a['Llamada en curso'] ?? a['Calificación'] ?? '';
+ a['Llamada en curso'] ?? a['Calificación'] ?? '';
 
 const getAttentionClient = (a: GpfAttention): string =>
-  String(a['Socio'] ?? a['Caso'] ?? a.client_id ?? '');
+ String(a['Socio'] ?? a['Caso'] ?? a.client_id ?? '');
 
 const getAttentionCalificacion = (a: GpfAttention): string =>
-  a['Calificación'] ?? '';
+ a['Calificación'] ?? '';
 
 const getAttentionEstado = (a: GpfAttention): string =>
-  a['Estado llamada'] ?? '';
+ a['Estado llamada'] ?? '';
 
 // Parse a date string to a comparable format (yyyy-mm-dd or original)
 const parseDateForCompare = (dateStr: string): string => {
-  if (!dateStr) return '';
-  // Try dd/mm/yyyy → yyyy-mm-dd
-  const dmyMatch = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-  if (dmyMatch) return `${dmyMatch[3]}-${dmyMatch[2]}-${dmyMatch[1]}`;
-  return dateStr.slice(0, 10); // take first 10 chars (ISO or similar)
+ if (!dateStr) return '';
+ // Try dd/mm/yyyy → yyyy-mm-dd
+ const dmyMatch = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+ if (dmyMatch) return `${dmyMatch[3]}-${dmyMatch[2]}-${dmyMatch[1]}`;
+ return dateStr.slice(0, 10); // take first 10 chars (ISO or similar)
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function NewAuditPage() {
-  const navigate = useNavigate();
+ const navigate = useNavigate();
 
-  const [state, setState] = useState<AppState>('selecting');
-  const [env, setEnv] = useState<'test' | 'prod'>('test');
-  const [attentions, setAttentions] = useState<GpfAttention[]>([]);
-  const [loadingAttentions, setLoadingAttentions] = useState(false);
-  const [selectedAttention, setSelectedAttention] = useState<GpfAttention | null>(null);
-  const [attentionDetail, setAttentionDetail] = useState<GpfAttentionDetail | null>(null);
-  const [excelType, setExcelType] = useState<'INBOUND' | 'MONITOREO'>('INBOUND');
-  const [detailTab, setDetailTab] = useState<'info' | 'captures' | 'transactions' | 'comments' | 'otp'>('info');
-  const [processing, setProcessing] = useState({
-    stage: 'upload' as string,
-    progress: 0,
-    message: 'Iniciando...'
-  });
+ const [state, setState] = useState<AppState>('selecting');
+ const [env, setEnv] = useState<'test' | 'prod'>('test');
+ const [attentions, setAttentions] = useState<GpfAttention[]>([]);
+ const [loadingAttentions, setLoadingAttentions] = useState(false);
+ const [selectedAttention, setSelectedAttention] = useState<GpfAttention | null>(null);
+ const [attentionDetail, setAttentionDetail] = useState<GpfAttentionDetail | null>(null);
+ const [excelType, setExcelType] = useState<'INBOUND' | 'MONITOREO'>('INBOUND');
+ const [detailTab, setDetailTab] = useState<'info' | 'captures' | 'transactions' | 'comments' | 'otp'>('info');
+ const [processing, setProcessing] = useState({
+ stage: 'upload' as string,
+ progress: 0,
+ message: 'Iniciando...'
+ });
 
-  // ── Filters ──────────────────────────────────────────────────────────────────
+ // ── Filters ──────────────────────────────────────────────────────────────────
 
-  const [filterDateFrom, setFilterDateFrom] = useState('');
-  const [filterDateTo, setFilterDateTo] = useState('');
-  const [filterAgent, setFilterAgent] = useState('');
-  const [filterClient, setFilterClient] = useState('');
-  const [filterCalificacion, setFilterCalificacion] = useState('');
-  const [filterEstado, setFilterEstado] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
+ const [filterDateFrom, setFilterDateFrom] = useState('');
+ const [filterDateTo, setFilterDateTo] = useState('');
+ const [filterAgent, setFilterAgent] = useState('');
+ const [filterClient, setFilterClient] = useState('');
+ const [filterCalificacion, setFilterCalificacion] = useState('');
+ const [filterEstado, setFilterEstado] = useState('');
+ const [showFilters, setShowFilters] = useState(false);
 
-  const activeFilterCount = [filterDateFrom, filterDateTo, filterAgent, filterClient, filterCalificacion, filterEstado]
-    .filter(Boolean).length;
+ const activeFilterCount = [filterDateFrom, filterDateTo, filterAgent, filterClient, filterCalificacion, filterEstado]
+ .filter(Boolean).length;
 
-  const clearFilters = () => {
-    setFilterDateFrom('');
-    setFilterDateTo('');
-    setFilterAgent('');
-    setFilterClient('');
-    setFilterCalificacion('');
-    setFilterEstado('');
-  };
+ const clearFilters = () => {
+ setFilterDateFrom('');
+ setFilterDateTo('');
+ setFilterAgent('');
+ setFilterClient('');
+ setFilterCalificacion('');
+ setFilterEstado('');
+ };
 
-  // Unique values for selects (derived from loaded attentions)
-  const uniqueCalificaciones = useMemo(
-    () => [...new Set(attentions.map(getAttentionCalificacion).filter(Boolean))].sort(),
-    [attentions]
-  );
-  const uniqueEstados = useMemo(
-    () => [...new Set(attentions.map(getAttentionEstado).filter(Boolean))].sort(),
-    [attentions]
-  );
+ // Unique values for selects (derived from loaded attentions)
+ const uniqueCalificaciones = useMemo(
+ () => [...new Set(attentions.map(getAttentionCalificacion).filter(Boolean))].sort(),
+ [attentions]
+ );
+ const uniqueEstados = useMemo(
+ () => [...new Set(attentions.map(getAttentionEstado).filter(Boolean))].sort(),
+ [attentions]
+ );
 
-  // Filtered list
-  const filteredAttentions = useMemo(() => {
-    return attentions.filter((a) => {
-      const dateStr = parseDateForCompare(getAttentionDate(a));
-      if (filterDateFrom && dateStr && dateStr < filterDateFrom) return false;
-      if (filterDateTo && dateStr && dateStr > filterDateTo) return false;
-      if (filterAgent && !getAttentionExecutive(a).toLowerCase().includes(filterAgent.toLowerCase())) return false;
-      if (filterClient && !getAttentionClient(a).toLowerCase().includes(filterClient.toLowerCase())) return false;
-      if (filterCalificacion && getAttentionCalificacion(a) !== filterCalificacion) return false;
-      if (filterEstado && getAttentionEstado(a) !== filterEstado) return false;
-      return true;
-    });
-  }, [attentions, filterDateFrom, filterDateTo, filterAgent, filterClient, filterCalificacion, filterEstado]);
+ // Filtered list
+ const filteredAttentions = useMemo(() => {
+ return attentions.filter((a) => {
+ const dateStr = parseDateForCompare(getAttentionDate(a));
+ if (filterDateFrom && dateStr && dateStr < filterDateFrom) return false;
+ if (filterDateTo && dateStr && dateStr > filterDateTo) return false;
+ if (filterAgent && !getAttentionExecutive(a).toLowerCase().includes(filterAgent.toLowerCase())) return false;
+ if (filterClient && !getAttentionClient(a).toLowerCase().includes(filterClient.toLowerCase())) return false;
+ if (filterCalificacion && getAttentionCalificacion(a) !== filterCalificacion) return false;
+ if (filterEstado && getAttentionEstado(a) !== filterEstado) return false;
+ return true;
+ });
+ }, [attentions, filterDateFrom, filterDateTo, filterAgent, filterClient, filterCalificacion, filterEstado]);
 
-  // ── Load attentions ──────────────────────────────────────────────────────────
+ // ── Load attentions ──────────────────────────────────────────────────────────
 
-  const handleLoadAttentions = async () => {
-    setLoadingAttentions(true);
-    clearFilters();
-    try {
-      const result = await gpfService.getAttentions(env);
-      setAttentions(result.attentions || []);
-      if ((result.attentions || []).length === 0) {
-        toast('No se encontraron casos para este ambiente.', { icon: 'ℹ️' });
-      }
-    } catch (error: any) {
-      console.error('Error loading attentions:', error);
-      toast.error(error.response?.data?.error || 'Error al cargar casos GPF');
-    } finally {
-      setLoadingAttentions(false);
-    }
-  };
+ const handleLoadAttentions = async () => {
+ setLoadingAttentions(true);
+ clearFilters();
+ try {
+ const result = await gpfService.getAttentions(env);
+ setAttentions(result.attentions || []);
+ if ((result.attentions || []).length === 0) {
+ toast('No se encontraron casos para este ambiente.', { icon: 'ℹ' });
+ }
+ } catch (error: any) {
+ console.error('Error loading attentions:', error);
+ toast.error(error.response?.data?.error || 'Error al cargar casos GPF');
+ } finally {
+ setLoadingAttentions(false);
+ }
+ };
 
-  // ── Select attention → load full detail ─────────────────────────────────────
+ // ── Select attention → load full detail ─────────────────────────────────────
 
-  const handleSelectAttention = async (attention: GpfAttention) => {
-    setSelectedAttention(attention);
-    setAttentionDetail(null);
-    setDetailTab('info');
-    setState('loading-detail');
-    try {
-      const detail = await gpfService.getAttentionDetail(env, getAttentionId(attention));
-      setAttentionDetail(detail);
-      setState('confirming');
-    } catch (error: any) {
-      console.error('Error loading attention detail:', error);
-      toast.error(error.response?.data?.error || 'Error al cargar detalle del caso');
-      // Still allow confirming even without detail
-      setState('confirming');
-    }
-  };
+ const handleSelectAttention = async (attention: GpfAttention) => {
+ setSelectedAttention(attention);
+ setAttentionDetail(null);
+ setDetailTab('info');
+ setState('loading-detail');
+ try {
+ const detail = await gpfService.getAttentionDetail(env, getAttentionId(attention));
+ setAttentionDetail(detail);
+ setState('confirming');
+ } catch (error: any) {
+ console.error('Error loading attention detail:', error);
+ toast.error(error.response?.data?.error || 'Error al cargar detalle del caso');
+ // Still allow confirming even without detail
+ setState('confirming');
+ }
+ };
 
-  // ── Submit audit ─────────────────────────────────────────────────────────────
+ // ── Submit audit ─────────────────────────────────────────────────────────────
 
-  const handleConfirm = async () => {
-    if (!selectedAttention) return;
+ const handleConfirm = async () => {
+ if (!selectedAttention) return;
 
-    setState('processing');
+ setState('processing');
 
-    const sseClientId = `gpf_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    let completedAuditId: string | null = null;
-    const startTime = Date.now();
+ const sseClientId = `gpf_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+ let completedAuditId: string | null = null;
+ const startTime = Date.now();
 
-    const formatTime = (ms: number) => {
-      const s = Math.floor(ms / 1000);
-      return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
-    };
+ const formatTime = (ms: number) => {
+ const s = Math.floor(ms / 1000);
+ return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+ };
 
-    const eventSource = new EventSource(
-      `${import.meta.env.VITE_API_URL}/api/progress/${sseClientId}`
-    );
+ const eventSource = new EventSource(
+ `${import.meta.env.VITE_API_URL}/api/progress/${sseClientId}`
+ );
 
-    eventSource.onmessage = (event) => {
-      try {
-        const message: SSEMessage = JSON.parse(event.data);
+ eventSource.onmessage = (event) => {
+ try {
+ const message: SSEMessage = JSON.parse(event.data);
 
-        if (message.stage && message.progress !== undefined) {
-          setProcessing({ stage: message.stage, progress: message.progress, message: message.message });
-        }
+ if (message.stage && message.progress !== undefined) {
+ setProcessing({ stage: message.stage, progress: message.progress, message: message.message });
+ }
 
-        if (message.type === 'result') {
-          if (message.data?.auditId) completedAuditId = message.data.auditId;
-          setProcessing({ stage: 'completed', progress: 100, message: '¡Auditoría completada!' });
-          eventSource.close();
-          console.log(`%c🎉 GPF audit completed in ${formatTime(Date.now() - startTime)}`, 'color: #10b981; font-weight: bold');
-          console.log(message.data);
-          setTimeout(() => {
-            if (completedAuditId) {
-              toast.success('¡Evaluación completada exitosamente!', { duration: 4000, icon: '🎉' });
-              navigate(`/audit/${completedAuditId}`);
-            }
-          }, 1000);
-        }
+ if (message.type === 'result') {
+ if (message.data?.auditId) completedAuditId = message.data.auditId;
+ setProcessing({ stage: 'completed', progress: 100, message: '¡Auditoría completada!' });
+ eventSource.close();
+ console.log(`%c GPF audit completed in ${formatTime(Date.now() - startTime)}`, 'color: #10b981; font-weight: bold');
+ console.log(message.data);
+ setTimeout(() => {
+ if (completedAuditId) {
+ toast.success('¡Evaluación completada exitosamente!', { duration: 4000, icon: '' });
+ navigate(`/audit/${completedAuditId}`);
+ }
+ }, 1000);
+ }
 
-        if (message.type === 'error') {
-          toast.error(message.message);
-          eventSource.close();
-          setState('confirming');
-        }
-      } catch {
-        // ignore parse errors
-      }
-    };
+ if (message.type === 'error') {
+ toast.error(message.message);
+ eventSource.close();
+ setState('confirming');
+ }
+ } catch {
+ // ignore parse errors
+ }
+ };
 
-    eventSource.onerror = () => {
-      eventSource.close();
-      if (processing.progress < 100) {
-        toast.error('Se perdió la conexión con el servidor. Intenta de nuevo.');
-        setState('confirming');
-      }
-    };
+ eventSource.onerror = () => {
+ eventSource.close();
+ if (processing.progress < 100) {
+ toast.error('Se perdió la conexión con el servidor. Intenta de nuevo.');
+ setState('confirming');
+ }
+ };
 
-    try {
-      const attentionId = getAttentionId(selectedAttention);
-      const result = await auditService.evaluateFromGpf({
-        attentionId,
-        env,
-        excelType,
-        sseClientId,
-        attentionObject: selectedAttention
-      });
+ try {
+ const attentionId = getAttentionId(selectedAttention);
+ const result = await auditService.evaluateFromGpf({
+ attentionId,
+ env,
+ excelType,
+ sseClientId,
+ attentionObject: selectedAttention
+ });
 
-      if (result?.auditId && !completedAuditId) {
-        completedAuditId = result.auditId;
-        setTimeout(() => {
-          if (completedAuditId) {
-            toast.success('¡Evaluación completada exitosamente!', { duration: 4000, icon: '🎉' });
-            navigate(`/audit/${completedAuditId}`);
-          }
-        }, 2000);
-      }
-    } catch (error: any) {
-      console.error('Error processing GPF audit:', error);
-      toast.error(error.response?.data?.error || 'Error al procesar la auditoría');
-      eventSource.close();
-      setState('confirming');
-    }
-  };
+ if (result?.auditId && !completedAuditId) {
+ completedAuditId = result.auditId;
+ setTimeout(() => {
+ if (completedAuditId) {
+ toast.success('¡Evaluación completada exitosamente!', { duration: 4000, icon: '' });
+ navigate(`/audit/${completedAuditId}`);
+ }
+ }, 2000);
+ }
+ } catch (error: any) {
+ console.error('Error processing GPF audit:', error);
+ toast.error(error.response?.data?.error || 'Error al procesar la auditoría');
+ eventSource.close();
+ setState('confirming');
+ }
+ };
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+ // ── Render ───────────────────────────────────────────────────────────────────
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-      {/* Header */}
-      <header className="bg-slate-900/80 backdrop-blur-lg border-b border-slate-800 shadow-2xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/')}
-              className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-slate-400" />
-            </button>
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent flex items-center gap-3">
-                <Sparkles className="w-8 h-8 text-purple-400" />
-                Nueva Auditoría
-              </h1>
-              <p className="text-slate-400 text-sm mt-1 flex items-center gap-2">
-                <Database className="w-3 h-3" />
-                Evaluación automática desde API GPF
-              </p>
-            </div>
-          </div>
-        </div>
-      </header>
+ return (
+ <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+ {/* Header */}
+ <header className="bg-slate-900/80 backdrop-blur-lg border-b border-slate-800 shadow-2xl sticky top-0 z-50">
+ <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+ <div className="flex items-center gap-4">
+ <button
+ onClick={() => navigate('/')}
+ className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+ >
+ <ArrowLeft className="w-5 h-5 text-slate-400" />
+ </button>
+ <div>
+ <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent flex items-center gap-3">
+ <Sparkles className="w-8 h-8 text-purple-400" />
+ Nueva Auditoría
+ </h1>
+ <p className="text-slate-400 text-sm mt-1 flex items-center gap-2">
+ <Database className="w-3 h-3" />
+ Evaluación automática desde API GPF
+ </p>
+ </div>
+ </div>
+ </div>
+ </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+ <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-        {/* ── SELECTING STATE ────────────────────────────────────────────────── */}
-        {state === 'selecting' && (
-          <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-800 shadow-2xl p-8">
-            <h2 className="text-xl font-semibold text-slate-200 mb-6 flex items-center gap-2">
-              <Database className="w-5 h-5 text-blue-400" />
-              Seleccionar Caso GPF
-            </h2>
+ {/* ── SELECTING STATE ────────────────────────────────────────────────── */}
+ {state === 'selecting' && (
+ <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-800 shadow-2xl p-8">
+ <h2 className="text-xl font-semibold text-slate-200 mb-6 flex items-center gap-2">
+ <Database className="w-5 h-5 text-blue-400" />
+ Seleccionar Caso GPF
+ </h2>
 
-            {/* Env selector + load button */}
-            <div className="flex flex-wrap items-end gap-4 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Ambiente</label>
-                <div className="relative">
-                  <select
-                    value={env}
-                    onChange={(e) => { setEnv(e.target.value as 'test' | 'prod'); setAttentions([]); clearFilters(); }}
-                    className="w-40 px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-200 appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
-                  >
-                    <option value="test">Test</option>
-                    <option value="prod">Producción</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                </div>
-              </div>
+ {/* Env selector + load button */}
+ <div className="flex flex-wrap items-end gap-4 mb-6">
+ <div>
+ <label className="block text-sm font-medium text-slate-300 mb-2">Ambiente</label>
+ <div className="relative">
+ <select
+ value={env}
+ onChange={(e) => { setEnv(e.target.value as 'test' | 'prod'); setAttentions([]); clearFilters(); }}
+ className="w-40 px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-200 appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
+ >
+ <option value="test">Test</option>
+ <option value="prod">Producción</option>
+ </select>
+ <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+ </div>
+ </div>
 
-              <button
-                onClick={handleLoadAttentions}
-                disabled={loadingAttentions}
-                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg flex items-center gap-2"
-              >
-                {loadingAttentions ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
-                {loadingAttentions ? 'Cargando...' : 'Cargar Casos'}
-              </button>
+ <button
+ onClick={handleLoadAttentions}
+ disabled={loadingAttentions}
+ className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg flex items-center gap-2"
+ >
+ {loadingAttentions ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+ {loadingAttentions ? 'Cargando...' : 'Cargar Casos'}
+ </button>
 
-              {attentions.length > 0 && (
-                <button
-                  onClick={() => setShowFilters(!showFilters)}
-                  className={`px-4 py-3 rounded-lg font-medium flex items-center gap-2 border transition-all ${
-                    showFilters || activeFilterCount > 0
-                      ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
-                      : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
-                  }`}
-                >
-                  <Filter className="w-4 h-4" />
-                  Filtros
-                  {activeFilterCount > 0 && (
-                    <span className="px-1.5 py-0.5 text-xs bg-blue-500 text-white rounded-full leading-none">
-                      {activeFilterCount}
-                    </span>
-                  )}
-                </button>
-              )}
+ {attentions.length > 0 && (
+ <button
+ onClick={() => setShowFilters(!showFilters)}
+ className={`px-4 py-3 rounded-lg font-medium flex items-center gap-2 border transition-all ${
+ showFilters || activeFilterCount > 0
+ ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+ : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
+ }`}
+ >
+ <Filter className="w-4 h-4" />
+ Filtros
+ {activeFilterCount > 0 && (
+ <span className="px-1.5 py-0.5 text-xs bg-blue-500 text-white rounded-full leading-none">
+ {activeFilterCount}
+ </span>
+ )}
+ </button>
+ )}
 
-              {attentions.length > 0 && (
-                <span className="text-sm text-slate-500 ml-auto self-center">
-                  {filteredAttentions.length === attentions.length
-                    ? `${attentions.length} casos`
-                    : `${filteredAttentions.length} de ${attentions.length} casos`}
-                </span>
-              )}
-            </div>
+ {attentions.length > 0 && (
+ <span className="text-sm text-slate-500 ml-auto self-center">
+ {filteredAttentions.length === attentions.length
+ ? `${attentions.length} casos`
+ : `${filteredAttentions.length} de ${attentions.length} casos`}
+ </span>
+ )}
+ </div>
 
-            {/* Filters panel */}
-            {showFilters && attentions.length > 0 && (
-              <div className="mb-6 p-4 bg-slate-800/40 border border-slate-700 rounded-xl">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-                    <Filter className="w-3 h-3" /> Filtros
-                  </p>
-                  {activeFilterCount > 0 && (
-                    <button
-                      onClick={clearFilters}
-                      className="text-xs text-slate-500 hover:text-red-400 flex items-center gap-1 transition-colors"
-                    >
-                      <X className="w-3 h-3" /> Limpiar filtros
-                    </button>
-                  )}
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {/* Date From */}
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
-                      <CalendarRange className="w-3 h-3" /> Fecha desde
-                    </label>
-                    <input
-                      type="date"
-                      value={filterDateFrom}
-                      onChange={(e) => setFilterDateFrom(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  {/* Date To */}
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
-                      <CalendarRange className="w-3 h-3" /> Fecha hasta
-                    </label>
-                    <input
-                      type="date"
-                      value={filterDateTo}
-                      onChange={(e) => setFilterDateTo(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  {/* Agent */}
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
-                      <User className="w-3 h-3" /> Agente
-                    </label>
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
-                      <input
-                        type="text"
-                        value={filterAgent}
-                        onChange={(e) => setFilterAgent(e.target.value)}
-                        placeholder="Buscar agente..."
-                        className="w-full pl-8 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-blue-500"
-                      />
-                    </div>
-                  </div>
-                  {/* Client */}
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
-                      <Search className="w-3 h-3" /> Cliente / Caso
-                    </label>
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
-                      <input
-                        type="text"
-                        value={filterClient}
-                        onChange={(e) => setFilterClient(e.target.value)}
-                        placeholder="Buscar cliente o caso..."
-                        className="w-full pl-8 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-blue-500"
-                      />
-                    </div>
-                  </div>
-                  {/* Calificación */}
-                  {uniqueCalificaciones.length > 0 && (
-                    <div>
-                      <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
-                        <Tag className="w-3 h-3" /> Calificación
-                      </label>
-                      <div className="relative">
-                        <select
-                          value={filterCalificacion}
-                          onChange={(e) => setFilterCalificacion(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 appearance-none focus:outline-none focus:border-blue-500 pr-8"
-                        >
-                          <option value="">Todas</option>
-                          {uniqueCalificaciones.map((c) => (
-                            <option key={c} value={c}>{c}</option>
-                          ))}
-                        </select>
-                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
-                      </div>
-                    </div>
-                  )}
-                  {/* Estado */}
-                  {uniqueEstados.length > 0 && (
-                    <div>
-                      <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
-                        <Tag className="w-3 h-3" /> Estado llamada
-                      </label>
-                      <div className="relative">
-                        <select
-                          value={filterEstado}
-                          onChange={(e) => setFilterEstado(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 appearance-none focus:outline-none focus:border-blue-500 pr-8"
-                        >
-                          <option value="">Todos</option>
-                          {uniqueEstados.map((e) => (
-                            <option key={e} value={e}>{e}</option>
-                          ))}
-                        </select>
-                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+ {/* Filters panel */}
+ {showFilters && attentions.length > 0 && (
+ <div className="mb-6 p-4 bg-slate-800/40 border border-slate-700 rounded-xl">
+ <div className="flex items-center justify-between mb-3">
+ <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+ <Filter className="w-3 h-3" /> Filtros
+ </p>
+ {activeFilterCount > 0 && (
+ <button
+ onClick={clearFilters}
+ className="text-xs text-slate-500 hover:text-red-400 flex items-center gap-1 transition-colors"
+ >
+ <X className="w-3 h-3" /> Limpiar filtros
+ </button>
+ )}
+ </div>
+ <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+ {/* Date From */}
+ <div>
+ <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
+ <CalendarRange className="w-3 h-3" /> Fecha desde
+ </label>
+ <input
+ type="date"
+ value={filterDateFrom}
+ onChange={(e) => setFilterDateFrom(e.target.value)}
+ className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-blue-500"
+ />
+ </div>
+ {/* Date To */}
+ <div>
+ <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
+ <CalendarRange className="w-3 h-3" /> Fecha hasta
+ </label>
+ <input
+ type="date"
+ value={filterDateTo}
+ onChange={(e) => setFilterDateTo(e.target.value)}
+ className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-blue-500"
+ />
+ </div>
+ {/* Agent */}
+ <div>
+ <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
+ <User className="w-3 h-3" /> Agente
+ </label>
+ <div className="relative">
+ <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+ <input
+ type="text"
+ value={filterAgent}
+ onChange={(e) => setFilterAgent(e.target.value)}
+ placeholder="Buscar agente..."
+ className="w-full pl-8 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-blue-500"
+ />
+ </div>
+ </div>
+ {/* Client */}
+ <div>
+ <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
+ <Search className="w-3 h-3" /> Cliente / Caso
+ </label>
+ <div className="relative">
+ <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+ <input
+ type="text"
+ value={filterClient}
+ onChange={(e) => setFilterClient(e.target.value)}
+ placeholder="Buscar cliente o caso..."
+ className="w-full pl-8 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-blue-500"
+ />
+ </div>
+ </div>
+ {/* Calificación */}
+ {uniqueCalificaciones.length > 0 && (
+ <div>
+ <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
+ <Tag className="w-3 h-3" /> Calificación
+ </label>
+ <div className="relative">
+ <select
+ value={filterCalificacion}
+ onChange={(e) => setFilterCalificacion(e.target.value)}
+ className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 appearance-none focus:outline-none focus:border-blue-500 pr-8"
+ >
+ <option value="">Todas</option>
+ {uniqueCalificaciones.map((c) => (
+ <option key={c} value={c}>{c}</option>
+ ))}
+ </select>
+ <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+ </div>
+ </div>
+ )}
+ {/* Estado */}
+ {uniqueEstados.length > 0 && (
+ <div>
+ <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
+ <Tag className="w-3 h-3" /> Estado llamada
+ </label>
+ <div className="relative">
+ <select
+ value={filterEstado}
+ onChange={(e) => setFilterEstado(e.target.value)}
+ className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 appearance-none focus:outline-none focus:border-blue-500 pr-8"
+ >
+ <option value="">Todos</option>
+ {uniqueEstados.map((e) => (
+ <option key={e} value={e}>{e}</option>
+ ))}
+ </select>
+ <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+ </div>
+ </div>
+ )}
+ </div>
+ </div>
+ )}
 
-            {/* Skeleton loader */}
-            {loadingAttentions && (
-              <div className="space-y-3">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="h-12 bg-slate-800/60 rounded-lg animate-pulse" />
-                ))}
-              </div>
-            )}
+ {/* Skeleton loader */}
+ {loadingAttentions && (
+ <div className="space-y-3">
+ {[...Array(5)].map((_, i) => (
+ <div key={i} className="h-12 bg-slate-800/60 rounded-lg animate-pulse" />
+ ))}
+ </div>
+ )}
 
-            {/* Table */}
-            {!loadingAttentions && attentions.length > 0 && (
-              <>
-                {filteredAttentions.length === 0 ? (
-                  <div className="text-center py-12 text-slate-500">
-                    <Search className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                    <p>No hay casos que coincidan con los filtros</p>
-                    <button onClick={clearFilters} className="mt-2 text-sm text-blue-400 hover:text-blue-300 underline">
-                      Limpiar filtros
-                    </button>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto rounded-xl border border-slate-700">
-                    <table className="w-full text-sm text-slate-300">
-                      <thead>
-                        <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider">
-                          <th className="px-4 py-3 text-left">Fecha</th>
-                          <th className="px-4 py-3 text-left">Agente</th>
-                          <th className="px-4 py-3 text-left">ID Caso</th>
-                          <th className="px-4 py-3 text-left">Calificación</th>
-                          <th className="px-4 py-3 text-left">Estado</th>
-                          <th className="px-4 py-3 text-left">Cliente / Caso</th>
-                          <th className="px-4 py-3 text-left">Comercio</th>
-                          <th className="px-4 py-3 text-right">Monto</th>
-                          <th className="px-4 py-3 text-center">Acción</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredAttentions.map((att, idx) => (
-                          <tr
-                            key={`${getAttentionId(att)}-${idx}`}
-                            className="border-t border-slate-700/50 hover:bg-slate-800/40 transition-colors"
-                          >
-                            <td className="px-4 py-3 whitespace-nowrap text-slate-400 text-xs">
-                              {getAttentionDate(att) || '—'}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              {getAttentionExecutive(att) || '—'}
-                            </td>
-                            <td className="px-4 py-3 font-mono text-blue-400 text-xs">
-                              {String(getAttentionId(att)) || '—'}
-                            </td>
-                            <td className="px-4 py-3 text-xs">
-                              {getAttentionCalificacion(att)
-                                ? <span className="px-2 py-0.5 bg-slate-700 rounded-full text-slate-300">{getAttentionCalificacion(att)}</span>
-                                : '—'}
-                            </td>
-                            <td className="px-4 py-3 text-xs">
-                              {getAttentionEstado(att)
-                                ? <span className="px-2 py-0.5 bg-slate-700/60 rounded-full text-slate-400">{getAttentionEstado(att)}</span>
-                                : '—'}
-                            </td>
-                            <td className="px-4 py-3 text-xs max-w-[140px] truncate" title={getAttentionClient(att)}>
-                              {getAttentionClient(att) || '—'}
-                            </td>
-                            <td className="px-4 py-3 text-xs max-w-[120px] truncate" title={att['Comercio'] ?? ''}>
-                              {att['Comercio'] || '—'}
-                            </td>
-                            <td className="px-4 py-3 text-right text-xs text-emerald-400 font-medium whitespace-nowrap">
-                              {att['Monto de la compra'] || '—'}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <button
-                                onClick={() => handleSelectAttention(att)}
-                                className="px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 text-purple-300 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 mx-auto"
-                              >
-                                Ver detalle
-                                <ChevronRight className="w-3 h-3" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <div className="px-4 py-2 bg-slate-800/40 border-t border-slate-700 text-xs text-slate-500">
-                      {filteredAttentions.length} caso{filteredAttentions.length !== 1 ? 's' : ''} mostrado{filteredAttentions.length !== 1 ? 's' : ''}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
+ {/* Table */}
+ {!loadingAttentions && attentions.length > 0 && (
+ <>
+ {filteredAttentions.length === 0 ? (
+ <div className="text-center py-12 text-slate-500">
+ <Search className="w-10 h-10 mx-auto mb-3 opacity-30" />
+ <p>No hay casos que coincidan con los filtros</p>
+ <button onClick={clearFilters} className="mt-2 text-sm text-blue-400 hover:text-blue-300 underline">
+ Limpiar filtros
+ </button>
+ </div>
+ ) : (
+ <div className="overflow-x-auto rounded-xl border border-slate-700">
+ <table className="w-full text-sm text-slate-300">
+ <thead>
+ <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider">
+ <th className="px-4 py-3 text-left">Fecha</th>
+ <th className="px-4 py-3 text-left">Agente</th>
+ <th className="px-4 py-3 text-left">ID Caso</th>
+ <th className="px-4 py-3 text-left">Calificación</th>
+ <th className="px-4 py-3 text-left">Estado</th>
+ <th className="px-4 py-3 text-left">Cliente / Caso</th>
+ <th className="px-4 py-3 text-left">Comercio</th>
+ <th className="px-4 py-3 text-right">Monto</th>
+ <th className="px-4 py-3 text-center">Acción</th>
+ </tr>
+ </thead>
+ <tbody>
+ {filteredAttentions.map((att, idx) => (
+ <tr
+ key={`${getAttentionId(att)}-${idx}`}
+ className="border-t border-slate-700/50 hover:bg-slate-800/40 transition-colors"
+ >
+ <td className="px-4 py-3 whitespace-nowrap text-slate-400 text-xs">
+ {getAttentionDate(att) || '—'}
+ </td>
+ <td className="px-4 py-3 whitespace-nowrap">
+ {getAttentionExecutive(att) || '—'}
+ </td>
+ <td className="px-4 py-3 font-mono text-blue-400 text-xs">
+ {String(getAttentionId(att)) || '—'}
+ </td>
+ <td className="px-4 py-3 text-xs">
+ {getAttentionCalificacion(att)
+ ? <span className="px-2 py-0.5 bg-slate-700 rounded-full text-slate-300">{getAttentionCalificacion(att)}</span>
+ : '—'}
+ </td>
+ <td className="px-4 py-3 text-xs">
+ {getAttentionEstado(att)
+ ? <span className="px-2 py-0.5 bg-slate-700/60 rounded-full text-slate-400">{getAttentionEstado(att)}</span>
+ : '—'}
+ </td>
+ <td className="px-4 py-3 text-xs max-w-[140px] truncate" title={getAttentionClient(att)}>
+ {getAttentionClient(att) || '—'}
+ </td>
+ <td className="px-4 py-3 text-xs max-w-[120px] truncate" title={att['Comercio'] ?? ''}>
+ {att['Comercio'] || '—'}
+ </td>
+ <td className="px-4 py-3 text-right text-xs text-emerald-400 font-medium whitespace-nowrap">
+ {att['Monto de la compra'] || '—'}
+ </td>
+ <td className="px-4 py-3 text-center">
+ <button
+ onClick={() => handleSelectAttention(att)}
+ className="px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 text-purple-300 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 mx-auto"
+ >
+ Ver detalle
+ <ChevronRight className="w-3 h-3" />
+ </button>
+ </td>
+ </tr>
+ ))}
+ </tbody>
+ </table>
+ <div className="px-4 py-2 bg-slate-800/40 border-t border-slate-700 text-xs text-slate-500">
+ {filteredAttentions.length} caso{filteredAttentions.length !== 1 ? 's' : ''} mostrado{filteredAttentions.length !== 1 ? 's' : ''}
+ </div>
+ </div>
+ )}
+ </>
+ )}
 
-            {/* Empty state */}
-            {!loadingAttentions && attentions.length === 0 && (
-              <div className="text-center py-16 text-slate-500">
-                <Database className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p>Carga los casos para comenzar</p>
-              </div>
-            )}
-          </div>
-        )}
+ {/* Empty state */}
+ {!loadingAttentions && attentions.length === 0 && (
+ <div className="text-center py-16 text-slate-500">
+ <Database className="w-12 h-12 mx-auto mb-3 opacity-30" />
+ <p>Carga los casos para comenzar</p>
+ </div>
+ )}
+ </div>
+ )}
 
-        {/* ── LOADING DETAIL STATE ──────────────────────────────────────────── */}
-        {state === 'loading-detail' && selectedAttention && (
-          <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-800 shadow-2xl p-12 max-w-2xl mx-auto text-center">
-            <Loader2 className="w-10 h-10 text-purple-400 animate-spin mx-auto mb-4" />
-            <p className="text-slate-300 font-medium text-lg mb-1">Cargando detalle del caso</p>
-            <p className="text-slate-500 text-sm">
-              ID: <span className="font-mono text-blue-400">{String(getAttentionId(selectedAttention))}</span>
-              {' · '}Obteniendo capturas, transacciones y comentarios...
-            </p>
-          </div>
-        )}
+ {/* ── LOADING DETAIL STATE ──────────────────────────────────────────── */}
+ {state === 'loading-detail' && selectedAttention && (
+ <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-800 shadow-2xl p-12 max-w-2xl mx-auto text-center">
+ <Loader2 className="w-10 h-10 text-purple-400 animate-spin mx-auto mb-4" />
+ <p className="text-slate-300 font-medium text-lg mb-1">Cargando detalle del caso</p>
+ <p className="text-slate-500 text-sm">
+ ID: <span className="font-mono text-blue-400">{String(getAttentionId(selectedAttention))}</span>
+ {' · '}Obteniendo capturas, transacciones y comentarios...
+ </p>
+ </div>
+ )}
 
-        {/* ── CONFIRMING STATE ──────────────────────────────────────────────── */}
-        {state === 'confirming' && selectedAttention && (
-          <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-800 shadow-2xl p-8 max-w-4xl mx-auto">
-            <div className="flex items-center gap-3 mb-6">
-              <CheckCircle2 className="w-6 h-6 text-green-400 flex-shrink-0" />
-              <div>
-                <h2 className="text-xl font-semibold text-slate-200">Confirmar Auditoría</h2>
-                <p className="text-slate-500 text-sm">
-                  Caso <span className="font-mono text-blue-400">{String(getAttentionId(selectedAttention))}</span>
-                  {' · '}{env.toUpperCase()}
-                </p>
-              </div>
-              <button
-                onClick={() => setState('selecting')}
-                className="ml-auto p-2 hover:bg-slate-800 rounded-lg text-slate-500 hover:text-slate-300 transition-colors"
-                title="Volver a la lista"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+ {/* ── CONFIRMING STATE ──────────────────────────────────────────────── */}
+ {state === 'confirming' && selectedAttention && (
+ <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-800 shadow-2xl p-8 max-w-4xl mx-auto">
+ <div className="flex items-center gap-3 mb-6">
+ <CheckCircle2 className="w-6 h-6 text-green-400 flex-shrink-0" />
+ <div>
+ <h2 className="text-xl font-semibold text-slate-200">Confirmar Auditoría</h2>
+ <p className="text-slate-500 text-sm">
+ Caso <span className="font-mono text-blue-400">{String(getAttentionId(selectedAttention))}</span>
+ {' · '}{env.toUpperCase()}
+ </p>
+ </div>
+ <button
+ onClick={() => setState('selecting')}
+ className="ml-auto p-2 hover:bg-slate-800 rounded-lg text-slate-500 hover:text-slate-300 transition-colors"
+ title="Volver a la lista"
+ >
+ <X className="w-5 h-5" />
+ </button>
+ </div>
 
-            {/* Tabs */}
-            <div className="flex gap-1 mb-6 bg-slate-800/60 rounded-xl p-1 border border-slate-700 overflow-x-auto">
-              {[
-                { key: 'info', label: 'Información', icon: <Database className="w-3.5 h-3.5" /> },
-                { key: 'captures', label: `Capturas ${attentionDetail ? `(${attentionDetail.imageUrls.length})` : ''}`, icon: <Image className="w-3.5 h-3.5" /> },
-                { key: 'transactions', label: `Transacciones ${attentionDetail ? `(${attentionDetail.transactions.length})` : ''}`, icon: <CreditCard className="w-3.5 h-3.5" /> },
-                { key: 'comments', label: `Comentarios ${attentionDetail ? `(${attentionDetail.comments.length})` : ''}`, icon: <MessageSquare className="w-3.5 h-3.5" /> },
-                { key: 'otp', label: `OTP ${attentionDetail ? `(${attentionDetail.otpValidations.length})` : ''}`, icon: <ShieldCheck className="w-3.5 h-3.5" /> },
-              ].map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setDetailTab(tab.key as typeof detailTab)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
-                    detailTab === tab.key
-                      ? 'bg-purple-600/80 text-white shadow'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
-                  }`}
-                >
-                  {tab.icon}
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+ {/* Tabs */}
+ <div className="flex gap-1 mb-6 bg-slate-800/60 rounded-xl p-1 border border-slate-700 overflow-x-auto">
+ {[
+ { key: 'info', label: 'Información', icon: <Database className="w-3.5 h-3.5" /> },
+ { key: 'captures', label: `Capturas ${attentionDetail ? `(${attentionDetail.imageUrls.length})` : ''}`, icon: <Image className="w-3.5 h-3.5" /> },
+ { key: 'transactions', label: `Transacciones ${attentionDetail ? `(${attentionDetail.transactions.length})` : ''}`, icon: <CreditCard className="w-3.5 h-3.5" /> },
+ { key: 'comments', label: `Comentarios ${attentionDetail ? `(${attentionDetail.comments.length})` : ''}`, icon: <MessageSquare className="w-3.5 h-3.5" /> },
+ { key: 'otp', label: `OTP ${attentionDetail ? `(${attentionDetail.otpValidations.length})` : ''}`, icon: <ShieldCheck className="w-3.5 h-3.5" /> },
+ ].map((tab) => (
+ <button
+ key={tab.key}
+ onClick={() => setDetailTab(tab.key as typeof detailTab)}
+ className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+ detailTab === tab.key
+ ? 'bg-purple-600/80 text-white shadow'
+ : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
+ }`}
+ >
+ {tab.icon}
+ {tab.label}
+ </button>
+ ))}
+ </div>
 
-            {/* Tab: Información */}
-            {detailTab === 'info' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-                {[
-                  ['ID Caso', String(getAttentionId(selectedAttention))],
-                  ['Ejecutivo / Agente', getAttentionExecutive(selectedAttention)],
-                  ['Calificación', getAttentionCalificacion(selectedAttention)],
-                  ['Sub-calificación', selectedAttention['Sub-calificación'] ?? ''],
-                  ['Estado llamada', getAttentionEstado(selectedAttention)],
-                  ['Llamada en curso', selectedAttention['Llamada en curso'] ?? ''],
-                  ['Cliente / Socio', selectedAttention['Socio'] ?? ''],
-                  ['Correo cliente', selectedAttention['Correo cliente'] ?? ''],
-                  ['Teléfono cliente', selectedAttention['Teléfono cliente'] ?? ''],
-                  ['Caso', selectedAttention['Caso'] ?? ''],
-                  ['Fecha de la compra', getAttentionDate(selectedAttention)],
-                  ['Comercio', selectedAttention['Comercio'] ?? ''],
-                  ['Monto de la compra', selectedAttention['Monto de la compra'] ?? ''],
-                  ['4 dígitos TC', selectedAttention['4 dígitos TC'] ?? ''],
-                  ['Tiene afectación', selectedAttention['Tiene afectación'] ?? ''],
-                  ['Folio BI', selectedAttention['Folio BI'] ?? ''],
-                  ['Resultado dictamen', selectedAttention['Resultado dictamen'] ?? ''],
-                  ['Origen validación', selectedAttention['Origen validación'] ?? ''],
-                  ['Actualización de datos', selectedAttention['Actualización de datos'] ?? ''],
-                  ['Estatus correo preventivo', selectedAttention['Estatus correo preventivo'] ?? ''],
-                  ['Estatus SMS preventivo', selectedAttention['Estatus SMS preventivo'] ?? ''],
-                  ['Re-plastificación', selectedAttention['Cliente no requiere re-plastificación'] ?? ''],
-                  ['Ambiente', env.toUpperCase()],
-                ].filter(([, v]) => v).map(([label, value]) => (
-                  <div key={label} className="flex items-start justify-between gap-3 px-3 py-2 bg-slate-800/40 rounded-lg border border-slate-700/50">
-                    <span className="text-slate-400 text-xs flex-shrink-0">{label}</span>
-                    <span className="text-slate-200 font-medium text-xs text-right break-all">{value || '—'}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+ {/* Tab: Información */}
+ {detailTab === 'info' && (
+ <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+ {[
+ ['ID Caso', String(getAttentionId(selectedAttention))],
+ ['Ejecutivo / Agente', getAttentionExecutive(selectedAttention)],
+ ['Calificación', getAttentionCalificacion(selectedAttention)],
+ ['Sub-calificación', selectedAttention['Sub-calificación'] ?? ''],
+ ['Estado llamada', getAttentionEstado(selectedAttention)],
+ ['Llamada en curso', selectedAttention['Llamada en curso'] ?? ''],
+ ['Cliente / Socio', selectedAttention['Socio'] ?? ''],
+ ['Correo cliente', selectedAttention['Correo cliente'] ?? ''],
+ ['Teléfono cliente', selectedAttention['Teléfono cliente'] ?? ''],
+ ['Caso', selectedAttention['Caso'] ?? ''],
+ ['Fecha de la compra', getAttentionDate(selectedAttention)],
+ ['Comercio', selectedAttention['Comercio'] ?? ''],
+ ['Monto de la compra', selectedAttention['Monto de la compra'] ?? ''],
+ ['4 dígitos TC', selectedAttention['4 dígitos TC'] ?? ''],
+ ['Tiene afectación', selectedAttention['Tiene afectación'] ?? ''],
+ ['Folio BI', selectedAttention['Folio BI'] ?? ''],
+ ['Resultado dictamen', selectedAttention['Resultado dictamen'] ?? ''],
+ ['Origen validación', selectedAttention['Origen validación'] ?? ''],
+ ['Actualización de datos', selectedAttention['Actualización de datos'] ?? ''],
+ ['Estatus correo preventivo', selectedAttention['Estatus correo preventivo'] ?? ''],
+ ['Estatus SMS preventivo', selectedAttention['Estatus SMS preventivo'] ?? ''],
+ ['Re-plastificación', selectedAttention['Cliente no requiere re-plastificación'] ?? ''],
+ ['Ambiente', env.toUpperCase()],
+ ].filter(([, v]) => v).map(([label, value]) => (
+ <div key={label} className="flex items-start justify-between gap-3 px-3 py-2 bg-slate-800/40 rounded-lg border border-slate-700/50">
+ <span className="text-slate-400 text-xs flex-shrink-0">{label}</span>
+ <span className="text-slate-200 font-medium text-xs text-right break-all">{value || '—'}</span>
+ </div>
+ ))}
+ </div>
+ )}
 
-            {/* Tab: Capturas */}
-            {detailTab === 'captures' && (
-              <div className="mb-6">
-                {!attentionDetail ? (
-                  <p className="text-slate-500 text-sm text-center py-8">Cargando capturas...</p>
-                ) : attentionDetail.imageUrls.length === 0 && attentionDetail.rawComments.length === 0 ? (
-                  <p className="text-slate-500 text-sm text-center py-8 flex flex-col items-center gap-2">
-                    <Image className="w-8 h-8 opacity-30" />
-                    Sin capturas ni comentarios de imagen
-                  </p>
-                ) : (
-                  <div className="space-y-4">
-                    {attentionDetail.imageUrls.length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wide">
-                          Imágenes ({attentionDetail.imageUrls.length})
-                        </p>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                          {attentionDetail.imageUrls.map((url, idx) => (
-                            <a key={idx} href={url} target="_blank" rel="noopener noreferrer"
-                              className="block rounded-lg overflow-hidden border border-slate-700 hover:border-purple-500/60 transition-all group"
-                            >
-                              <img
-                                src={url}
-                                alt={`Captura ${idx + 1}`}
-                                className="w-full h-28 object-cover group-hover:opacity-90 transition-opacity"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).style.display = 'none';
-                                  (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden');
-                                }}
-                              />
-                              <div className="hidden px-2 py-3 text-xs text-purple-400 font-mono break-all bg-slate-800/80">
-                                {url}
-                              </div>
-                              <p className="text-xs text-slate-500 px-2 py-1 bg-slate-900 truncate" title={url}>
-                                {idx + 1} · {url.split('/').pop()}
-                              </p>
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {attentionDetail.rawComments.length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wide">
-                          Comentarios de captura ({attentionDetail.rawComments.length})
-                        </p>
-                        <ul className="space-y-1">
-                          {attentionDetail.rawComments.map((c, idx) => (
-                            <li key={idx} className="px-3 py-2 bg-slate-800/60 rounded-lg border border-slate-700 text-sm text-slate-300 flex gap-2">
-                              <span className="text-slate-600 font-mono text-xs mt-0.5">{idx + 1}.</span>
-                              {c}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+ {/* Tab: Capturas */}
+ {detailTab === 'captures' && (
+ <div className="mb-6">
+ {!attentionDetail ? (
+ <p className="text-slate-500 text-sm text-center py-8">Cargando capturas...</p>
+ ) : attentionDetail.imageUrls.length === 0 && attentionDetail.rawComments.length === 0 ? (
+ <p className="text-slate-500 text-sm text-center py-8 flex flex-col items-center gap-2">
+ <Image className="w-8 h-8 opacity-30" />
+ Sin capturas ni comentarios de imagen
+ </p>
+ ) : (
+ <div className="space-y-4">
+ {attentionDetail.imageUrls.length > 0 && (
+ <div>
+ <p className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wide">
+ Imágenes ({attentionDetail.imageUrls.length})
+ </p>
+ <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+ {attentionDetail.imageUrls.map((url, idx) => (
+ <a key={idx} href={url} target="_blank" rel="noopener noreferrer"
+ className="block rounded-lg overflow-hidden border border-slate-700 hover:border-purple-500/60 transition-all group"
+ >
+ <img
+ src={url}
+ alt={`Captura ${idx + 1}`}
+ className="w-full h-28 object-cover group-hover:opacity-90 transition-opacity"
+ onError={(e) => {
+ (e.target as HTMLImageElement).style.display = 'none';
+ (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden');
+ }}
+ />
+ <div className="hidden px-2 py-3 text-xs text-purple-400 font-mono break-all bg-slate-800/80">
+ {url}
+ </div>
+ <p className="text-xs text-slate-500 px-2 py-1 bg-slate-900 truncate" title={url}>
+ {idx + 1} · {url.split('/').pop()}
+ </p>
+ </a>
+ ))}
+ </div>
+ </div>
+ )}
+ {attentionDetail.rawComments.length > 0 && (
+ <div>
+ <p className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wide">
+ Comentarios de captura ({attentionDetail.rawComments.length})
+ </p>
+ <ul className="space-y-1">
+ {attentionDetail.rawComments.map((c, idx) => (
+ <li key={idx} className="px-3 py-2 bg-slate-800/60 rounded-lg border border-slate-700 text-sm text-slate-300 flex gap-2">
+ <span className="text-slate-600 font-mono text-xs mt-0.5">{idx + 1}.</span>
+ {c}
+ </li>
+ ))}
+ </ul>
+ </div>
+ )}
+ </div>
+ )}
+ </div>
+ )}
 
-            {/* Tab: Transacciones */}
-            {detailTab === 'transactions' && (
-              <div className="mb-6">
-                {!attentionDetail ? (
-                  <p className="text-slate-500 text-sm text-center py-8">Cargando transacciones...</p>
-                ) : attentionDetail.transactions.length === 0 ? (
-                  <p className="text-slate-500 text-sm text-center py-8 flex flex-col items-center gap-2">
-                    <CreditCard className="w-8 h-8 opacity-30" />
-                    Sin transacciones registradas
-                  </p>
-                ) : (
-                  <div className="overflow-x-auto rounded-xl border border-slate-700">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase">
-                          <th className="px-4 py-2 text-left">#</th>
-                          <th className="px-4 py-2 text-left">Fecha</th>
-                          <th className="px-4 py-2 text-left">Comercio</th>
-                          <th className="px-4 py-2 text-right">Monto</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {attentionDetail.transactions.map((t, idx) => (
-                          <tr key={idx} className={`border-t border-slate-700/50 ${idx % 2 === 0 ? '' : 'bg-slate-900/20'}`}>
-                            <td className="px-4 py-2 text-slate-500 font-mono text-xs">{idx + 1}</td>
-                            <td className="px-4 py-2 text-slate-400 whitespace-nowrap text-xs">{t.date || '—'}</td>
-                            <td className="px-4 py-2 text-slate-300 max-w-[200px] truncate" title={t.commerce_name}>{t.commerce_name || '—'}</td>
-                            <td className="px-4 py-2 text-emerald-400 font-semibold text-right whitespace-nowrap">{t.amount || '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <div className="px-4 py-2 bg-slate-800/40 border-t border-slate-700 text-xs text-slate-500">
-                      {attentionDetail.transactions.length} transacción{attentionDetail.transactions.length !== 1 ? 'es' : ''}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+ {/* Tab: Transacciones */}
+ {detailTab === 'transactions' && (
+ <div className="mb-6">
+ {!attentionDetail ? (
+ <p className="text-slate-500 text-sm text-center py-8">Cargando transacciones...</p>
+ ) : attentionDetail.transactions.length === 0 ? (
+ <p className="text-slate-500 text-sm text-center py-8 flex flex-col items-center gap-2">
+ <CreditCard className="w-8 h-8 opacity-30" />
+ Sin transacciones registradas
+ </p>
+ ) : (
+ <div className="overflow-x-auto rounded-xl border border-slate-700">
+ <table className="w-full text-sm">
+ <thead>
+ <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase">
+ <th className="px-4 py-2 text-left">#</th>
+ <th className="px-4 py-2 text-left">Fecha</th>
+ <th className="px-4 py-2 text-left">Comercio</th>
+ <th className="px-4 py-2 text-right">Monto</th>
+ </tr>
+ </thead>
+ <tbody>
+ {attentionDetail.transactions.map((t, idx) => (
+ <tr key={idx} className={`border-t border-slate-700/50 ${idx % 2 === 0 ? '' : 'bg-slate-900/20'}`}>
+ <td className="px-4 py-2 text-slate-500 font-mono text-xs">{idx + 1}</td>
+ <td className="px-4 py-2 text-slate-400 whitespace-nowrap text-xs">{t.date || '—'}</td>
+ <td className="px-4 py-2 text-slate-300 max-w-[200px] truncate" title={t.commerce_name}>{t.commerce_name || '—'}</td>
+ <td className="px-4 py-2 text-emerald-400 font-semibold text-right whitespace-nowrap">{t.amount || '—'}</td>
+ </tr>
+ ))}
+ </tbody>
+ </table>
+ <div className="px-4 py-2 bg-slate-800/40 border-t border-slate-700 text-xs text-slate-500">
+ {attentionDetail.transactions.length} transacción{attentionDetail.transactions.length !== 1 ? 'es' : ''}
+ </div>
+ </div>
+ )}
+ </div>
+ )}
 
-            {/* Tab: Comentarios */}
-            {detailTab === 'comments' && (
-              <div className="mb-6">
-                {!attentionDetail ? (
-                  <p className="text-slate-500 text-sm text-center py-8">Cargando comentarios...</p>
-                ) : attentionDetail.comments.length === 0 ? (
-                  <p className="text-slate-500 text-sm text-center py-8 flex flex-col items-center gap-2">
-                    <MessageSquare className="w-8 h-8 opacity-30" />
-                    Sin comentarios registrados
-                  </p>
-                ) : (
-                  <div className="overflow-x-auto rounded-xl border border-slate-700">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase">
-                          <th className="px-4 py-2 text-left">#</th>
-                          <th className="px-4 py-2 text-left">Fecha</th>
-                          <th className="px-4 py-2 text-left">Agente</th>
-                          <th className="px-4 py-2 text-left">Comentario</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {attentionDetail.comments.map((c, idx) => (
-                          <tr key={idx} className={`border-t border-slate-700/50 ${idx % 2 === 0 ? '' : 'bg-slate-900/20'}`}>
-                            <td className="px-4 py-2 text-slate-500 font-mono text-xs">{idx + 1}</td>
-                            <td className="px-4 py-2 text-slate-400 whitespace-nowrap text-xs">{c.date || '—'}</td>
-                            <td className="px-4 py-2 text-teal-400 whitespace-nowrap text-xs">{c.agent || '—'}</td>
-                            <td className="px-4 py-2 text-slate-300">{c.comment || '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <div className="px-4 py-2 bg-slate-800/40 border-t border-slate-700 text-xs text-slate-500">
-                      {attentionDetail.comments.length} comentario{attentionDetail.comments.length !== 1 ? 's' : ''}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+ {/* Tab: Comentarios */}
+ {detailTab === 'comments' && (
+ <div className="mb-6">
+ {!attentionDetail ? (
+ <p className="text-slate-500 text-sm text-center py-8">Cargando comentarios...</p>
+ ) : attentionDetail.comments.length === 0 ? (
+ <p className="text-slate-500 text-sm text-center py-8 flex flex-col items-center gap-2">
+ <MessageSquare className="w-8 h-8 opacity-30" />
+ Sin comentarios registrados
+ </p>
+ ) : (
+ <div className="overflow-x-auto rounded-xl border border-slate-700">
+ <table className="w-full text-sm">
+ <thead>
+ <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase">
+ <th className="px-4 py-2 text-left">#</th>
+ <th className="px-4 py-2 text-left">Fecha</th>
+ <th className="px-4 py-2 text-left">Agente</th>
+ <th className="px-4 py-2 text-left">Comentario</th>
+ </tr>
+ </thead>
+ <tbody>
+ {attentionDetail.comments.map((c, idx) => (
+ <tr key={idx} className={`border-t border-slate-700/50 ${idx % 2 === 0 ? '' : 'bg-slate-900/20'}`}>
+ <td className="px-4 py-2 text-slate-500 font-mono text-xs">{idx + 1}</td>
+ <td className="px-4 py-2 text-slate-400 whitespace-nowrap text-xs">{c.date || '—'}</td>
+ <td className="px-4 py-2 text-teal-400 whitespace-nowrap text-xs">{c.agent || '—'}</td>
+ <td className="px-4 py-2 text-slate-300">{c.comment || '—'}</td>
+ </tr>
+ ))}
+ </tbody>
+ </table>
+ <div className="px-4 py-2 bg-slate-800/40 border-t border-slate-700 text-xs text-slate-500">
+ {attentionDetail.comments.length} comentario{attentionDetail.comments.length !== 1 ? 's' : ''}
+ </div>
+ </div>
+ )}
+ </div>
+ )}
 
-            {/* Tab: OTP */}
-            {detailTab === 'otp' && (
-              <div className="mb-6">
-                {!attentionDetail ? (
-                  <p className="text-slate-500 text-sm text-center py-8">Cargando validaciones OTP...</p>
-                ) : attentionDetail.otpValidations.length === 0 ? (
-                  <p className="text-slate-500 text-sm text-center py-8 flex flex-col items-center gap-2">
-                    <ShieldCheck className="w-8 h-8 opacity-30" />
-                    Sin validaciones OTP registradas
-                  </p>
-                ) : (
-                  <div className="overflow-x-auto rounded-xl border border-slate-700">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase">
-                          <th className="px-4 py-2 text-left">#</th>
-                          <th className="px-4 py-2 text-left">Fecha</th>
-                          <th className="px-4 py-2 text-left">Agente</th>
-                          <th className="px-4 py-2 text-left">Resultado</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {attentionDetail.otpValidations.map((v, idx) => (
-                          <tr key={idx} className={`border-t border-slate-700/50 ${idx % 2 === 0 ? '' : 'bg-slate-900/20'}`}>
-                            <td className="px-4 py-2 text-slate-500 font-mono text-xs">{idx + 1}</td>
-                            <td className="px-4 py-2 text-slate-400 whitespace-nowrap text-xs">{v.date || '—'}</td>
-                            <td className="px-4 py-2 text-teal-400 whitespace-nowrap text-xs">{v.agent || '—'}</td>
-                            <td className="px-4 py-2">
-                              {v.resultado === true || (v.resultado as any) === 'true' ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
-                                  <CheckCircle2 className="w-3 h-3" /> Validado
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-semibold">
-                                  <XCircle className="w-3 h-3" /> Fallido
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <div className="px-4 py-2 bg-slate-800/40 border-t border-slate-700 text-xs text-slate-500">
-                      {attentionDetail.otpValidations.length} validación{attentionDetail.otpValidations.length !== 1 ? 'es' : ''}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+ {/* Tab: OTP */}
+ {detailTab === 'otp' && (
+ <div className="mb-6">
+ {!attentionDetail ? (
+ <p className="text-slate-500 text-sm text-center py-8">Cargando validaciones OTP...</p>
+ ) : attentionDetail.otpValidations.length === 0 ? (
+ <p className="text-slate-500 text-sm text-center py-8 flex flex-col items-center gap-2">
+ <ShieldCheck className="w-8 h-8 opacity-30" />
+ Sin validaciones OTP registradas
+ </p>
+ ) : (
+ <div className="overflow-x-auto rounded-xl border border-slate-700">
+ <table className="w-full text-sm">
+ <thead>
+ <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase">
+ <th className="px-4 py-2 text-left">#</th>
+ <th className="px-4 py-2 text-left">Fecha</th>
+ <th className="px-4 py-2 text-left">Agente</th>
+ <th className="px-4 py-2 text-left">Resultado</th>
+ </tr>
+ </thead>
+ <tbody>
+ {attentionDetail.otpValidations.map((v, idx) => (
+ <tr key={idx} className={`border-t border-slate-700/50 ${idx % 2 === 0 ? '' : 'bg-slate-900/20'}`}>
+ <td className="px-4 py-2 text-slate-500 font-mono text-xs">{idx + 1}</td>
+ <td className="px-4 py-2 text-slate-400 whitespace-nowrap text-xs">{v.date || '—'}</td>
+ <td className="px-4 py-2 text-teal-400 whitespace-nowrap text-xs">{v.agent || '—'}</td>
+ <td className="px-4 py-2">
+ {v.resultado === true || (v.resultado as any) === 'true' ? (
+ <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
+ <CheckCircle2 className="w-3 h-3" /> Validado
+ </span>
+ ) : (
+ <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-semibold">
+ <XCircle className="w-3 h-3" /> Fallido
+ </span>
+ )}
+ </td>
+ </tr>
+ ))}
+ </tbody>
+ </table>
+ <div className="px-4 py-2 bg-slate-800/40 border-t border-slate-700 text-xs text-slate-500">
+ {attentionDetail.otpValidations.length} validación{attentionDetail.otpValidations.length !== 1 ? 'es' : ''}
+ </div>
+ </div>
+ )}
+ </div>
+ )}
 
-            {/* Excel type selector */}
-            <div className="mb-6 p-4 bg-slate-800/30 rounded-xl border border-slate-700">
-              <label className="block text-sm font-medium text-slate-300 mb-2">Tipo de Reporte</label>
-              <div className="relative max-w-xs">
-                <select
-                  value={excelType}
-                  onChange={(e) => setExcelType(e.target.value as 'INBOUND' | 'MONITOREO')}
-                  className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-200 appearance-none focus:ring-2 focus:ring-purple-500 focus:border-transparent pr-10"
-                >
-                  {EXCEL_TYPES.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
-            </div>
+ {/* Excel type selector */}
+ <div className="mb-6 p-4 bg-slate-800/30 rounded-xl border border-slate-700">
+ <label className="block text-sm font-medium text-slate-300 mb-2">Tipo de Reporte</label>
+ <div className="relative max-w-xs">
+ <select
+ value={excelType}
+ onChange={(e) => setExcelType(e.target.value as 'INBOUND' | 'MONITOREO')}
+ className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-200 appearance-none focus:ring-2 focus:ring-purple-500 focus:border-transparent pr-10"
+ >
+ {EXCEL_TYPES.map((t) => (
+ <option key={t} value={t}>{t}</option>
+ ))}
+ </select>
+ <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+ </div>
+ </div>
 
-            {/* Actions */}
-            <div className="flex gap-4">
-              <button
-                onClick={handleConfirm}
-                className="flex-1 px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg hover:shadow-purple-500/50 flex items-center justify-center gap-2"
-              >
-                <Sparkles className="w-5 h-5" />
-                Confirmar y Auditar
-              </button>
+ {/* Actions */}
+ <div className="flex gap-4">
+ <button
+ onClick={handleConfirm}
+ className="flex-1 px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg hover:shadow-purple-500/50 flex items-center justify-center gap-2"
+ >
+ <Sparkles className="w-5 h-5" />
+ Confirmar y Auditar
+ </button>
 
-              <button
-                onClick={() => setState('selecting')}
-                className="px-6 py-4 bg-slate-800 text-slate-300 rounded-lg font-semibold hover:bg-slate-700 transition-colors flex items-center justify-center gap-2"
-              >
-                <ArrowLeft className="w-5 h-5" />
-                Volver
-              </button>
-            </div>
-          </div>
-        )}
+ <button
+ onClick={() => setState('selecting')}
+ className="px-6 py-4 bg-slate-800 text-slate-300 rounded-lg font-semibold hover:bg-slate-700 transition-colors flex items-center justify-center gap-2"
+ >
+ <ArrowLeft className="w-5 h-5" />
+ Volver
+ </button>
+ </div>
+ </div>
+ )}
 
-        {/* ── PROCESSING STATE ──────────────────────────────────────────────── */}
-        {state === 'processing' && (
-          <ProcessingStatus
-            stage={processing.stage}
-            progress={processing.progress}
-            message={processing.message}
-          />
-        )}
-      </main>
-    </div>
-  );
+ {/* ── PROCESSING STATE ──────────────────────────────────────────────── */}
+ {state === 'processing' && (
+ <ProcessingStatus
+ stage={processing.stage}
+ progress={processing.progress}
+ message={processing.message}
+ />
+ )}
+ </main>
+ </div>
+ );
 }
