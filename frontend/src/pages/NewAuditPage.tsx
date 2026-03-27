@@ -359,6 +359,20 @@ export default function NewAuditPage() {
  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
  <Filter className="w-3 h-3" /> Filtros
  </p>
+ <div className="flex items-center gap-2">
+ <button
+ onClick={() => {
+ // Calcula ayer en timezone local (funciona para Colombia UTC-5 y México UTC-6)
+ const yesterday = new Date();
+ yesterday.setDate(yesterday.getDate() - 1);
+ const yStr = yesterday.toLocaleDateString('en-CA'); // formato YYYY-MM-DD
+ setFilterDateFrom(yStr);
+ setFilterDateTo(yStr);
+ }}
+ className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 transition-colors border border-amber-600/40 rounded px-2 py-1 hover:bg-amber-600/10"
+ >
+ <CalendarRange className="w-3 h-3" /> Día vencido
+ </button>
  {activeFilterCount > 0 && (
  <button
  onClick={clearFilters}
@@ -367,6 +381,7 @@ export default function NewAuditPage() {
  <X className="w-3 h-3" /> Limpiar filtros
  </button>
  )}
+ </div>
  </div>
  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
  {/* Date From */}
