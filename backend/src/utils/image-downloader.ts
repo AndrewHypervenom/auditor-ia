@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from './logger.js';
+import { gpfFetch } from './gpf-fetch.js';
 
 export interface DownloadResult {
  localPaths: string[];
@@ -24,7 +25,7 @@ export async function downloadImagesToTemp(
 
  for (const url of urls) {
  try {
- const response = await fetch(url, {
+ const response = await gpfFetch(url, {
  headers: {
  'Authorization': `Bearer ${token}`,
  'X-App-Token': appToken,

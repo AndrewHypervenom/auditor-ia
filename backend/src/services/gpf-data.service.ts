@@ -12,6 +12,7 @@
 
 import { logger } from '../utils/logger.js';
 import type { AuditInput } from '../types/index.js';
+import { gpfFetch, normalizeGpfUrl } from '../utils/gpf-fetch.js';
 
 export interface AttentionFullData {
  attention: any;
@@ -43,9 +44,10 @@ export interface OtpItem {
 
 class GpfDataService {
  private getBaseUrl(env: string): string {
- return env === 'prod'
- ? (process.env.GPF_API_URL_PROD || '')
- : (process.env.GPF_API_URL_TEST || '');
+ const raw = env === 'prod'
+  ? (process.env.GPF_API_URL_PROD || '')
+  : (process.env.GPF_API_URL_TEST || '');
+ return normalizeGpfUrl(raw);
  }
 
  private buildHeaders(token: string): Record<string, string> {
@@ -61,7 +63,7 @@ class GpfDataService {
  /** Fetch JSON from a GPF endpoint. Returns null on error (for optional data). */
  private async fetchJson(url: string, headers: Record<string, string>): Promise<any> {
  try {
- const response = await fetch(url, { headers });
+ const response = await gpfFetch(url, { headers });
  if (!response.ok) {
  logger.warn(`GPF fetch failed ${url}: ${response.status}`);
  return null;
@@ -82,9 +84,9 @@ class GpfDataService {
  const baseUrl = this.getBaseUrl(env);
  if (!baseUrl) throw new Error(`GPF URL not configured for env: ${env}`);
 
- const response = await fetch(
- `${baseUrl}/api/quality-control/v1/attentions-quality-control`,
- { headers: this.buildHeaders(token) }
+ const response = await gpfFetch(
+  `${baseUrl}/api/quality-control/v1/attentions-quality-control`,
+  { headers: this.buildHeaders(token) }
  );
 
  if (!response.ok) {

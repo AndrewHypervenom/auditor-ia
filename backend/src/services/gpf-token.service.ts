@@ -3,6 +3,7 @@
 // API response shape: { data: { token: "...", user: {...} }, error: null, is_success: true, status: 200 }
 
 import { logger } from '../utils/logger.js';
+import { gpfFetch, normalizeGpfUrl } from '../utils/gpf-fetch.js';
 
 interface TokenCache {
  token: string;
@@ -16,9 +17,10 @@ class GpfTokenService {
  private cache: Map<string, TokenCache> = new Map();
 
  private getBaseUrl(env: string): string {
- return env === 'prod'
- ? (process.env.GPF_API_URL_PROD || '')
- : (process.env.GPF_API_URL_TEST || '');
+ const raw = env === 'prod'
+  ? (process.env.GPF_API_URL_PROD || '')
+  : (process.env.GPF_API_URL_TEST || '');
+ return normalizeGpfUrl(raw);
  }
 
  private buildHeaders(): Record<string, string> {
@@ -43,7 +45,7 @@ class GpfTokenService {
 
  logger.info(' GPF auto-login', { env });
 
- const response = await fetch(`${baseUrl}/api/login`, {
+ const response = await gpfFetch(`${baseUrl}/api/login`, {
  method: 'POST',
  headers: this.buildHeaders(),
  body: JSON.stringify({ email, password })
