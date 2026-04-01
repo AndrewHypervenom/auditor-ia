@@ -490,6 +490,11 @@ export const gpfService = {
  const filename = match ? match[1] : `export_${params.export_id}.xlsx`;
  const blob = new Blob([response.data as ArrayBuffer], { type: contentType || 'application/octet-stream' });
  return { isFile: true, blob, filename };
+ },
+
+ async getAudioUrl(env: 'test' | 'prod', attentionId: string | number): Promise<{ audioUrl: string | null }> {
+ const response = await api.post('/gpf/audio-url', { attentionId, env });
+ return response.data;
  }
 };
 

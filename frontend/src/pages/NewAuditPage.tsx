@@ -26,7 +26,8 @@ import {
  CalendarRange,
  User,
  Tag,
- ChevronRight
+ ChevronRight,
+ Mic
 } from 'lucide-react';
 
 type AppState = 'selecting' | 'loading-detail' | 'confirming' | 'processing';
@@ -90,6 +91,8 @@ export default function NewAuditPage() {
  progress: 0,
  message: 'Iniciando...'
  });
+ const [audioUrl, setAudioUrl] = useState<string | null>(null);
+ const [audioLoading, setAudioLoading] = useState(false);
 
  // ── Filters ──────────────────────────────────────────────────────────────────
 
@@ -161,6 +164,7 @@ export default function NewAuditPage() {
  setSelectedAttention(attention);
  setAttentionDetail(null);
  setDetailTab('info');
+ setAudioUrl(null);
  setState('loading-detail');
  try {
  const detail = await gpfService.getAttentionDetail(env, getAttentionId(attention));
@@ -169,9 +173,14 @@ export default function NewAuditPage() {
  } catch (error: any) {
  console.error('Error loading attention detail:', error);
  toast.error(error.response?.data?.error || 'Error al cargar detalle del caso');
- // Still allow confirming even without detail
  setState('confirming');
  }
+ // Obtener URL de audio en paralelo (no bloquea la UI)
+ setAudioLoading(true);
+ gpfService.getAudioUrl(env, getAttentionId(attention))
+ .then(({ audioUrl: url }) => setAudioUrl(url ?? null))
+ .catch(() => setAudioUrl(null))
+ .finally(() => setAudioLoading(false));
  };
 
  // ── Submit audit ─────────────────────────────────────────────────────────────
@@ -902,6 +911,27 @@ export default function NewAuditPage() {
  )}
  </div>
  )}
+
+ {/* Audio de la llamada */}
+ <div className="mb-6 p-4 bg-slate-800/30 rounded-xl border border-slate-700">
+ <div className="flex items-center gap-2 mb-3">
+ <Mic className="w-4 h-4 text-purple-400" />
+ <span className="text-sm font-medium text-slate-300">Audio de la llamada</span>
+ </div>
+ {audioLoading ? (
+ <div className="flex items-center gap-2 text-slate-500 text-sm">
+ <Loader2 className="w-4 h-4 animate-spin" />
+ Obteniendo enlace de audio...
+ </div>
+ ) : audioUrl ? (
+ <div className="space-y-2">
+ <audio controls src={audioUrl} className="w-full accent-purple-500" />
+ <p className="text-xs text-amber-400/80">El enlace expira en 5 minutos. Si no carga, vuelve a seleccionar el caso.</p>
+ </div>
+ ) : (
+ <p className="text-slate-500 text-sm">Sin audio disponible para este caso.</p>
+ )}
+ </div>
 
  {/* Excel type selector */}
  <div className="mb-6 p-4 bg-slate-800/30 rounded-xl border border-slate-700">

@@ -155,7 +155,7 @@ class EvaluatorService {
  const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
 
  const response = await this.client.chat.completions.create({
- model: 'gpt-5.1',
+ model: 'gpt-5.4-mini',
  max_tokens: 4000,
  temperature: 0,
  seed: 42,
@@ -440,7 +440,7 @@ EJEMPLO DE RESPUESTA CORRECTA:
  );
 
  const response = await this.client.chat.completions.create({
- model: 'gpt-5.1',
+ model: 'gpt-5.4-mini',
  messages: [
  {
  role: 'system',

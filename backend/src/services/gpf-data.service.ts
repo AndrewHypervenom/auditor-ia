@@ -199,6 +199,34 @@ class GpfDataService {
  imagePaths: []
  };
  }
+
+ /** Obtiene la URL segura de descarga del audio de una atención (caduca en 5 minutos). */
+ async fetchAudioUrl(env: string, attentionId: string | number, token: string): Promise<string | null> {
+ const baseUrl = this.getBaseUrl(env);
+ if (!baseUrl) return null;
+ const url = `${baseUrl}/api/quality-control/v1/download-audio-file`;
+ const headers = this.buildHeaders(token);
+ try {
+ const response = await gpfFetch(url, {
+ method: 'POST',
+ headers,
+ body: JSON.stringify({ attention_id: Number(attentionId) })
+ });
+ if (!response.ok) {
+ logger.warn(`GPF audio URL fetch failed ${url}: ${response.status}`);
+ return null;
+ }
+ const body: any = await response.json();
+ if (!body?.is_success) {
+ logger.warn(`GPF audio URL error: ${body?.error?.message}`);
+ return null;
+ }
+ return body.data?.secure_download_url ?? null;
+ } catch (error) {
+ logger.warn('Error fetching GPF audio URL:', error);
+ return null;
+ }
+ }
 }
 
 export const gpfDataService = new GpfDataService();

@@ -1093,6 +1093,23 @@ app.get('/api/gpf/attention-detail', authenticateUser, requireAdminOrAnalyst, as
 });
 
 // ============================================
+// GPF AUDIO URL
+// ============================================
+
+app.post('/api/gpf/audio-url', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+ const { attentionId, env = 'test' } = req.body;
+ if (!attentionId) return res.status(400).json({ error: 'attentionId requerido' });
+ try {
+ const token = await gpfTokenService.getTokenWithRetry(env);
+ const audioUrl = await gpfDataService.fetchAudioUrl(env, attentionId, token);
+ res.json({ audioUrl });
+ } catch (error: any) {
+ logger.warn('Error obteniendo URL de audio GPF', { error: error.message });
+ res.json({ audioUrl: null });
+ }
+});
+
+// ============================================
 // EVALUATE FROM GPF (no file upload needed)
 // ============================================
 
@@ -1158,8 +1175,8 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  ? imageAnalyses.map(img => `${img.system}: ${JSON.stringify(img.data)}`).join('\n\n')
  : 'No se encontraron capturas para analizar';
 
- // ── 5. Build synthetic transcript ────────────────────────────────────────
- progressBroadcaster.progress(sseClientId, 'analysis', 55, 'Procesando datos de atención...');
+ // ── 5. Obtener audio y transcribir (o generar transcript sintético) ──────
+ progressBroadcaster.progress(sseClientId, 'analysis', 53, 'Buscando audio de la llamada...');
 
  const syntheticTranscript = buildSyntheticTranscript(
  attentionData.comments,
@@ -1168,12 +1185,41 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  attentionData.rawComments
  );
 
+ let finalTranscript = syntheticTranscript;
+ let audioDurationSeconds = 0;
+
+ try {
+ const audioSecureUrl = await gpfDataService.fetchAudioUrl(env, attentionId, token);
+ if (audioSecureUrl) {
+ progressBroadcaster.progress(sseClientId, 'analysis', 57, 'Descargando y transcribiendo audio...');
+ const audioResponse = await fetch(audioSecureUrl);
+ if (audioResponse.ok) {
+ const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
+ const audioExt = audioSecureUrl.toLowerCase().includes('.mp3') ? 'mp3' : 'wav';
+ const localAudioPath = path.join('./tmp/uploads/audio', `gpf_audio_${attentionId}_${Date.now()}.${audioExt}`);
+ fs.mkdirSync(path.dirname(localAudioPath), { recursive: true });
+ fs.writeFileSync(localAudioPath, audioBuffer);
+ tempFilePaths.push(localAudioPath);
+ const transcriptionResult = await assemblyAIService.transcribe(localAudioPath);
+ if (transcriptionResult?.text) {
+ finalTranscript = transcriptionResult as typeof syntheticTranscript;
+ audioDurationSeconds = transcriptionResult.audio_duration ?? 0;
+ logger.success(' Audio real transcrito exitosamente', { attentionId });
+ }
+ }
+ } else {
+ logger.info('Sin audio disponible para esta atención, usando transcript sintético', { attentionId });
+ }
+ } catch (audioError: any) {
+ logger.warn('No se pudo obtener/transcribir audio, usando transcript sintético', { error: audioError.message });
+ }
+
  // ── 6. Evaluate ──────────────────────────────────────────────────────────
  progressBroadcaster.progress(sseClientId, 'evaluation', 75, 'Evaluando con IA...');
 
  const evaluation = await evaluatorService.evaluate(
  metadata,
- syntheticTranscript,
+ finalTranscript,
  imageAnalyses
  );
 
@@ -1187,9 +1233,9 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
 
  const excelResult = await excelService.generateExcelReport(metadata, evaluation);
 
- // ── 8. Calculate costs (audio duration = 0 → $0 AssemblyAI) ─────────────
+ // ── 8. Calculate costs ───────────────────────────────────────────────────
  const costs = costCalculatorService.calculateTotalCost(
- 0, // no audio
+ audioDurationSeconds / 60, // duración real si hubo audio, 0 si no
  localPaths.length,
  0,
  0,
@@ -1201,8 +1247,8 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  const excelBase64 = excelResult.buffer.toString('base64');
 
  await databaseService.completeAudit(auditId, {
- transcription: syntheticTranscript.text,
- transcriptionWords: syntheticTranscript.words,
+ transcription: finalTranscript.text,
+ transcriptionWords: finalTranscript.words,
  imageAnalysis: imageAnalysisSummary,
  evaluation,
  excelFilename: excelResult.filename,
