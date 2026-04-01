@@ -129,8 +129,20 @@ class GpfDataService {
  ]);
 
  // captures-comments → { captures: [url], comments: [string] }
+ // Rewrite localhost/127.0.0.1 URLs to use the real GPF server
  const imageUrls: string[] = Array.isArray(capturesData?.captures)
- ? capturesData.captures.filter((u: any) => typeof u === 'string' && u.length > 0)
+ ? capturesData.captures
+ .filter((u: any) => typeof u === 'string' && u.length > 0)
+ .map((u: string) => {
+ if (u.includes('127.0.0.1') || u.match(/^https?:\/\/localhost/i)) {
+ const parsed = new URL(u);
+ return `${baseUrl}${parsed.pathname}${parsed.search}`;
+ }
+ if (u.startsWith('/')) {
+ return `${baseUrl}${u}`;
+ }
+ return u;
+ })
  : [];
 
  const rawComments: string[] = Array.isArray(capturesData?.comments)

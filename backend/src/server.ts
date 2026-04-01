@@ -29,6 +29,7 @@ import type { AuditInput } from './types/index.js';
 import statsRoutes from './routes/stats.routes.js';
 
 const app = express();
+app.set('trust proxy', 1); // Render.com está detrás de un proxy — necesario para req.protocol y req.ip
 const PORT = process.env.PORT || 3000;
 
 // Crear directorio temporal para uploads (solo temporal durante procesamiento)
@@ -1083,6 +1084,14 @@ app.get('/api/gpf/attention-detail', authenticateUser, requireAdminOrAnalyst, as
 
  const token = await gpfTokenService.getTokenWithRetry(env);
  const data = await gpfDataService.fetchAttentionData(env, id, token);
+
+ // Rewrite image URLs to go through our proxy (avoids SSL/localhost issues in browser)
+ const backendUrl = process.env.BACKEND_URL ||
+ `${req.protocol}://${req.get('host')}`;
+ data.imageUrls = data.imageUrls.map((imgUrl: string) =>
+ `${backendUrl}/api/gpf/image-proxy?url=${encodeURIComponent(imgUrl)}`
+ );
+
  res.json(data);
  } catch (error: any) {
  logger.error('Error fetching GPF attention detail:', error);
@@ -1090,6 +1099,50 @@ app.get('/api/gpf/attention-detail', authenticateUser, requireAdminOrAnalyst, as
  gpfTokenService.invalidate((req.query.env as string) || 'test');
  }
  res.status(502).json({ error: `Error obteniendo detalle de atención GPF: ${error.message}` });
+ }
+});
+
+// ============================================
+// GPF IMAGE PROXY (sin auth — solo permite URLs de GPF)
+// ============================================
+
+app.get('/api/gpf/image-proxy', async (req: Request, res: Response) => {
+ const { url } = req.query as { url: string };
+ if (!url) return res.status(400).end();
+
+ // Protección SSRF: solo permitir URLs de los servidores GPF configurados
+ const allowed = [
+ process.env.GPF_API_URL_PROD || '',
+ process.env.GPF_API_URL_TEST || '',
+ '200.94.158.81',
+ 'ngrok-free.app',
+ 'ngrok.io'
+ ].filter(Boolean);
+
+ const isAllowed = allowed.some(host => url.includes(host.replace(/https?:\/\//, '')));
+ if (!isAllowed) {
+ logger.warn('Image proxy: URL no permitida', { url: url.substring(0, 80) });
+ return res.status(403).end();
+ }
+
+ try {
+ const imgResponse = await gpfFetch(url, {
+ headers: {
+ 'X-App-Token': process.env.GPF_APP_TOKEN || '',
+ 'ngrok-skip-browser-warning': 'true'
+ }
+ });
+ if (!imgResponse.ok) {
+ return res.status(imgResponse.status).end();
+ }
+ const contentType = imgResponse.headers.get('content-type') || 'image/jpeg';
+ const imgBuffer = Buffer.from(await imgResponse.arrayBuffer());
+ res.setHeader('Content-Type', contentType);
+ res.setHeader('Cache-Control', 'public, max-age=300');
+ res.send(imgBuffer);
+ } catch (error: any) {
+ logger.warn('Error en proxy de imagen GPF', { error: error.message });
+ res.status(500).end();
  }
 });
 
