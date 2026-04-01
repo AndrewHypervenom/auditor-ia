@@ -1120,12 +1120,42 @@ app.post('/api/gpf/audio-proxy', authenticateUser, requireAdminOrAnalyst, async 
  if (!audioSecureUrl) {
  return res.status(404).json({ error: 'Sin audio disponible para esta atención' });
  }
- const audioResponse = await gpfFetch(audioSecureUrl, {});
- if (!audioResponse.ok) {
- return res.status(502).json({ error: `Error descargando audio: ${audioResponse.status}` });
+ logger.info('Descargando audio GPF', { audioSecureUrl: audioSecureUrl.substring(0, 80) });
+
+ // Intentar con encabezados GPF primero, luego sin ellos (la URL puede ser pre-firmada)
+ const appToken = process.env.GPF_APP_TOKEN || '';
+ let audioResponse = await gpfFetch(audioSecureUrl, {
+ headers: {
+ 'X-App-Token': appToken,
+ 'Authorization': `Bearer ${token}`,
+ 'Accept': '*/*',
+ 'ngrok-skip-browser-warning': 'true'
  }
+ });
+
+ // Si devuelve redirect (3xx), seguirlo manualmente
+ if (audioResponse.status >= 300 && audioResponse.status < 400) {
+ const redirectUrl = audioResponse.headers.get('location');
+ if (redirectUrl) {
+ logger.info('Siguiendo redirect de audio', { redirectUrl: redirectUrl.substring(0, 80) });
+ audioResponse = await gpfFetch(redirectUrl, {});
+ }
+ }
+
+ // Si falla con auth, reintentar sin headers (URL pre-firmada)
+ if (!audioResponse.ok) {
+ logger.warn(`Audio con auth falló (${audioResponse.status}), reintentando sin headers`);
+ audioResponse = await gpfFetch(audioSecureUrl, {});
+ }
+
+ if (!audioResponse.ok) {
+ logger.error(`No se pudo descargar audio GPF: status ${audioResponse.status}`, { url: audioSecureUrl.substring(0, 80) });
+ return res.status(502).json({ error: `GPF devolvió ${audioResponse.status} al descargar audio` });
+ }
+
  const contentType = audioResponse.headers.get('content-type') || 'audio/mpeg';
  const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
+ logger.success(`Audio descargado: ${audioBuffer.length} bytes, tipo: ${contentType}`);
  res.setHeader('Content-Type', contentType);
  res.setHeader('Content-Length', audioBuffer.length);
  res.setHeader('Cache-Control', 'no-store');
