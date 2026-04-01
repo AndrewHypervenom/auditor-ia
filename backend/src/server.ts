@@ -22,6 +22,7 @@ import { gpfTokenService } from './services/gpf-token.service.js';
 import { gpfDataService } from './services/gpf-data.service.js';
 import { buildSyntheticTranscript } from './utils/synthetic-transcript.js';
 import { downloadImagesToTemp } from './utils/image-downloader.js';
+import { gpfFetch } from './utils/gpf-fetch.js';
 import { supabase, supabaseAdmin } from './config/supabase.js';
 import { progressBroadcaster } from './services/progress-broadcaster.js';
 import type { AuditInput } from './types/index.js';
@@ -1093,7 +1094,7 @@ app.get('/api/gpf/attention-detail', authenticateUser, requireAdminOrAnalyst, as
 });
 
 // ============================================
-// GPF AUDIO URL
+// GPF AUDIO URL + PROXY
 // ============================================
 
 app.post('/api/gpf/audio-url', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
@@ -1106,6 +1107,32 @@ app.post('/api/gpf/audio-url', authenticateUser, requireAdminOrAnalyst, async (r
  } catch (error: any) {
  logger.warn('Error obteniendo URL de audio GPF', { error: error.message });
  res.json({ audioUrl: null });
+ }
+});
+
+// Descarga el audio y lo devuelve como stream — evita el error SSL en el browser
+app.post('/api/gpf/audio-proxy', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+ const { attentionId, env = 'test' } = req.body;
+ if (!attentionId) return res.status(400).json({ error: 'attentionId requerido' });
+ try {
+ const token = await gpfTokenService.getTokenWithRetry(env);
+ const audioSecureUrl = await gpfDataService.fetchAudioUrl(env, attentionId, token);
+ if (!audioSecureUrl) {
+ return res.status(404).json({ error: 'Sin audio disponible para esta atención' });
+ }
+ const audioResponse = await gpfFetch(audioSecureUrl, {});
+ if (!audioResponse.ok) {
+ return res.status(502).json({ error: `Error descargando audio: ${audioResponse.status}` });
+ }
+ const contentType = audioResponse.headers.get('content-type') || 'audio/mpeg';
+ const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
+ res.setHeader('Content-Type', contentType);
+ res.setHeader('Content-Length', audioBuffer.length);
+ res.setHeader('Cache-Control', 'no-store');
+ res.send(audioBuffer);
+ } catch (error: any) {
+ logger.warn('Error en proxy de audio GPF', { error: error.message });
+ res.status(500).json({ error: 'Error al obtener audio' });
  }
 });
 
@@ -1192,7 +1219,7 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  const audioSecureUrl = await gpfDataService.fetchAudioUrl(env, attentionId, token);
  if (audioSecureUrl) {
  progressBroadcaster.progress(sseClientId, 'analysis', 57, 'Descargando y transcribiendo audio...');
- const audioResponse = await fetch(audioSecureUrl);
+ const audioResponse = await gpfFetch(audioSecureUrl, {});
  if (audioResponse.ok) {
  const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
  const audioExt = audioSecureUrl.toLowerCase().includes('.mp3') ? 'mp3' : 'wav';

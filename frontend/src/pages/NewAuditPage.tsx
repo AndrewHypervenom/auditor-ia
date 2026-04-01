@@ -175,10 +175,15 @@ export default function NewAuditPage() {
  toast.error(error.response?.data?.error || 'Error al cargar detalle del caso');
  setState('confirming');
  }
- // Obtener URL de audio en paralelo (no bloquea la UI)
+ // Obtener audio como blob (proxy del backend para evitar error SSL del browser)
  setAudioLoading(true);
- gpfService.getAudioUrl(env, getAttentionId(attention))
- .then(({ audioUrl: url }) => setAudioUrl(url ?? null))
+ gpfService.getAudioBlob(env, getAttentionId(attention))
+ .then((blobUrl) => {
+ setAudioUrl(prev => {
+ if (prev) URL.revokeObjectURL(prev); // liberar blob anterior
+ return blobUrl;
+ });
+ })
  .catch(() => setAudioUrl(null))
  .finally(() => setAudioLoading(false));
  };

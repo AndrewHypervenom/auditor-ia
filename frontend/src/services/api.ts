@@ -492,9 +492,16 @@ export const gpfService = {
  return { isFile: true, blob, filename };
  },
 
- async getAudioUrl(env: 'test' | 'prod', attentionId: string | number): Promise<{ audioUrl: string | null }> {
- const response = await api.post('/gpf/audio-url', { attentionId, env });
- return response.data;
+ async getAudioBlob(env: 'test' | 'prod', attentionId: string | number): Promise<string | null> {
+ try {
+ const response = await api.post('/gpf/audio-proxy', { attentionId, env }, { responseType: 'blob' });
+ if (response.data) {
+ return URL.createObjectURL(response.data as Blob);
+ }
+ return null;
+ } catch {
+ return null;
+ }
  }
 };
 
