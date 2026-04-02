@@ -1333,7 +1333,13 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  tempFilePaths.push(localAudioPath);
  const transcriptionResult = await assemblyAIService.transcribe(localAudioPath);
  if (transcriptionResult?.text) {
- finalTranscript = transcriptionResult as typeof syntheticTranscript;
+ // Combinar transcript real de audio + datos estructurados GPF
+ // para que el evaluador tenga TODO el contexto disponible
+ const combinedText = `${transcriptionResult.text}\n\n--- DATOS ESTRUCTURADOS GPF ---\n${syntheticTranscript.text}`;
+ finalTranscript = {
+ ...transcriptionResult,
+ text: combinedText
+ } as typeof syntheticTranscript;
  audioDurationSeconds = transcriptionResult.audio_duration ?? 0;
  logger.success(' Audio real transcrito exitosamente', { attentionId });
  }

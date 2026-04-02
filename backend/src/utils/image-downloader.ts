@@ -25,13 +25,27 @@ export async function downloadImagesToTemp(
 
  for (const url of urls) {
  try {
- const response = await gpfFetch(url, {
+ let response = await gpfFetch(url, {
  headers: {
  'Authorization': `Bearer ${token}`,
  'X-App-Token': appToken,
  'ngrok-skip-browser-warning': 'true'
  }
  });
+
+ // Seguir redirecciones 3xx (misma lógica que el proxy de audio)
+ if (response.status >= 300 && response.status < 400) {
+ const redirectUrl = response.headers.get('location');
+ if (redirectUrl) {
+ logger.info(` Siguiendo redirect de imagen`, { redirectUrl: redirectUrl.substring(0, 80) });
+ response = await gpfFetch(redirectUrl, {});
+ }
+ }
+
+ // Reintentar sin headers si falló con auth (URL pre-firmada)
+ if (!response.ok) {
+ response = await gpfFetch(url, {});
+ }
 
  if (!response.ok) {
  logger.warn(` Failed to download image: ${url} → ${response.status}`);
