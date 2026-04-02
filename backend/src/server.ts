@@ -1237,13 +1237,22 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  return res.status(400).json({ error: 'attentionId es requerido' });
  }
 
- logger.info(' Starting GPF-sourced audit', { attentionId, env, userId: req.user!.id });
+ logger.info('[INICIO] Iniciando auditoria desde GPF', { attentionId, env, userId: req.user!.id });
 
  // ── 1. Fetch attention data ──────────────────────────────────────────────
  progressBroadcaster.progress(sseClientId, 'upload', 10, 'Obteniendo datos de atención...');
 
  const token = await gpfTokenService.getTokenWithRetry(env);
+ logger.info('[PASO 1] Token GPF obtenido, consultando datos de atencion...');
  const attentionData = await gpfDataService.fetchAttentionData(env, attentionId, token);
+
+ logger.info('[PASO 1] Datos de atencion recibidos', {
+ imageUrls: attentionData.imageUrls.length,
+ comentarios: attentionData.comments.length,
+ transacciones: attentionData.transactions.length,
+ otpValidaciones: attentionData.otpValidations.length,
+ comentariosRaw: attentionData.rawComments.length
+ });
 
  const rawExcelType = excelType || '';
  const resolvedExcelType: 'INBOUND' | 'MONITOREO' =
@@ -1255,12 +1264,29 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  excelType: resolvedExcelType
  };
 
+ logger.info('[PASO 1] Metadata de auditoria', {
+ callType: metadata.callType,
+ executiveName: metadata.executiveName,
+ excelType: resolvedExcelType
+ });
+
  // ── 2. Download images ───────────────────────────────────────────────────
  progressBroadcaster.progress(sseClientId, 'upload', 20, 'Descargando capturas...');
+
+ logger.info('[PASO 2] Descargando imagenes', {
+ totalUrls: attentionData.imageUrls.length,
+ urls: attentionData.imageUrls.map((u: string) => u.substring(0, 80))
+ });
 
  const { localPaths } = await downloadImagesToTemp(attentionData.imageUrls, token);
  tempFilePaths.push(...localPaths);
  metadata.imagePaths = localPaths;
+
+ logger.info('[PASO 2] Resultado descarga imagenes', {
+ urlsRecibidas: attentionData.imageUrls.length,
+ imagenesDescargadas: localPaths.length,
+ archivosLocales: localPaths
+ });
 
  // ── 3. Create audit record ───────────────────────────────────────────────
  progressBroadcaster.progress(sseClientId, 'upload', 25, 'Creando registro de auditoría...');
@@ -1272,14 +1298,23 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  imageFilenames: localPaths.map(p => path.basename(p))
  });
 
- logger.success(' Audit record created', { auditId });
+ logger.success('[PASO 3] Registro de auditoria creado', { auditId });
 
  // ── 4. Analyze images ────────────────────────────────────────────────────
  progressBroadcaster.progress(sseClientId, 'analysis', 50, 'Analizando imágenes con IA...');
 
+ logger.info('[PASO 4] Iniciando analisis de imagenes con OpenAI Vision', {
+ imagenesAAnalizar: localPaths.length
+ });
+
  const imageAnalyses = localPaths.length > 0
  ? await openAIService.analyzeMultipleImages(localPaths)
  : [];
+
+ logger.info('[PASO 4] Resultado analisis de imagenes', {
+ imagenesAnalizadas: imageAnalyses.length,
+ sistemasDetectados: imageAnalyses.map(i => i.system)
+ });
 
  const imageAnalysisSummary = imageAnalyses.length > 0
  ? imageAnalyses.map(img => `${img.system}: ${JSON.stringify(img.data)}`).join('\n\n')
@@ -1288,6 +1323,13 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  // ── 5. Obtener audio y transcribir (o generar transcript sintético) ──────
  progressBroadcaster.progress(sseClientId, 'analysis', 53, 'Buscando audio de la llamada...');
 
+ logger.info('[PASO 5] Datos GPF disponibles para transcript sintetico', {
+ comentarios: attentionData.comments.length,
+ transacciones: attentionData.transactions.length,
+ otpValidaciones: attentionData.otpValidations.length,
+ comentariosRaw: attentionData.rawComments.length
+ });
+
  const syntheticTranscript = buildSyntheticTranscript(
  attentionData.comments,
  attentionData.transactions,
@@ -1295,14 +1337,25 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  attentionData.rawComments
  );
 
+ logger.info('[PASO 5] Transcript sintetico construido', {
+ longitudTexto: syntheticTranscript.text.length,
+ utterances: syntheticTranscript.words?.length ?? 0
+ });
+
  let finalTranscript = syntheticTranscript;
  let audioDurationSeconds = 0;
 
  try {
+ logger.info('[PASO 5] Solicitando URL de audio a GPF...', { attentionId, env });
  const audioSecureUrl = await gpfDataService.fetchAudioUrl(env, attentionId, token);
+ logger.info('[PASO 5] Resultado URL de audio', {
+ urlObtenida: audioSecureUrl ? audioSecureUrl.substring(0, 100) : 'NULL - sin audio disponible'
+ });
+
  if (audioSecureUrl) {
  progressBroadcaster.progress(sseClientId, 'analysis', 57, 'Descargando y transcribiendo audio...');
  const appToken = process.env.GPF_APP_TOKEN || '';
+ logger.info('[PASO 5] Descargando audio (intento 1 con headers auth)...', { url: audioSecureUrl.substring(0, 80) });
  let audioResponse = await gpfFetch(audioSecureUrl, {
  headers: {
  'X-App-Token': appToken,
@@ -1311,19 +1364,25 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  'ngrok-skip-browser-warning': 'true'
  }
  });
+ logger.info('[PASO 5] Respuesta descarga audio intento 1', { status: audioResponse.status, ok: audioResponse.ok });
+
  // Seguir redirecciones 3xx (URLs presignadas de S3/Azure)
  if (audioResponse.status >= 300 && audioResponse.status < 400) {
  const redirectUrl = audioResponse.headers.get('location');
+ logger.info('[PASO 5] Redirect detectado, siguiendo...', { redirectUrl: redirectUrl?.substring(0, 80) });
  if (redirectUrl) {
- logger.info('Siguiendo redirect de audio en evaluación', { redirectUrl: redirectUrl.substring(0, 80) });
  audioResponse = await gpfFetch(redirectUrl, {});
+ logger.info('[PASO 5] Respuesta despues de redirect', { status: audioResponse.status, ok: audioResponse.ok });
  }
  }
+
  // Reintentar sin headers si la autenticación causó fallo
  if (!audioResponse.ok) {
- logger.warn(`Audio con auth falló (${audioResponse.status}), reintentando sin headers`);
+ logger.warn('[PASO 5] Audio con auth fallo, reintentando sin headers', { status: audioResponse.status });
  audioResponse = await gpfFetch(audioSecureUrl, {});
+ logger.info('[PASO 5] Respuesta intento sin headers', { status: audioResponse.status, ok: audioResponse.ok });
  }
+
  if (audioResponse.ok) {
  const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
  const audioExt = audioSecureUrl.toLowerCase().includes('.mp3') ? 'mp3' : 'wav';
@@ -1331,7 +1390,18 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  fs.mkdirSync(path.dirname(localAudioPath), { recursive: true });
  fs.writeFileSync(localAudioPath, audioBuffer);
  tempFilePaths.push(localAudioPath);
+ logger.info('[PASO 5] Audio guardado en disco', {
+ ruta: localAudioPath,
+ tamanoBytes: audioBuffer.length,
+ tamanoMB: (audioBuffer.length / 1024 / 1024).toFixed(2) + ' MB'
+ });
+ logger.info('[PASO 5] Enviando audio a AssemblyAI para transcripcion...');
  const transcriptionResult = await assemblyAIService.transcribe(localAudioPath);
+ logger.info('[PASO 5] Resultado transcripcion AssemblyAI', {
+ tieneTexto: !!transcriptionResult?.text,
+ longitudTexto: transcriptionResult?.text?.length ?? 0,
+ duracionAudio: transcriptionResult?.audio_duration ?? 0
+ });
  if (transcriptionResult?.text) {
  // Combinar transcript real de audio + datos estructurados GPF
  // para que el evaluador tenga TODO el contexto disponible
@@ -1341,18 +1411,36 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  text: combinedText
  } as typeof syntheticTranscript;
  audioDurationSeconds = transcriptionResult.audio_duration ?? 0;
- logger.success(' Audio real transcrito exitosamente', { attentionId });
- }
+ logger.success('[PASO 5] Audio transcrito exitosamente', {
+ attentionId,
+ duracion: audioDurationSeconds + 's',
+ longitudTotal: combinedText.length
+ });
  }
  } else {
- logger.info('Sin audio disponible para esta atención, usando transcript sintético', { attentionId });
+ logger.warn('[PASO 5] No se pudo descargar el audio, usando transcript sintetico', {
+ statusFinal: audioResponse.status
+ });
+ }
+ } else {
+ logger.info('[PASO 5] Sin audio disponible, usando transcript sintetico', { attentionId });
  }
  } catch (audioError: any) {
- logger.warn('No se pudo obtener/transcribir audio, usando transcript sintético', { error: audioError.message });
+ logger.warn('[PASO 5] Error al obtener/transcribir audio, usando transcript sintetico', {
+ error: audioError.message,
+ stack: audioError.stack
+ });
  }
 
  // ── 6. Evaluate ──────────────────────────────────────────────────────────
  progressBroadcaster.progress(sseClientId, 'evaluation', 75, 'Evaluando con IA...');
+
+ logger.info('[PASO 6] Iniciando evaluacion con IA', {
+ fuenteTranscript: audioDurationSeconds > 0 ? 'AUDIO REAL (AssemblyAI)' : 'SINTETICO (datos GPF)',
+ longitudTranscript: finalTranscript.text.length,
+ imagenesAnalizadas: imageAnalyses.length,
+ callType: metadata.callType
+ });
 
  const evaluation = await evaluatorService.evaluate(
  metadata,
@@ -1360,9 +1448,12 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  imageAnalyses
  );
 
- logger.success(' Evaluation completed', {
- totalScore: evaluation.totalScore,
- percentage: evaluation.percentage
+ logger.success('[PASO 6] Evaluacion completada', {
+ puntajeTotal: evaluation.totalScore,
+ puntajeMaximo: evaluation.maxPossibleScore,
+ porcentaje: evaluation.percentage + '%',
+ criteriosEvaluados: evaluation.detailedScores?.length ?? 0,
+ tokensUsados: evaluation.usage
  });
 
  // ── 7. Generate Excel ────────────────────────────────────────────────────

@@ -22,7 +22,7 @@ class AssemblyAIService {
 
  async transcribe(audioPath: string): Promise<TranscriptResult> {
  try {
- logger.info(' Starting ENHANCED audio transcription', { audioPath });
+ logger.info('[ASSEMBLYAI] Iniciando transcripcion de audio', { audioPath });
 
  // Verificar que el archivo existe
  if (!fs.existsSync(audioPath)) {
@@ -31,15 +31,15 @@ class AssemblyAIService {
 
  const stats = fs.statSync(audioPath);
  const fileSizeMB = (stats.size / 1024 / 1024).toFixed(2);
- logger.info(' Audio file info', { 
- size: `${fileSizeMB} MB`,
- path: audioPath 
+ logger.info('[ASSEMBLYAI] Archivo de audio en disco', {
+ tamano: fileSizeMB + ' MB',
+ ruta: audioPath
  });
 
  // Leer archivo de audio
  const audioData = fs.readFileSync(audioPath);
- 
- logger.info(' Uploading audio to AssemblyAI with enhanced settings...');
+
+ logger.info('[ASSEMBLYAI] Subiendo audio a AssemblyAI...');
 
  // Subir archivo con reintentos
  let uploadUrl: string;
@@ -62,7 +62,7 @@ class AssemblyAIService {
  }
  }
  
- logger.info(' Audio uploaded successfully, starting ENHANCED transcription...');
+ logger.info('[ASSEMBLYAI] Audio subido exitosamente, iniciando transcripcion...');
 
  // ===============================================
  // CONFIGURACIÓN MEJORADA DE TRANSCRIPCIÓN
@@ -139,9 +139,9 @@ class AssemblyAIService {
  boost_param: 'high' // Alta prioridad para las palabras del vocabulario
  });
 
- logger.info(' Transcription job created, waiting for completion...', {
+ logger.info('[ASSEMBLYAI] Job de transcripcion creado, esperando resultado...', {
  transcriptId: transcript.id,
- expectedTime: '30-120 seconds depending on audio length'
+ tiempoEstimado: '30-120 segundos segun duracion del audio'
  });
 
  // ===============================================
@@ -165,17 +165,17 @@ class AssemblyAIService {
  if (pollCount % 3 === 0) {
  const elapsed = pollCount * 3;
  const progress = Math.min(elapsed / 120 * 100, 95).toFixed(0);
- logger.info(` Transcription in progress... ${elapsed}s elapsed`, {
+ logger.info(`[ASSEMBLYAI] Transcripcion en proceso... ${elapsed}s transcurridos`, {
  status: result.status,
- progress: `${progress}%`,
- audioSize: fileSizeMB + ' MB'
+ progreso: progress + '%',
+ tamanoAudio: fileSizeMB + ' MB'
  });
  }
  }
 
  // Verificar errores
  if (result.status === 'error') {
- logger.error(' Transcription failed', { error: result.error });
+ logger.error('[ASSEMBLYAI] Transcripcion fallida', { error: result.error });
  throw new Error(`Transcription failed: ${result.error}`);
  }
 
@@ -190,22 +190,21 @@ class AssemblyAIService {
  
  // Advertencia si el texto es muy corto
  if (textLength < 100) {
- logger.warn(' Transcription completed but text is VERY SHORT', {
- textLength,
- wordCount,
- utteranceCount,
- possibleIssue: 'Audio might be too quiet, damaged, or not contain speech'
+ logger.warn('[ASSEMBLYAI] Transcripcion completada pero el texto es muy corto', {
+ longitudTexto: textLength,
+ palabras: wordCount,
+ utterances: utteranceCount,
+ posibleCausa: 'El audio puede estar en silencio, dañado o sin voz'
  });
  }
 
- logger.success(' Transcription completed successfully!', {
- duration: `${result.audio_duration}s audio`,
- processingTime: `${totalTime}s`,
- words: wordCount,
+ logger.success('[ASSEMBLYAI] Transcripcion completada exitosamente', {
+ duracionAudio: result.audio_duration + 's',
+ tiempoProcesamiento: totalTime + 's',
+ palabras: wordCount,
  utterances: utteranceCount,
- textLength: textLength,
- confidence: result.confidence ? `${(result.confidence * 100).toFixed(1)}%` : 'N/A',
- charactersPerSecond: result.audio_duration ? (textLength / result.audio_duration).toFixed(1) : 'N/A'
+ longitudTexto: textLength,
+ confianza: result.confidence ? (result.confidence * 100).toFixed(1) + '%' : 'N/A'
  });
 
  // Formatear resultado
@@ -218,23 +217,23 @@ class AssemblyAIService {
 
  // Log de muestra del contenido
  if (utterances.length > 0) {
- logger.info(' Transcription sample (first 3 utterances):', {
- samples: utterances.slice(0, 3).map((u, idx) => ({
+ logger.info('[ASSEMBLYAI] Muestra de transcripcion (primeros 3 utterances)', {
+ muestras: utterances.slice(0, 3).map(u => ({
  speaker: u.speaker,
- text: u.text.substring(0, 100) + (u.text.length > 100 ? '...' : ''),
- timestamp: `${(u.start / 1000).toFixed(1)}s`
+ texto: u.text.substring(0, 100) + (u.text.length > 100 ? '...' : ''),
+ timestamp: (u.start / 1000).toFixed(1) + 's'
  }))
  });
  } else {
- logger.warn(' No utterances found in transcription');
+ logger.warn('[ASSEMBLYAI] No se encontraron utterances en la transcripcion');
  }
 
  // Advertencia si no hay suficientes utterances
  if (utteranceCount < 5 && result.audio_duration && result.audio_duration > 60) {
- logger.warn(' Few utterances for audio length', {
+ logger.warn('[ASSEMBLYAI] Pocos utterances para la duracion del audio', {
  utterances: utteranceCount,
- audioDuration: `${result.audio_duration}s`,
- suggestion: 'Audio might have long silences or low speech activity'
+ duracionAudio: result.audio_duration + 's',
+ sugerencia: 'El audio puede tener muchos silencios o poca actividad de voz'
  });
  }
 
@@ -247,7 +246,7 @@ class AssemblyAIService {
  };
 
  } catch (error: any) {
- logger.error(' Error in transcription', {
+ logger.error('[ASSEMBLYAI] Error en transcripcion', {
  error: error.message,
  stack: error.stack
  });
