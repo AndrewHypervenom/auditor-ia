@@ -729,7 +729,7 @@ export default function NewAuditPage() {
  ['Estatus SMS preventivo', selectedAttention['Estatus SMS preventivo'] ?? ''],
  ['Re-plastificación', selectedAttention['Cliente no requiere re-plastificación'] ?? ''],
  ['Ambiente', env.toUpperCase()],
- ].filter(([, v]) => v).map(([label, value]) => (
+ ].map(([label, value]) => (
  <div key={label} className="flex items-start justify-between gap-3 px-3 py-2 bg-slate-800/40 rounded-lg border border-slate-700/50">
  <span className="text-slate-400 text-xs flex-shrink-0">{label}</span>
  <span className="text-slate-200 font-medium text-xs text-right break-all">{value || '—'}</span>
