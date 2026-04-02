@@ -330,8 +330,14 @@ Ahora analiza la imagen proporcionada siguiendo TODOS estos pasos y reglas.`;
  try {
  const analysis = await this.analyzeImage(imagePath);
  analyses.push(analysis);
- } catch (error) {
- logger.error(`Failed to analyze ${imagePath}`, error);
+ } catch (error: any) {
+ logger.error(`Failed to analyze ${imagePath}`, {
+ message: error.message,
+ code: error.code,
+ status: error.status,
+ type: error.type,
+ errorBody: error.error
+ });
  }
  }
 

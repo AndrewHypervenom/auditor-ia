@@ -211,6 +211,7 @@ export default function NewAuditPage() {
  eventSource.onmessage = (event) => {
  try {
  const message: SSEMessage = JSON.parse(event.data);
+ console.log('[Auditoria] SSE recibido:', message);
 
  if (message.stage && message.progress !== undefined) {
  setProcessing({ stage: message.stage, progress: message.progress, message: message.message });
@@ -229,12 +230,13 @@ export default function NewAuditPage() {
  }
 
  if (message.type === 'error') {
+ console.error('[Auditoria] Error SSE del servidor:', message);
  toast.error(message.message);
  eventSource.close();
  setState('confirming');
  }
- } catch {
- // ignore parse errors
+ } catch (parseError) {
+ console.error('[Auditoria] Error parseando mensaje SSE:', parseError, '| Raw data:', event.data);
  }
  };
 
@@ -266,7 +268,9 @@ export default function NewAuditPage() {
  }, 2000);
  }
  } catch (error: any) {
- console.error('Error processing GPF audit:', error);
+ console.error('[Auditoria] Error al procesar:', error);
+ console.error('[Auditoria] Respuesta del servidor:', error?.response?.data);
+ console.error('[Auditoria] Status HTTP:', error?.response?.status);
  toast.error(error.response?.data?.error || 'Error al procesar la auditoría');
  eventSource.close();
  setState('confirming');

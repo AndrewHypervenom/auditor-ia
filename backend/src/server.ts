@@ -1316,6 +1316,11 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  sistemasDetectados: imageAnalyses.map(i => i.system)
  });
 
+ if (localPaths.length > 0 && imageAnalyses.length === 0) {
+ logger.error('[PASO 4] TODAS las imagenes fallaron al analizarse - posible error de modelo/API key de OpenAI');
+ progressBroadcaster.progress(sseClientId, 'analysis', 52, 'ADVERTENCIA: No se pudieron analizar las capturas con IA');
+ }
+
  const imageAnalysisSummary = imageAnalyses.length > 0
  ? imageAnalyses.map(img => `${img.system}: ${JSON.stringify(img.data)}`).join('\n\n')
  : 'No se encontraron capturas para analizar';
@@ -1428,8 +1433,11 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  } catch (audioError: any) {
  logger.warn('[PASO 5] Error al obtener/transcribir audio, usando transcript sintetico', {
  error: audioError.message,
+ code: audioError.code,
+ status: audioError.status,
  stack: audioError.stack
  });
+ progressBroadcaster.progress(sseClientId, 'analysis', 57, 'Audio no disponible, evaluando con datos de texto');
  }
 
  // ── 6. Evaluate ──────────────────────────────────────────────────────────
