@@ -1302,7 +1302,28 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  const audioSecureUrl = await gpfDataService.fetchAudioUrl(env, attentionId, token);
  if (audioSecureUrl) {
  progressBroadcaster.progress(sseClientId, 'analysis', 57, 'Descargando y transcribiendo audio...');
- const audioResponse = await gpfFetch(audioSecureUrl, {});
+ const appToken = process.env.GPF_APP_TOKEN || '';
+ let audioResponse = await gpfFetch(audioSecureUrl, {
+ headers: {
+ 'X-App-Token': appToken,
+ 'Authorization': `Bearer ${token}`,
+ 'Accept': '*/*',
+ 'ngrok-skip-browser-warning': 'true'
+ }
+ });
+ // Seguir redirecciones 3xx (URLs presignadas de S3/Azure)
+ if (audioResponse.status >= 300 && audioResponse.status < 400) {
+ const redirectUrl = audioResponse.headers.get('location');
+ if (redirectUrl) {
+ logger.info('Siguiendo redirect de audio en evaluación', { redirectUrl: redirectUrl.substring(0, 80) });
+ audioResponse = await gpfFetch(redirectUrl, {});
+ }
+ }
+ // Reintentar sin headers si la autenticación causó fallo
+ if (!audioResponse.ok) {
+ logger.warn(`Audio con auth falló (${audioResponse.status}), reintentando sin headers`);
+ audioResponse = await gpfFetch(audioSecureUrl, {});
+ }
  if (audioResponse.ok) {
  const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
  const audioExt = audioSecureUrl.toLowerCase().includes('.mp3') ? 'mp3' : 'wav';

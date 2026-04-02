@@ -436,7 +436,8 @@ EJEMPLO DE RESPUESTA CORRECTA:
  visualEvidence,
  verbalEvidence,
  topicsToEvaluate,
- maxPossibleScore
+ maxPossibleScore,
+ transcript.text
  );
 
  const response = await this.client.chat.completions.create({
@@ -526,7 +527,8 @@ Si hay duda → Revisa toda la evidencia disponible antes de decidir
  visualEvidence: Record<string, any[]>,
  verbalEvidence: string[],
  topics: any[],
- maxScore: number
+ maxScore: number,
+ transcriptText: string
  ): string {
  // Formatear evidencia estructurada de forma más clara
  const structuredEvidence = Object.entries(visualEvidence)
@@ -585,7 +587,11 @@ ${structuredEvidence}
 EVIDENCIA VERBAL (Transcripción)
 ╚═════════════════════════════════════╝
 
+MENCIONES CLAVE:
 ${verbalEvidence.slice(0, 40).join('\n')}
+
+TRANSCRIPCIÓN COMPLETA:
+${transcriptText || 'Sin transcripción disponible'}
 
 ╔═════════════════════════════════════╗
 SCRIPT OFICIAL DE REFERENCIA (${auditInput.callType})
