@@ -27,7 +27,7 @@ class OpenAIService {
 
  const response = await this.client.chat.completions.create({
  model: 'gpt-5.4-mini',
- max_tokens: 4000,
+
  temperature: 0,
  seed: 42,
  messages: [

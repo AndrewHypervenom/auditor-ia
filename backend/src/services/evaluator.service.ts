@@ -156,7 +156,7 @@ class EvaluatorService {
 
  const response = await this.client.chat.completions.create({
  model: 'gpt-5.4-mini',
- max_tokens: 4000,
+
  temperature: 0,
  seed: 42,
  messages: [
@@ -496,6 +496,7 @@ Si hay duda → Revisa toda la evidencia disponible antes de decidir
  ],
  temperature: 0,
  seed: 12345,
+
  response_format: { type: 'json_object' }
  });
 
