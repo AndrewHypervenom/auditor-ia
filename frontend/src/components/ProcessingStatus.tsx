@@ -10,44 +10,44 @@ interface ProcessingStatusProps {
 
 export default function ProcessingStatus({ stage, progress, message }: ProcessingStatusProps) {
  const stages = [
- { 
- id: 'upload', 
- label: 'Subiendo archivos', 
+ {
+ id: 'upload',
+ label: 'Obteniendo datos GPF',
  icon: Clock,
  duration: '~10s',
  color: 'blue'
  },
- { 
- id: 'transcription', 
- label: 'Transcribiendo audio', 
- icon: Mic,
- duration: '~45s',
- color: 'purple'
- },
- { 
- id: 'analysis', 
- label: 'Analizando imágenes', 
+ {
+ id: 'analysis',
+ label: 'Analizando capturas (IA Vision)',
  icon: FileSearch,
  duration: '~30s',
  color: 'pink'
  },
- { 
- id: 'evaluation', 
- label: 'Evaluando con IA', 
+ {
+ id: 'audio',
+ label: 'Procesando audio (AssemblyAI)',
+ icon: Mic,
+ duration: '~45s',
+ color: 'purple'
+ },
+ {
+ id: 'evaluation',
+ label: 'Evaluando con IA',
  icon: Brain,
  duration: '~50s',
  color: 'green'
  },
- { 
- id: 'excel', 
- label: 'Generando reporte', 
+ {
+ id: 'excel',
+ label: 'Generando reporte',
  icon: FileSpreadsheet,
  duration: '~5s',
  color: 'emerald'
  },
- { 
- id: 'completed', 
- label: 'Completado', 
+ {
+ id: 'completed',
+ label: 'Completado',
  icon: CheckCircle2,
  duration: '',
  color: 'emerald'
@@ -58,8 +58,9 @@ export default function ProcessingStatus({ stage, progress, message }: Processin
  const stageNormalizer: Record<string, string> = {
  'uploading': 'upload',
  'upload': 'upload',
- 'transcribing': 'transcription',
- 'transcription': 'transcription',
+ 'transcribing': 'audio',
+ 'transcription': 'audio',
+ 'audio': 'audio',
  'analyzing': 'analysis',
  'analysis': 'analysis',
  'evaluating': 'evaluation',

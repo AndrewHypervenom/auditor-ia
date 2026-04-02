@@ -211,7 +211,16 @@ export default function NewAuditPage() {
  eventSource.onmessage = (event) => {
  try {
  const message: SSEMessage = JSON.parse(event.data);
- console.log('[Auditoria] SSE recibido:', message);
+ const stageTag: Record<string, string> = {
+ upload: '[DESCARGA]', analysis: '[IMAGENES]', audio: '[AUDIO]',
+ evaluation: '[EVALUACION]', excel: '[EXCEL]', completed: '[COMPLETADO]'
+ };
+ const tag = stageTag[(message as any).stage] || '[INFO]';
+ if (message.type === 'error' || (message.message || '').includes('ERROR')) {
+ console.error(`[Auditoria] ${tag}`, message);
+ } else {
+ console.log(`[Auditoria] ${tag}`, message);
+ }
 
  if (message.stage && message.progress !== undefined) {
  setProcessing({ stage: message.stage, progress: message.progress, message: message.message });

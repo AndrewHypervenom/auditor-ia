@@ -53,15 +53,23 @@ export async function downloadImagesToTemp(
  }
 
  const contentType = response.headers.get('content-type') || '';
+ if (!contentType.startsWith('image/')) {
+ logger.error(`[IMAGENES] Content-type invalido para imagen: "${contentType}" — URL: ${url.substring(0, 80)}`);
+ continue;
+ }
  const ext = contentType.includes('png') ? '.png' : '.jpg';
  const filename = `${uuidv4()}${ext}`;
  const localPath = path.join(tmpDir, filename);
 
  const buffer = await response.arrayBuffer();
+ if (buffer.byteLength === 0) {
+ logger.error(`[IMAGENES] Imagen descargada tiene 0 bytes — URL: ${url.substring(0, 80)}`);
+ continue;
+ }
  fs.writeFileSync(localPath, Buffer.from(buffer));
 
  localPaths.push(localPath);
- logger.info(` Image downloaded: ${filename}`);
+ logger.info(`[IMAGENES] Descargada: ${filename} (${buffer.byteLength} bytes, ${contentType})`);
  } catch (error) {
  logger.warn(` Error downloading image ${url}:`, error);
  }

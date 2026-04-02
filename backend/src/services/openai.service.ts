@@ -325,13 +325,15 @@ Ahora analiza la imagen proporcionada siguiendo TODOS estos pasos y reglas.`;
 
  async analyzeMultipleImages(imagePaths: string[]): Promise<Array<ImageAnalysis & { usage?: { input_tokens: number; output_tokens: number } }>> {
  const analyses: Array<ImageAnalysis & { usage?: { input_tokens: number; output_tokens: number } }> = [];
+ let lastError: any = null;
 
  for (const imagePath of imagePaths) {
  try {
  const analysis = await this.analyzeImage(imagePath);
  analyses.push(analysis);
  } catch (error: any) {
- logger.error(`Failed to analyze ${imagePath}`, {
+ lastError = error;
+ logger.error(`[IMAGENES] Failed to analyze ${imagePath}`, {
  message: error.message,
  code: error.code,
  status: error.status,
@@ -339,6 +341,11 @@ Ahora analiza la imagen proporcionada siguiendo TODOS estos pasos y reglas.`;
  errorBody: error.error
  });
  }
+ }
+
+ if (analyses.length === 0 && imagePaths.length > 0 && lastError) {
+ lastError.message = `[IMAGENES] Todas las imagenes fallaron. Ultimo error: ${lastError.message}`;
+ throw lastError;
  }
 
  return analyses;

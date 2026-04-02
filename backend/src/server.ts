@@ -1301,24 +1301,32 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  logger.success('[PASO 3] Registro de auditoria creado', { auditId });
 
  // ── 4. Analyze images ────────────────────────────────────────────────────
- progressBroadcaster.progress(sseClientId, 'analysis', 50, 'Analizando imágenes con IA...');
+ progressBroadcaster.progress(sseClientId, 'analysis', 50, `[IMAGENES] Analizando ${localPaths.length} capturas con IA...`);
 
  logger.info('[PASO 4] Iniciando analisis de imagenes con OpenAI Vision', {
  imagenesAAnalizar: localPaths.length
  });
 
- const imageAnalyses = localPaths.length > 0
- ? await openAIService.analyzeMultipleImages(localPaths)
- : [];
-
+ let imageAnalyses: any[] = [];
+ try {
+ if (localPaths.length > 0) {
+ imageAnalyses = await openAIService.analyzeMultipleImages(localPaths);
+ }
  logger.info('[PASO 4] Resultado analisis de imagenes', {
  imagenesAnalizadas: imageAnalyses.length,
- sistemasDetectados: imageAnalyses.map(i => i.system)
+ sistemasDetectados: imageAnalyses.map((i: any) => i.system)
  });
-
- if (localPaths.length > 0 && imageAnalyses.length === 0) {
- logger.error('[PASO 4] TODAS las imagenes fallaron al analizarse - posible error de modelo/API key de OpenAI');
- progressBroadcaster.progress(sseClientId, 'analysis', 52, 'ADVERTENCIA: No se pudieron analizar las capturas con IA');
+ progressBroadcaster.progress(sseClientId, 'analysis', 55,
+ `[IMAGENES] ${imageAnalyses.length}/${localPaths.length} capturas analizadas`);
+ } catch (imgError: any) {
+ logger.error('[PASO 4] Error analizando imagenes con OpenAI', {
+ message: imgError.message,
+ code: imgError.code,
+ status: imgError.status,
+ type: imgError.type
+ });
+ progressBroadcaster.progress(sseClientId, 'analysis', 52,
+ `[IMAGENES] ERROR: ${imgError.message || 'Fallo OpenAI Vision'} | code: ${imgError.code || imgError.status || 'N/A'}`);
  }
 
  const imageAnalysisSummary = imageAnalyses.length > 0
@@ -1326,7 +1334,7 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  : 'No se encontraron capturas para analizar';
 
  // ── 5. Obtener audio y transcribir (o generar transcript sintético) ──────
- progressBroadcaster.progress(sseClientId, 'analysis', 53, 'Buscando audio de la llamada...');
+ progressBroadcaster.progress(sseClientId, 'audio', 57, '[AUDIO] Buscando grabacion de la llamada...');
 
  logger.info('[PASO 5] Datos GPF disponibles para transcript sintetico', {
  comentarios: attentionData.comments.length,
@@ -1358,7 +1366,7 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  });
 
  if (audioSecureUrl) {
- progressBroadcaster.progress(sseClientId, 'analysis', 57, 'Descargando y transcribiendo audio...');
+ progressBroadcaster.progress(sseClientId, 'audio', 62, '[AUDIO] Descargando grabacion...');
  const appToken = process.env.GPF_APP_TOKEN || '';
  logger.info('[PASO 5] Descargando audio (intento 1 con headers auth)...', { url: audioSecureUrl.substring(0, 80) });
  let audioResponse = await gpfFetch(audioSecureUrl, {
@@ -1401,6 +1409,7 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  tamanoMB: (audioBuffer.length / 1024 / 1024).toFixed(2) + ' MB'
  });
  logger.info('[PASO 5] Enviando audio a AssemblyAI para transcripcion...');
+ progressBroadcaster.progress(sseClientId, 'audio', 66, '[AUDIO] Transcribiendo con AssemblyAI...');
  const transcriptionResult = await assemblyAIService.transcribe(localAudioPath);
  logger.info('[PASO 5] Resultado transcripcion AssemblyAI', {
  tieneTexto: !!transcriptionResult?.text,
@@ -1421,14 +1430,18 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  duracion: audioDurationSeconds + 's',
  longitudTotal: combinedText.length
  });
+ progressBroadcaster.progress(sseClientId, 'audio', 72,
+ `[AUDIO] Transcripcion completada (${audioDurationSeconds}s de grabacion)`);
  }
  } else {
  logger.warn('[PASO 5] No se pudo descargar el audio, usando transcript sintetico', {
  statusFinal: audioResponse.status
  });
+ progressBroadcaster.progress(sseClientId, 'audio', 72, '[AUDIO] Sin grabacion, usando datos de texto GPF');
  }
  } else {
  logger.info('[PASO 5] Sin audio disponible, usando transcript sintetico', { attentionId });
+ progressBroadcaster.progress(sseClientId, 'audio', 72, '[AUDIO] Sin grabacion disponible, usando datos de texto GPF');
  }
  } catch (audioError: any) {
  logger.warn('[PASO 5] Error al obtener/transcribir audio, usando transcript sintetico', {
@@ -1437,11 +1450,12 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  status: audioError.status,
  stack: audioError.stack
  });
- progressBroadcaster.progress(sseClientId, 'analysis', 57, 'Audio no disponible, evaluando con datos de texto');
+ progressBroadcaster.progress(sseClientId, 'audio', 72,
+ `[AUDIO] ERROR: ${audioError.message || 'fallo al obtener audio'}`);
  }
 
  // ── 6. Evaluate ──────────────────────────────────────────────────────────
- progressBroadcaster.progress(sseClientId, 'evaluation', 75, 'Evaluando con IA...');
+ progressBroadcaster.progress(sseClientId, 'evaluation', 75, '[EVALUACION] Evaluando con IA todos los datos...');
 
  logger.info('[PASO 6] Iniciando evaluacion con IA', {
  fuenteTranscript: audioDurationSeconds > 0 ? 'AUDIO REAL (AssemblyAI)' : 'SINTETICO (datos GPF)',
