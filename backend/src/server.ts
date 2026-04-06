@@ -1074,6 +1074,158 @@ app.get('/api/gpf/attentions', authenticateUser, requireAdminOrAnalyst, async (r
  }
 });
 
+// ============================================
+// GPF BASE INBOUND REPORT
+// ============================================
+
+// GET /api/gpf/base-inbound — trae el reporte "Base Inbound" del sitio GPF con filtros opcionales
+app.get('/api/gpf/base-inbound', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+ try {
+ const env = (req.query.env as string) || 'test';
+ const { telefono, caso, calificacion, agente, tipoFecha, fechaInicio, fechaFin } = req.query as Record<string, string>;
+
+ const token = await gpfTokenService.getTokenWithRetry(env);
+ const baseUrl = getGpfBaseUrl(env);
+ if (!baseUrl) return res.status(500).json({ error: 'URL de GPF no configurada' });
+
+ const params = new URLSearchParams();
+ if (telefono) params.set('telefono', telefono);
+ if (caso) params.set('caso', caso);
+ if (calificacion) params.set('calificacion', calificacion);
+ if (agente) params.set('agente', agente);
+ if (tipoFecha) params.set('tipo_fecha', tipoFecha);
+ if (fechaInicio) params.set('fecha_inicio', fechaInicio);
+ if (fechaFin) params.set('fecha_fin', fechaFin);
+
+ const qs = params.toString();
+ const url = `${baseUrl}/api/quality-control/v1/base-inbound${qs ? `?${qs}` : ''}`;
+
+ const response = await gpfFetch(url, { headers: buildGpfHeaders(token) });
+ if (!response.ok) {
+  logger.warn(`GPF base-inbound fetch failed: ${response.status}`);
+  return res.status(502).json({ error: `GPF respondió ${response.status}` });
+ }
+
+ const body: any = await response.json();
+ const records = Array.isArray(body?.data) ? body.data : [];
+ logger.info('GPF base-inbound fetched', { env, count: records.length });
+ res.json({ records, count: records.length });
+ } catch (error: any) {
+ logger.error('Error fetching GPF base-inbound:', error);
+ res.status(502).json({ error: `Error obteniendo Base Inbound: ${error.message}` });
+ }
+});
+
+// GET /api/gpf/base-inbound/export — genera y descarga Excel del reporte Base Inbound
+app.get('/api/gpf/base-inbound/export', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+ try {
+ const env = (req.query.env as string) || 'test';
+ const { telefono, caso, calificacion, agente, tipoFecha, fechaInicio, fechaFin } = req.query as Record<string, string>;
+
+ const token = await gpfTokenService.getTokenWithRetry(env);
+ const baseUrl = getGpfBaseUrl(env);
+ if (!baseUrl) return res.status(500).json({ error: 'URL de GPF no configurada' });
+
+ const params = new URLSearchParams();
+ if (telefono) params.set('telefono', telefono);
+ if (caso) params.set('caso', caso);
+ if (calificacion) params.set('calificacion', calificacion);
+ if (agente) params.set('agente', agente);
+ if (tipoFecha) params.set('tipo_fecha', tipoFecha);
+ if (fechaInicio) params.set('fecha_inicio', fechaInicio);
+ if (fechaFin) params.set('fecha_fin', fechaFin);
+
+ const qs = params.toString();
+ const url = `${baseUrl}/api/quality-control/v1/base-inbound${qs ? `?${qs}` : ''}`;
+
+ const response = await gpfFetch(url, { headers: buildGpfHeaders(token) });
+ if (!response.ok) {
+  return res.status(502).json({ error: `GPF respondió ${response.status}` });
+ }
+
+ const body: any = await response.json();
+ const records: any[] = Array.isArray(body?.data) ? body.data : [];
+
+ // Generar Excel con ExcelJS
+ const ExcelJS = (await import('exceljs')).default;
+ const workbook = new ExcelJS.Workbook();
+ workbook.creator = 'AuditorIA';
+ workbook.created = new Date();
+
+ const sheet = workbook.addWorksheet('Base Inbound');
+
+ // Columnas
+ sheet.columns = [
+  { header: 'Teléfono', key: 'telefono', width: 16 },
+  { header: 'Caso', key: 'caso', width: 14 },
+  { header: 'Estado agente', key: 'estado_agente', width: 18 },
+  { header: 'Estado PBX', key: 'estado_pbx', width: 16 },
+  { header: 'Fecha alta', key: 'fecha_alta', width: 18 },
+  { header: 'Fecha edición', key: 'fecha_edicion', width: 18 },
+  { header: 'Calificación', key: 'calificacion', width: 22 },
+  { header: 'Agente', key: 'agente', width: 28 },
+  { header: 'T. Total', key: 't_total', width: 12 },
+  { header: 'T. Espera', key: 't_espera', width: 12 },
+  { header: 'T. Conversación', key: 't_conversacion', width: 18 },
+  { header: 'ACW', key: 'acw', width: 10 },
+ ];
+
+ // Estilo de encabezado
+ sheet.getRow(1).eachCell((cell) => {
+  cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } };
+  cell.alignment = { vertical: 'middle', horizontal: 'center' };
+  cell.border = { bottom: { style: 'thin', color: { argb: 'FF2563EB' } } };
+ });
+
+ // Mapear registros — intentar varios nombres de campo posibles
+ const get = (r: any, ...keys: string[]) => {
+  for (const k of keys) if (r[k] !== undefined && r[k] !== null) return r[k];
+  return '';
+ };
+
+ for (const r of records) {
+  sheet.addRow({
+   telefono:       get(r, 'Teléfono', 'telefono', 'phone', 'tel'),
+   caso:           get(r, 'Caso', 'caso', 'case_id', 'id_caso', 'numero_caso'),
+   estado_agente:  get(r, 'Estado agente', 'estado_agente', 'agent_status', 'Estado Agente'),
+   estado_pbx:     get(r, 'Estado PBX', 'estado_pbx', 'pbx_status', 'Estado PBX'),
+   fecha_alta:     get(r, 'Fecha alta', 'fecha_alta', 'created_at', 'Fecha Alta'),
+   fecha_edicion:  get(r, 'Fecha edición', 'fecha_edicion', 'updated_at', 'Fecha Edición'),
+   calificacion:   get(r, 'Calificación', 'calificacion', 'qualification'),
+   agente:         get(r, 'Agente', 'agente', 'agent_name', 'executive_name'),
+   t_total:        get(r, 'T. Total', 't_total', 'total_time', 'tiempo_total'),
+   t_espera:       get(r, 'T. Espera', 't_espera', 'wait_time', 'tiempo_espera'),
+   t_conversacion: get(r, 'T. Conversación', 't_conversacion', 'talk_time', 'tiempo_conversacion'),
+   acw:            get(r, 'ACW', 'acw', 'after_call_work'),
+  });
+ }
+
+ // Zebra stripes
+ sheet.eachRow((row, rowNumber) => {
+  if (rowNumber === 1) return;
+  const fill = rowNumber % 2 === 0
+   ? { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF8FAFC' } }
+   : { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFFFFFFF' } };
+  row.eachCell((cell) => { cell.fill = fill; });
+ });
+
+ const buffer = await workbook.xlsx.writeBuffer();
+ const now = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+ const filename = `base_inbound_${env}_${now}.xlsx`;
+
+ res.set({
+  'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'Content-Disposition': `attachment; filename="${filename}"`,
+ });
+ res.send(Buffer.from(buffer));
+ logger.info('GPF base-inbound export generated', { env, rows: records.length, filename });
+ } catch (error: any) {
+ logger.error('Error exporting GPF base-inbound:', error);
+ res.status(502).json({ error: `Error exportando Base Inbound: ${error.message}` });
+ }
+});
+
 // GET /api/gpf/attention-detail?env=test&id=123
 // Fetches captures, transactions, comments and OTP validations for one attention
 app.get('/api/gpf/attention-detail', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {

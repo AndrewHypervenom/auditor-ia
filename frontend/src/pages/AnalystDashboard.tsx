@@ -208,7 +208,7 @@ export default function AnalystDashboard() {
 
  <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
  {/* Action Buttons */}
- <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+ <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
  <button
  onClick={() => navigate('/audit/new')}
  className="stat-card hover:scale-105 transition-transform cursor-pointer bg-gradient-to-br from-blue-900/40 to-blue-800/40 border-blue-500/30"
@@ -235,6 +235,21 @@ export default function AnalystDashboard() {
  <div className="text-left">
  <h3 className="text-lg font-semibold text-white">Reportes</h3>
  <p className="text-sm text-slate-400">Exportar datos</p>
+ </div>
+ </div>
+ </button>
+
+ <button
+ onClick={() => navigate('/base-inbound')}
+ className="stat-card hover:scale-105 transition-transform cursor-pointer bg-gradient-to-br from-cyan-900/40 to-blue-800/40 border-cyan-500/30"
+ >
+ <div className="flex items-center gap-4">
+ <div className="p-3 bg-cyan-600/20 rounded-xl">
+ <PhoneIncoming className="w-6 h-6 text-cyan-400" />
+ </div>
+ <div className="text-left">
+ <h3 className="text-lg font-semibold text-white">Base Inbound</h3>
+ <p className="text-sm text-slate-400">Reporte GPF</p>
  </div>
  </div>
  </button>

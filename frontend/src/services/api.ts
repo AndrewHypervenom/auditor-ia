@@ -505,6 +505,73 @@ export const gpfService = {
  }
 };
 
+// ── Base Inbound Report ───────────────────────────────────────────────────────
+
+export interface BaseInboundRecord {
+ 'Teléfono'?: string;
+ 'Caso'?: string | number;
+ 'Estado agente'?: string;
+ 'Estado PBX'?: string;
+ 'Fecha alta'?: string;
+ 'Fecha edición'?: string;
+ 'Calificación'?: string;
+ 'Agente'?: string;
+ 'T. Total'?: string;
+ 'T. Espera'?: string;
+ 'T. Conversación'?: string;
+ 'ACW'?: string;
+ [key: string]: any;
+}
+
+export interface BaseInboundFilters {
+ env: 'test' | 'prod';
+ telefono?: string;
+ caso?: string;
+ calificacion?: string;
+ agente?: string;
+ tipoFecha?: 'alta' | 'edicion';
+ fechaInicio?: string;
+ fechaFin?: string;
+}
+
+export const baseInboundService = {
+ async getReport(filters: BaseInboundFilters): Promise<{ records: BaseInboundRecord[]; count: number }> {
+ const params = new URLSearchParams({ env: filters.env });
+ if (filters.telefono) params.set('telefono', filters.telefono);
+ if (filters.caso) params.set('caso', filters.caso);
+ if (filters.calificacion) params.set('calificacion', filters.calificacion);
+ if (filters.agente) params.set('agente', filters.agente);
+ if (filters.tipoFecha) params.set('tipoFecha', filters.tipoFecha);
+ if (filters.fechaInicio) params.set('fechaInicio', filters.fechaInicio);
+ if (filters.fechaFin) params.set('fechaFin', filters.fechaFin);
+ const response = await api.get(`/gpf/base-inbound?${params.toString()}`);
+ return response.data;
+ },
+
+ async exportExcel(filters: BaseInboundFilters): Promise<void> {
+ const params = new URLSearchParams({ env: filters.env });
+ if (filters.telefono) params.set('telefono', filters.telefono);
+ if (filters.caso) params.set('caso', filters.caso);
+ if (filters.calificacion) params.set('calificacion', filters.calificacion);
+ if (filters.agente) params.set('agente', filters.agente);
+ if (filters.tipoFecha) params.set('tipoFecha', filters.tipoFecha);
+ if (filters.fechaInicio) params.set('fechaInicio', filters.fechaInicio);
+ if (filters.fechaFin) params.set('fechaFin', filters.fechaFin);
+ const response = await api.get(`/gpf/base-inbound/export?${params.toString()}`, { responseType: 'blob' });
+ const contentDisposition: string = response.headers['content-disposition'] || '';
+ const match = contentDisposition.match(/filename[^;=\n]*=['"]?([^'"\n;]+)['"]?/i);
+ const filename = match ? match[1] : `base_inbound_${filters.env}.xlsx`;
+ const url = URL.createObjectURL(new Blob([response.data as BlobPart], {
+  type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+ }));
+ const a = document.createElement('a');
+ a.href = url;
+ a.download = filename;
+ a.click();
+ URL.revokeObjectURL(url);
+ },
+};
+
 // CRUD de usuarios (admin)
 export const userService = {
  async getUsers() {
