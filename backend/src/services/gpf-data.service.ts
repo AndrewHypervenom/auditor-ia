@@ -101,7 +101,34 @@ class GpfDataService {
 
  // data is directly the array
  const attentions = body.data;
- if (Array.isArray(attentions)) return attentions;
+ if (Array.isArray(attentions)) {
+  if (attentions.length > 0) {
+   const sample = attentions[0];
+   logger.info('[DEBUG-CAMPOS] Primera atención recibida de la API', {
+    id: sample['id_atencion'],
+    Agente: sample['Agente'],
+    Comercio: sample['Comercio'],
+    Fecha_de_la_compra: sample['Fecha de la compra'],
+    Monto_de_la_compra: sample['Monto de la compra'],
+    Estado_llamada: sample['Estado llamada'],
+    Calificacion: sample['Calificación'],
+    todasLasClaves: Object.keys(sample)
+   });
+   // Verificar si las claves tienen encoding inesperado
+   const keys = Object.keys(sample);
+   const comercioKey = keys.find(k => k.toLowerCase().includes('comercio'));
+   if (comercioKey) {
+    logger.info('[DEBUG-CAMPOS] Clave "Comercio" encontrada', {
+     claveExacta: comercioKey,
+     bytes: Buffer.from(comercioKey).toString('hex'),
+     valor: sample[comercioKey]
+    });
+   } else {
+    logger.warn('[DEBUG-CAMPOS] NO se encontró clave que contenga "comercio" en la respuesta');
+   }
+  }
+  return attentions;
+ }
 
  logger.warn('GPF attentions: unexpected shape', body);
  return [];
