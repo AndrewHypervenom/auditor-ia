@@ -146,8 +146,19 @@ export default function NewAuditPage() {
  setLoadingAttentions(true);
  try {
  const result = await gpfService.getAttentions(env);
- setAttentions(result.attentions || []);
- if ((result.attentions || []).length === 0) {
+ const attentions = result.attentions || [];
+ if (attentions.length > 0) {
+  const sample = attentions[0];
+  console.group('[GPF DEBUG] Primera atención recibida');
+  console.log('Todas las claves:', Object.keys(sample));
+  console.log('Comercio:', sample['Comercio']);
+  console.log('Fecha de la compra:', sample['Fecha de la compra']);
+  console.log('Monto de la compra:', sample['Monto de la compra']);
+  console.log('Objeto completo:', sample);
+  console.groupEnd();
+ }
+ setAttentions(attentions);
+ if (attentions.length === 0) {
  toast('No se encontraron casos para este ambiente.', { icon: 'ℹ' });
  }
  } catch (error: any) {
