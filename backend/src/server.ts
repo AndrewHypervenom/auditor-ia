@@ -1146,7 +1146,7 @@ app.get('/api/gpf/base-inbound/export', authenticateUser, requireAdminOrAnalyst,
  const body: any = await response.json();
  const records: any[] = Array.isArray(body?.data) ? body.data : [];
 
- // Generar Excel con ExcelJS
+ // Generar Excel con ExcelJS — columnas dinámicas según lo que devuelve la API
  const ExcelJS = (await import('exceljs')).default;
  const workbook = new ExcelJS.Workbook();
  workbook.creator = 'AuditorIA';
@@ -1154,21 +1154,14 @@ app.get('/api/gpf/base-inbound/export', authenticateUser, requireAdminOrAnalyst,
 
  const sheet = workbook.addWorksheet('Base Inbound');
 
- // Columnas
- sheet.columns = [
-  { header: 'Teléfono', key: 'telefono', width: 16 },
-  { header: 'Caso', key: 'caso', width: 14 },
-  { header: 'Estado agente', key: 'estado_agente', width: 18 },
-  { header: 'Estado PBX', key: 'estado_pbx', width: 16 },
-  { header: 'Fecha alta', key: 'fecha_alta', width: 18 },
-  { header: 'Fecha edición', key: 'fecha_edicion', width: 18 },
-  { header: 'Calificación', key: 'calificacion', width: 22 },
-  { header: 'Agente', key: 'agente', width: 28 },
-  { header: 'T. Total', key: 't_total', width: 12 },
-  { header: 'T. Espera', key: 't_espera', width: 12 },
-  { header: 'T. Conversación', key: 't_conversacion', width: 18 },
-  { header: 'ACW', key: 'acw', width: 10 },
- ];
+ // Derivar columnas del primer registro (todas las claves reales del API)
+ const allKeys: string[] = records.length > 0 ? Object.keys(records[0]) : [];
+
+ sheet.columns = allKeys.map((key) => ({
+  header: key,
+  key,
+  width: Math.min(Math.max(key.length + 6, 14), 45),
+ }));
 
  // Estilo de encabezado
  sheet.getRow(1).eachCell((cell) => {
@@ -1178,27 +1171,13 @@ app.get('/api/gpf/base-inbound/export', authenticateUser, requireAdminOrAnalyst,
   cell.border = { bottom: { style: 'thin', color: { argb: 'FF2563EB' } } };
  });
 
- // Mapear registros — intentar varios nombres de campo posibles
- const get = (r: any, ...keys: string[]) => {
-  for (const k of keys) if (r[k] !== undefined && r[k] !== null) return r[k];
-  return '';
- };
-
+ // Agregar filas con todos los campos reales
  for (const r of records) {
-  sheet.addRow({
-   telefono:       get(r, 'Teléfono', 'telefono', 'phone', 'tel'),
-   caso:           get(r, 'Caso', 'caso', 'case_id', 'id_caso', 'numero_caso'),
-   estado_agente:  get(r, 'Estado agente', 'estado_agente', 'agent_status', 'Estado Agente'),
-   estado_pbx:     get(r, 'Estado PBX', 'estado_pbx', 'pbx_status', 'Estado PBX'),
-   fecha_alta:     get(r, 'Fecha alta', 'fecha_alta', 'created_at', 'Fecha Alta'),
-   fecha_edicion:  get(r, 'Fecha edición', 'fecha_edicion', 'updated_at', 'Fecha Edición'),
-   calificacion:   get(r, 'Calificación', 'calificacion', 'qualification'),
-   agente:         get(r, 'Agente', 'agente', 'agent_name', 'executive_name'),
-   t_total:        get(r, 'T. Total', 't_total', 'total_time', 'tiempo_total'),
-   t_espera:       get(r, 'T. Espera', 't_espera', 'wait_time', 'tiempo_espera'),
-   t_conversacion: get(r, 'T. Conversación', 't_conversacion', 'talk_time', 'tiempo_conversacion'),
-   acw:            get(r, 'ACW', 'acw', 'after_call_work'),
-  });
+  const row: Record<string, any> = {};
+  for (const key of allKeys) {
+   row[key] = r[key] ?? '';
+  }
+  sheet.addRow(row);
  }
 
  // Zebra stripes

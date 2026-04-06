@@ -18,7 +18,6 @@ import {
   RefreshCw,
   Phone,
   FileSpreadsheet,
-  Clock,
   Loader2,
 } from 'lucide-react';
 import { baseInboundService, type BaseInboundRecord, type BaseInboundFilters } from '../services/api';
@@ -129,14 +128,11 @@ export default function BaseInboundPage() {
     }
   };
 
-  // ── Helper display ───────────────────────────────────────────────────────────
-  const cell = (r: BaseInboundRecord, ...keys: string[]) => {
-    for (const k of keys) {
-      const v = r[k];
-      if (v !== undefined && v !== null && v !== '') return String(v);
-    }
-    return '—';
-  };
+  // ── Columnas dinámicas del primer registro ───────────────────────────────────
+  const columns = useMemo(
+    () => (records.length > 0 ? Object.keys(records[0]) : []),
+    [records]
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 md:p-6">
@@ -386,22 +382,14 @@ export default function BaseInboundPage() {
 
           {!loading && filteredRecords.length > 0 && (
             <div className="overflow-x-auto rounded-xl border border-slate-700">
-              <table className="w-full text-sm text-slate-300 min-w-[1000px]">
+              <table className="w-full text-xs text-slate-300">
                 <thead>
-                  <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider">
-                    <th className="px-3 py-3 text-left whitespace-nowrap">Teléfono</th>
-                    <th className="px-3 py-3 text-left whitespace-nowrap">Caso</th>
-                    <th className="px-3 py-3 text-left whitespace-nowrap">Estado agente</th>
-                    <th className="px-3 py-3 text-left whitespace-nowrap">Estado PBX</th>
-                    <th className="px-3 py-3 text-left whitespace-nowrap">
-                      {tipoFecha === 'alta' ? 'Fecha alta' : 'Fecha edición'}
-                    </th>
-                    <th className="px-3 py-3 text-left whitespace-nowrap">Calificación</th>
-                    <th className="px-3 py-3 text-left whitespace-nowrap">Agente</th>
-                    <th className="px-3 py-3 text-center whitespace-nowrap">T. Total</th>
-                    <th className="px-3 py-3 text-center whitespace-nowrap">T. Espera</th>
-                    <th className="px-3 py-3 text-center whitespace-nowrap">T. Conv.</th>
-                    <th className="px-3 py-3 text-center whitespace-nowrap">ACW</th>
+                  <tr className="bg-slate-800/80 text-slate-400 text-[11px] uppercase tracking-wider">
+                    {columns.map((col) => (
+                      <th key={col} className="px-3 py-3 text-left whitespace-nowrap font-semibold">
+                        {col}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -410,50 +398,19 @@ export default function BaseInboundPage() {
                       key={idx}
                       className="border-t border-slate-700/50 hover:bg-slate-800/40 transition-colors"
                     >
-                      <td className="px-3 py-2.5 text-xs font-mono text-blue-300 whitespace-nowrap">
-                        {cell(r, 'Teléfono', 'telefono', 'phone')}
-                      </td>
-                      <td className="px-3 py-2.5 text-xs font-mono text-purple-300 whitespace-nowrap">
-                        {cell(r, 'Caso', 'caso', 'case_id', 'id_caso')}
-                      </td>
-                      <td className="px-3 py-2.5 text-xs whitespace-nowrap">
-                        <span className="px-2 py-0.5 bg-slate-700/60 rounded-full text-slate-300">
-                          {cell(r, 'Estado agente', 'estado_agente', 'agent_status')}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 text-xs whitespace-nowrap">
-                        <span className="px-2 py-0.5 bg-slate-700/60 rounded-full text-slate-300">
-                          {cell(r, 'Estado PBX', 'estado_pbx', 'pbx_status')}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-slate-400 whitespace-nowrap">
-                        {tipoFecha === 'alta'
-                          ? cell(r, 'Fecha alta', 'fecha_alta', 'created_at')
-                          : cell(r, 'Fecha edición', 'fecha_edicion', 'updated_at')}
-                      </td>
-                      <td className="px-3 py-2.5 text-xs max-w-[160px] truncate">
-                        <span className="px-2 py-0.5 bg-slate-700 rounded-full text-slate-300">
-                          {cell(r, 'Calificación', 'calificacion')}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 text-xs max-w-[180px] truncate" title={cell(r, 'Agente', 'agente')}>
-                        {cell(r, 'Agente', 'agente', 'agent_name')}
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-center font-mono text-slate-400 whitespace-nowrap">
-                        <span className="flex items-center justify-center gap-1">
-                          <Clock className="w-3 h-3 opacity-50" />
-                          {cell(r, 'T. Total', 't_total', 'total_time')}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-center font-mono text-amber-400/80 whitespace-nowrap">
-                        {cell(r, 'T. Espera', 't_espera', 'wait_time')}
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-center font-mono text-emerald-400/80 whitespace-nowrap">
-                        {cell(r, 'T. Conversación', 't_conversacion', 'talk_time')}
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-center font-mono text-slate-400 whitespace-nowrap">
-                        {cell(r, 'ACW', 'acw', 'after_call_work')}
-                      </td>
+                      {columns.map((col) => {
+                        const val = r[col];
+                        const display = val !== undefined && val !== null && val !== '' ? String(val) : '—';
+                        return (
+                          <td
+                            key={col}
+                            className="px-3 py-2.5 whitespace-nowrap max-w-[220px] truncate"
+                            title={display !== '—' ? display : undefined}
+                          >
+                            {display}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
@@ -461,6 +418,7 @@ export default function BaseInboundPage() {
               <div className="px-4 py-2 bg-slate-800/40 border-t border-slate-700 text-xs text-slate-500">
                 {filteredRecords.length} registro{filteredRecords.length !== 1 ? 's' : ''} mostrado{filteredRecords.length !== 1 ? 's' : ''}
                 {filteredRecords.length !== records.length && ` (de ${records.length} totales)`}
+                {columns.length > 0 && <span className="ml-2 text-slate-600">· {columns.length} columnas</span>}
               </div>
             </div>
           )}

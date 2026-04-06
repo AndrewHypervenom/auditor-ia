@@ -27,8 +27,10 @@ import {
  User,
  Tag,
  ChevronRight,
- Mic
+ Mic,
+ FileSpreadsheet
 } from 'lucide-react';
+import ExcelJS from 'exceljs';
 
 type AppState = 'selecting' | 'loading-detail' | 'confirming' | 'processing';
 
@@ -93,6 +95,7 @@ export default function NewAuditPage() {
  });
  const [audioUrl, setAudioUrl] = useState<string | null>(null);
  const [audioLoading, setAudioLoading] = useState(false);
+ const [exporting, setExporting] = useState(false);
 
  // ── Filters ──────────────────────────────────────────────────────────────────
 
@@ -166,6 +169,77 @@ export default function NewAuditPage() {
  toast.error(error.response?.data?.error || 'Error al cargar casos GPF');
  } finally {
  setLoadingAttentions(false);
+ }
+ };
+
+ // ── Export to Excel ──────────────────────────────────────────────────────────
+
+ const handleExportExcel = async () => {
+ if (filteredAttentions.length === 0) {
+ toast('No hay casos para exportar.', { icon: 'ℹ' });
+ return;
+ }
+ try {
+ setExporting(true);
+ toast.loading('Generando Excel...', { id: 'export-gpf' });
+
+ const allKeys = Object.keys(filteredAttentions[0]);
+
+ const workbook = new ExcelJS.Workbook();
+ workbook.creator = 'AuditorIA';
+ workbook.created = new Date();
+
+ const sheet = workbook.addWorksheet('Casos GPF', {
+ properties: { tabColor: { argb: 'FF3B82F6' } },
+ views: [{ state: 'frozen', xSplit: 0, ySplit: 1 }],
+ });
+
+ sheet.columns = allKeys.map((key) => ({
+ header: key,
+ key,
+ width: Math.max(15, Math.min(key.length + 4, 35)),
+ }));
+
+ const headerRow = sheet.getRow(1);
+ headerRow.font = { bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
+ headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } };
+ headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+ headerRow.height = 20;
+
+ filteredAttentions.forEach((att, rowIdx) => {
+ const rowData: Record<string, any> = {};
+ allKeys.forEach((key) => { rowData[key] = att[key] ?? ''; });
+ const row = sheet.addRow(rowData);
+ const argb = rowIdx % 2 === 0 ? 'FF0F172A' : 'FF1E293B';
+ row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
+ row.font = { size: 10, color: { argb: 'FFE2E8F0' } };
+ });
+
+ sheet.autoFilter = {
+ from: { row: 1, column: 1 },
+ to: { row: 1, column: allKeys.length },
+ };
+
+ const buffer = await workbook.xlsx.writeBuffer();
+ const blob = new Blob([buffer], {
+ type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+ });
+ const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+ const url = window.URL.createObjectURL(blob);
+ const link = document.createElement('a');
+ link.href = url;
+ link.download = `casos_gpf_${date}.xlsx`;
+ document.body.appendChild(link);
+ link.click();
+ document.body.removeChild(link);
+ window.URL.revokeObjectURL(url);
+
+ toast.success(`${filteredAttentions.length} casos exportados`, { id: 'export-gpf' });
+ } catch (err) {
+ console.error('Error al exportar Excel:', err);
+ toast.error('Error al generar el archivo Excel', { id: 'export-gpf' });
+ } finally {
+ setExporting(false);
  }
  };
 
@@ -364,6 +438,19 @@ export default function NewAuditPage() {
  </button>
 
  {attentions.length > 0 && (
+ <button
+ onClick={handleExportExcel}
+ disabled={exporting || filteredAttentions.length === 0}
+ className="px-4 py-3 rounded-lg font-medium flex items-center gap-2 border transition-all bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/50 disabled:opacity-40 disabled:cursor-not-allowed"
+ >
+ {exporting
+ ? <RefreshCw className="w-4 h-4 animate-spin" />
+ : <FileSpreadsheet className="w-4 h-4" />}
+ {exporting ? 'Exportando...' : 'Exportar Excel'}
+ </button>
+ )}
+
+ {attentions.length > 0 && (
  <span className="text-sm text-slate-500 ml-auto self-center">
  {filteredAttentions.length === attentions.length
  ? `${attentions.length} casos`
@@ -545,15 +632,12 @@ export default function NewAuditPage() {
  <table className="w-full text-sm text-slate-300">
  <thead>
  <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider">
- <th className="px-4 py-3 text-left">Fecha</th>
- <th className="px-4 py-3 text-left">Agente</th>
- <th className="px-4 py-3 text-left">ID Caso</th>
- <th className="px-4 py-3 text-left">Calificación</th>
- <th className="px-4 py-3 text-left">Estado</th>
- <th className="px-4 py-3 text-left">Cliente / Caso</th>
- <th className="px-4 py-3 text-left">Comercio</th>
- <th className="px-4 py-3 text-right">Monto</th>
- <th className="px-4 py-3 text-center">Acción</th>
+ {Object.keys(filteredAttentions[0]).map((key) => (
+ <th key={key} className="px-4 py-3 text-left whitespace-nowrap">
+ {key}
+ </th>
+ ))}
+ <th className="px-4 py-3 text-center whitespace-nowrap">Acción</th>
  </tr>
  </thead>
  <tbody>
@@ -562,34 +646,15 @@ export default function NewAuditPage() {
  key={`${getAttentionId(att)}-${idx}`}
  className="border-t border-slate-700/50 hover:bg-slate-800/40 transition-colors"
  >
- <td className="px-4 py-3 whitespace-nowrap text-slate-400 text-xs">
- {getAttentionDate(att) || '—'}
+ {Object.keys(filteredAttentions[0]).map((key) => (
+ <td
+ key={key}
+ className="px-4 py-3 text-xs whitespace-nowrap max-w-[180px] truncate"
+ title={String(att[key] ?? '')}
+ >
+ {att[key] != null && att[key] !== '' ? String(att[key]) : '—'}
  </td>
- <td className="px-4 py-3 whitespace-nowrap">
- {getAttentionExecutive(att) || '—'}
- </td>
- <td className="px-4 py-3 font-mono text-blue-400 text-xs">
- {String(getAttentionId(att)) || '—'}
- </td>
- <td className="px-4 py-3 text-xs">
- {getAttentionCalificacion(att)
- ? <span className="px-2 py-0.5 bg-slate-700 rounded-full text-slate-300">{getAttentionCalificacion(att)}</span>
- : '—'}
- </td>
- <td className="px-4 py-3 text-xs">
- {getAttentionEstado(att)
- ? <span className="px-2 py-0.5 bg-slate-700/60 rounded-full text-slate-400">{getAttentionEstado(att)}</span>
- : '—'}
- </td>
- <td className="px-4 py-3 text-xs max-w-[140px] truncate" title={getAttentionClient(att)}>
- {getAttentionClient(att) || '—'}
- </td>
- <td className="px-4 py-3 text-xs max-w-[120px] truncate" title={att['Comercio'] ?? ''}>
- {att['Comercio'] || '—'}
- </td>
- <td className="px-4 py-3 text-right text-xs text-emerald-400 font-medium whitespace-nowrap">
- {att['Monto de la compra'] || '—'}
- </td>
+ ))}
  <td className="px-4 py-3 text-center">
  <button
  onClick={() => handleSelectAttention(att)}
