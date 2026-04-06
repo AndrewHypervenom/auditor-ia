@@ -79,7 +79,7 @@ export default function NewAuditPage() {
  const navigate = useNavigate();
 
  const [state, setState] = useState<AppState>('selecting');
- const [env, setEnv] = useState<'test' | 'prod'>('test');
+ const [env] = useState<'test' | 'prod'>('prod');
  const [attentions, setAttentions] = useState<GpfAttention[]>([]);
  const [loadingAttentions, setLoadingAttentions] = useState(false);
  const [selectedAttention, setSelectedAttention] = useState<GpfAttention | null>(null);
@@ -335,23 +335,8 @@ export default function NewAuditPage() {
  Seleccionar Caso GPF
  </h2>
 
- {/* Env selector + load button */}
+ {/* Load button */}
  <div className="flex flex-wrap items-end gap-4 mb-6">
- <div>
- <label className="block text-sm font-medium text-slate-300 mb-2">Ambiente</label>
- <div className="relative">
- <select
- value={env}
- onChange={(e) => { setEnv(e.target.value as 'test' | 'prod'); setAttentions([]); }}
- className="w-40 px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-200 appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
- >
- <option value="test">Test</option>
- <option value="prod">Producción</option>
- </select>
- <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
- </div>
- </div>
-
  <button
  onClick={handleLoadAttentions}
  disabled={loadingAttentions}

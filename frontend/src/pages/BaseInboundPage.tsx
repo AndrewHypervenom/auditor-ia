@@ -28,7 +28,7 @@ type Env = 'test' | 'prod';
 export default function BaseInboundPage() {
   const navigate = useNavigate();
 
-  const [env, setEnv] = useState<Env>('test');
+  const [env] = useState<Env>('prod');
   const [records, setRecords] = useState<BaseInboundRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -160,24 +160,10 @@ export default function BaseInboundPage() {
             </div>
           </div>
 
-          {/* Env toggle */}
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-lg border border-slate-700 overflow-hidden text-xs">
-              {(['test', 'prod'] as Env[]).map((e) => (
-                <button
-                  key={e}
-                  onClick={() => { setEnv(e); setRecords([]); }}
-                  className={`px-3 py-1.5 font-medium transition-colors ${
-                    env === e
-                      ? e === 'prod' ? 'bg-red-600/80 text-white' : 'bg-blue-600/80 text-white'
-                      : 'text-slate-400 hover:text-slate-300'
-                  }`}
-                >
-                  {e.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* Badge producción */}
+          <span className="px-2.5 py-1 text-xs font-bold bg-red-600/20 border border-red-500/40 text-red-400 rounded-lg tracking-wide">
+            PRODUCCIÓN
+          </span>
         </div>
 
         {/* ── Main card ─────────────────────────────────────────────────────── */}
@@ -211,16 +197,15 @@ export default function BaseInboundPage() {
               {loading ? 'Cargando...' : 'Cargar reporte'}
             </button>
 
-            {records.length > 0 && (
-              <button
-                onClick={handleExport}
-                disabled={exporting}
-                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition-colors"
-              >
-                {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                {exporting ? 'Exportando...' : 'Exportar Excel'}
-              </button>
-            )}
+            <button
+              onClick={handleExport}
+              disabled={exporting || records.length === 0}
+              className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-xs font-medium transition-colors"
+              title={records.length === 0 ? 'Carga el reporte primero' : 'Descargar Excel'}
+            >
+              {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              {exporting ? 'Exportando...' : 'Exportar Excel'}
+            </button>
 
             {records.length > 0 && (
               <span className="ml-auto text-xs text-slate-500">
@@ -382,9 +367,10 @@ export default function BaseInboundPage() {
           )}
 
           {!loading && records.length === 0 && (
-            <div className="text-center py-16 text-slate-500">
+            <div className="text-center py-14 text-slate-500">
               <Database className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">Aplica filtros y haz clic en <strong className="text-slate-400">Cargar reporte</strong></p>
+              <p className="text-sm mb-1">Aplica filtros y haz clic en <strong className="text-slate-400">Cargar reporte</strong></p>
+              <p className="text-xs text-slate-600">Campos disponibles: Teléfono · Caso · Estado agente · Estado PBX · Fecha alta · Fecha edición · Calificación · Agente · T. Total · T. Espera · T. Conversación · ACW</p>
             </div>
           )}
 
