@@ -1264,6 +1264,13 @@ app.get('/api/gpf/image-proxy', async (req: Request, res: Response) => {
  }
  });
  if (!imgResponse.ok) {
+ let body = '';
+ try { body = await imgResponse.text(); } catch { body = '(no body)'; }
+ logger.warn('[image-proxy] GPF devolvió error', {
+ status: imgResponse.status,
+ url: url.substring(0, 100),
+ body: body.substring(0, 200)
+ });
  return res.status(imgResponse.status).end();
  }
  const contentType = imgResponse.headers.get('content-type') || 'image/jpeg';
@@ -1272,7 +1279,7 @@ app.get('/api/gpf/image-proxy', async (req: Request, res: Response) => {
  res.setHeader('Cache-Control', 'public, max-age=300');
  res.send(imgBuffer);
  } catch (error: any) {
- logger.warn('Error en proxy de imagen GPF', { error: error.message });
+ logger.warn('[image-proxy] Error en proxy de imagen GPF', { error: error.message });
  res.status(500).end();
  }
 });
