@@ -1252,29 +1252,44 @@ app.get('/api/gpf/image-proxy', async (req: Request, res: Response) => {
 
  const isAllowed = allowed.some(host => url.includes(host.replace(/https?:\/\//, '')));
  if (!isAllowed) {
- logger.warn('Image proxy: URL no permitida', { url: url.substring(0, 80) });
+ logger.warn('[image-proxy] URL bloqueada por SSRF — agregar host a lista blanca', {
+ url: url.substring(0, 150),
+ allowedHosts: allowed.map(h => h.replace(/https?:\/\//, ''))
+ });
  return res.status(403).end();
  }
 
+ const browserUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+ const gpfOrigin = url.replace(/(https?:\/\/[^/]+).*/, '$1');
+ const httpUrl = url.replace(/^https:\/\//, 'http://');
+
+ const imgAttempts: Array<{ label: string; url: string; headers: Record<string, string> }> = [
+ { label: 'AppToken', url, headers: { 'X-App-Token': process.env.GPF_APP_TOKEN || '', 'ngrok-skip-browser-warning': 'true' } },
+ { label: 'browser-UA', url, headers: { 'User-Agent': browserUA, 'Referer': gpfOrigin + '/', 'Accept': 'image/*,*/*' } },
+ { label: 'http', url: httpUrl, headers: {} },
+ { label: 'http-browser-UA', url: httpUrl, headers: { 'User-Agent': browserUA, 'Referer': gpfOrigin + '/', 'Accept': 'image/*,*/*' } },
+ ];
+
  try {
- const imgResponse = await gpfFetch(url, {
- headers: {
- 'X-App-Token': process.env.GPF_APP_TOKEN || '',
- 'ngrok-skip-browser-warning': 'true'
+ let imgBuffer: Buffer | null = null;
+ let contentType = 'image/jpeg';
+
+ for (const attempt of imgAttempts) {
+ const imgResponse = await gpfFetch(attempt.url, { headers: attempt.headers });
+ if (imgResponse.ok) {
+ contentType = imgResponse.headers.get('content-type') || 'image/jpeg';
+ imgBuffer = Buffer.from(await imgResponse.arrayBuffer());
+ break;
  }
- });
- if (!imgResponse.ok) {
  let body = '';
  try { body = await imgResponse.text(); } catch { body = '(no body)'; }
- logger.warn('[image-proxy] GPF devolvió error', {
- status: imgResponse.status,
- url: url.substring(0, 100),
- body: body.substring(0, 200)
- });
- return res.status(imgResponse.status).end();
+ logger.warn(`[image-proxy] ${attempt.label} falló`, { status: imgResponse.status, body: body.substring(0, 150) });
  }
- const contentType = imgResponse.headers.get('content-type') || 'image/jpeg';
- const imgBuffer = Buffer.from(await imgResponse.arrayBuffer());
+
+ if (!imgBuffer) {
+ return res.status(502).end();
+ }
+
  res.setHeader('Content-Type', contentType);
  res.setHeader('Cache-Control', 'public, max-age=300');
  res.send(imgBuffer);
