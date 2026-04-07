@@ -129,6 +129,7 @@ export default function NewAuditPage() {
  // Filtered list
  const filteredAttentions = useMemo(() => {
  return attentions.filter((a) => {
+ if (!uniqueCalificaciones.includes(getAttentionCalificacion(a))) return false;
  const dateStr = parseDateForCompare(getAttentionDate(a));
  if (filterDateFrom && dateStr && dateStr < filterDateFrom) return false;
  if (filterDateTo && dateStr && dateStr > filterDateTo) return false;
