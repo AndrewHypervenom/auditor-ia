@@ -236,31 +236,73 @@ export const FRAUD_CRITERIA: EvaluationBlock[] = [
   {
     blockName: 'Manejo de llamada',
     topics: [
-      { 
-        topic: 'Cumple con el script', 
-        criticality: '-', 
-        points: 17, 
+      {
+        topic: 'Script: Saludo y bienvenida',
+        criticality: '-',
+        points: 2,
         applies: true,
-        whatToLookFor: 'En transcripción: sigue el script completo (saludo, validación, explicación del proceso, preguntas de seguridad, cierre)'
+        whatToLookFor: 'En transcripción: agente dice saludo tipo "Monitoreo bradescard, te atiende [nombre] ¿con quién tengo el gusto?" y pregunta "¿En qué te puedo ayudar?" o similar para identificar el motivo de la llamada.'
       },
-      { 
-        topic: 'Educación, frases de conexión, comunicación efectiva y escucha activa', 
-        criticality: '-', 
-        points: 5, 
+      {
+        topic: 'Script: Autenticación (CallerID / OTP)',
+        criticality: '-',
+        points: 4,
+        applies: true,
+        whatToLookFor: 'En transcripción: agente pide los últimos 4 dígitos de la tarjeta y confirma si es el/la titular. Solicita OTP por SMS ("recibirás un mensaje de texto con un código de seguridad") o por email como fallback. Si falla: informa que no puede brindar información sin confirmar identidad del titular.'
+      },
+      {
+        topic: 'Script: Sondeo de movimientos',
+        criticality: '-',
+        points: 3,
+        applies: true,
+        whatToLookFor: 'En transcripción: agente pregunta fecha, cantidad o nombre del comercio no reconocido; pregunta si recibió mensaje de texto; menciona transacción específica del sistema y pregunta si la reconoce; pregunta si tiene la tarjeta en su poder; pregunta si hay alguien más que la utilice.'
+      },
+      {
+        topic: 'Script: Información de bloqueo',
+        criticality: '-',
+        points: 3,
+        applies: true,
+        whatToLookFor: 'En transcripción: agente informa que datos de tarjeta están comprometidos y se realizará bloqueo definitivo; menciona costo de $250 pesos más IVA por investigación si las compras resultaron ser del cliente; solicita confirmación ("¿Estás de acuerdo con continuar?").'
+      },
+      {
+        topic: 'Script: Recapitulación del caso',
+        criticality: '-',
+        points: 3,
+        applies: true,
+        whatToLookFor: 'En transcripción: agente confirma número CNR, comercios y rango de fechas de la aclaración; informa que la investigación dura 60 días hábiles; confirma correo electrónico del cliente.'
+      },
+      {
+        topic: 'Script: Reposición de tarjeta',
+        criticality: '-',
+        points: 1,
+        applies: true,
+        whatToLookFor: 'En transcripción: agente informa el proceso de reposición. Si es C&A/Bodega/GCC: indica acudir a sucursal participante con identificación. Si es Suburbia/LOB: indica que llegará al domicilio en 15 días hábiles.'
+      },
+      {
+        topic: 'Script: Despedida',
+        criticality: '-',
+        points: 1,
+        applies: true,
+        whatToLookFor: 'En transcripción: agente recomienda descargar la aplicación bradescard; se despide mencionando su nombre y apellido ("te atendió [nombre y apellido]"); transfiere a encuesta de calificación del servicio.'
+      },
+      {
+        topic: 'Educación, frases de conexión, comunicación efectiva y escucha activa',
+        criticality: '-',
+        points: 5,
         applies: true,
         whatToLookFor: 'En transcripción: usa frases de empatía, responde adecuadamente a las inquietudes del cliente, escucha activamente'
       },
-      { 
-        topic: 'Control de llamada y Puntualidad', 
-        criticality: '-', 
-        points: 6, 
+      {
+        topic: 'Control de llamada y Puntualidad',
+        criticality: '-',
+        points: 6,
         applies: true,
         whatToLookFor: 'En transcripción: mantiene control de la conversación, no se desvía del tema, maneja objeciones adecuadamente'
       },
-      { 
-        topic: 'Autentica correctamente', 
-        criticality: '-', 
-        points: 11, 
+      {
+        topic: 'Autentica correctamente',
+        criticality: '-',
+        points: 11,
         applies: true,
         whatToLookFor: 'En transcripción: realiza autenticación completa al inicio de la llamada (CallerID, OTP, o preguntas de seguridad según protocolo)'
       }
@@ -491,12 +533,40 @@ export const TH_CONFIRMA_CRITERIA: EvaluationBlock[] = [
   {
     blockName: 'Manejo de llamada',
     topics: [
-      { 
-        topic: 'Cumple con el script', 
-        criticality: '-', 
-        points: 17, 
+      {
+        topic: 'Script: Saludo e identificación del cliente',
+        criticality: '-',
+        points: 2,
         applies: true,
-        whatToLookFor: 'Verificar pasos del script TH CONFIRMA en orden: 1) Saludo con nombre del cliente, 2) Presentación de Bradescard y terminación de tarjeta, 3) Mención de compras con fecha/monto/comercio y pregunta de reconocimiento, 4) Acción (mantenimiento/aprobación hotlist), 5) Despedida con nombre del agente.'
+        whatToLookFor: 'En transcripción: agente pregunta por el cliente usando su nombre completo con tratamiento ("¿Se encuentra el/la Sr./Sra./Srita. [Nombre]?").'
+      },
+      {
+        topic: 'Script: Presentación de Bradescard y tarjeta',
+        criticality: '-',
+        points: 3,
+        applies: true,
+        whatToLookFor: 'En transcripción: agente se presenta con su nombre, menciona explícitamente "Bradescard México" y menciona la terminación de la tarjeta (últimos 4 dígitos) solicitando confirmación ("¿me puede apoyar a validarlos?").'
+      },
+      {
+        topic: 'Script: Mención y confirmación de movimientos',
+        criticality: '-',
+        points: 5,
+        applies: true,
+        whatToLookFor: 'En transcripción: agente menciona compras específicas del sistema con día, cantidad en pesos y nombre del comercio; pregunta explícitamente si el cliente reconoce cada movimiento; al confirmar, informa que aplicará un mantenimiento a la tarjeta.'
+      },
+      {
+        topic: 'Script: Acción de mantenimiento (HOTLIST / desbloqueo)',
+        criticality: '-',
+        points: 5,
+        applies: true,
+        whatToLookFor: 'En transcripción: agente indica al cliente que espere 5 minutos para volver a usar la tarjeta. En sistemas (capturas): ingresa tarjeta a APROBAR_HOTLIST en Falcon por 30+1 días; retira bloqueo BLKI/BLKT en Vision si aplica; habilita bypass por 24 horas si la compra fue por internet.'
+      },
+      {
+        topic: 'Script: Despedida',
+        criticality: '-',
+        points: 2,
+        applies: true,
+        whatToLookFor: 'En transcripción: agente menciona que podrían comunicarse en no más de 30 minutos para seguimiento; se despide mencionando su nombre propio y "Bradescard México".'
       },
       {
         topic: 'Educación, frases de conexión, comunicación efectiva y escucha activa',
@@ -512,10 +582,10 @@ export const TH_CONFIRMA_CRITERIA: EvaluationBlock[] = [
         applies: true,
         whatToLookFor: 'En transcripción: agente mantiene el hilo de la llamada, no hace pausas innecesarias, maneja el tiempo de manera eficiente.'
       },
-      { 
-        topic: 'Autentica correctamente', 
-        criticality: '-', 
-        points: 11, 
+      {
+        topic: 'Autentica correctamente',
+        criticality: '-',
+        points: 11,
         applies: true,
         whatToLookFor: 'Autenticación al inicio'
       }

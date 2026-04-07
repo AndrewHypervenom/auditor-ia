@@ -967,7 +967,207 @@ JUSTIFICACIÓN SI OTORGA PUNTOS:
 "Autenticación realizada mediante [CallerID/OTP/Preguntas de seguridad]: [cita exacta de transcripción]"
 
 JUSTIFICACIÓN SI NO OTORGA PUNTOS:
-"No se encontró evidencia de autenticación al inicio de la llamada."`
+"No se encontró evidencia de autenticación al inicio de la llamada."`,
+
+ // ─────────────────────────────────────────────────
+ // REGLAS DE CUMPLIMIENTO DE SCRIPT — FRAUDE (INBOUND)
+ // ─────────────────────────────────────────────────
+ 'Script: Saludo y bienvenida': `
+BUSCAR EXCLUSIVAMENTE EN TRANSCRIPCIÓN (primeros 60 segundos):
+
+Frases obligatorias del script de bienvenida:
+1. Saludo: "Monitoreo bradescard", "te atiende [nombre]", "¿con quién tengo el gusto?"
+2. Motivo: "¿En qué te puedo ayudar?", "¿En qué le puedo servir?" o similar
+
+Palabras clave:
+- "monitoreo", "bradescard"
+- "te atiende", "le atiende", "mi nombre es"
+- "con quién tengo el gusto", "con quién hablo"
+- "en qué te puedo ayudar", "en qué le puedo ayudar", "en qué le puedo servir"
+
+CRITERIO:
+ Saludo con identificación de Bradescard Y nombre del agente Y pregunta de motivo → PUNTOS COMPLETOS (2)
+ Solo saludo sin preguntar motivo, o sin identificar Bradescard → PUNTOS PARCIALES (1)
+ Sin saludo reconocible → 0 puntos`,
+
+ 'Script: Autenticación (CallerID / OTP)': `
+BUSCAR EN TRANSCRIPCIÓN (primeros 2 minutos):
+
+Elementos de autenticación del script:
+1. CallerID: "últimos 4 dígitos de tu tarjeta", "4 dígitos", "terminación"
+2. Titular: "¿eres el/la titular?", "¿es usted el titular?"
+3. OTP SMS: "recibirás un mensaje de texto", "código de seguridad de 4 dígitos", "código por SMS"
+4. OTP Email (fallback): "enviaré el código al correo", "correo registrado"
+5. Fallo de autenticación: "no puedo brindarte información", "por motivos de seguridad"
+
+CRITERIO DE PUNTOS (máx 4):
+ Pide 4 dígitos + confirma titular + envía OTP → PUNTOS COMPLETOS (4)
+ Pide 4 dígitos + confirma titular (sin OTP) → PUNTOS PARCIALES (2-3)
+ Solo pide 4 dígitos → PUNTOS PARCIALES (1-2)
+ Sin ninguna autenticación → 0 puntos
+
+IMPORTANTE: La autenticación debe ocurrir ANTES de hablar sobre los cargos.`,
+
+ 'Script: Sondeo de movimientos': `
+BUSCAR EN TRANSCRIPCIÓN:
+
+Preguntas obligatorias del sondeo según script:
+1. "¿me podrías indicar la fecha, cantidad o nombre del comercio de la compra que no reconoce?"
+2. "¿Recibiste algún mensaje de texto?"
+3. Mención de transacción del sistema: "en el sistema aparece una transacción del día XX por $XXX en XXX. ¿Reconoces este movimiento?"
+4. "¿Tienes la tarjeta de crédito contigo?"
+5. "¿Hay alguien más que utilice tu tarjeta?"
+
+Palabras clave:
+- "fecha", "cantidad", "comercio", "no reconoce", "no reconoció"
+- "mensaje de texto", "sms"
+- "en el sistema", "aparece", "transacción"
+- "tarjeta contigo", "tienes la tarjeta"
+- "alguien más", "otra persona", "autorizado"
+
+CRITERIO DE PUNTOS (máx 3):
+ 3+ preguntas del sondeo realizadas → PUNTOS COMPLETOS (3)
+ 2 preguntas → PUNTOS PARCIALES (2)
+ 1 pregunta → PUNTOS PARCIALES (1)
+ Sin sondeo → 0 puntos`,
+
+ 'Script: Información de bloqueo': `
+BUSCAR EN TRANSCRIPCIÓN:
+
+Elementos del script de bloqueo:
+1. Datos comprometidos: "datos de tu tarjeta se encuentran comprometidos", "datos comprometidos"
+2. Tipo de bloqueo: "bloqueo definitivo", "bloqueamos tu tarjeta", "vamos a hacer el bloqueo"
+3. Costo de investigación: "$250", "250 pesos", "más IVA", "por investigación"
+4. Confirmación: "¿estás de acuerdo?", "¿estás de acuerdo con continuar?", "¿autoriza el bloqueo?"
+
+CRITERIO DE PUNTOS (máx 3):
+ Informa datos comprometidos + tipo de bloqueo + menciona costo + pide confirmación → PUNTOS COMPLETOS (3)
+ Informa bloqueo + costo (sin confirmación explícita) → PUNTOS PARCIALES (2)
+ Solo informa bloqueo sin otros elementos → PUNTOS PARCIALES (1)
+ Sin mención de bloqueo → 0 puntos`,
+
+ 'Script: Recapitulación del caso': `
+BUSCAR EN TRANSCRIPCIÓN:
+
+Elementos de recapitulación según script:
+1. Número CNR: "aclaración [número/CNR]", "número de aclaración", "folio"
+2. Comercios y fechas: confirma los comercios y rango de fechas de la aclaración
+3. Duración: "60 días hábiles", "60 días", "dos meses"
+4. Correo: "te confirmo tu correo", "correo electrónico", "¿es correcto?"
+
+Palabras clave:
+- "cnr", "número de aclaración", "folio de aclaración"
+- "60 días", "días hábiles"
+- "correo", "email", "electrónico"
+- "te confirmo", "¿correcto?", "¿es correcto?"
+
+CRITERIO DE PUNTOS (máx 3):
+ Confirma CNR + duración + correo del cliente → PUNTOS COMPLETOS (3)
+ 2 de los 3 elementos → PUNTOS PARCIALES (2)
+ Solo 1 elemento → PUNTOS PARCIALES (1)
+ Sin recapitulación → 0 puntos`,
+
+ 'Script: Reposición de tarjeta': `
+BUSCAR EN TRANSCRIPCIÓN:
+
+Elementos de reposición según script:
+- C&A/Bodega/GCC: "acudir a la sucursal participante", "sucursal más cercana", "identificación oficial"
+- Suburbia/LOB: "a tu domicilio", "15 días hábiles", "reposición llegará"
+
+Palabras clave:
+- "reposición", "nueva tarjeta", "plástico"
+- "sucursal", "tienda"
+- "15 días", "domicilio"
+- "identificación"
+
+CRITERIO:
+ Menciona proceso de reposición específico (sucursal O domicilio) con detalles → PUNTOS COMPLETOS (1)
+ Menciona reposición vagamente sin detalles → PUNTOS PARCIALES (0 o 1)
+ Sin mención de reposición → 0 puntos`,
+
+ 'Script: Despedida': `
+BUSCAR EN TRANSCRIPCIÓN (últimos 60 segundos):
+
+Elementos de despedida según script:
+1. App: "descargar nuestra aplicación bradescard", "aplicación", "app bradescard"
+2. Identificación: "te atendió [nombre y apellido]", "le atendió [nombre]", "me llamo"
+3. Encuesta: "te transfiero a una breve encuesta", "calificar el servicio", "encuesta de satisfacción"
+
+Para TH CONFIRMA (despedida diferente):
+1. Seguimiento: "30 minutos", "seguimiento", "podrían comunicarse"
+2. Identificación: "le atendió [nombre]", "de Bradescard México"
+
+CRITERIO:
+ Menciona app + se identifica con nombre + transfiere a encuesta → PUNTOS COMPLETOS (1)
+ Solo 1-2 elementos → PUNTOS PARCIALES (0 o 1)
+ Sin despedida reconocible → 0 puntos`,
+
+ // ─────────────────────────────────────────────────
+ // REGLAS DE CUMPLIMIENTO DE SCRIPT — TH CONFIRMA
+ // ─────────────────────────────────────────────────
+ 'Script: Saludo e identificación del cliente': `
+BUSCAR EN TRANSCRIPCIÓN (primeros 30 segundos):
+
+Frase obligatoria del script:
+"Buenos días/tardes/noches, ¿se encuentra el/la Sr./Sra./Srita. [Nombre y Apellido]?"
+
+Palabras clave:
+- "buenos días", "buenas tardes", "buenas noches"
+- "se encuentra", "se encuentra el señor", "se encuentra la señora"
+- "sr.", "sra.", "srita.", "señor", "señora", "señorita"
+
+CRITERIO:
+ Pregunta por cliente con tratamiento (Sr./Sra./Srita.) Y saludo inicial → PUNTOS COMPLETOS (2)
+ Solo saludo sin preguntar por el cliente → PUNTOS PARCIALES (1)
+ Sin saludo formal → 0 puntos`,
+
+ 'Script: Presentación de Bradescard y tarjeta': `
+BUSCAR EN TRANSCRIPCIÓN (primeros 90 segundos):
+
+Elementos de presentación del script:
+1. Nombre del agente: "mi nombre es [nombre]"
+2. Empresa: "Bradescard México", "me comunico de Bradescard"
+3. Motivo: "para confirmar compras", "para confirmar movimientos"
+4. Terminación de tarjeta: "terminación [4 dígitos]", "últimos 4 dígitos", "¿me puede apoyar a validarlos?"
+
+CRITERIO DE PUNTOS (máx 3):
+ Nombre + Bradescard México + terminación de tarjeta → PUNTOS COMPLETOS (3)
+ Bradescard + terminación (sin nombre del agente) → PUNTOS PARCIALES (2)
+ Solo menciona Bradescard → PUNTOS PARCIALES (1)
+ Sin presentación → 0 puntos`,
+
+ 'Script: Mención y confirmación de movimientos': `
+BUSCAR EN TRANSCRIPCIÓN:
+
+Elementos obligatorios del script de confirmación:
+1. Introduce compras: "le voy a mencionar compras", "voy a mencionar movimientos"
+2. Detalle de transacción: día específico + cantidad en pesos + nombre del comercio
+3. Pregunta de reconocimiento: "¿reconoce este movimiento?", "¿lo reconoce?", "¿usted realizó esta compra?"
+4. Confirmación + mantenimiento: "ya que confirmó... aplicaré un mantenimiento", "se aplicará un mantenimiento"
+
+CRITERIO DE PUNTOS (máx 5):
+ Los 4 elementos presentes → PUNTOS COMPLETOS (5)
+ 3 elementos → PUNTOS PARCIALES (3-4)
+ 2 elementos → PUNTOS PARCIALES (2)
+ 1 elemento o sin mencionar compras → PUNTOS BAJOS (0-1)`,
+
+ 'Script: Acción de mantenimiento (HOTLIST / desbloqueo)': `
+BUSCAR EN TRANSCRIPCIÓN Y CAPTURAS:
+
+EN TRANSCRIPCIÓN:
+- "Le pido esperar 5 minutos", "espere 5 minutos para volver a utilizarla"
+- "aplicaré el mantenimiento", "mantenimiento aplicado"
+
+EN CAPTURAS (sistemas):
+- FALCON: acceso a APROBAR_HOTLIST, tarjeta ingresada por 30+1 días
+- VISION: bloqueo BLKI/BLKT/BPT0/BNFC retirado (si aplica)
+- Bypass habilitado por 24 horas (si la compra fue por internet)
+
+CRITERIO DE PUNTOS (máx 5):
+ Menciona espera de 5 minutos EN transcripción + evidencia de HOTLIST en capturas → PUNTOS COMPLETOS (5)
+ Solo evidencia en capturas (sin mención verbal) → PUNTOS PARCIALES (3)
+ Solo mención verbal (sin capturas de sistemas) → PUNTOS PARCIALES (2)
+ Sin evidencia de ningún mantenimiento → 0 puntos`
  };
 
  return rules[topic] || `
