@@ -1043,7 +1043,10 @@ export default function NewAuditPage() {
  <p className="text-xs text-amber-400/80">El enlace expira en 5 minutos. Si no carga, vuelve a seleccionar el caso.</p>
  </div>
  ) : (
- <p className="text-slate-500 text-sm">Sin audio disponible para este caso.</p>
+ <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+   <span className="text-red-400 text-lg">⚠</span>
+   <p className="text-red-400 text-sm font-medium">Sin audio disponible — no se puede auditar este caso.</p>
+ </div>
  )}
  </div>
 
@@ -1068,7 +1071,9 @@ export default function NewAuditPage() {
  <div className="flex gap-4">
  <button
  onClick={handleConfirm}
- className="flex-1 px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg hover:shadow-purple-500/50 flex items-center justify-center gap-2"
+ disabled={!audioUrl || audioLoading}
+ title={!audioUrl && !audioLoading ? 'Se requiere audio para realizar la auditoría' : undefined}
+ className="flex-1 px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg hover:shadow-purple-500/50 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:from-purple-600 disabled:hover:to-pink-600 disabled:shadow-none"
  >
  <Sparkles className="w-5 h-5" />
  Confirmar y Auditar
