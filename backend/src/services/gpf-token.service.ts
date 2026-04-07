@@ -8,6 +8,7 @@ import { gpfFetch, normalizeGpfUrl } from '../utils/gpf-fetch.js';
 interface TokenCache {
  token: string;
  expiresAt: number;
+ sessionCookie: string; // Cookie de sesión Laravel para secure-download
 }
 
 const BUFFER_MS = 10 * 60 * 1000; // 10 min buffer
@@ -32,7 +33,7 @@ class GpfTokenService {
  };
  }
 
- private async login(env: string): Promise<string> {
+ private async login(env: string): Promise<{ token: string; sessionCookie: string }> {
  const baseUrl = this.getBaseUrl(env);
  if (!baseUrl) throw new Error(`GPF URL not configured for env: ${env}`);
 
@@ -68,7 +69,18 @@ class GpfTokenService {
  throw new Error(`GPF login response did not contain data.token: ${JSON.stringify(body)}`);
  }
 
- return token as string;
+ // Capturar cookie de sesión Laravel (necesaria para /secure-download/)
+ const sessionCookie = response.cookies
+ .map(c => c.split(';')[0]) // solo nombre=valor, sin Path/HttpOnly/etc.
+ .join('; ');
+
+ if (sessionCookie) {
+ logger.info(' GPF session cookie capturada', { env, length: sessionCookie.length });
+ } else {
+ logger.warn(' GPF login no devolvió Set-Cookie — secure-download puede fallar', { env });
+ }
+
+ return { token: token as string, sessionCookie };
  }
 
  async getToken(env: string): Promise<string> {
@@ -77,14 +89,20 @@ class GpfTokenService {
  return cached.token;
  }
 
- const token = await this.login(env);
+ const { token, sessionCookie } = await this.login(env);
  this.cache.set(env, {
  token,
+ sessionCookie,
  expiresAt: Date.now() + TOKEN_TTL_MS - BUFFER_MS
  });
 
  logger.success(' GPF token obtained and cached', { env });
  return token;
+ }
+
+ /** Devuelve la cookie de sesión de Laravel guardada al hacer login. */
+ getSessionCookie(env: string): string {
+ return this.cache.get(env)?.sessionCookie ?? '';
  }
 
  invalidate(env: string): void {

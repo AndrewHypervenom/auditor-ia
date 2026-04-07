@@ -1306,14 +1306,17 @@ app.post('/api/gpf/audio-proxy', authenticateUser, requireAdminOrAnalyst, async 
  }
  logger.info('Descargando audio GPF', { audioSecureUrl: audioSecureUrl.substring(0, 80) });
 
- // Intentar con encabezados GPF primero, luego sin ellos (la URL puede ser pre-firmada)
  const appToken = process.env.GPF_APP_TOKEN || '';
+ const sessionCookie = gpfTokenService.getSessionCookie(env);
+
+ // Intento 1: Bearer token + cookie de sesión Laravel (necesaria para /secure-download/)
  let audioResponse = await gpfFetch(audioSecureUrl, {
  headers: {
  'X-App-Token': appToken,
  'Authorization': `Bearer ${token}`,
  'Accept': '*/*',
- 'ngrok-skip-browser-warning': 'true'
+ 'ngrok-skip-browser-warning': 'true',
+ ...(sessionCookie ? { 'Cookie': sessionCookie } : {})
  }
  });
 
@@ -1326,9 +1329,17 @@ app.post('/api/gpf/audio-proxy', authenticateUser, requireAdminOrAnalyst, async 
  }
  }
 
- // Si falla con auth, reintentar sin headers (URL pre-firmada)
+ // Intento 2: solo cookie de sesión (sin Bearer, por si el endpoint rechaza auth doble)
+ if (!audioResponse.ok && sessionCookie) {
+ logger.warn(`Audio con Bearer falló (${audioResponse.status}), reintentando solo con cookie`);
+ audioResponse = await gpfFetch(audioSecureUrl, {
+ headers: { 'Cookie': sessionCookie, 'Accept': '*/*' }
+ });
+ }
+
+ // Intento 3: sin headers (URL pre-firmada pública)
  if (!audioResponse.ok) {
- logger.warn(`Audio con auth falló (${audioResponse.status}), reintentando sin headers`);
+ logger.warn(`Audio con cookie falló (${audioResponse.status}), reintentando sin headers`);
  audioResponse = await gpfFetch(audioSecureUrl, {});
  }
 
@@ -1499,13 +1510,15 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  if (audioSecureUrl) {
  progressBroadcaster.progress(sseClientId, 'audio', 62, '[AUDIO] Descargando grabacion...');
  const appToken = process.env.GPF_APP_TOKEN || '';
- logger.info('[PASO 5] Descargando audio (intento 1 con headers auth)...', { url: audioSecureUrl.substring(0, 80) });
+ const sessionCookie = gpfTokenService.getSessionCookie(env);
+ logger.info('[PASO 5] Descargando audio (intento 1 con Bearer + cookie)...', { url: audioSecureUrl.substring(0, 80) });
  let audioResponse = await gpfFetch(audioSecureUrl, {
  headers: {
  'X-App-Token': appToken,
  'Authorization': `Bearer ${token}`,
  'Accept': '*/*',
- 'ngrok-skip-browser-warning': 'true'
+ 'ngrok-skip-browser-warning': 'true',
+ ...(sessionCookie ? { 'Cookie': sessionCookie } : {})
  }
  });
  logger.info('[PASO 5] Respuesta descarga audio intento 1', { status: audioResponse.status, ok: audioResponse.ok });
@@ -1520,9 +1533,18 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  }
  }
 
- // Reintentar sin headers si la autenticación causó fallo
+ // Intento 2: solo cookie (sin Bearer)
+ if (!audioResponse.ok && sessionCookie) {
+ logger.warn('[PASO 5] Audio con Bearer falló, reintentando solo con cookie', { status: audioResponse.status });
+ audioResponse = await gpfFetch(audioSecureUrl, {
+ headers: { 'Cookie': sessionCookie, 'Accept': '*/*' }
+ });
+ logger.info('[PASO 5] Respuesta intento solo cookie', { status: audioResponse.status, ok: audioResponse.ok });
+ }
+
+ // Intento 3: sin headers (URL pre-firmada pública)
  if (!audioResponse.ok) {
- logger.warn('[PASO 5] Audio con auth fallo, reintentando sin headers', { status: audioResponse.status });
+ logger.warn('[PASO 5] Audio con cookie falló, reintentando sin headers', { status: audioResponse.status });
  audioResponse = await gpfFetch(audioSecureUrl, {});
  logger.info('[PASO 5] Respuesta intento sin headers', { status: audioResponse.status, ok: audioResponse.ok });
  }

@@ -26,6 +26,8 @@ interface GpfResponse {
   status: number;
   statusText: string;
   headers: { get(name: string): string | null };
+  /** Raw Set-Cookie values from the response (may be empty). */
+  cookies: string[];
   text(): Promise<string>;
   json(): Promise<any>;
   arrayBuffer(): Promise<ArrayBuffer>;
@@ -55,6 +57,8 @@ export function gpfFetch(urlStr: string, init: FetchInit = {}): Promise<GpfRespo
         const buf = Buffer.concat(chunks);
         const status = res.statusCode ?? 0;
 
+        const rawCookies = res.headers['set-cookie'] ?? [];
+
         resolve({
           ok: status >= 200 && status < 300,
           status,
@@ -66,6 +70,7 @@ export function gpfFetch(urlStr: string, init: FetchInit = {}): Promise<GpfRespo
               return Array.isArray(val) ? val[0] : val;
             }
           },
+          cookies: Array.isArray(rawCookies) ? rawCookies : [rawCookies],
           text: () => Promise.resolve(buf.toString('utf-8')),
           json: () => {
             try {
