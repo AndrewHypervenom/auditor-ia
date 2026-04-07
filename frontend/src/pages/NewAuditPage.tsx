@@ -1,6 +1,6 @@
 // frontend/src/pages/NewAuditPage.tsx
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import ProcessingStatus from '../components/ProcessingStatus';
@@ -107,6 +107,11 @@ export default function NewAuditPage() {
  const [filterEstado, setFilterEstado] = useState('');
  const [showFilters, setShowFilters] = useState(true);
 
+ // ── Dual scroll refs ─────────────────────────────────────────────────────────
+ const topScrollRef = useRef<HTMLDivElement>(null);
+ const tableScrollRef = useRef<HTMLDivElement>(null);
+ const [tableScrollWidth, setTableScrollWidth] = useState(0);
+
  const activeFilterCount = [filterDateFrom, filterDateTo, filterAgent, filterClient, filterCalificacion, filterEstado]
  .filter(Boolean).length;
 
@@ -140,6 +145,26 @@ export default function NewAuditPage() {
  return true;
  });
  }, [attentions, filterDateFrom, filterDateTo, filterAgent, filterClient, filterCalificacion, filterEstado]);
+
+ useEffect(() => {
+ if (tableScrollRef.current) {
+ setTableScrollWidth(tableScrollRef.current.scrollWidth);
+ }
+ }, [filteredAttentions]);
+
+ useEffect(() => {
+ const top = topScrollRef.current;
+ const table = tableScrollRef.current;
+ if (!top || !table) return;
+ const onTopScroll = () => { table.scrollLeft = top.scrollLeft; };
+ const onTableScroll = () => { top.scrollLeft = table.scrollLeft; };
+ top.addEventListener('scroll', onTopScroll);
+ table.addEventListener('scroll', onTableScroll);
+ return () => {
+ top.removeEventListener('scroll', onTopScroll);
+ table.removeEventListener('scroll', onTableScroll);
+ };
+ }, [filteredAttentions]);
 
  // ── Load attentions ──────────────────────────────────────────────────────────
 
@@ -626,7 +651,12 @@ export default function NewAuditPage() {
  </button>
  </div>
  ) : (
- <div className="overflow-x-auto rounded-xl border border-slate-700">
+ <div className="rounded-xl border border-slate-700">
+ {/* Scroll superior sincronizado */}
+ <div ref={topScrollRef} className="overflow-x-auto" style={{ height: 12 }}>
+ <div style={{ width: tableScrollWidth, height: 1 }} />
+ </div>
+ <div ref={tableScrollRef} className="overflow-x-auto">
  <table className="w-full text-sm text-slate-300">
  <thead>
  <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider">
@@ -666,7 +696,8 @@ export default function NewAuditPage() {
  ))}
  </tbody>
  </table>
- <div className="px-4 py-2 bg-slate-800/40 border-t border-slate-700 text-xs text-slate-500">
+ </div>
+ <div className="px-4 py-2 bg-slate-800/40 border-t border-slate-700 text-xs text-slate-500 rounded-b-xl">
  {filteredAttentions.length} caso{filteredAttentions.length !== 1 ? 's' : ''} mostrado{filteredAttentions.length !== 1 ? 's' : ''}
  </div>
  </div>
