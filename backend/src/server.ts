@@ -1319,9 +1319,15 @@ async function tryDownloadAudio(
  sessionCookie: string,
  appToken: string
 ): Promise<AudioDownloadResult | null> {
- const attempts: Array<{ label: string; headers: Record<string, string> }> = [
+ // También probar con HTTP en caso de que Apache restrinja solo HTTPS por IP
+ const httpUrl = audioSecureUrl.replace(/^https:\/\//, 'http://');
+ const browserUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+ const gpfOrigin = audioSecureUrl.replace(/(https?:\/\/[^/]+).*/, '$1');
+
+ const attempts: Array<{ label: string; url: string; headers: Record<string, string> }> = [
  {
  label: 'Bearer+Cookie+AppToken',
+ url: audioSecureUrl,
  headers: {
  'X-App-Token': appToken,
  'Authorization': `Bearer ${token}`,
@@ -1331,25 +1337,45 @@ async function tryDownloadAudio(
  }
  },
  {
+ // Apache a veces restringe por User-Agent/Referer — simular browser
+ label: 'browser-UA+Referer',
+ url: audioSecureUrl,
+ headers: {
+ 'User-Agent': browserUA,
+ 'Referer': gpfOrigin + '/',
+ 'Accept': 'audio/*,*/*',
+ ...(sessionCookie ? { 'Cookie': sessionCookie } : {})
+ }
+ },
+ {
+ // Probar HTTP en caso de que la restricción sea solo en HTTPS
+ label: 'http-sin-headers',
+ url: httpUrl,
+ headers: {}
+ },
+ {
+ label: 'http-browser-UA',
+ url: httpUrl,
+ headers: {
+ 'User-Agent': browserUA,
+ 'Referer': gpfOrigin + '/',
+ 'Accept': 'audio/*,*/*'
+ }
+ },
+ {
  label: 'AppToken-solo',
+ url: audioSecureUrl,
  headers: { 'X-App-Token': appToken, 'Accept': '*/*' }
  },
  {
- label: 'Cookie-sola',
- headers: sessionCookie ? { 'Cookie': sessionCookie, 'Accept': '*/*' } : { 'Accept': '*/*' }
- },
- {
- label: 'Bearer-solo',
- headers: { 'Authorization': `Bearer ${token}`, 'Accept': '*/*' }
- },
- {
  label: 'sin-headers',
+ url: audioSecureUrl,
  headers: {}
  }
  ];
 
  for (const attempt of attempts) {
- let response = await gpfFetch(audioSecureUrl, { headers: attempt.headers });
+ let response = await gpfFetch(attempt.url, { headers: attempt.headers });
 
  // Seguir redirects 3xx manualmente
  if (response.status >= 300 && response.status < 400) {
