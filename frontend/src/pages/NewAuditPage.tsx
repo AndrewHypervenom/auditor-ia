@@ -139,7 +139,12 @@ export default function NewAuditPage() {
  if (filterDateFrom && dateStr && dateStr < filterDateFrom) return false;
  if (filterDateTo && dateStr && dateStr > filterDateTo) return false;
  if (filterAgent && !getAttentionExecutive(a).toLowerCase().includes(filterAgent.toLowerCase())) return false;
- if (filterClient && !getAttentionClient(a).toLowerCase().includes(filterClient.toLowerCase())) return false;
+ if (filterClient) {
+ const term = filterClient.toLowerCase();
+ const socio = String(a['Socio'] ?? '').toLowerCase();
+ const caso = String(a['Caso'] ?? '').toLowerCase();
+ if (!socio.includes(term) && !caso.includes(term)) return false;
+ }
  if (filterCalificacion && getAttentionCalificacion(a) !== filterCalificacion) return false;
  if (filterEstado && getAttentionEstado(a) !== filterEstado) return false;
  return true;
