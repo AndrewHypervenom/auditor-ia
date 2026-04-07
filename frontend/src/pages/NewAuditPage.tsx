@@ -662,47 +662,47 @@ export default function NewAuditPage() {
  <div ref={topScrollRef} className="overflow-x-auto" style={{ height: 12 }}>
  <div style={{ width: tableScrollWidth, height: 1 }} />
  </div>
- <div ref={tableScrollRef} className="overflow-x-auto">
- <table className="w-full text-sm text-slate-300">
- <thead>
- <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider">
- {Object.keys(filteredAttentions[0]).map((key) => (
- <th key={key} className="px-4 py-3 text-left whitespace-nowrap">
- {key}
- </th>
- ))}
- <th className="px-4 py-3 text-center whitespace-nowrap">Acción</th>
- </tr>
- </thead>
- <tbody>
- {filteredAttentions.map((att, idx) => (
- <tr
- key={`${getAttentionId(att)}-${idx}`}
- className="border-t border-slate-700/50 hover:bg-slate-800/40 transition-colors"
- >
- {Object.keys(filteredAttentions[0]).map((key) => (
- <td
- key={key}
- className="px-4 py-3 text-xs whitespace-nowrap max-w-[180px] truncate"
- title={String(att[key] ?? '')}
- >
- {att[key] != null && att[key] !== '' ? String(att[key]) : '—'}
- </td>
- ))}
- <td className="px-4 py-3 text-center">
- <button
- onClick={() => handleSelectAttention(att)}
- className="px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 text-purple-300 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 mx-auto"
- >
- Ver detalle
- <ChevronRight className="w-3 h-3" />
- </button>
- </td>
- </tr>
- ))}
- </tbody>
- </table>
- </div>
+            <div ref={tableScrollRef} className="overflow-x-auto">
+            <table className="w-full text-sm text-slate-300">
+            <thead>
+            <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider">
+            <th className="px-4 py-3 text-center whitespace-nowrap">Acción</th>
+            {Object.keys(filteredAttentions[0]).map((key) => (
+            <th key={key} className="px-4 py-3 text-left whitespace-nowrap">
+            {key}
+            </th>
+            ))}
+            </tr>
+            </thead>
+            <tbody>
+            {filteredAttentions.map((att, idx) => (
+            <tr
+            key={`${getAttentionId(att)}-${idx}`}
+            className="border-t border-slate-700/50 hover:bg-slate-800/40 transition-colors"
+            >
+            <td className="px-4 py-3 text-center">
+            <button
+            onClick={() => handleSelectAttention(att)}
+            className="px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 text-purple-300 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 mx-auto"
+            >
+            Ver detalle
+            <ChevronRight className="w-3 h-3" />
+            </button>
+            </td>
+            {Object.keys(filteredAttentions[0]).map((key) => (
+            <td
+            key={key}
+            className="px-4 py-3 text-xs whitespace-nowrap max-w-[180px] truncate"
+            title={String(att[key] ?? '')}
+            >
+            {att[key] != null && att[key] !== '' ? String(att[key]) : '—'}
+            </td>
+            ))}
+            </tr>
+            ))}
+            </tbody>
+            </table>
+            </div>
  <div className="px-4 py-2 bg-slate-800/40 border-t border-slate-700 text-xs text-slate-500 rounded-b-xl">
  {filteredAttentions.length} caso{filteredAttentions.length !== 1 ? 's' : ''} mostrado{filteredAttentions.length !== 1 ? 's' : ''}
  </div>
