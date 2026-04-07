@@ -141,9 +141,10 @@ export default function NewAuditPage() {
  if (filterAgent && !getAttentionExecutive(a).toLowerCase().includes(filterAgent.toLowerCase())) return false;
  if (filterClient) {
  const term = filterClient.toLowerCase();
- const socio = String(a['Socio'] ?? '').toLowerCase();
- const caso = String(a['Caso'] ?? '').toLowerCase();
- if (!socio.includes(term) && !caso.includes(term)) return false;
+ const matchesAnyField = Object.values(a).some(
+ (v) => v != null && String(v).toLowerCase().includes(term)
+ );
+ if (!matchesAnyField) return false;
  }
  if (filterCalificacion && getAttentionCalificacion(a) !== filterCalificacion) return false;
  if (filterEstado && getAttentionEstado(a) !== filterEstado) return false;
@@ -570,7 +571,7 @@ export default function NewAuditPage() {
  type="text"
  value={filterClient}
  onChange={(e) => setFilterClient(e.target.value)}
- placeholder="Buscar cliente o caso..."
+ placeholder="Buscar en cualquier campo..."
  className="w-full pl-8 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-blue-500"
  />
  </div>
