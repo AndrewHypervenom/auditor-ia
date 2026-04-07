@@ -12,7 +12,7 @@ interface TokenCache {
 }
 
 const BUFFER_MS = 10 * 60 * 1000; // 10 min buffer
-const TOKEN_TTL_MS = 3 * 24 * 60 * 60 * 1000; // 3 days (per API docs)
+const TOKEN_TTL_MS = 90 * 60 * 1000; // 90 min — cookie Laravel expira mucho antes de 3 días
 
 class GpfTokenService {
  private cache: Map<string, TokenCache> = new Map();
@@ -118,6 +118,15 @@ class GpfTokenService {
  this.invalidate(env);
  return await this.getToken(env);
  }
+ }
+
+ /**
+  * Invalida el cache y fuerza un nuevo login.
+  * Usar cuando un intento de descarga falla con 403 — la cookie puede estar expirada.
+  */
+ async forceRefreshAndGetToken(env: string): Promise<string> {
+ this.invalidate(env);
+ return await this.getToken(env);
  }
 }
 

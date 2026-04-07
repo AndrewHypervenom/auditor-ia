@@ -1294,23 +1294,34 @@ app.post('/api/gpf/audio-url', authenticateUser, requireAdminOrAnalyst, async (r
  }
 });
 
-// Descarga el audio y lo devuelve como stream — evita el error SSL en el browser
-app.post('/api/gpf/audio-proxy', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
- const { attentionId, env = 'test' } = req.body;
- if (!attentionId) return res.status(400).json({ error: 'attentionId requerido' });
- try {
- const token = await gpfTokenService.getTokenWithRetry(env);
- const audioSecureUrl = await gpfDataService.fetchAudioUrl(env, attentionId, token);
- if (!audioSecureUrl) {
- return res.status(404).json({ error: 'Sin audio disponible para esta atención' });
- }
- logger.info('Descargando audio GPF', { audioSecureUrl: audioSecureUrl.substring(0, 80) });
+// ── Helpers para descarga de audio GPF ──────────────────────────────────────
 
- const appToken = process.env.GPF_APP_TOKEN || '';
- const sessionCookie = gpfTokenService.getSessionCookie(env);
+async function logFailedAudioAttempt(
+ label: string,
+ response: { status: number; text: () => Promise<string> }
+): Promise<void> {
+ let body = '';
+ try { body = await response.text(); } catch { body = '(no body)'; }
+ logger.warn(`[audio-proxy] ${label} falló`, {
+ status: response.status,
+ body: body.substring(0, 300)
+ });
+}
 
- // Intento 1: Bearer token + cookie de sesión Laravel (necesaria para /secure-download/)
- let audioResponse = await gpfFetch(audioSecureUrl, {
+interface AudioDownloadResult {
+ buffer: Buffer;
+ contentType: string;
+}
+
+async function tryDownloadAudio(
+ audioSecureUrl: string,
+ token: string,
+ sessionCookie: string,
+ appToken: string
+): Promise<AudioDownloadResult | null> {
+ const attempts: Array<{ label: string; headers: Record<string, string> }> = [
+ {
+ label: 'Bearer+Cookie+AppToken',
  headers: {
  'X-App-Token': appToken,
  'Authorization': `Bearer ${token}`,
@@ -1318,45 +1329,97 @@ app.post('/api/gpf/audio-proxy', authenticateUser, requireAdminOrAnalyst, async 
  'ngrok-skip-browser-warning': 'true',
  ...(sessionCookie ? { 'Cookie': sessionCookie } : {})
  }
- });
+ },
+ {
+ label: 'AppToken-solo',
+ headers: { 'X-App-Token': appToken, 'Accept': '*/*' }
+ },
+ {
+ label: 'Cookie-sola',
+ headers: sessionCookie ? { 'Cookie': sessionCookie, 'Accept': '*/*' } : { 'Accept': '*/*' }
+ },
+ {
+ label: 'Bearer-solo',
+ headers: { 'Authorization': `Bearer ${token}`, 'Accept': '*/*' }
+ },
+ {
+ label: 'sin-headers',
+ headers: {}
+ }
+ ];
 
- // Si devuelve redirect (3xx), seguirlo manualmente
- if (audioResponse.status >= 300 && audioResponse.status < 400) {
- const redirectUrl = audioResponse.headers.get('location');
+ for (const attempt of attempts) {
+ let response = await gpfFetch(audioSecureUrl, { headers: attempt.headers });
+
+ // Seguir redirects 3xx manualmente
+ if (response.status >= 300 && response.status < 400) {
+ const redirectUrl = response.headers.get('location');
  if (redirectUrl) {
- logger.info('Siguiendo redirect de audio', { redirectUrl: redirectUrl.substring(0, 80) });
- audioResponse = await gpfFetch(redirectUrl, {});
+ logger.info(`[audio-proxy] Siguiendo redirect (${attempt.label})`, { redirectUrl: redirectUrl.substring(0, 80) });
+ response = await gpfFetch(redirectUrl, {});
  }
  }
 
- // Intento 2: solo cookie de sesión (sin Bearer, por si el endpoint rechaza auth doble)
- if (!audioResponse.ok && sessionCookie) {
- logger.warn(`Audio con Bearer falló (${audioResponse.status}), reintentando solo con cookie`);
- audioResponse = await gpfFetch(audioSecureUrl, {
- headers: { 'Cookie': sessionCookie, 'Accept': '*/*' }
+ if (response.ok) {
+ const contentType = response.headers.get('content-type') || 'audio/mpeg';
+ const buffer = Buffer.from(await response.arrayBuffer());
+ logger.success(`[audio-proxy] Descarga exitosa con ${attempt.label}`, { bytes: buffer.length, contentType });
+ return { buffer, contentType };
+ }
+
+ await logFailedAudioAttempt(attempt.label, response);
+ }
+
+ return null;
+}
+
+// Descarga el audio y lo devuelve como stream — evita el error SSL en el browser
+app.post('/api/gpf/audio-proxy', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+ const { attentionId, env = 'test' } = req.body;
+ if (!attentionId) return res.status(400).json({ error: 'attentionId requerido' });
+ try {
+ const appToken = process.env.GPF_APP_TOKEN || '';
+
+ // Ciclo 1: token/cookie cacheados
+ let token = await gpfTokenService.getTokenWithRetry(env);
+ let audioSecureUrl = await gpfDataService.fetchAudioUrl(env, attentionId, token);
+ if (!audioSecureUrl) {
+ return res.status(404).json({ error: 'Sin audio disponible para esta atención' });
+ }
+ logger.info('[audio-proxy] Descargando audio GPF', { url: audioSecureUrl.substring(0, 80), attentionId, env });
+
+ let sessionCookie = gpfTokenService.getSessionCookie(env);
+ let result = await tryDownloadAudio(audioSecureUrl, token, sessionCookie, appToken);
+
+ // Ciclo 2: forceRefresh si todos los intentos fallaron (cookie probablemente expirada)
+ if (!result) {
+ logger.warn('[audio-proxy] Todos los intentos fallaron — forzando refresh de token y cookie', { env });
+ token = await gpfTokenService.forceRefreshAndGetToken(env);
+ sessionCookie = gpfTokenService.getSessionCookie(env);
+
+ // Pedir nueva secure_download_url (la anterior puede ser inválida con la sesión vieja)
+ audioSecureUrl = await gpfDataService.fetchAudioUrl(env, attentionId, token);
+ if (!audioSecureUrl) {
+ return res.status(404).json({ error: 'Sin audio disponible tras refresco de sesión' });
+ }
+ logger.info('[audio-proxy] Reintentando descarga con credenciales frescas', { url: audioSecureUrl.substring(0, 80) });
+ result = await tryDownloadAudio(audioSecureUrl, token, sessionCookie, appToken);
+ }
+
+ if (!result) {
+ logger.error('[audio-proxy] No se pudo descargar audio GPF tras todos los intentos y refresco', { attentionId, env });
+ return res.status(502).json({
+ error: 'GPF devolvió error al descargar audio tras múltiples intentos',
+ hint: 'Revisar logs del servidor para el body de la respuesta 403'
  });
  }
 
- // Intento 3: sin headers (URL pre-firmada pública)
- if (!audioResponse.ok) {
- logger.warn(`Audio con cookie falló (${audioResponse.status}), reintentando sin headers`);
- audioResponse = await gpfFetch(audioSecureUrl, {});
- }
-
- if (!audioResponse.ok) {
- logger.error(`No se pudo descargar audio GPF: status ${audioResponse.status}`, { url: audioSecureUrl.substring(0, 80) });
- return res.status(502).json({ error: `GPF devolvió ${audioResponse.status} al descargar audio` });
- }
-
- const contentType = audioResponse.headers.get('content-type') || 'audio/mpeg';
- const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
- logger.success(`Audio descargado: ${audioBuffer.length} bytes, tipo: ${contentType}`);
- res.setHeader('Content-Type', contentType);
- res.setHeader('Content-Length', audioBuffer.length);
+ res.setHeader('Content-Type', result.contentType);
+ res.setHeader('Content-Length', result.buffer.length);
  res.setHeader('Cache-Control', 'no-store');
- res.send(audioBuffer);
+ res.send(result.buffer);
  } catch (error: any) {
- logger.warn('Error en proxy de audio GPF', { error: error.message });
+ logger.warn('[audio-proxy] Error en proxy de audio GPF', { error: error.message });
  res.status(500).json({ error: 'Error al obtener audio' });
  }
 });
