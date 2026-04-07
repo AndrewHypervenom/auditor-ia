@@ -494,11 +494,11 @@ export const gpfService = {
 
  async getAudioBlob(env: 'test' | 'prod', attentionId: string | number): Promise<string | null> {
  try {
- const response = await api.post('/gpf/audio-proxy', { attentionId, env }, { responseType: 'blob' });
- if (response.data) {
- return URL.createObjectURL(response.data as Blob);
- }
- return null;
+ // El proxy del backend está bloqueado por IP en el servidor GPF (/secure-download/ solo
+ // permite IPs de la red local). Obtenemos la URL segura y dejamos que el browser la descargue
+ // directamente — el browser del usuario sí tiene acceso a la red donde está GPF.
+ const response = await api.post('/gpf/audio-url', { attentionId, env });
+ return response.data?.audioUrl ?? null;
  } catch {
  return null;
  }

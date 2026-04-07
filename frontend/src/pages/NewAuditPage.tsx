@@ -292,10 +292,10 @@ export default function NewAuditPage() {
  // Obtener audio como blob (proxy del backend para evitar error SSL del browser)
  setAudioLoading(true);
  gpfService.getAudioBlob(env, getAttentionId(attention))
- .then((blobUrl) => {
+ .then((url) => {
  setAudioUrl(prev => {
- if (prev) URL.revokeObjectURL(prev); // liberar blob anterior
- return blobUrl;
+ if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev); // liberar blob anterior si aplica
+ return url;
  });
  })
  .catch(() => setAudioUrl(null))
