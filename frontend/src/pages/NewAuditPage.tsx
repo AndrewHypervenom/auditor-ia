@@ -1228,9 +1228,8 @@ export default function NewAuditPage() {
  <div
  ref={lightboxContainerRef}
  className="w-[90vw] h-[80vh] overflow-hidden flex items-center justify-center"
- style={{ cursor: zoomLevel > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
+ style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
  onMouseDown={(e) => {
- if (zoomLevel <= 1) return;
  setIsDragging(true);
  setDragStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
  e.preventDefault();
