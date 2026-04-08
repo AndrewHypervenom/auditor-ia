@@ -27,8 +27,14 @@ import {
  User,
  Tag,
  ChevronRight,
+ ChevronLeft,
  Mic,
- FileSpreadsheet
+ FileSpreadsheet,
+ ZoomIn,
+ ZoomOut,
+ Maximize2,
+ Clock,
+ AlertTriangle
 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 
@@ -96,6 +102,15 @@ export default function NewAuditPage() {
  const [audioUrl, setAudioUrl] = useState<string | null>(null);
  const [audioLoading, setAudioLoading] = useState(false);
  const [exporting, setExporting] = useState(false);
+
+ // ── Lightbox ──────────────────────────────────────────────────────────────────
+ const [lightboxOpen, setLightboxOpen] = useState(false);
+ const [lightboxIndex, setLightboxIndex] = useState(0);
+ const [zoomLevel, setZoomLevel] = useState(1);
+
+ // ── Expiry timer (5 min desde que se cargaron los datos) ──────────────────────
+ const [dataExpiresAt, setDataExpiresAt] = useState<Date | null>(null);
+ const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
 
  // ── Filters ──────────────────────────────────────────────────────────────────
 
@@ -171,6 +186,32 @@ export default function NewAuditPage() {
  table.removeEventListener('scroll', onTableScroll);
  };
  }, [filteredAttentions]);
+
+ // ── Lightbox keyboard handler ─────────────────────────────────────────────────
+ useEffect(() => {
+ if (!lightboxOpen) return;
+ const onKey = (e: KeyboardEvent) => {
+ if (e.key === 'Escape') { setLightboxOpen(false); setZoomLevel(1); }
+ if (e.key === 'ArrowRight') setLightboxIndex(i => (i + 1) % (attentionDetail?.imageUrls.length ?? 1));
+ if (e.key === 'ArrowLeft') setLightboxIndex(i => (i - 1 + (attentionDetail?.imageUrls.length ?? 1)) % (attentionDetail?.imageUrls.length ?? 1));
+ if (e.key === '+' || e.key === '=') setZoomLevel(z => Math.min(z + 0.25, 4));
+ if (e.key === '-') setZoomLevel(z => Math.max(z - 0.25, 0.5));
+ };
+ window.addEventListener('keydown', onKey);
+ return () => window.removeEventListener('keydown', onKey);
+ }, [lightboxOpen, attentionDetail?.imageUrls.length]);
+
+ // ── Expiry countdown timer ────────────────────────────────────────────────────
+ useEffect(() => {
+ if (!dataExpiresAt) return;
+ const tick = () => {
+ const diff = Math.max(0, Math.round((dataExpiresAt.getTime() - Date.now()) / 1000));
+ setSecondsLeft(diff);
+ };
+ tick();
+ const id = setInterval(tick, 1000);
+ return () => clearInterval(id);
+ }, [dataExpiresAt]);
 
  // ── Load attentions ──────────────────────────────────────────────────────────
 
@@ -279,10 +320,13 @@ export default function NewAuditPage() {
  setAttentionDetail(null);
  setDetailTab('info');
  setAudioUrl(null);
+ setDataExpiresAt(null);
+ setSecondsLeft(null);
  setState('loading-detail');
  try {
  const detail = await gpfService.getAttentionDetail(env, getAttentionId(attention));
  setAttentionDetail(detail);
+ setDataExpiresAt(new Date(Date.now() + 5 * 60 * 1000));
  setState('confirming');
  } catch (error: any) {
  console.error('Error loading attention detail:', error);
@@ -837,6 +881,8 @@ export default function NewAuditPage() {
  {/* Tab: Capturas */}
  {detailTab === 'captures' && (
  <div className="mb-6">
+ {/* Timer de expiración */}
+ <ExpiryTimer secondsLeft={secondsLeft} />
  {!attentionDetail ? (
  <p className="text-slate-500 text-sm text-center py-8">Cargando capturas...</p>
  ) : attentionDetail.imageUrls.length === 0 && attentionDetail.rawComments.length === 0 ? (
@@ -849,17 +895,20 @@ export default function NewAuditPage() {
  {attentionDetail.imageUrls.length > 0 && (
  <div>
  <p className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wide">
- Imágenes ({attentionDetail.imageUrls.length})
+ Imágenes ({attentionDetail.imageUrls.length}) · <span className="normal-case text-slate-500">Clic para ampliar</span>
  </p>
  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
  {attentionDetail.imageUrls.map((url, idx) => (
- <a key={idx} href={url} target="_blank" rel="noopener noreferrer"
- className="block rounded-lg overflow-hidden border border-slate-700 hover:border-purple-500/60 transition-all group"
+ <button
+ key={idx}
+ onClick={() => { setLightboxIndex(idx); setZoomLevel(1); setLightboxOpen(true); }}
+ className="block rounded-lg overflow-hidden border border-slate-700 hover:border-purple-500/60 transition-all group text-left w-full"
  >
+ <div className="relative">
  <img
  src={url}
  alt={`Captura ${idx + 1}`}
- className="w-full h-28 object-cover group-hover:opacity-90 transition-opacity"
+ className="w-full h-28 object-cover group-hover:opacity-80 transition-opacity"
  onError={(e) => {
  (e.target as HTMLImageElement).style.display = 'none';
  (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden');
@@ -868,10 +917,14 @@ export default function NewAuditPage() {
  <div className="hidden px-2 py-3 text-xs text-purple-400 font-mono break-all bg-slate-800/80">
  {url}
  </div>
+ <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
+ <Maximize2 className="w-6 h-6 text-white drop-shadow" />
+ </div>
+ </div>
  <p className="text-xs text-slate-500 px-2 py-1 bg-slate-900 truncate" title={url}>
  {idx + 1} · {url.split('/').pop()}
  </p>
- </a>
+ </button>
  ))}
  </div>
  </div>
@@ -1028,9 +1081,12 @@ export default function NewAuditPage() {
 
  {/* Audio de la llamada */}
  <div className="mb-6 p-4 bg-slate-800/30 rounded-xl border border-slate-700">
- <div className="flex items-center gap-2 mb-3">
+ <div className="flex items-center justify-between gap-2 mb-3">
+ <div className="flex items-center gap-2">
  <Mic className="w-4 h-4 text-purple-400" />
  <span className="text-sm font-medium text-slate-300">Audio de la llamada</span>
+ </div>
+ <ExpiryTimer secondsLeft={secondsLeft} compact />
  </div>
  {audioLoading ? (
  <div className="flex items-center gap-2 text-slate-500 text-sm">
@@ -1040,7 +1096,6 @@ export default function NewAuditPage() {
  ) : audioUrl ? (
  <div className="space-y-2">
  <audio controls src={audioUrl} className="w-full accent-purple-500" />
- <p className="text-xs text-amber-400/80">El enlace expira en 5 minutos. Si no carga, vuelve a seleccionar el caso.</p>
  </div>
  ) : (
  <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
@@ -1098,7 +1153,144 @@ export default function NewAuditPage() {
  message={processing.message}
  />
  )}
+ {/* ── LIGHTBOX MODAL ───────────────────────────────────────────────── */}
+ {lightboxOpen && attentionDetail && attentionDetail.imageUrls.length > 0 && (
+ <div
+ className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm"
+ onClick={(e) => { if (e.target === e.currentTarget) { setLightboxOpen(false); setZoomLevel(1); } }}
+ >
+ {/* Toolbar superior */}
+ <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/70 to-transparent z-10">
+ <span className="text-white/70 text-sm font-mono">
+ {lightboxIndex + 1} / {attentionDetail.imageUrls.length}
+ </span>
+ <div className="flex items-center gap-2">
+ <button
+ onClick={() => setZoomLevel(z => Math.max(z - 0.25, 0.5))}
+ className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+ title="Alejar (−)"
+ >
+ <ZoomOut className="w-4 h-4" />
+ </button>
+ <span className="text-white/60 text-xs w-12 text-center">{Math.round(zoomLevel * 100)}%</span>
+ <button
+ onClick={() => setZoomLevel(z => Math.min(z + 0.25, 4))}
+ className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+ title="Acercar (+)"
+ >
+ <ZoomIn className="w-4 h-4" />
+ </button>
+ <button
+ onClick={() => setZoomLevel(1)}
+ className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs transition-colors"
+ title="Restablecer zoom"
+ >
+ 100%
+ </button>
+ <button
+ onClick={() => { setLightboxOpen(false); setZoomLevel(1); }}
+ className="p-2 rounded-lg bg-white/10 hover:bg-red-500/60 text-white transition-colors ml-2"
+ title="Cerrar (Esc)"
+ >
+ <X className="w-4 h-4" />
+ </button>
+ </div>
+ </div>
+
+ {/* Flecha izquierda */}
+ {attentionDetail.imageUrls.length > 1 && (
+ <button
+ onClick={() => { setLightboxIndex(i => (i - 1 + attentionDetail.imageUrls.length) % attentionDetail.imageUrls.length); setZoomLevel(1); }}
+ className="absolute left-3 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors"
+ title="Anterior (←)"
+ >
+ <ChevronLeft className="w-6 h-6" />
+ </button>
+ )}
+
+ {/* Imagen */}
+ <div
+ className="max-w-[90vw] max-h-[85vh] overflow-auto flex items-center justify-center"
+ onWheel={(e) => {
+ e.preventDefault();
+ setZoomLevel(z => Math.min(Math.max(z + (e.deltaY < 0 ? 0.1 : -0.1), 0.5), 4));
+ }}
+ >
+ <img
+ src={attentionDetail.imageUrls[lightboxIndex]}
+ alt={`Captura ${lightboxIndex + 1}`}
+ style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center', transition: 'transform 0.15s ease' }}
+ className="max-w-[85vw] max-h-[80vh] object-contain rounded-lg shadow-2xl select-none"
+ draggable={false}
+ />
+ </div>
+
+ {/* Flecha derecha */}
+ {attentionDetail.imageUrls.length > 1 && (
+ <button
+ onClick={() => { setLightboxIndex(i => (i + 1) % attentionDetail.imageUrls.length); setZoomLevel(1); }}
+ className="absolute right-3 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors"
+ title="Siguiente (→)"
+ >
+ <ChevronRight className="w-6 h-6" />
+ </button>
+ )}
+
+ {/* Miniaturas inferiores */}
+ {attentionDetail.imageUrls.length > 1 && (
+ <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 px-3 py-2 bg-black/50 rounded-xl max-w-[90vw] overflow-x-auto">
+ {attentionDetail.imageUrls.map((url, idx) => (
+ <button
+ key={idx}
+ onClick={() => { setLightboxIndex(idx); setZoomLevel(1); }}
+ className={`flex-shrink-0 w-12 h-9 rounded overflow-hidden border-2 transition-all ${idx === lightboxIndex ? 'border-purple-400 opacity-100' : 'border-transparent opacity-50 hover:opacity-80'}`}
+ >
+ <img src={url} alt="" className="w-full h-full object-cover" draggable={false} />
+ </button>
+ ))}
+ </div>
+ )}
+ </div>
+ )}
+
  </main>
+ </div>
+ );
+}
+
+// ── Componente timer de expiración ────────────────────────────────────────────
+function ExpiryTimer({ secondsLeft, compact = false }: { secondsLeft: number | null; compact?: boolean }) {
+ if (secondsLeft === null) return null;
+
+ const mins = Math.floor(secondsLeft / 60);
+ const secs = secondsLeft % 60;
+ const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+ const expired = secondsLeft === 0;
+
+ const colorClass = expired
+ ? 'bg-red-500/15 border-red-500/40 text-red-400'
+ : secondsLeft < 60
+ ? 'bg-red-500/10 border-red-500/30 text-red-400'
+ : secondsLeft < 180
+ ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+ : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400';
+
+ if (compact) {
+ return (
+ <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-mono ${colorClass}`}>
+ {expired ? <AlertTriangle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+ {expired ? 'Expirado' : formatted}
+ </div>
+ );
+ }
+
+ return (
+ <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs mb-3 ${colorClass}`}>
+ {expired ? <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> : <Clock className="w-3.5 h-3.5 flex-shrink-0" />}
+ {expired
+ ? 'Los datos han expirado. Vuelve a seleccionar el caso para recargarlos.'
+ : <><span className="font-semibold font-mono">{formatted}</span><span className="opacity-70">restantes para que los datos expiren</span></>
+ }
  </div>
  );
 }
