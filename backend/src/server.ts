@@ -1220,7 +1220,7 @@ app.get('/api/gpf/attention-detail', authenticateUser, requireAdminOrAnalyst, as
  const backendUrl = process.env.BACKEND_URL ||
  `${req.protocol}://${req.get('host')}`;
  data.imageUrls = data.imageUrls.map((imgUrl: string) =>
- `${backendUrl}/api/gpf/image-proxy?url=${encodeURIComponent(imgUrl)}`
+ `${backendUrl}/api/gpf/image-proxy?url=${encodeURIComponent(imgUrl)}&env=${env}`
  );
 
  res.json(data);
@@ -1238,7 +1238,7 @@ app.get('/api/gpf/attention-detail', authenticateUser, requireAdminOrAnalyst, as
 // ============================================
 
 app.get('/api/gpf/image-proxy', async (req: Request, res: Response) => {
- const { url } = req.query as { url: string };
+ const { url, env = 'test' } = req.query as { url: string; env?: string };
  if (!url) return res.status(400).end();
 
  // Protección SSRF: solo permitir URLs de los servidores GPF configurados
@@ -1259,12 +1259,21 @@ app.get('/api/gpf/image-proxy', async (req: Request, res: Response) => {
  return res.status(403).end();
  }
 
+ // Obtener Bearer token GPF (requerido por nuevas URLs /api/file/)
+ let gpfToken = '';
+ try {
+ gpfToken = await gpfTokenService.getTokenWithRetry(env as string);
+ } catch {
+ logger.warn('[image-proxy] No se pudo obtener token GPF, intentando sin Bearer');
+ }
+
  const browserUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
  const gpfOrigin = url.replace(/(https?:\/\/[^/]+).*/, '$1');
  const httpUrl = url.replace(/^https:\/\//, 'http://');
 
  const imgAttempts: Array<{ label: string; url: string; headers: Record<string, string> }> = [
- { label: 'AppToken', url, headers: { 'X-App-Token': process.env.GPF_APP_TOKEN || '', 'ngrok-skip-browser-warning': 'true' } },
+ { label: 'Bearer+AppToken', url, headers: { 'Authorization': `Bearer ${gpfToken}`, 'X-App-Token': process.env.GPF_APP_TOKEN || '', 'ngrok-skip-browser-warning': 'true' } },
+ { label: 'AppToken-solo', url, headers: { 'X-App-Token': process.env.GPF_APP_TOKEN || '', 'ngrok-skip-browser-warning': 'true' } },
  { label: 'browser-UA', url, headers: { 'User-Agent': browserUA, 'Referer': gpfOrigin + '/', 'Accept': 'image/*,*/*' } },
  { label: 'http', url: httpUrl, headers: {} },
  { label: 'http-browser-UA', url: httpUrl, headers: { 'User-Agent': browserUA, 'Referer': gpfOrigin + '/', 'Accept': 'image/*,*/*' } },
@@ -1356,6 +1365,17 @@ async function tryDownloadAudio(
  'Accept': '*/*',
  'ngrok-skip-browser-warning': 'true',
  ...(sessionCookie ? { 'Cookie': sessionCookie } : {})
+ }
+ },
+ {
+ // Sin cookie: por si la sesión expiró y el servidor rechaza la petición
+ label: 'Bearer+AppToken-sin-cookie',
+ url: audioSecureUrl,
+ headers: {
+ 'X-App-Token': appToken,
+ 'Authorization': `Bearer ${token}`,
+ 'Accept': '*/*',
+ 'ngrok-skip-browser-warning': 'true',
  }
  },
  {
