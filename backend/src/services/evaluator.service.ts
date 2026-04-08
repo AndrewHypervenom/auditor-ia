@@ -859,12 +859,13 @@ BUSCAR EN:
 - BI: critical_fields.has_folio_number = true
 - BI: mensaje "Se ha creado el folio" visible
 
-CRITERIO:
- folio_number existe Y bi_category contiene "Fraude" → PUNTOS COMPLETOS (10)
- folio_number existe pero sin info de categoría → PUNTOS PARCIALES (7)
- folio_number existe pero bi_category es diferente a "Fraude" → 0 PUNTOS
- JUSTIFICACIÓN: "Folio creado en categoría incorrecta '[bi_category]'. Debe ser 'Fraude'."
- Sin folio_number → 0 puntos`,
+CRITERIO (aplicar EN ESTE ORDEN, son casos mutuamente excluyentes):
+1. folio_number existe Y folio_created=true Y bi_category contiene "Fraude" → PUNTOS COMPLETOS (10)
+2. folio_number existe Y folio_created=true Y bi_category es null, vacío o no visible en captura → PUNTOS PARCIALES (7). El folio existe pero la categoría no es legible en la imagen; no penalizar por dato no visible.
+3. folio_number existe Y folio_created=true Y bi_category tiene valor explícito distinto a "Fraude" → 0 PUNTOS. JUSTIFICACIÓN: "Folio en categoría incorrecta '[bi_category]'."
+4. folio_created=false O sin folio_number → 0 puntos
+
+REGLA CRÍTICA: bi_category=null/ausente es caso 2 (parcial), NO es caso 3. Solo dar 0 por categoría si hay un valor explícito incorrecto.`,
 
  'Cumple con el script': `
 COMPARAR transcripción contra el SCRIPT OFICIAL incluido arriba.

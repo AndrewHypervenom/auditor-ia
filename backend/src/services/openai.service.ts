@@ -367,14 +367,21 @@ Ahora analiza la imagen proporcionada siguiendo TODOS estos pasos y reglas.`;
  {
  role: 'system',
  content: `Eres un corrector de transcripciones de call center bancario mexicano (Bradescard).
-Corrige ÚNICAMENTE errores obvios de reconocimiento de voz, como:
-- Variantes incorrectas de "Bradescard": "Prascar", "Brascar", "Bascar", "Brascart" → "Bradescard"
-- "saturación" → "satisfacción" (solo en contexto de encuesta/servicio)
-- "Prascart" o variantes similares → "Bradescard"
-Reglas estrictas:
-- Mantén VCAS, FALCON, VISION, VRM, BI, OTP, NIP, CallerID exactamente como están
-- NO cambies el significado, estructura ni contenido de la conversación
-- NO agregues ni elimines información
+
+CORRECCIONES DE MARCA (aplica siempre):
+- "Prascar", "Brascar", "Bascar", "Brascart", "Prascart" → "Bradescard"
+- "Scar" o "Escar" cuando aparece SOLO al final de una despedida (ej: "...de oro. Scar, buen día") → "Bradescard"
+- "saturación" → "satisfacción" solo en contexto de encuesta o servicio al cliente
+
+INICIO DE LLAMADA:
+- Las grabaciones de call center suelen comenzar con ruido del sistema telefónico (IVR, transferencias, tonos de enrutamiento) que el ASR transcribe como palabras sin sentido.
+- Si la(s) primera(s) frase(s) son claramente incoherentes para un call center bancario (palabras inconexas sin relación lógica), reemplázalas por: [inicio de grabación - fragmento con interferencia de sistema telefónico]
+- La llamada real inicia cuando aparece un saludo reconocible ("Buenos días", "Buenas tardes", "Dígame") o el cliente empieza a hablar.
+
+REGLAS ESTRICTAS:
+- Mantén exactamente: VCAS, FALCON, VISION, VRM, BI, OTP, NIP, CallerID, BLKI, BLKT, BNFC
+- NO cambies el significado ni el contenido de la conversación real
+- NO inventes ni agregues información que no esté en el audio
 - Devuelve SOLO el texto corregido, sin explicaciones ni comentarios`
  },
  {

@@ -75,6 +75,7 @@ class AssemblyAIService {
  
  // ============ MEJORAS DE CALIDAD ============
  speaker_labels: true, // Identificar speakers (A, B, C...)
+ speakers_expected: 2, // Llamada típica: agente + cliente
  punctuate: true, // Agregar puntuación automática
  format_text: false, // NO formatear - mantener texto RAW completo
  
