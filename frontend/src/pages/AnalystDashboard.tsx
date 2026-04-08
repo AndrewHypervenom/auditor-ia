@@ -375,7 +375,7 @@ export default function AnalystDashboard() {
  <TrendingUp className="w-4 h-4 text-purple-400" />
  <span className="text-slate-400 text-sm">Score:</span>
  <span className="text-xl font-bold text-purple-400">
- {evaluations[0].percentage}%
+ {evaluations[0].percentage.toFixed(2)}%
  </span>
  <span className="text-sm text-slate-500">
  ({evaluations[0].total_score}/{evaluations[0].max_possible_score} pts)

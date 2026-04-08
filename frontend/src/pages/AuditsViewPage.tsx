@@ -188,14 +188,14 @@ export default function AuditsViewPage() {
  {
  metric: 'Ã°Å¸â€œÅ  Mejor Score',
  value: auditsWithScore.length > 0 
- ? `${Math.max(...auditsWithScore.map(a => a.evaluations![0].percentage))}%`
+ ? `${Math.max(...auditsWithScore.map(a => a.evaluations![0].percentage)).toFixed(2)}%`
  : 'N/A',
  detail: 'Score mÃ¡s alto obtenido en el perÃ­odo'
  },
  {
  metric: 'Ã°Å¸â€œâ€° Score MÃ¡s Bajo',
  value: auditsWithScore.length > 0 
- ? `${Math.min(...auditsWithScore.map(a => a.evaluations![0].percentage))}%`
+ ? `${Math.min(...auditsWithScore.map(a => a.evaluations![0].percentage)).toFixed(2)}%`
  : 'N/A',
  detail: 'Score mÃ¡s bajo obtenido en el perÃ­odo'
  }
@@ -484,7 +484,7 @@ export default function AuditsViewPage() {
  completadas: stats.completed,
  tasa: stats.total > 0 ? `${((stats.completed / stats.total) * 100).toFixed(1)}%` : '0%',
  score_prom: stats.avgScore > 0 ? `${stats.avgScore.toFixed(2)}%` : 'N/A',
- mejor: stats.scores.length > 0 ? `${Math.max(...stats.scores).toFixed(1)}%` : 'N/A',
+ mejor: stats.scores.length > 0 ? `$(echo "PLACEHOLDER_MAX")` : 'N/A',
  peor: stats.scores.length > 0 ? `${Math.min(...stats.scores).toFixed(1)}%` : 'N/A'
  };
 
