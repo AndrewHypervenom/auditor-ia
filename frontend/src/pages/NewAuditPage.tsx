@@ -107,6 +107,10 @@ export default function NewAuditPage() {
  const [lightboxOpen, setLightboxOpen] = useState(false);
  const [lightboxIndex, setLightboxIndex] = useState(0);
  const [zoomLevel, setZoomLevel] = useState(1);
+ const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+ const [isDragging, setIsDragging] = useState(false);
+ const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+ const lightboxContainerRef = useRef<HTMLDivElement>(null);
 
  // ── Expiry timer (5 min desde que se cargaron los datos) ──────────────────────
  const [dataExpiresAt, setDataExpiresAt] = useState<Date | null>(null);
@@ -191,15 +195,27 @@ export default function NewAuditPage() {
  useEffect(() => {
  if (!lightboxOpen) return;
  const onKey = (e: KeyboardEvent) => {
- if (e.key === 'Escape') { setLightboxOpen(false); setZoomLevel(1); }
- if (e.key === 'ArrowRight') setLightboxIndex(i => (i + 1) % (attentionDetail?.imageUrls.length ?? 1));
- if (e.key === 'ArrowLeft') setLightboxIndex(i => (i - 1 + (attentionDetail?.imageUrls.length ?? 1)) % (attentionDetail?.imageUrls.length ?? 1));
+ if (e.key === 'Escape') { setLightboxOpen(false); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }
+ if (e.key === 'ArrowRight') { setLightboxIndex(i => (i + 1) % (attentionDetail?.imageUrls.length ?? 1)); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }
+ if (e.key === 'ArrowLeft') { setLightboxIndex(i => (i - 1 + (attentionDetail?.imageUrls.length ?? 1)) % (attentionDetail?.imageUrls.length ?? 1)); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }
  if (e.key === '+' || e.key === '=') setZoomLevel(z => Math.min(z + 0.25, 4));
  if (e.key === '-') setZoomLevel(z => Math.max(z - 0.25, 0.5));
  };
  window.addEventListener('keydown', onKey);
  return () => window.removeEventListener('keydown', onKey);
  }, [lightboxOpen, attentionDetail?.imageUrls.length]);
+
+ // ── Wheel no-passive para zoom sin error de passive listener ─────────────────
+ useEffect(() => {
+ const el = lightboxContainerRef.current;
+ if (!el || !lightboxOpen) return;
+ const onWheel = (e: WheelEvent) => {
+ e.preventDefault();
+ setZoomLevel(z => Math.min(Math.max(z + (e.deltaY < 0 ? 0.1 : -0.1), 0.5), 4));
+ };
+ el.addEventListener('wheel', onWheel, { passive: false });
+ return () => el.removeEventListener('wheel', onWheel);
+ }, [lightboxOpen]);
 
  // ── Expiry countdown timer ────────────────────────────────────────────────────
  useEffect(() => {
@@ -1157,7 +1173,7 @@ export default function NewAuditPage() {
  {lightboxOpen && attentionDetail && attentionDetail.imageUrls.length > 0 && (
  <div
  className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm"
- onClick={(e) => { if (e.target === e.currentTarget) { setLightboxOpen(false); setZoomLevel(1); } }}
+ onClick={(e) => { if (e.target === e.currentTarget) { setLightboxOpen(false); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); } }}
  >
  {/* Toolbar superior */}
  <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/70 to-transparent z-10">
@@ -1188,7 +1204,7 @@ export default function NewAuditPage() {
  100%
  </button>
  <button
- onClick={() => { setLightboxOpen(false); setZoomLevel(1); }}
+ onClick={() => { setLightboxOpen(false); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
  className="p-2 rounded-lg bg-white/10 hover:bg-red-500/60 text-white transition-colors ml-2"
  title="Cerrar (Esc)"
  >
@@ -1200,7 +1216,7 @@ export default function NewAuditPage() {
  {/* Flecha izquierda */}
  {attentionDetail.imageUrls.length > 1 && (
  <button
- onClick={() => { setLightboxIndex(i => (i - 1 + attentionDetail.imageUrls.length) % attentionDetail.imageUrls.length); setZoomLevel(1); }}
+ onClick={() => { setLightboxIndex(i => (i - 1 + attentionDetail.imageUrls.length) % attentionDetail.imageUrls.length); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
  className="absolute left-3 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors"
  title="Anterior (←)"
  >
@@ -1208,19 +1224,33 @@ export default function NewAuditPage() {
  </button>
  )}
 
- {/* Imagen */}
+ {/* Imagen con drag-to-pan */}
  <div
- className="max-w-[90vw] max-h-[85vh] overflow-auto flex items-center justify-center"
- onWheel={(e) => {
+ ref={lightboxContainerRef}
+ className="w-[90vw] h-[80vh] overflow-hidden flex items-center justify-center"
+ style={{ cursor: zoomLevel > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
+ onMouseDown={(e) => {
+ if (zoomLevel <= 1) return;
+ setIsDragging(true);
+ setDragStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
  e.preventDefault();
- setZoomLevel(z => Math.min(Math.max(z + (e.deltaY < 0 ? 0.1 : -0.1), 0.5), 4));
  }}
+ onMouseMove={(e) => {
+ if (!isDragging) return;
+ setPanOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+ }}
+ onMouseUp={() => setIsDragging(false)}
+ onMouseLeave={() => setIsDragging(false)}
  >
  <img
  src={attentionDetail.imageUrls[lightboxIndex]}
  alt={`Captura ${lightboxIndex + 1}`}
- style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center', transition: 'transform 0.15s ease' }}
- className="max-w-[85vw] max-h-[80vh] object-contain rounded-lg shadow-2xl select-none"
+ style={{
+ transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
+ transformOrigin: 'center',
+ transition: isDragging ? 'none' : 'transform 0.15s ease',
+ }}
+ className="max-w-[85vw] max-h-[78vh] object-contain rounded-lg shadow-2xl select-none"
  draggable={false}
  />
  </div>
@@ -1228,7 +1258,7 @@ export default function NewAuditPage() {
  {/* Flecha derecha */}
  {attentionDetail.imageUrls.length > 1 && (
  <button
- onClick={() => { setLightboxIndex(i => (i + 1) % attentionDetail.imageUrls.length); setZoomLevel(1); }}
+ onClick={() => { setLightboxIndex(i => (i + 1) % attentionDetail.imageUrls.length); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
  className="absolute right-3 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors"
  title="Siguiente (→)"
  >
@@ -1242,7 +1272,7 @@ export default function NewAuditPage() {
  {attentionDetail.imageUrls.map((url, idx) => (
  <button
  key={idx}
- onClick={() => { setLightboxIndex(idx); setZoomLevel(1); }}
+ onClick={() => { setLightboxIndex(idx); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
  className={`flex-shrink-0 w-12 h-9 rounded overflow-hidden border-2 transition-all ${idx === lightboxIndex ? 'border-purple-400 opacity-100' : 'border-transparent opacity-50 hover:opacity-80'}`}
  >
  <img src={url} alt="" className="w-full h-full object-cover" draggable={false} />
