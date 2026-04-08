@@ -1547,21 +1547,6 @@ export default function AdminDashboard() {
  </div>
  </div>
  </button>
-
- <button
- onClick={() => navigate('/base-inbound')}
- className="stat-card hover:scale-105 transition-transform cursor-pointer bg-gradient-to-br from-blue-900/20 to-cyan-800/20 border-blue-500/30"
- >
- <div className="flex items-center gap-4">
- <div className="p-3 bg-blue-500/20 rounded-xl">
- <PhoneIncoming className="w-6 h-6 text-blue-400" />
- </div>
- <div className="text-left">
- <h3 className="text-lg font-semibold text-white">Base Inbound</h3>
- <p className="text-sm text-slate-400">Reporte GPF</p>
- </div>
- </div>
- </button>
  </div>
 
  {/* Stats Cards - Solo las 4 tarjetas con datos reales */}

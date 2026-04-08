@@ -238,21 +238,6 @@ export default function AnalystDashboard() {
  </div>
  </div>
  </button>
-
- <button
- onClick={() => navigate('/base-inbound')}
- className="stat-card hover:scale-105 transition-transform cursor-pointer bg-gradient-to-br from-cyan-900/40 to-blue-800/40 border-cyan-500/30"
- >
- <div className="flex items-center gap-4">
- <div className="p-3 bg-cyan-600/20 rounded-xl">
- <PhoneIncoming className="w-6 h-6 text-cyan-400" />
- </div>
- <div className="text-left">
- <h3 className="text-lg font-semibold text-white">Base Inbound</h3>
- <p className="text-sm text-slate-400">Reporte GPF</p>
- </div>
- </div>
- </button>
  </div>
 
  {/* Stats Cards - SIN COSTOS */}

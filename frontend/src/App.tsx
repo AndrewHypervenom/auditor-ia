@@ -14,7 +14,6 @@ import UsersPage from './pages/UsersPage';
 import SettingsPage from './pages/SettingsPage';
 import ReportsPage from './pages/ReportsPage';
 import AuditsViewPage from './pages/AuditsViewPage';
-import BaseInboundPage from './pages/BaseInboundPage';
 import AiAnalysisPage from './pages/AiAnalysisPage';
 
 function App() {
@@ -139,17 +138,7 @@ function App() {
             }
           />
           
-          {/* Base Inbound - Admin, Supervisor y Analyst */}
-          <Route
-            path="/base-inbound"
-            element={
-              <ProtectedRoute allowedRoles={['admin', 'supervisor', 'analyst']}>
-                <BaseInboundPage />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Configuración - Solo Admin */}
+{/* Configuración - Solo Admin */}
           <Route
             path="/settings"
             element={
