@@ -575,25 +575,6 @@ export const baseInboundService = {
  },
 };
 
-// ── AI Analysis Stream ────────────────────────────────────────────────────────
-
-export const aiAnalysisService = {
-  async prepare(data: {
-    attentionId: string | number;
-    env: string;
-    excelType: string;
-    callType: string;
-    attentionDetail: GpfAttentionDetail;
-  }): Promise<{ sessionId: string }> {
-    const response = await api.post('/ai-analysis-prepare', data);
-    return response.data;
-  },
-
-  getStreamUrl(sessionId: string): string {
-    return `${API_BASE_URL}/api/ai-analysis-stream/${sessionId}`;
-  }
-};
-
 // CRUD de usuarios (admin)
 export const userService = {
  async getUsers() {

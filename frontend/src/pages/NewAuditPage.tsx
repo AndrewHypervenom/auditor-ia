@@ -4,7 +4,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import ProcessingStatus from '../components/ProcessingStatus';
-import { auditService, gpfService, aiAnalysisService } from '../services/api';
+import { auditService, gpfService } from '../services/api';
 import type { GpfAttention, GpfAttentionDetail } from '../services/api';
 import { EXCEL_TYPES } from '../types';
 import {
@@ -367,20 +367,19 @@ export default function NewAuditPage() {
  const handleConfirm = async () => {
  if (!selectedAttention) return;
 
- // Abrir nueva pestaña con análisis IA (no bloquea el flujo principal si falla)
+ // Duplicar vista del caso en nueva pestaña (sin procesamiento extra)
  if (attentionDetail) {
  try {
- const callType = getAttentionCalificacion(selectedAttention) || 'FRAUDE';
- const { sessionId } = await aiAnalysisService.prepare({
- attentionId: getAttentionId(selectedAttention),
- env,
+ const key = `gpf_case_${Date.now()}`;
+ localStorage.setItem(key, JSON.stringify({
+ attention: selectedAttention,
+ attentionDetail,
  excelType,
- callType,
- attentionDetail
- });
- window.open(`/ai-analysis?session=${sessionId}`, '_blank');
+ callType: getAttentionCalificacion(selectedAttention) || 'FRAUDE'
+ }));
+ window.open(`/ai-analysis?key=${key}`, '_blank');
  } catch (e) {
- console.warn('[AI Analysis] No se pudo preparar sesión de análisis:', e);
+ console.warn('[Caso duplicado] No se pudo abrir pestaña:', e);
  }
  }
 
