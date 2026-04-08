@@ -109,7 +109,15 @@ export default function ResultsView({ result, callType, onDownload, onNewAudit }
  observations: result?.observations ?? 'Sin observaciones',
  recommendations: Array.isArray(result?.recommendations) ? result.recommendations : [],
  keyMoments: Array.isArray(result?.keyMoments) ? result.keyMoments : [],
- transcript: result?.transcript ?? ''
+ transcript: result?.transcript ?? '',
+ audioConfidence: result?.audioConfidence
+ };
+
+ const getAudioQualityLabel = (confidence: number) => {
+ if (confidence >= 90) return { label: 'Excelente', cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' };
+ if (confidence >= 75) return { label: 'Buena', cls: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' };
+ if (confidence >= 60) return { label: 'Moderada', cls: 'bg-orange-500/20 text-orange-400 border-orange-500/30' };
+ return { label: 'Baja', cls: 'bg-red-500/20 text-red-400 border-red-500/30' };
  };
 
  const scoreBadge = getScoreBadge(safeResult.percentage);
@@ -209,6 +217,16 @@ export default function ResultsView({ result, callType, onDownload, onNewAudit }
  </div>
  </div>
  </div>
+
+ {/* Alerta de baja calidad de audio */}
+ {safeResult.audioConfidence !== undefined && safeResult.audioConfidence < 70 && (
+ <div className="flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl mt-4">
+ <AlertCircle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
+ <p className="text-amber-300 text-sm">
+ La calidad del audio puede haber afectado esta evaluación (confianza de transcripción: {safeResult.audioConfidence.toFixed(1)}%). Se recomienda revisión manual.
+ </p>
+ </div>
+ )}
 
  {/* Stats Cards */}
  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -481,14 +499,24 @@ export default function ResultsView({ result, callType, onDownload, onNewAudit }
 
  {/* Transcripción */}
  <div className="card">
- <button 
+ <button
  onClick={() => toggleSection('transcript')}
  className="w-full flex items-center justify-between mb-6 group"
  >
+ <div className="flex items-center gap-3">
  <h2 className="section-header mb-0">
  <FileText className="w-6 h-6 text-slate-400" />
  Transcripción Completa
  </h2>
+ {safeResult.audioConfidence !== undefined && (() => {
+ const q = getAudioQualityLabel(safeResult.audioConfidence!);
+ return (
+ <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${q.cls}`}>
+ Calidad de audio: {safeResult.audioConfidence!.toFixed(1)}% — {q.label}
+ </span>
+ );
+ })()}
+ </div>
  {expandedSections.transcript ? (
  <ChevronUp className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
  ) : (

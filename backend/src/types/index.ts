@@ -36,6 +36,7 @@ export interface TranscriptResult {
  duration?: number;
  words?: TranscriptWord[]; // Array opcional de palabras
  audio_duration?: number; // Duración del audio en segundos
+ confidence?: number; // Confianza de la transcripción (0-1)
 }
 
 /**

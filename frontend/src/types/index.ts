@@ -53,6 +53,8 @@ export interface EvaluationResult {
   recommendations: string[];
   keyMoments: KeyMoment[];
   excelFilename: string;
+  transcript?: string;
+  audioConfidence?: number;
 }
 
 export interface KeyMoment {

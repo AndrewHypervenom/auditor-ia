@@ -428,11 +428,15 @@ app.post('/api/evaluate',
  // 2. Transcribir audio
  progressBroadcaster.progress(sseClientId, 'transcription', 25, 'Iniciando transcripción...');
  
- const transcription = await assemblyAIService.transcribe(audioFile.path);
+ const transcriptionRaw = await assemblyAIService.transcribe(audioFile.path);
 
- logger.success(' Transcription completed', { 
+ // Post-corrección: arregla errores de ASR en nombres de marca y términos bancarios
+ const correctedText = await openAIService.correctTranscription(transcriptionRaw.text);
+ const transcription = { ...transcriptionRaw, text: correctedText };
+
+ logger.success(' Transcription completed', {
  duration: transcription.audio_duration,
- words: transcription.words?.length 
+ words: transcription.words?.length
  });
 
  // 3. Analizar imágenes con OpenAI
@@ -1694,12 +1698,19 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  });
  logger.info('[PASO 5] Enviando audio a AssemblyAI para transcripcion...');
  progressBroadcaster.progress(sseClientId, 'audio', 66, '[AUDIO] Transcribiendo con AssemblyAI...');
- const transcriptionResult = await assemblyAIService.transcribe(localAudioPath);
+ const transcriptionResultRaw = await assemblyAIService.transcribe(localAudioPath);
  logger.info('[PASO 5] Resultado transcripcion AssemblyAI', {
- tieneTexto: !!transcriptionResult?.text,
- longitudTexto: transcriptionResult?.text?.length ?? 0,
- duracionAudio: transcriptionResult?.audio_duration ?? 0
+ tieneTexto: !!transcriptionResultRaw?.text,
+ longitudTexto: transcriptionResultRaw?.text?.length ?? 0,
+ duracionAudio: transcriptionResultRaw?.audio_duration ?? 0
  });
+ // Post-corrección de errores ASR en nombres de marca y términos bancarios
+ const correctedGpfText = transcriptionResultRaw?.text
+ ? await openAIService.correctTranscription(transcriptionResultRaw.text)
+ : transcriptionResultRaw?.text;
+ const transcriptionResult = transcriptionResultRaw
+ ? { ...transcriptionResultRaw, text: correctedGpfText ?? transcriptionResultRaw.text }
+ : transcriptionResultRaw;
  if (transcriptionResult?.text) {
  // Combinar transcript real de audio + datos estructurados GPF
  // para que el evaluador tenga TODO el contexto disponible

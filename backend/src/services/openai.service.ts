@@ -350,6 +350,51 @@ Ahora analiza la imagen proporcionada siguiendo TODOS estos pasos y reglas.`;
 
  return analyses;
  }
+
+ /**
+ * Corrige errores obvios de reconocimiento de voz en transcripciones bancarias
+ */
+ async correctTranscription(text: string): Promise<string> {
+ if (!text || text.length < 10) return text;
+
+ try {
+ logger.info('[OPENAI] Iniciando post-corrección de transcripción', { longitud: text.length });
+
+ const response = await this.client.chat.completions.create({
+ model: 'gpt-5.4-mini',
+ temperature: 0,
+ messages: [
+ {
+ role: 'system',
+ content: `Eres un corrector de transcripciones de call center bancario mexicano (Bradescard).
+Corrige ÚNICAMENTE errores obvios de reconocimiento de voz, como:
+- Variantes incorrectas de "Bradescard": "Prascar", "Brascar", "Bascar", "Brascart" → "Bradescard"
+- "saturación" → "satisfacción" (solo en contexto de encuesta/servicio)
+- "Prascart" o variantes similares → "Bradescard"
+Reglas estrictas:
+- Mantén VCAS, FALCON, VISION, VRM, BI, OTP, NIP, CallerID exactamente como están
+- NO cambies el significado, estructura ni contenido de la conversación
+- NO agregues ni elimines información
+- Devuelve SOLO el texto corregido, sin explicaciones ni comentarios`
+ },
+ {
+ role: 'user',
+ content: text
+ }
+ ]
+ });
+
+ const corrected = response.choices[0]?.message?.content?.trim();
+ const tokens = response.usage?.total_tokens ?? 0;
+
+ logger.info('[OPENAI] Post-corrección completada', { tokens, cambios: corrected !== text });
+
+ return corrected || text;
+ } catch (error: any) {
+ logger.warn('[OPENAI] Post-corrección falló, usando texto original', { error: error.message });
+ return text;
+ }
+ }
 }
 
 export { OpenAIService };
@@ -368,5 +413,8 @@ export const openAIService = {
  },
  analyzeMultipleImages: async (imagePaths: string[]) => {
  return getOpenAIService().analyzeMultipleImages(imagePaths);
+ },
+ correctTranscription: async (text: string) => {
+ return getOpenAIService().correctTranscription(text);
  }
 };

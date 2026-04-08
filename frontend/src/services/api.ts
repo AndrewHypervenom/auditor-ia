@@ -86,6 +86,7 @@ export interface AuditDetail {
  full_text: string;
  utterances: any[];
  audio_duration: number;
+ confidence?: number;
  } | null;
  imageAnalyses: Array<{
  system_detected: string;

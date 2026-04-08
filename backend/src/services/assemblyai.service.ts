@@ -86,8 +86,10 @@ class AssemblyAIService {
  
  // ============ VOCABULARIO PERSONALIZADO ============
  word_boost: [
+ // Variantes de Bradescard (errores comunes de ASR)
+ 'Bradescard', 'BradesCard', 'Brascar', 'Prascar', 'Bascar',
  // Términos bancarios comunes
- 'Bradescard', 'VISA', 'Mastercard', 'American Express',
+ 'VISA', 'Mastercard', 'American Express',
  'tarjeta', 'crédito', 'débito', 'cuenta',
  'saldo', 'movimiento', 'cargo', 'compra', 'transacción',
  'fraude', 'fraudulento', 'bloqueo', 'bloqueada', 'bloqueamos',
@@ -134,7 +136,14 @@ class AssemblyAIService {
  'muy buenas tardes', 'en qué puedo ayudarle',
  'un momento por favor', 'de acuerdo',
  'para su seguridad', 'por seguridad',
- 'no reconozco', 'no reconoce'
+ 'no reconozco', 'no reconoce',
+
+ // Script de llamada
+ 'satisfacción', 'encuesta de satisfacción', 'servicio brindado',
+ 'datos comprometidos', 'recapitulación', 'sondeo', 'SLA', 'CNR',
+
+ // Códigos de bloqueo VISION
+ 'BLKI', 'BLKT', 'BNFC', 'BPT0'
  ],
  boost_param: 'high' // Alta prioridad para las palabras del vocabulario
  });
@@ -242,7 +251,8 @@ class AssemblyAIService {
  utterances,
  duration: result.audio_duration ?? undefined,
  words: utterances, // Mismo contenido que utterances
- audio_duration: result.audio_duration ?? undefined
+ audio_duration: result.audio_duration ?? undefined,
+ confidence: result.confidence ?? undefined
  };
 
  } catch (error: any) {
