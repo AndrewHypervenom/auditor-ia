@@ -15,6 +15,7 @@ import SettingsPage from './pages/SettingsPage';
 import ReportsPage from './pages/ReportsPage';
 import AuditsViewPage from './pages/AuditsViewPage';
 import BaseInboundPage from './pages/BaseInboundPage';
+import AiAnalysisPage from './pages/AiAnalysisPage';
 
 function App() {
   return (
@@ -84,6 +85,16 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['admin', 'analyst']}>
                 <NewAuditPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Análisis de Calidad IA (nueva pestaña) - Admin y Analyst */}
+          <Route
+            path="/ai-analysis"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'analyst']}>
+                <AiAnalysisPage />
               </ProtectedRoute>
             }
           />

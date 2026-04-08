@@ -4,7 +4,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import ProcessingStatus from '../components/ProcessingStatus';
-import { auditService, gpfService } from '../services/api';
+import { auditService, gpfService, aiAnalysisService } from '../services/api';
 import type { GpfAttention, GpfAttentionDetail } from '../services/api';
 import { EXCEL_TYPES } from '../types';
 import {
@@ -366,6 +366,23 @@ export default function NewAuditPage() {
 
  const handleConfirm = async () => {
  if (!selectedAttention) return;
+
+ // Abrir nueva pestaña con análisis IA (no bloquea el flujo principal si falla)
+ if (attentionDetail) {
+ try {
+ const callType = getAttentionCalificacion(selectedAttention) || 'FRAUDE';
+ const { sessionId } = await aiAnalysisService.prepare({
+ attentionId: getAttentionId(selectedAttention),
+ env,
+ excelType,
+ callType,
+ attentionDetail
+ });
+ window.open(`/ai-analysis?session=${sessionId}`, '_blank');
+ } catch (e) {
+ console.warn('[AI Analysis] No se pudo preparar sesión de análisis:', e);
+ }
+ }
 
  setState('processing');
 

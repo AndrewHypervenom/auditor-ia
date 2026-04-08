@@ -27,6 +27,9 @@ import { supabase, supabaseAdmin } from './config/supabase.js';
 import { progressBroadcaster } from './services/progress-broadcaster.js';
 import type { AuditInput } from './types/index.js';
 import statsRoutes from './routes/stats.routes.js';
+import { getCriteriaByCallType, formatCriteriaForPrompt } from './config/criteria-data.js';
+import { getScriptForCallType } from './config/scripts-content.js';
+import OpenAI from 'openai';
 
 const app = express();
 app.set('trust proxy', 1); // Render.com está detrás de un proxy — necesario para req.protocol y req.ip
@@ -1834,6 +1837,224 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  auditId
  });
  }
+});
+
+// ============================================
+// AI ANALYSIS STREAM ENDPOINTS
+// ============================================
+
+// Sesiones temporales en memoria (TTL 20 min)
+const aiAnalysisSessions = new Map<string, { context: any; createdAt: number }>();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, s] of aiAnalysisSessions) {
+    if (now - s.createdAt > 20 * 60 * 1000) aiAnalysisSessions.delete(id);
+  }
+}, 5 * 60 * 1000);
+
+// POST /api/ai-analysis-prepare — guarda contexto en memoria, retorna sessionId
+app.post('/api/ai-analysis-prepare', authenticateUser, (req: Request, res: Response) => {
+  const sessionId = uuidv4();
+  aiAnalysisSessions.set(sessionId, { context: req.body, createdAt: Date.now() });
+  logger.info('[AI Analysis] Sesión preparada', { sessionId, callType: req.body.callType });
+  res.json({ sessionId });
+});
+
+// GET /api/ai-analysis-stream/:sessionId — SSE: transcribe audio + genera análisis con OpenAI streaming
+app.get('/api/ai-analysis-stream/:sessionId', async (req: Request, res: Response) => {
+  const { sessionId } = req.params;
+  const session = aiAnalysisSessions.get(sessionId);
+
+  if (!session) {
+    return res.status(404).json({ error: 'Sesión no encontrada o expirada. Genera una nueva auditoría.' });
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const sendEvent = (data: object) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  const { attentionId, env, excelType, callType, attentionDetail } = session.context;
+
+  try {
+    // ── 1. Criterios y script (estáticos, sin llamadas a APIs) ───────────────
+    const criteria = getCriteriaByCallType(callType || 'FRAUDE');
+    const criteriaText = formatCriteriaForPrompt(criteria);
+    const script = getScriptForCallType(excelType || 'INBOUND');
+    const scriptText = JSON.stringify(script, null, 2);
+
+    // ── 2. Transcript sintético desde datos ya disponibles en el contexto ────
+    const syntheticTranscript = buildSyntheticTranscript(
+      attentionDetail?.comments || [],
+      attentionDetail?.transactions || [],
+      attentionDetail?.otpValidations || [],
+      attentionDetail?.rawComments || []
+    );
+    let transcriptText = syntheticTranscript.text || 'No disponible';
+
+    // ── 3. Intentar obtener y transcribir audio (fallback a sintético) ───────
+    sendEvent({ type: 'status', message: 'Obteniendo transcripción del audio...' });
+    let localAudioPath: string | null = null;
+    try {
+      const token = await gpfTokenService.getTokenWithRetry(env);
+      const audioSecureUrl = await gpfDataService.fetchAudioUrl(env, attentionId, token);
+
+      if (audioSecureUrl) {
+        const appToken = process.env.GPF_APP_TOKEN || '';
+        const sessionCookie = gpfTokenService.getSessionCookie(env);
+
+        let audioResponse = await gpfFetch(audioSecureUrl, {
+          headers: {
+            'X-App-Token': appToken,
+            'Authorization': `Bearer ${token}`,
+            'Accept': '*/*',
+            'ngrok-skip-browser-warning': 'true',
+            ...(sessionCookie ? { 'Cookie': sessionCookie } : {})
+          }
+        });
+
+        if (audioResponse.status >= 300 && audioResponse.status < 400) {
+          const redirectUrl = audioResponse.headers.get('location');
+          if (redirectUrl) audioResponse = await gpfFetch(redirectUrl, {});
+        }
+        if (!audioResponse.ok && sessionCookie) {
+          audioResponse = await gpfFetch(audioSecureUrl, { headers: { 'Cookie': sessionCookie, 'Accept': '*/*' } });
+        }
+        if (!audioResponse.ok) {
+          audioResponse = await gpfFetch(audioSecureUrl, {});
+        }
+
+        if (audioResponse.ok) {
+          const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
+          const audioExt = audioSecureUrl.toLowerCase().includes('.mp3') ? 'mp3' : 'wav';
+          localAudioPath = path.join('./tmp/uploads/audio', `ai_analysis_${attentionId}_${Date.now()}.${audioExt}`);
+          fs.mkdirSync(path.dirname(localAudioPath), { recursive: true });
+          fs.writeFileSync(localAudioPath, audioBuffer);
+
+          const transcriptionResult = await assemblyAIService.transcribe(localAudioPath);
+          if (transcriptionResult?.text) {
+            transcriptText = `${transcriptionResult.text}\n\n--- DATOS ESTRUCTURADOS GPF ---\n${syntheticTranscript.text}`;
+          }
+        }
+      }
+    } catch (audioError: any) {
+      logger.warn('[AI Analysis] Audio no disponible, usando transcript sintético', { error: audioError.message });
+    } finally {
+      if (localAudioPath) {
+        try { fs.unlinkSync(localAudioPath); } catch {}
+      }
+    }
+
+    // ── 4. Construir contexto GPF ────────────────────────────────────────────
+    const transactions: any[] = attentionDetail?.transactions || [];
+    const comments: any[] = attentionDetail?.comments || [];
+    const otpValidations: any[] = attentionDetail?.otpValidations || [];
+    const attentionInfo: any = attentionDetail?.attention || {};
+
+    const transactionsText = transactions.length > 0
+      ? transactions.map((t: any) => `  • ${t.date} | ${t.commerce_name} | $${t.amount}`).join('\n')
+      : 'Sin transacciones registradas';
+
+    const commentsText = comments.length > 0
+      ? comments.map((c: any) => `  • [${c.date}] ${c.agent}: ${c.comment}`).join('\n')
+      : 'Sin comentarios registrados';
+
+    const otpText = otpValidations.length > 0
+      ? otpValidations.map((o: any) => `  • [${o.date}] ${o.agent} → ${o.resultado ? 'EXITOSO' : 'FALLIDO'}`).join('\n')
+      : 'Sin validaciones OTP registradas';
+
+    const attentionInfoText = Object.entries(attentionInfo)
+      .slice(0, 15)
+      .map(([k, v]) => `  - ${k}: ${v}`)
+      .join('\n') || '  No disponible';
+
+    // ── 5. Prompt de IA ──────────────────────────────────────────────────────
+    const systemPrompt = `Eres un auditor experto de calidad de llamadas para Bradescard México.
+Tu tarea es calificar la gestión de un agente telefónico según los criterios oficiales de auditoría.
+Sé específico, objetivo y basa tus calificaciones únicamente en la evidencia disponible en los datos.
+Responde siempre en español. Usa el formato indicado exactamente.`;
+
+    const userPrompt = `# ANÁLISIS DE AUDITORÍA DE CALIDAD — ${(callType || 'FRAUDE').toUpperCase()} (${excelType || 'INBOUND'})
+
+## CRITERIOS DE CALIFICACIÓN OFICIALES
+${criteriaText}
+
+---
+## SCRIPT OBLIGATORIO A SEGUIR (${excelType || 'INBOUND'})
+${scriptText}
+
+---
+## INFORMACIÓN DE LA ATENCIÓN GPF
+${attentionInfoText}
+  - ID Atención: ${attentionId}
+  - Tipo de llamada: ${callType || 'N/D'}
+  - Tipo de reporte: ${excelType || 'N/D'}
+
+## TRANSACCIONES REGISTRADAS
+${transactionsText}
+
+## COMENTARIOS DEL SISTEMA
+${commentsText}
+
+## VALIDACIONES OTP
+${otpText}
+
+## TRANSCRIPCIÓN / DATOS DE LA LLAMADA
+${transcriptText}
+
+---
+## INSTRUCCIÓN
+Genera el informe de auditoría completo. Para CADA tópico con puntuación aplicable (puntos ≠ n/a), usa exactamente este formato:
+
+**[BLOQUE] — [Tópico]** | Puntos posibles: X [⚠️ CRÍTICO si aplica]
+Resultado: ✅ Cumple / ❌ No cumple / ⚠️ Parcial
+Evidencia: [Cita específica de los datos disponibles que soporta tu evaluación]
+Observación: [Comentario del auditor basado en la evidencia]
+
+Al finalizar todos los tópicos, incluye:
+
+---
+**PUNTUACIÓN TOTAL: X / Y puntos (Z%)**
+**TÓPICOS CRÍTICOS INCUMPLIDOS:** [lista o "Ninguno"]
+**RESUMEN EJECUTIVO:** [2-3 oraciones sobre la calidad de la gestión]
+**RECOMENDACIONES:**
+1. [Recomendación específica]
+2. [Recomendación específica]
+...`;
+
+    // ── 6. Stream OpenAI ─────────────────────────────────────────────────────
+    sendEvent({ type: 'status', message: 'Generando análisis con IA...' });
+
+    const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const stream = await openaiClient.chat.completions.create({
+      model: 'gpt-5.4-mini',
+      temperature: 0.3,
+      stream: true,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ]
+    });
+
+    for await (const chunk of stream) {
+      const text = chunk.choices[0]?.delta?.content || '';
+      if (text) sendEvent({ type: 'chunk', text });
+    }
+
+    sendEvent({ type: 'done' });
+    res.end();
+
+  } catch (error: any) {
+    logger.error('[AI Analysis] Error en streaming', { error: error.message });
+    sendEvent({ type: 'error', message: error.message || 'Error generando análisis' });
+    res.end();
+  }
 });
 
 // Manejador de errores
