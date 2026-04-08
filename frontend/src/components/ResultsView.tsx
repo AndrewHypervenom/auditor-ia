@@ -219,7 +219,7 @@ export default function ResultsView({ result, callType, onDownload, onNewAudit }
  </div>
 
  {/* Alerta de baja calidad de audio */}
- {safeResult.audioConfidence !== undefined && safeResult.audioConfidence < 70 && (
+ {safeResult.audioConfidence !== undefined && safeResult.audioConfidence > 0 && safeResult.audioConfidence < 70 && (
  <div className="flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl mt-4">
  <AlertCircle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
  <p className="text-amber-300 text-sm">
@@ -508,7 +508,7 @@ export default function ResultsView({ result, callType, onDownload, onNewAudit }
  <FileText className="w-6 h-6 text-slate-400" />
  Transcripción Completa
  </h2>
- {safeResult.audioConfidence !== undefined && (() => {
+ {safeResult.audioConfidence !== undefined && safeResult.audioConfidence > 0 && (() => {
  const q = getAudioQualityLabel(safeResult.audioConfidence!);
  return (
  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${q.cls}`}>

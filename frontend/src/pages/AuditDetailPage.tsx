@@ -92,7 +92,7 @@ export default function AuditDetailPage() {
     recommendations: auditDetail.evaluation.recommendations,
     keyMoments: auditDetail.evaluation.key_moments,
     transcript: auditDetail.transcription?.full_text || '',
-    audioConfidence: auditDetail.transcription?.confidence !== undefined
+    audioConfidence: auditDetail.transcription?.confidence != null && auditDetail.transcription.confidence > 0
       ? auditDetail.transcription.confidence * 100
       : undefined,
     excelUrl: auditDetail.evaluation.excel_filename
