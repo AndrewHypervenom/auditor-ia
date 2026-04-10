@@ -173,7 +173,7 @@ class ExcelService {
 
  const cellB3 = sheet.getCell('B3');
  cellB3.value = `${evaluation.totalScore} / ${evaluation.maxPossibleScore}`;
- cellB3.font = { bold: true, size: 11, color: { argb: 'FF10B981' } };
+ cellB3.font = { bold: true, size: 11, color: { argb: evaluation.criticalFailure ? 'FFDC2626' : 'FF10B981' } };
  cellB3.alignment = { horizontal: 'left', vertical: 'middle' };
 
  const cellD3 = sheet.getCell('D3');
@@ -182,8 +182,10 @@ class ExcelService {
  cellD3.alignment = { horizontal: 'right', vertical: 'middle' };
 
  const cellE3 = sheet.getCell('E3');
- cellE3.value = `${evaluation.percentage.toFixed(1)}%`;
- cellE3.font = { bold: true, size: 11, color: { argb: 'FF10B981' } };
+ cellE3.value = evaluation.criticalFailure
+ ? `0.0% - CRITICO`
+ : `${evaluation.percentage.toFixed(1)}%`;
+ cellE3.font = { bold: true, size: 11, color: { argb: evaluation.criticalFailure ? 'FFDC2626' : 'FF10B981' } };
  cellE3.alignment = { horizontal: 'left', vertical: 'middle' };
 
  const cellF3 = sheet.getCell('F3');
@@ -774,9 +776,11 @@ class ExcelService {
  // Merge D para el puntaje total
  sheet.mergeCells(`D${totalStartRow}:D${totalStartRow + 1}`);
  const cellDTotal = sheet.getCell(`D${totalStartRow}`);
- cellDTotal.value = `${evaluation.totalScore} / ${evaluation.maxPossibleScore}`;
+ cellDTotal.value = evaluation.criticalFailure
+ ? `0 / ${evaluation.maxPossibleScore} - CRITICO`
+ : `${evaluation.totalScore} / ${evaluation.maxPossibleScore}`;
  cellDTotal.font = { bold: true, size: 12, color: { argb: WHITE_FONT } };
- cellDTotal.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEADER_COLOR } };
+ cellDTotal.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: evaluation.criticalFailure ? 'FFDC2626' : HEADER_COLOR } };
  cellDTotal.alignment = { horizontal: 'center', vertical: 'middle' };
  cellDTotal.border = this.getAllBorders();
 

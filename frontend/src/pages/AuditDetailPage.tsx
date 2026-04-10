@@ -130,6 +130,7 @@ export default function AuditDetailPage() {
         )}
         <ResultsView
           result={evaluationResult}
+          auditId={auditId}
           callType={auditDetail.audit?.call_type}
           onDownload={handleDownload}
           onNewAudit={handleNewAudit}

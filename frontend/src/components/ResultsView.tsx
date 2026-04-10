@@ -1,17 +1,20 @@
 // frontend/src/components/ResultsView.tsx
 
-import { Download, CheckCircle2, AlertCircle, Clock, TrendingUp, FileText, Award, Target, Sparkles, ChevronDown, ChevronUp, PhoneIncoming, Monitor } from 'lucide-react';
+import { Download, CheckCircle2, AlertCircle, Clock, TrendingUp, FileText, Award, Target, Sparkles, ChevronDown, ChevronUp, PhoneIncoming, Monitor, Pencil, Check, X, Save, RotateCcw, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'react-hot-toast';
+import { auditService } from '../services/api';
 import type { EvaluationResult } from '../types';
 
 interface ResultsViewProps {
  result: EvaluationResult;
+ auditId?: string;
  callType?: string;
  onDownload: () => void;
  onNewAudit: () => void;
 }
 
-export default function ResultsView({ result, callType, onDownload, onNewAudit }: ResultsViewProps) {
+export default function ResultsView({ result, auditId, callType, onDownload, onNewAudit }: ResultsViewProps) {
  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
  scores: true,
  observations: true,
@@ -19,6 +22,12 @@ export default function ResultsView({ result, callType, onDownload, onNewAudit }
  keyMoments: true,
  transcript: false
  });
+
+ // Estado de edición de puntajes
+ const [scoreEdits, setScoreEdits] = useState<Record<number, number>>({}); // índice → nuevo score
+ const [editingIndex, setEditingIndex] = useState<number | null>(null);
+ const [editInputValue, setEditInputValue] = useState<string>('');
+ const [isSaving, setIsSaving] = useState(false);
 
  const toggleSection = (section: string) => {
  setExpandedSections(prev => ({
@@ -120,21 +129,88 @@ export default function ResultsView({ result, callType, onDownload, onNewAudit }
  return { label: 'Baja', cls: 'bg-red-500/20 text-red-400 border-red-500/30' };
  };
 
- const scoreBadge = getScoreBadge(safeResult.percentage);
- 
- // âœ… Agrupar scores por bloque de forma segura
- const scoresByBlock = safeResult.detailedScores.reduce((acc, score) => {
- // Verificar que score y score.criterion existan
- if (!score || !score.criterion) {
- return acc;
- }
+ // ── Cálculos en tiempo real con ediciones ──────────────────────────
+ const currentScores = safeResult.detailedScores.map((s: any, i: number) => ({
+ ...s,
+ score: scoreEdits[i] !== undefined ? scoreEdits[i] : (s.score ?? 0)
+ }));
 
+ const currentTotal = currentScores.reduce((sum: number, s: any) => sum + (s.score ?? 0), 0);
+ const currentMax = currentScores.reduce((sum: number, s: any) => sum + (s.maxScore ?? 0), 0);
+ const rawPercentage = currentMax > 0 ? (currentTotal / currentMax) * 100 : 0;
+
+ // Reevaluar fallo crítico con ediciones actuales
+ const criticalFailed = currentScores.filter((s: any) => s.criticality === 'Crítico' && (s.score ?? 0) === 0);
+ const hasCriticalFailure = criticalFailed.length > 0;
+ const currentPercentage = hasCriticalFailure ? 0 : rawPercentage;
+
+ // Porcentaje exclusivo de criterios críticos
+ const criticalOnly = currentScores.filter((s: any) => s.criticality === 'Crítico' && typeof s.maxScore === 'number' && s.maxScore > 0);
+ const criticalTotalScore = criticalOnly.reduce((sum: number, s: any) => sum + (s.score ?? 0), 0);
+ const criticalMaxScore = criticalOnly.reduce((sum: number, s: any) => sum + s.maxScore, 0);
+ const criticalPercentage = criticalMaxScore > 0 ? (criticalTotalScore / criticalMaxScore) * 100 : null;
+
+ const hasEdits = Object.keys(scoreEdits).length > 0;
+
+ // Helpers de edición
+ const startEdit = (idx: number, currentScore: number) => {
+ setEditingIndex(idx);
+ setEditInputValue(String(currentScore));
+ };
+
+ const cancelEdit = () => {
+ setEditingIndex(null);
+ setEditInputValue('');
+ };
+
+ const confirmEdit = (idx: number, maxScore: number) => {
+ const parsed = parseInt(editInputValue, 10);
+ if (!isNaN(parsed) && parsed >= 0 && parsed <= maxScore) {
+ setScoreEdits(prev => ({ ...prev, [idx]: parsed }));
+ }
+ setEditingIndex(null);
+ setEditInputValue('');
+ };
+
+ const discardEdits = () => {
+ setScoreEdits({});
+ setEditingIndex(null);
+ setEditInputValue('');
+ };
+
+ const saveEdits = async () => {
+ if (!auditId || !hasEdits) return;
+ setIsSaving(true);
+ try {
+ const updatedScores = currentScores.map((s: any) => ({
+ criterion: s.criterion,
+ score: s.score,
+ maxScore: s.maxScore,
+ observations: s.observations,
+ criticality: s.criticality || '-'
+ }));
+ await auditService.updateAuditScores(auditId, updatedScores);
+ setScoreEdits({});
+ toast.success('Puntajes guardados correctamente');
+ } catch {
+ toast.error('Error al guardar los puntajes');
+ } finally {
+ setIsSaving(false);
+ }
+ };
+ // ────────────────────────────────────────────────────────────────────
+
+ const scoreBadge = getScoreBadge(currentPercentage);
+
+ // âœ… Agrupar scores por bloque de forma segura (usando currentScores para incluir ediciones)
+ const scoresByBlock = currentScores.reduce((acc: Record<string, any[]>, score: any, globalIdx: number) => {
+ if (!score || !score.criterion) return acc;
  const match = score.criterion.match(/\[(.*?)\]/);
  const block = match ? match[1] : 'Otros';
  if (!acc[block]) acc[block] = [];
- acc[block].push(score);
+ acc[block].push({ ...score, _globalIndex: globalIdx });
  return acc;
- }, {} as Record<string, typeof safeResult.detailedScores>);
+ }, {} as Record<string, any[]>);
 
  return (
  <div className="space-y-6 animate-fadeIn">
@@ -175,20 +251,38 @@ export default function ResultsView({ result, callType, onDownload, onNewAudit }
  
  <div className="text-center md:text-right">
  <div className="mb-3">
- <div className={`text-7xl font-bold ${getScoreColor(safeResult.percentage)} drop-shadow-glow`}>
- {safeResult.percentage.toFixed(1)}%
+ <div className={`text-7xl font-bold ${getScoreColor(currentPercentage)} drop-shadow-glow transition-all duration-300`}>
+ {currentPercentage.toFixed(1)}%
  </div>
- <div className="flex items-center justify-center md:justify-end gap-2 mt-2">
+ <div className="flex items-center justify-center md:justify-end gap-2 mt-2 flex-wrap">
  <span className={`badge ${scoreBadge.class} text-base px-4 py-1.5`}>
  {scoreBadge.icon} {scoreBadge.text}
  </span>
+ {hasCriticalFailure && (
+ <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse">
+ <ShieldAlert className="w-4 h-4" />
+ Criterio Crítico en 0
+ </span>
+ )}
+ {hasEdits && (
+ <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">
+ <Pencil className="w-3 h-3" />
+ Modificado
+ </span>
+ )}
  </div>
  </div>
- <div className="text-slate-400">
- <span className="text-2xl font-bold text-white">{safeResult.totalScore}</span>
- <span className="text-lg"> / {safeResult.maxPossibleScore}</span>
+ <div className="text-slate-400 mb-2">
+ <span className="text-2xl font-bold text-white">{currentTotal}</span>
+ <span className="text-lg"> / {currentMax}</span>
  <span className="text-sm ml-1">puntos</span>
  </div>
+ {criticalPercentage !== null && (
+ <div className={`text-sm font-semibold ${criticalPercentage === 0 ? 'text-red-400' : criticalPercentage >= 80 ? 'text-green-400' : 'text-yellow-400'}`}>
+ <ShieldAlert className="w-3.5 h-3.5 inline mr-1" />
+ Críticos: {criticalPercentage.toFixed(1)}%
+ </div>
+ )}
  </div>
  </div>
 
@@ -196,8 +290,8 @@ export default function ResultsView({ result, callType, onDownload, onNewAudit }
  <div className="mt-6">
  <div className="relative w-full h-3 bg-slate-800 rounded-full overflow-hidden">
  <div
- className={`absolute inset-y-0 left-0 bg-gradient-to-r ${getScoreGradient(safeResult.percentage)} rounded-full transition-all duration-1000 shadow-glow`}
- style={{ width: `${Math.max(0, Math.min(100, safeResult.percentage))}%` }}
+ className={`absolute inset-y-0 left-0 bg-gradient-to-r ${getScoreGradient(currentPercentage)} rounded-full transition-all duration-500 shadow-glow`}
+ style={{ width: `${Math.max(0, Math.min(100, currentPercentage))}%` }}
  >
  <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent animate-pulse"></div>
  </div>
@@ -214,6 +308,26 @@ export default function ResultsView({ result, callType, onDownload, onNewAudit }
  <Sparkles className="w-4 h-4" />
  Nueva Auditoría
  </button>
+ {hasEdits && auditId && (
+ <>
+ <button
+ onClick={saveEdits}
+ disabled={isSaving}
+ className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-blue-600 hover:bg-blue-500 text-white transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+ >
+ <Save className="w-4 h-4" />
+ {isSaving ? 'Guardando...' : 'Guardar cambios'}
+ </button>
+ <button
+ onClick={discardEdits}
+ disabled={isSaving}
+ className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-slate-700 hover:bg-slate-600 text-slate-200 transition-all duration-200 disabled:opacity-60"
+ >
+ <RotateCcw className="w-4 h-4" />
+ Descartar
+ </button>
+ </>
+ )}
  </div>
  </div>
  </div>
@@ -228,8 +342,25 @@ export default function ResultsView({ result, callType, onDownload, onNewAudit }
  </div>
  )}
 
+ {/* Banner de fallo crítico */}
+ {hasCriticalFailure && (
+ <div className="flex items-start gap-4 p-4 bg-red-950/30 border border-red-500/40 rounded-xl">
+ <ShieldAlert className="w-6 h-6 text-red-400 flex-shrink-0 mt-0.5" />
+ <div>
+ <p className="text-red-300 font-bold mb-1">Fallo en criterio(s) crítico(s) — Resultado: 0%</p>
+ <p className="text-red-400/80 text-sm">
+ Los siguientes criterios críticos tienen 0 puntos:{' '}
+ <span className="font-semibold text-red-300">
+ {criticalFailed.map((s: any) => s.criterion.replace(/\[.*?\]\s*/, '')).join(', ')}
+ </span>
+ </p>
+ <p className="text-red-400/60 text-xs mt-1">Puedes editar los puntajes manualmente si es necesario.</p>
+ </div>
+ </div>
+ )}
+
  {/* Stats Cards */}
- <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+ <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
  <div className="stat-card">
  <div className="flex items-center justify-between mb-2">
  <span className="text-slate-400 text-sm font-medium">Criterios Evaluados</span>
@@ -238,6 +369,19 @@ export default function ResultsView({ result, callType, onDownload, onNewAudit }
  <div className="text-3xl font-bold text-white">{safeResult.detailedScores.length}</div>
  <div className="text-xs text-slate-500 mt-1">Total de ítems</div>
  </div>
+
+ {criticalPercentage !== null && (
+ <div className={`stat-card border ${hasCriticalFailure ? 'border-red-500/40 bg-red-950/10' : 'border-slate-700/50'}`}>
+ <div className="flex items-center justify-between mb-2">
+ <span className="text-slate-400 text-sm font-medium">% Críticos</span>
+ <ShieldAlert className={`w-5 h-5 ${hasCriticalFailure ? 'text-red-400' : 'text-green-400'}`} />
+ </div>
+ <div className={`text-3xl font-bold ${hasCriticalFailure ? 'text-red-400' : criticalPercentage >= 80 ? 'text-green-400' : 'text-yellow-400'}`}>
+ {criticalPercentage.toFixed(1)}%
+ </div>
+ <div className="text-xs text-slate-500 mt-1">{criticalOnly.length} criterios críticos</div>
+ </div>
+ )}
 
  <div className="stat-card">
  <div className="flex items-center justify-between mb-2">
@@ -287,34 +431,111 @@ export default function ResultsView({ result, callType, onDownload, onNewAudit }
  </h3>
  
  <div className="space-y-4">
- {scores.map((score, idx) => {
- // âœ… MAPEO CORRECTO: El backend envía "observations" no "justification"
+ {scores.map((score: any) => {
+ const globalIdx: number = score._globalIndex;
+ const isCritical = score.criticality === 'Crítico';
+ const isEdited = scoreEdits[globalIdx] !== undefined;
+ const isCurrentlyEditing = editingIndex === globalIdx;
+
  const safeScore = {
  criterion: score?.criterion ?? 'Sin criterio',
  score: score?.score ?? 0,
  maxScore: score?.maxScore ?? 0,
- // âœ… FIX: Buscar en observations (que es como lo envía el backend)
  observations: score?.observations ?? score?.justification ?? 'Sin justificación disponible',
- evidence: Array.isArray(score?.evidence) ? score.evidence : []
+ evidence: Array.isArray(score?.evidence) ? score.evidence : [],
+ criticality: score?.criticality || '-'
  };
 
- const percentage = safeScore.maxScore > 0 
+ const percentage = safeScore.maxScore > 0
  ? Math.round((safeScore.score / safeScore.maxScore) * 100)
  : 0;
- 
+
+ const isCriticalZero = isCritical && safeScore.score === 0;
+
  return (
- <div 
- key={idx}
- className="p-5 bg-slate-800/30 rounded-xl border border-slate-700/50 hover:border-blue-500/30 transition-all duration-300"
+ <div
+ key={globalIdx}
+ className={`p-5 rounded-xl border transition-all duration-300 ${
+ isCriticalZero
+ ? 'bg-red-950/20 border-red-500/40 hover:border-red-400/60'
+ : isEdited
+ ? 'bg-amber-950/10 border-amber-500/30 hover:border-amber-400/50'
+ : 'bg-slate-800/30 border-slate-700/50 hover:border-blue-500/30'
+ }`}
  >
- <div className="flex items-start justify-between mb-4">
- <div className="flex-1">
- <h4 className="text-base font-semibold text-white mb-2">
+ {/* Cabecera: nombre + badges + botón editar */}
+ <div className="flex items-start justify-between mb-3 gap-3">
+ <div className="flex-1 min-w-0">
+ <div className="flex items-center gap-2 flex-wrap mb-1">
+ <h4 className="text-base font-semibold text-white">
  {safeScore.criterion.replace(/\[.*?\]\s*/, '')}
  </h4>
- <div className="flex items-center gap-3">
+ {isCritical && (
+ <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-500/15 text-red-400 border border-red-500/30 flex-shrink-0">
+ <ShieldAlert className="w-3 h-3" />
+ Crítico
+ </span>
+ )}
+ {isEdited && (
+ <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 flex-shrink-0">
+ <Pencil className="w-3 h-3" />
+ Editado
+ </span>
+ )}
+ </div>
+
+ {/* Puntaje: modo lectura o modo edición */}
+ {isCurrentlyEditing ? (
+ <div className="flex items-center gap-2 mt-2">
+ <div className="flex flex-col gap-1.5">
+ <div className="flex items-center gap-2">
+ <input
+ type="number"
+ min={0}
+ max={safeScore.maxScore}
+ value={editInputValue}
+ onChange={e => setEditInputValue(e.target.value)}
+ onKeyDown={e => {
+ if (e.key === 'Enter') confirmEdit(globalIdx, safeScore.maxScore);
+ if (e.key === 'Escape') cancelEdit();
+ }}
+ autoFocus
+ className="w-20 px-2 py-1 bg-slate-900 border border-blue-500 rounded-lg text-white text-sm font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+ />
+ <span className="text-slate-400 text-sm">/ {safeScore.maxScore}</span>
+ <button
+ onClick={() => confirmEdit(globalIdx, safeScore.maxScore)}
+ className="p-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white transition-colors"
+ title="Confirmar"
+ >
+ <Check className="w-3.5 h-3.5" />
+ </button>
+ <button
+ onClick={cancelEdit}
+ className="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
+ title="Cancelar"
+ >
+ <X className="w-3.5 h-3.5" />
+ </button>
+ </div>
+ <input
+ type="range"
+ min={0}
+ max={safeScore.maxScore}
+ value={parseInt(editInputValue) || 0}
+ onChange={e => setEditInputValue(e.target.value)}
+ className="w-40 accent-blue-500"
+ />
+ </div>
+ </div>
+ ) : (
+ <div className="flex items-center gap-3 mt-1">
  <span className="text-sm text-slate-400">
- Puntos: <span className="font-semibold text-white">{safeScore.score}</span>/{safeScore.maxScore}
+ Puntos:{' '}
+ <span className={`font-bold ${isCriticalZero ? 'text-red-400' : 'text-white'}`}>
+ {safeScore.score}
+ </span>
+ /{safeScore.maxScore}
  </span>
  <span className={`text-sm font-bold ${
  percentage >= 80 ? 'text-green-400' :
@@ -324,10 +545,33 @@ export default function ResultsView({ result, callType, onDownload, onNewAudit }
  {percentage}%
  </span>
  </div>
+ )}
  </div>
+
+ {/* Botón editar (solo cuando no está en modo edición) */}
+ {!isCurrentlyEditing && safeScore.maxScore > 0 && (
+ <button
+ onClick={() => startEdit(globalIdx, safeScore.score)}
+ className="flex-shrink-0 p-2 rounded-lg bg-slate-700/50 hover:bg-blue-600/30 hover:text-blue-300 text-slate-400 transition-all duration-200 border border-transparent hover:border-blue-500/40"
+ title="Editar puntaje"
+ >
+ <Pencil className="w-4 h-4" />
+ </button>
+ )}
  </div>
- 
+
+ {/* Alerta crítico en cero */}
+ {isCriticalZero && (
+ <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg">
+ <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+ <p className="text-xs text-red-300 font-semibold">
+ Criterio crítico con 0 puntos — el resultado global es 0%
+ </p>
+ </div>
+ )}
+
  {/* Progress bar */}
+ {!isCurrentlyEditing && (
  <div className="mb-3">
  <div className="relative w-full h-2 bg-slate-800 rounded-full overflow-hidden">
  <div
@@ -340,18 +584,17 @@ export default function ResultsView({ result, callType, onDownload, onNewAudit }
  />
  </div>
  </div>
+ )}
 
- {/* âœ… JUSTIFICACIÓN: Ahora usa observations correctamente */}
+ {/* Justificación */}
  <div className="mb-3 p-4 bg-slate-900/50 rounded-lg border border-slate-800">
  <p className="text-sm font-semibold text-purple-400 mb-2 flex items-center gap-2">
  <FileText className="w-4 h-4" />
  Justificación:
  </p>
- <p className="text-slate-300 leading-relaxed">
- {safeScore.observations}
- </p>
+ <p className="text-slate-300 leading-relaxed">{safeScore.observations}</p>
  </div>
- 
+
  {/* Evidencia (si existe) */}
  {safeScore.evidence.length > 0 && (
  <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
@@ -360,7 +603,7 @@ export default function ResultsView({ result, callType, onDownload, onNewAudit }
  Evidencia:
  </p>
  <ul className="space-y-1.5">
- {safeScore.evidence.map((ev, i) => (
+ {safeScore.evidence.map((ev: string, i: number) => (
  <li key={i} className="text-sm text-slate-400 flex items-start gap-2 leading-relaxed">
  <span className="text-blue-400 mt-1 flex-shrink-0">â–¸</span>
  <span>{ev}</span>

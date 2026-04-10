@@ -72,6 +72,8 @@ export interface EvaluationResult {
  }>;
  excelUrl?: string;
  totalTokens?: number; // Tokens totales usados
+ criticalFailure?: boolean; // true si algún criterio crítico obtuvo 0
+ failedCriticalCriteria?: string[]; // nombres de los criterios críticos que fallaron
 }
 
 /**

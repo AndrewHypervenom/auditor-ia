@@ -69,11 +69,37 @@ class EvaluatorService {
  totalInputTokens += evalTokens.input;
  totalOutputTokens += evalTokens.output;
 
+ // PASO 4b: Verificar si algún criterio crítico obtuvo 0
+ const criticalTopics = criteria.flatMap(block =>
+ block.topics
+ .filter(t => t.applies && t.criticality === 'Crítico' && typeof t.points === 'number')
+ .map(t => t.topic)
+ );
+
+ const failedCriticalCriteria: string[] = (evaluation.evaluations as any[])
+ .filter(ev => criticalTopics.includes(ev.topic) && ev.score === 0)
+ .map(ev => ev.topic);
+
+ const criticalFailure = failedCriticalCriteria.length > 0;
+ if (criticalFailure) {
+ evaluation.percentage = 0;
+ evaluation.total_score = 0;
+ logger.warn('Critical failure detected — result forced to 0', { failedCriticalCriteria });
+ }
+
  logger.success('Evaluation completed with enhanced matching', {
  totalScore: evaluation.total_score,
  percentage: evaluation.percentage,
+ criticalFailure,
  tokensUsed: `${evalTokens.input} input + ${evalTokens.output} output`
  });
+
+ // Mapa de criticidad por nombre de tópico (para incluirlo en detailedScores)
+ const topicCriticalityMap = new Map<string, string>(
+ criteria.flatMap(block =>
+ block.topics.map(t => [t.topic, t.criticality || '-'])
+ )
+ );
 
  // Transformar a formato de respuesta
  const detailedScores: Array<{
@@ -81,11 +107,13 @@ class EvaluatorService {
  score: number;
  maxScore: number;
  observations: string;
+ criticality: string;
  }> = evaluation.evaluations.map((ev: any) => ({
  criterion: `[${ev.block}] ${ev.topic}`,
  score: ev.score,
  maxScore: ev.max_score,
- observations: ev.justification
+ observations: ev.justification,
+ criticality: topicCriticalityMap.get(ev.topic) || '-'
  }));
 
  const keyMoments: Array<{
@@ -106,6 +134,8 @@ class EvaluatorService {
  observations: evaluation.observations,
  recommendations: evaluation.recommendations || [],
  keyMoments,
+ criticalFailure,
+ failedCriticalCriteria: criticalFailure ? failedCriticalCriteria : undefined,
  usage: {
  inputTokens: totalInputTokens,
  outputTokens: totalOutputTokens,

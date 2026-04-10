@@ -55,6 +55,8 @@ export interface EvaluationResult {
   excelFilename: string;
   transcript?: string;
   audioConfidence?: number;
+  criticalFailure?: boolean;
+  failedCriticalCriteria?: string[];
 }
 
 export interface KeyMoment {

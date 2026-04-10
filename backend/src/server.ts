@@ -555,6 +555,52 @@ app.post('/api/evaluate',
  }
 );
 
+// ============================================================
+// PATCH /api/audits/:auditId/scores — Actualizar puntajes manualmente
+// ============================================================
+app.patch('/api/audits/:auditId/scores', authenticateUser, async (req: Request, res: Response) => {
+ try {
+ const { auditId } = req.params;
+ const { detailedScores } = req.body as { detailedScores: Array<{ criterion: string; score: number; maxScore: number; observations: string; criticality?: string }> };
+
+ if (!Array.isArray(detailedScores) || detailedScores.length === 0) {
+ return res.status(400).json({ error: 'detailedScores es requerido y debe ser un array no vacío' });
+ }
+
+ // Recalcular totales
+ const totalScore = detailedScores.reduce((sum, s) => sum + (s.score ?? 0), 0);
+ const maxPossibleScore = detailedScores.reduce((sum, s) => sum + (s.maxScore ?? 0), 0);
+ const rawPercentage = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0;
+
+ // Reevaluar fallo crítico
+ const failedCritical = detailedScores.filter(s => s.criticality === 'Crítico' && s.score === 0).map(s => s.criterion);
+ const criticalFailure = failedCritical.length > 0;
+ const percentage = criticalFailure ? 0 : rawPercentage;
+
+ const { error } = await supabaseAdmin
+ .from('evaluations')
+ .update({
+ detailed_scores: detailedScores,
+ total_score: totalScore,
+ max_possible_score: maxPossibleScore,
+ percentage
+ })
+ .eq('audit_id', auditId);
+
+ if (error) {
+ logger.error('Error updating scores', error);
+ return res.status(500).json({ error: 'Error al actualizar puntajes en la base de datos' });
+ }
+
+ logger.success('Scores updated manually', { auditId, totalScore, percentage, criticalFailure });
+
+ return res.json({ totalScore, maxPossibleScore, percentage, criticalFailure, failedCriticalCriteria: criticalFailure ? failedCritical : undefined });
+ } catch (error: any) {
+ logger.error('Error in PATCH /api/audits/:auditId/scores', error);
+ return res.status(500).json({ error: 'Error interno del servidor' });
+ }
+});
+
 app.delete('/api/audits/:auditId', authenticateUser, async (req: Request, res: Response) => {
  try {
  const { auditId } = req.params;

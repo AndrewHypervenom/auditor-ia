@@ -216,6 +216,17 @@ export const auditService = {
  return response.data;
  },
 
+ async updateAuditScores(auditId: string, detailedScores: any[]): Promise<{
+ totalScore: number;
+ maxPossibleScore: number;
+ percentage: number;
+ criticalFailure: boolean;
+ failedCriticalCriteria?: string[];
+ }> {
+ const response = await api.patch(`/audits/${auditId}/scores`, { detailedScores });
+ return response.data;
+ },
+
  async getStats(): Promise<{
  totalAudits: number;
  completedAudits: number;
