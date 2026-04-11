@@ -1,4 +1,4 @@
-// frontend/src/pages/AuditsViewPage.tsx
+﻿// frontend/src/pages/AuditsViewPage.tsx
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -584,7 +584,7 @@ export default function AuditsViewPage() {
  );
  case 'processing':
  return (
- <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/20 border border-blue-500/30 rounded-lg text-blue-300 text-xs font-medium whitespace-nowrap">
+ <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-500/10 border border-brand-700/40 rounded-lg text-brand-300 text-xs font-medium whitespace-nowrap">
  <Clock className="w-3.5 h-3.5 flex-shrink-0" />
  Procesando
  </span>
@@ -629,7 +629,7 @@ export default function AuditsViewPage() {
 
  const getScoreColor = (percentage: number) => {
  if (percentage >= 90) return 'text-green-400';
- if (percentage >= 70) return 'text-blue-400';
+ if (percentage >= 70) return 'text-brand-400';
  if (percentage >= 50) return 'text-yellow-400';
  return 'text-red-400';
  };
@@ -730,7 +730,7 @@ export default function AuditsViewPage() {
  };
 
  return (
- <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+ <div className="min-h-screen">
  {/* Header mejorado */}
  <header className="bg-slate-900/50 backdrop-blur-sm border-b border-slate-800 sticky top-0 z-10">
  <div className="max-w-[1600px] mx-auto px-6 py-4">
@@ -745,7 +745,7 @@ export default function AuditsViewPage() {
  <div>
  <div className="flex items-center gap-3">
  <div className="p-2 bg-green-500/20 rounded-lg">
- <FileText className="w-6 h-6 text-green-400" />
+ <FileText className="w-5 h-5 text-green-400" />
  </div>
  <div>
  <h1 className="text-2xl font-bold text-white">Explorador de AuditorÃ­as</h1>
@@ -768,13 +768,13 @@ export default function AuditsViewPage() {
 
  <main className="max-w-[1600px] mx-auto px-6 py-8">
  {/* KPI Cards mejorados */}
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
- <div className="stat-card bg-slate-800/50 border-blue-500/30 hover:border-blue-400/60 transition-all">
+ <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-5">
+ <div className="stat-card bg-slate-800/50 border-brand-700/40 hover:border-brand-500/50/60 transition-all">
  <div className="flex items-center justify-between mb-2">
  <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total</span>
- <FileText className="w-4 h-4 text-blue-400" />
+ <FileText className="w-4 h-4 text-brand-400" />
  </div>
- <div className="text-3xl font-bold text-blue-400">{stats.total}</div>
+ <div className="text-2xl font-bold text-brand-400">{stats.total}</div>
  <div className="text-xs text-slate-500 mt-1">AuditorÃ­as</div>
  </div>
 
@@ -783,7 +783,7 @@ export default function AuditsViewPage() {
  <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Completadas</span>
  <CheckCircle2 className="w-4 h-4 text-green-400" />
  </div>
- <div className="text-3xl font-bold text-green-400">{stats.completed}</div>
+ <div className="text-2xl font-bold text-green-400">{stats.completed}</div>
  <div className="text-xs text-slate-500 mt-1">
  {stats.total > 0 ? `${((stats.completed / stats.total) * 100).toFixed(1)}%` : '0%'} del total
  </div>
@@ -794,7 +794,7 @@ export default function AuditsViewPage() {
  <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Procesando</span>
  <Clock className="w-4 h-4 text-yellow-400" />
  </div>
- <div className="text-3xl font-bold text-yellow-400">{stats.processing}</div>
+ <div className="text-2xl font-bold text-yellow-400">{stats.processing}</div>
  <div className="text-xs text-slate-500 mt-1">En proceso</div>
  </div>
 
@@ -803,16 +803,16 @@ export default function AuditsViewPage() {
  <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Errores</span>
  <AlertCircle className="w-4 h-4 text-red-400" />
  </div>
- <div className="text-3xl font-bold text-red-400">{stats.errors}</div>
+ <div className="text-2xl font-bold text-red-400">{stats.errors}</div>
  <div className="text-xs text-slate-500 mt-1">Con problemas</div>
  </div>
 
  <div className="stat-card bg-slate-800/50 border-purple-500/30 hover:border-purple-400/60 transition-all">
  <div className="flex items-center justify-between mb-2">
  <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Score Prom.</span>
- <TrendingUp className="w-4 h-4 text-purple-400" />
+ <TrendingUp className="w-4 h-4 text-brand-400" />
  </div>
- <div className={`text-3xl font-bold ${getScoreColor(stats.avgScore)}`}>
+ <div className={`text-2xl font-bold ${getScoreColor(stats.avgScore)}`}>
  {stats.avgScore > 0 ? `${stats.avgScore.toFixed(1)}%` : 'N/A'}
  </div>
  <div className="text-xs text-slate-500 mt-1">CalificaciÃ³n media</div>
@@ -824,7 +824,7 @@ export default function AuditsViewPage() {
  <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Costos</span>
  <DollarSign className="w-4 h-4 text-emerald-400" />
  </div>
- <div className="text-3xl font-bold text-emerald-400">
+ <div className="text-2xl font-bold text-emerald-400">
  ${stats.totalCost.toFixed(2)}
  </div>
  <div className="text-xs text-slate-500 mt-1">USD Total</div>
@@ -833,7 +833,7 @@ export default function AuditsViewPage() {
  </div>
 
  {/* Barra de controles mejorada */}
- <div className="card mb-6">
+ <div className="card mb-4">
  <div className="flex flex-col lg:flex-row gap-4">
  {/* BÃºsqueda */}
  <div className="flex-1 relative">
@@ -994,7 +994,7 @@ export default function AuditsViewPage() {
  <div className="card text-center py-16">
  <FileText className="w-16 h-16 text-slate-600 mx-auto mb-4" />
  <h3 className="text-xl font-semibold text-white mb-2">No se encontraron auditorÃ­as</h3>
- <p className="text-slate-400 mb-6">
+ <p className="text-slate-400 mb-4">
  {searchTerm || statusFilter !== 'all' || callTypeFilter !== 'all' || dateFilter !== 'all'
  ? 'Intenta ajustar los filtros de bÃºsqueda'
  : 'AÃºn no hay auditorÃ­as registradas'}
@@ -1015,7 +1015,7 @@ export default function AuditsViewPage() {
  </div>
  ) : viewMode === 'grid' ? (
  /* Vista de Tarjetas mejorada */
- <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+ <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
  {filteredAndSortedAudits.map((audit) => (
  <div
  key={audit.id}
@@ -1048,7 +1048,7 @@ export default function AuditsViewPage() {
  <span className={`px-2 py-1 rounded text-xs font-medium ${
  (audit.call_type || '').toUpperCase() === 'MONITOREO'
  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
- : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+ : 'bg-brand-500/10 text-brand-300 border border-brand-700/40'
  }`}>
  {(audit.call_type || '').toUpperCase() === 'MONITOREO' ? 'ðŸ–¥ï¸ Monitoreo' : 'ðŸ“ž Inbound'}
  </span>
@@ -1074,7 +1074,7 @@ export default function AuditsViewPage() {
  <TrendingUp className="w-4 h-4 text-green-400" />
  </div>
  <div className="flex items-baseline gap-2">
- <span className={`text-3xl font-bold ${getScoreColor(audit.evaluations[0].percentage)}`}>
+ <span className={`text-2xl font-bold ${getScoreColor(audit.evaluations[0].percentage)}`}>
  {audit.evaluations[0].percentage.toFixed(1)}%
  </span>
  <span className="text-slate-500 text-sm">
@@ -1112,7 +1112,7 @@ export default function AuditsViewPage() {
  e.stopPropagation();
  handleDownloadExcel(audit.evaluations![0].excel_filename);
  }}
- className="px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 rounded-lg transition-colors flex items-center justify-center"
+ className="px-3 py-2 bg-brand-500/10 hover:bg-brand-500/30 border border-brand-700/40 text-brand-300 rounded-lg transition-colors flex items-center justify-center"
  title="Descargar Excel individual"
  >
  <FileSpreadsheet className="w-4 h-4" />
@@ -1253,7 +1253,7 @@ export default function AuditsViewPage() {
  e.stopPropagation();
  handleDownloadExcel(audit.evaluations![0].excel_filename);
  }}
- className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-blue-400"
+ className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-brand-400"
  title="Descargar Excel individual"
  >
  <Download className="w-4 h-4" />

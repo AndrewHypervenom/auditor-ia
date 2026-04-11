@@ -1,4 +1,4 @@
-// frontend/src/pages/ReportsPage.tsx
+﻿// frontend/src/pages/ReportsPage.tsx
 // Página de reportes y análisis - VERSIÓN CON TODOS LOS GRÁFICOS SIEMPRE
 
 import { useState, useEffect } from 'react';
@@ -53,20 +53,20 @@ import {
  Radar
 } from 'recharts';
 
-// Colores para los gráficos
+// Colores para los gráficos — paleta POSITIVO S+
 const COLORS = {
- completed: '#10b981',
+ completed: '#00D632',   // verde de marca
  processing: '#f59e0b',
  error: '#ef4444',
- primary: '#a855f7',
- secondary: '#ec4899',
- tertiary: '#06b6d4',
- emerald: '#10b981',
- blue: '#3b82f6',
- indigo: '#6366f1'
+ primary: '#00D632',     // verde de marca (reemplaza morado)
+ secondary: '#1ADE50',   // verde más claro
+ tertiary: '#009422',    // verde oscuro
+ emerald: '#00D632',
+ blue: '#00D632',        // reemplaza azul por verde de marca
+ indigo: '#00b82b'
 };
 
-const PIE_COLORS = ['#10b981', '#f59e0b', '#ef4444'];
+const PIE_COLORS = ['#00D632', '#f59e0b', '#ef4444'];
 
 // DATOS DE EJEMPLO PARA EL DASHBOARD
 const EXAMPLE_DATA = {
@@ -634,25 +634,32 @@ export default function ReportsPage() {
 };
 
  return (
- <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+ <div className="min-h-screen">
  {/* Header Mejorado */}
- <header className="border-b border-slate-800/50 bg-slate-900/80 backdrop-blur-xl sticky top-0 z-50 shadow-xl">
+ <header
+   className="sticky top-0 z-50 shadow-header"
+   style={{
+     background: 'rgba(10, 10, 18, 0.88)',
+     backdropFilter: 'blur(20px) saturate(180%)',
+     WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+     borderBottom: '1px solid rgba(30, 30, 50, 0.8)'
+   }}
+ >
  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
- <div className="flex items-center justify-between h-20">
+ <div className="flex items-center justify-between h-16">
  <div className="flex items-center gap-4">
- <div className="relative">
- {/* Glow effect optimizado */}
- <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl blur opacity-40"></div>
- <div className="relative p-3 bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl shadow-2xl">
- <BarChart3 className="w-8 h-8 text-white" />
- </div>
- </div>
+   <div className="relative flex-shrink-0">
+     <div className="absolute inset-0 rounded-xl blur-md" style={{ background: 'rgba(0,214,50,0.15)' }} />
+     <div className="relative w-11 h-11 rounded-xl overflow-hidden ring-1 ring-brand-500/25">
+       <img src="/logo.jpg" alt="S+" className="w-full h-full object-cover" />
+     </div>
+   </div>
  <div>
- <h1 className="text-2xl font-bold text-white">
+ <h1 className="text-xl font-bold tracking-tight text-white">
  Reportes y Análisis
  </h1>
- <p className="text-slate-400 text-sm mt-1">
- Dashboard de métricas y análisis
+ <p className="text-slate-500 text-sm mt-0.5">
+ Dashboard de métricas
  </p>
  </div>
  </div>
@@ -671,23 +678,23 @@ export default function ReportsPage() {
  </header>
 
  {/* Main Content */}
- <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+ <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
  {loading ? (
  <div className="flex flex-col items-center justify-center py-20 gap-4">
- <Loader2 className="w-12 h-12 text-purple-400 animate-spin" />
+ <Loader2 className="w-12 h-12 text-brand-400 animate-spin" />
  <p className="text-slate-400 font-medium">Cargando datos...</p>
  </div>
  ) : (
  <>
  {/* Header de Resumen con Botones */}
- <div className="mb-8">
- <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+ <div className="mb-5">
+ <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5">
  <div className="flex items-center gap-3">
  <div className="p-2 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl border border-purple-500/30">
- <Activity className="w-6 h-6 text-purple-400" />
+ <Activity className="w-5 h-5 text-brand-400" />
  </div>
  <div>
- <h2 className="text-3xl font-bold text-white">Resumen General</h2>
+ <h2 className="text-2xl font-bold text-white">Resumen General</h2>
  <p className="text-slate-400 text-sm mt-0.5">Dashboard de métricas y análisis</p>
  </div>
  </div>
@@ -721,18 +728,18 @@ export default function ReportsPage() {
  </div>
 
  {/* KPI Cards Premium - Animación optimizada */}
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+ <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
  {/* Total Auditorías */}
  <div className="group relative">
- <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 to-cyan-600/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
- <div className="relative stat-card bg-slate-800/50 backdrop-blur-sm border-blue-500/30 hover:border-blue-400/60 transition-all duration-300 transform hover:-translate-y-1 shadow-xl hover:shadow-blue-500/20">
+ <div className="absolute inset-0 bg-gradient-to-br from-brand-900/30 to-cyan-600/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+ <div className="relative stat-card bg-slate-800/50 backdrop-blur-sm border-brand-700/40 hover:border-brand-500/50/60 transition-all duration-300 transform hover:-translate-y-1 shadow-xl hover:shadow-brand-500/20">
  <div className="flex items-center justify-between mb-3">
  <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">Total Auditorías</span>
- <div className="p-2 bg-blue-500/20 rounded-xl group-hover:bg-blue-500/30 transition-colors duration-200">
- <FileText className="w-5 h-5 text-blue-400" />
+ <div className="p-2 bg-brand-500/10 rounded-xl group-hover:bg-brand-500/30 transition-colors duration-200">
+ <FileText className="w-5 h-5 text-brand-400" />
  </div>
  </div>
- <div className="text-5xl font-black text-blue-400 mb-2">{stats.totalAudits}</div>
+ <div className="text-3xl font-bold text-brand-400 mb-2">{stats.totalAudits}</div>
  <div className="flex items-center gap-2 text-xs text-slate-500">
  <div className="flex items-center gap-1">
  <TrendingUp className="w-3.5 h-3.5 text-green-400" />
@@ -753,7 +760,7 @@ export default function ReportsPage() {
  <CheckCircle2 className="w-5 h-5 text-green-400" />
  </div>
  </div>
- <div className="text-5xl font-black text-green-400 mb-2">{stats.completedAudits}</div>
+ <div className="text-3xl font-bold text-green-400 mb-2">{stats.completedAudits}</div>
  <div className="text-xs text-slate-500">
  <span className="text-green-400 font-bold">
  {stats.totalAudits > 0 ? ((stats.completedAudits / stats.totalAudits) * 100).toFixed(1) : 0}%
@@ -769,14 +776,14 @@ export default function ReportsPage() {
  <div className="flex items-center justify-between mb-3">
  <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">Score Promedio</span>
  <div className="p-2 bg-purple-500/20 rounded-xl group-hover:bg-purple-500/30 transition-colors duration-200">
- <Award className="w-5 h-5 text-purple-400" />
+ <Award className="w-5 h-5 text-brand-400" />
  </div>
  </div>
- <div className="text-5xl font-black text-purple-400 mb-2">
+ <div className="text-3xl font-bold text-brand-400 mb-2">
  {stats.avgScore.toFixed(1)}%
  </div>
  <div className="flex items-center gap-2 text-xs text-slate-500">
- <Target className="w-3.5 h-3.5 text-purple-400" />
+ <Target className="w-3.5 h-3.5 text-brand-400" />
  <span>De {stats.auditsWithScores} evaluadas</span>
  </div>
  </div>
@@ -793,7 +800,7 @@ export default function ReportsPage() {
  <DollarSign className="w-5 h-5 text-emerald-400" />
  </div>
  </div>
- <div className="text-5xl font-black text-emerald-400 mb-2">
+ <div className="text-3xl font-bold text-emerald-400 mb-2">
  ${stats.totalCosts.toFixed(4)}
  </div>
  <div className="text-xs text-slate-500">
@@ -806,13 +813,13 @@ export default function ReportsPage() {
  </div>
 
  {/* Gráficos principales - Primera fila */}
- <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+ <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
  {/* Gráfico de Dona - Distribución por Estado */}
  <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/10 transform hover:-translate-y-1">
- <div className="flex items-center justify-between mb-6">
+ <div className="flex items-center justify-between mb-4">
  <h3 className="text-xl font-bold text-white flex items-center gap-2">
- <div className="p-2 bg-blue-500/20 rounded-xl">
- <PieChart className="w-5 h-5 text-blue-400" />
+ <div className="p-2 bg-brand-500/10 rounded-xl">
+ <PieChart className="w-5 h-5 text-brand-400" />
  </div>
  Distribución por Estado
  </h3>
@@ -857,10 +864,10 @@ export default function ReportsPage() {
 
  {/* Gráfico de Línea - Auditorías por Mes */}
  <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/10 transform hover:-translate-y-1">
- <div className="flex items-center justify-between mb-6">
+ <div className="flex items-center justify-between mb-4">
  <h3 className="text-xl font-bold text-white flex items-center gap-2">
  <div className="p-2 bg-purple-500/20 rounded-xl">
- <Calendar className="w-5 h-5 text-purple-400" />
+ <Calendar className="w-5 h-5 text-brand-400" />
  </div>
  Auditorías por Mes
  </h3>
@@ -911,10 +918,10 @@ export default function ReportsPage() {
  </div>
 
  {/* Gráficos principales - Segunda fila */}
- <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+ <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
  {/* Gráfico de Barras - Top Agentes */}
  <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/10 transform hover:-translate-y-1">
- <div className="flex items-center justify-between mb-6">
+ <div className="flex items-center justify-between mb-4">
  <h3 className="text-xl font-bold text-white flex items-center gap-2">
  <div className="p-2 bg-indigo-500/20 rounded-xl">
  <Users className="w-5 h-5 text-indigo-400" />
@@ -967,7 +974,7 @@ export default function ReportsPage() {
 
  {/* Gráfico de Área - Tendencia de Scores */}
  <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/10 transform hover:-translate-y-1">
- <div className="flex items-center justify-between mb-6">
+ <div className="flex items-center justify-between mb-4">
  <h3 className="text-xl font-bold text-white flex items-center gap-2">
  <div className="p-2 bg-green-500/20 rounded-xl">
  <TrendingUp className="w-5 h-5 text-green-400" />
@@ -1022,10 +1029,10 @@ export default function ReportsPage() {
  </div>
 
  {/* Sección adicional - Gráficos de métricas - SIEMPRE SE MUESTRAN */}
- <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+ <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
  {/* Gráfico Radar - Métricas de Performance */}
  <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/10 transform hover:-translate-y-1">
- <div className="flex items-center justify-between mb-6">
+ <div className="flex items-center justify-between mb-4">
  <h3 className="text-xl font-bold text-white flex items-center gap-2">
  <div className="p-2 bg-pink-500/20 rounded-xl">
  <Target className="w-5 h-5 text-pink-400" />
@@ -1068,7 +1075,7 @@ export default function ReportsPage() {
 
  {/* Gráfico de Dona - Distribución por Tipo de Llamada */}
  <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/10 transform hover:-translate-y-1">
- <div className="flex items-center justify-between mb-6">
+ <div className="flex items-center justify-between mb-4">
  <h3 className="text-xl font-bold text-white flex items-center gap-2">
  <div className="p-2 bg-cyan-500/20 rounded-xl">
  <Activity className="w-5 h-5 text-cyan-400" />
@@ -1114,7 +1121,7 @@ export default function ReportsPage() {
  {/* Análisis de Costos Detallado Premium */}
  {isSupervisor && (
  <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-500/10 transform hover:-translate-y-1">
- <div className="flex items-center justify-between mb-6">
+ <div className="flex items-center justify-between mb-4">
  <h3 className="text-xl font-bold text-white flex items-center gap-2">
  <div className="p-2 bg-emerald-500/20 rounded-xl">
  <DollarSign className="w-5 h-5 text-emerald-400" />
@@ -1126,7 +1133,7 @@ export default function ReportsPage() {
  Optimización activa
  </div>
  </div>
- <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+ <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
  <div className="group relative">
  <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/5 to-green-600/5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
  <div className="relative p-6 bg-slate-800/50 border border-emerald-500/30 rounded-xl hover:border-emerald-400/60 transition-all duration-300 transform hover:-translate-y-1">
@@ -1136,7 +1143,7 @@ export default function ReportsPage() {
  <DollarSign className="w-5 h-5 text-emerald-400" />
  </div>
  </div>
- <div className="text-4xl font-black text-emerald-400 mb-2">
+ <div className="text-3xl font-bold text-emerald-400 mb-2">
  ${stats.totalCosts.toFixed(4)}
  </div>
  <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -1152,15 +1159,15 @@ export default function ReportsPage() {
  </div>
  
  <div className="group relative">
- <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 to-cyan-600/5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
- <div className="relative p-6 bg-slate-800/50 border border-blue-500/30 rounded-xl hover:border-blue-400/60 transition-all duration-300 transform hover:-translate-y-1">
+ <div className="absolute inset-0 bg-gradient-to-br from-brand-900/30 to-cyan-600/5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+ <div className="relative p-6 bg-slate-800/50 border border-brand-700/40 rounded-xl hover:border-brand-500/50/60 transition-all duration-300 transform hover:-translate-y-1">
  <div className="flex items-center justify-between mb-3">
  <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">Costo Promedio</span>
- <div className="p-2 bg-blue-500/20 rounded-lg group-hover:bg-blue-500/30 transition-colors duration-200">
- <Activity className="w-5 h-5 text-blue-400" />
+ <div className="p-2 bg-brand-500/10 rounded-lg group-hover:bg-brand-500/30 transition-colors duration-200">
+ <Activity className="w-5 h-5 text-brand-400" />
  </div>
  </div>
- <div className="text-4xl font-black text-blue-400 mb-2">
+ <div className="text-3xl font-bold text-brand-400 mb-2">
  ${stats.avgCost.toFixed(4)}
  </div>
  <div className="flex items-center gap-1.5 text-xs">
@@ -1177,14 +1184,14 @@ export default function ReportsPage() {
  <div className="flex items-center justify-between mb-3">
  <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">Eficiencia</span>
  <div className="p-2 bg-purple-500/20 rounded-lg group-hover:bg-purple-500/30 transition-colors duration-200">
- <Zap className="w-5 h-5 text-purple-400" />
+ <Zap className="w-5 h-5 text-brand-400" />
  </div>
  </div>
- <div className="text-4xl font-black text-purple-400 mb-2">
+ <div className="text-3xl font-bold text-brand-400 mb-2">
  ${stats.avgScore > 0 ? (stats.avgCost / (stats.avgScore / 100)).toFixed(4) : '0.0000'}
  </div>
  <div className="flex items-center gap-1.5 text-xs">
- <Target className="w-3.5 h-3.5 text-purple-400" />
+ <Target className="w-3.5 h-3.5 text-brand-400" />
  <span className="text-slate-500">Costo/Score ratio</span>
  </div>
  </div>

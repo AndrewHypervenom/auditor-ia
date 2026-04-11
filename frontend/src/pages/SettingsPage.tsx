@@ -1,4 +1,4 @@
-// frontend/src/pages/SettingsPage.tsx
+﻿// frontend/src/pages/SettingsPage.tsx
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -169,7 +169,7 @@ export default function SettingsPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
         <div className="text-center">
-          <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-400 border-r-transparent"></div>
+          <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-brand-500/50 border-r-transparent"></div>
           <p className="mt-4 text-white">Cargando configuración...</p>
         </div>
       </div>
@@ -180,7 +180,7 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-5">
           <button
             onClick={() => navigate('/dashboard')}
             className="flex items-center gap-2 text-slate-400 hover:text-white mb-4 transition-colors"
@@ -194,18 +194,18 @@ export default function SettingsPage() {
               <Settings className="w-8 h-8 text-slate-400" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-white">Configuración del Sistema</h1>
+              <h1 className="text-2xl font-bold text-white">Configuración del Sistema</h1>
               <p className="text-slate-400">Gestiona las APIs y configuraciones del sistema</p>
             </div>
           </div>
         </div>
 
         {/* Status Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
           <div className="bg-slate-800/50 backdrop-blur-lg rounded-xl p-4 border border-slate-700">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Brain className="w-6 h-6 text-blue-400" />
+                <Brain className="w-5 h-5 text-brand-400" />
                 <div>
                   <p className="text-sm text-slate-400">OpenAI</p>
                   <p className="text-xs text-slate-500">GPT-4o</p>
@@ -222,7 +222,7 @@ export default function SettingsPage() {
           <div className="bg-slate-800/50 backdrop-blur-lg rounded-xl p-4 border border-slate-700">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Mic className="w-6 h-6 text-purple-400" />
+                <Mic className="w-5 h-5 text-brand-400" />
                 <div>
                   <p className="text-sm text-slate-400">AssemblyAI</p>
                   <p className="text-xs text-slate-500">Transcripción</p>
@@ -260,13 +260,13 @@ export default function SettingsPage() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <Brain className="w-5 h-5 text-blue-400" />
-                <h3 className="text-lg font-semibold text-white">OpenAI API</h3>
+                <Brain className="w-5 h-5 text-brand-400" />
+                <h3 className="text-sm font-semibold text-white">OpenAI API</h3>
               </div>
               <button
                 onClick={() => testConnection('openai')}
                 disabled={testing === 'openai' || !config.openai_api_key}
-                className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-sm hover:bg-blue-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-3 py-1.5 bg-brand-500/10 text-brand-400 border border-brand-700/20 rounded-lg text-sm hover:bg-brand-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {testing === 'openai' ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -287,7 +287,7 @@ export default function SettingsPage() {
                   value={config.openai_api_key}
                   onChange={(e) => setConfig(prev => ({ ...prev, openai_api_key: e.target.value }))}
                   placeholder="sk-..."
-                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 pr-12"
+                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 pr-12"
                 />
                 <button
                   onClick={() => toggleShowKey('openai')}
@@ -298,7 +298,7 @@ export default function SettingsPage() {
               </div>
               <div className="flex items-start gap-2 text-xs text-slate-500">
                 <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <p>Obtén tu API key en <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">platform.openai.com</a></p>
+                <p>Obtén tu API key en <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">platform.openai.com</a></p>
               </div>
             </div>
           </div>
@@ -309,13 +309,13 @@ export default function SettingsPage() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <Mic className="w-5 h-5 text-purple-400" />
-                <h3 className="text-lg font-semibold text-white">AssemblyAI API</h3>
+                <Mic className="w-5 h-5 text-brand-400" />
+                <h3 className="text-sm font-semibold text-white">AssemblyAI API</h3>
               </div>
               <button
                 onClick={() => testConnection('assemblyai')}
                 disabled={testing === 'assemblyai' || !config.assemblyai_api_key}
-                className="flex items-center gap-2 px-3 py-1.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-lg text-sm hover:bg-purple-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-3 py-1.5 bg-purple-500/10 text-brand-400 border border-purple-500/20 rounded-lg text-sm hover:bg-purple-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {testing === 'assemblyai' ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -347,7 +347,7 @@ export default function SettingsPage() {
               </div>
               <div className="flex items-start gap-2 text-xs text-slate-500">
                 <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <p>Obtén tu API key en <a href="https://www.assemblyai.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">assemblyai.com/dashboard</a></p>
+                <p>Obtén tu API key en <a href="https://www.assemblyai.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">assemblyai.com/dashboard</a></p>
               </div>
             </div>
           </div>
@@ -359,7 +359,7 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Database className="w-5 h-5 text-emerald-400" />
-                <h3 className="text-lg font-semibold text-white">Supabase Database</h3>
+                <h3 className="text-sm font-semibold text-white">Supabase Database</h3>
               </div>
               <button
                 onClick={() => testConnection('supabase')}
@@ -443,7 +443,7 @@ export default function SettingsPage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:from-blue-600 hover:to-purple-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-brand-900/30 to-purple-500 text-white rounded-lg font-medium hover:from-brand-900/30 hover:to-purple-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? (
               <>

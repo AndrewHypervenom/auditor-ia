@@ -1,11 +1,11 @@
-// frontend/src/pages/LoginPage.tsx
+﻿// frontend/src/pages/LoginPage.tsx
 
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
 import { toast } from 'react-hot-toast';
-import { LogIn, Mail, Lock, Sparkles, AlertCircle } from 'lucide-react';
+import { LogIn, Mail, Lock, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
  const navigate = useNavigate();
@@ -15,182 +15,208 @@ export default function LoginPage() {
  const [password, setPassword] = useState('');
  const [loading, setLoading] = useState(false);
 
- // Redirigir si ya está autenticado Y tiene perfil activo
  useEffect(() => {
- if (!authLoading && user && profile) {
- const from = (location.state as any)?.from?.pathname || '/dashboard';
- navigate(from, { replace: true });
- }
+   if (!authLoading && user && profile) {
+     const from = (location.state as any)?.from?.pathname || '/dashboard';
+     navigate(from, { replace: true });
+   }
  }, [user, profile, authLoading, navigate, location]);
 
  const handleSubmit = async (e: React.FormEvent) => {
- e.preventDefault();
- 
- if (!email || !password) {
- toast.error('Por favor completa todos los campos');
- return;
- }
+   e.preventDefault();
 
- setLoading(true);
+   if (!email || !password) {
+     toast.error('Por favor completa todos los campos');
+     return;
+   }
 
- try {
- await signIn(email, password);
- 
- // Esperar a que el AuthContext procese el perfil
- // Si la cuenta está desactivada, AuthContext cerrará la sesión automáticamente
- await new Promise(resolve => setTimeout(resolve, 1000));
- 
- // Después del delay, verificar el estado de la sesión
- // Si no hay sesión, significa que fue cerrada por cuenta desactivada
- const { data: { session } } = await supabase.auth.getSession();
- 
- if (!session || !session.user) {
- // La cuenta fue desactivada, AuthContext ya la cerró
- toast.error('Tu cuenta ha sido desactivada. Contacta al administrador.');
- setLoading(false);
- return;
- }
- 
- // Login exitoso con cuenta activa
- toast.success('¡Bienvenido!');
- 
- // Navegar al destino original o dashboard
- const from = (location.state as any)?.from?.pathname || '/dashboard';
- navigate(from, { replace: true });
- 
- } catch (error: any) {
- console.error(' Login error:', error);
- 
- // Mensajes de error más específicos
- let errorMessage = 'Credenciales inválidas';
- 
- if (error.message?.includes('Invalid login credentials')) {
- errorMessage = 'Email o contraseña incorrectos';
- } else if (error.message?.includes('Email not confirmed')) {
- errorMessage = 'Por favor confirma tu email';
- } else if (error.message?.includes('Too many requests')) {
- errorMessage = 'Demasiados intentos. Intenta más tarde';
- } else if (error.message) {
- errorMessage = error.message;
- }
- 
- toast.error(errorMessage);
- } finally {
- setLoading(false);
- }
+   setLoading(true);
+
+   try {
+     await signIn(email, password);
+
+     await new Promise(resolve => setTimeout(resolve, 1000));
+
+     const { data: { session } } = await supabase.auth.getSession();
+
+     if (!session || !session.user) {
+       toast.error('Tu cuenta ha sido desactivada. Contacta al administrador.');
+       setLoading(false);
+       return;
+     }
+
+     toast.success('¡Bienvenido!');
+
+     const from = (location.state as any)?.from?.pathname || '/dashboard';
+     navigate(from, { replace: true });
+
+   } catch (error: any) {
+     console.error('Login error:', error);
+
+     let errorMessage = 'Credenciales inválidas';
+
+     if (error.message?.includes('Invalid login credentials')) {
+       errorMessage = 'Email o contraseña incorrectos';
+     } else if (error.message?.includes('Email not confirmed')) {
+       errorMessage = 'Por favor confirma tu email';
+     } else if (error.message?.includes('Too many requests')) {
+       errorMessage = 'Demasiados intentos. Intenta más tarde';
+     } else if (error.message) {
+       errorMessage = error.message;
+     }
+
+     toast.error(errorMessage);
+   } finally {
+     setLoading(false);
+   }
  };
 
- // Mostrar loading mientras verifica autenticación inicial
  if (authLoading) {
- return (
- <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
- <div className="text-center">
- <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-400 border-r-transparent"></div>
- <p className="mt-4 text-white">Verificando sesión...</p>
- </div>
- </div>
- );
+   return (
+     <div
+       className="min-h-screen flex items-center justify-center"
+       style={{
+         backgroundColor: '#0a0a12',
+         backgroundImage: 'radial-gradient(ellipse 80% 50% at 10% 95%, rgba(0,214,50,0.04) 0%, transparent 60%)'
+       }}
+     >
+       <div className="text-center">
+         <div className="inline-block h-10 w-10 animate-spin rounded-full border-4 border-solid border-brand-500 border-r-transparent" />
+         <p className="mt-4 text-slate-400 text-sm">Verificando sesión...</p>
+       </div>
+     </div>
+   );
  }
 
  return (
- <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
- <div className="w-full max-w-md">
- {/* Logo y título */}
- <div className="text-center mb-8">
- <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 mb-4 shadow-glow">
- <Sparkles className="w-10 h-10 text-white" />
- </div>
- <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">
- Audit AI Pro
- </h1>
- <p className="text-slate-400">
- Inicia sesión para acceder al sistema
- </p>
- </div>
+   <div
+     className="min-h-screen flex items-center justify-center p-4"
+     style={{
+       backgroundColor: '#0a0a12',
+       backgroundImage:
+         'radial-gradient(ellipse 100% 60% at 50% 105%, rgba(0,214,50,0.06) 0%, transparent 60%), radial-gradient(ellipse 80% 80% at 80% 0%, rgba(20,14,55,0.5) 0%, transparent 70%)'
+     }}
+   >
+     <div className="w-full max-w-md animate-fadeIn">
 
- {/* Card de login */}
- <div className="card">
- <form onSubmit={handleSubmit} className="space-y-6">
- {/* Email */}
- <div>
- <label htmlFor="email" className="flex items-center gap-2 mb-2">
- <Mail className="w-4 h-4 text-blue-400" />
- Email
- </label>
- <input
- id="email"
- type="email"
- value={email}
- onChange={(e) => setEmail(e.target.value)}
- placeholder="usuario@ejemplo.com"
- className="input"
- disabled={loading}
- required
- autoComplete="email"
- autoFocus
- />
- </div>
+       {/* Logo y branding */}
+       <div className="text-center mb-7">
+         <div className="relative inline-block mb-4">
+           <div
+             className="absolute inset-0 rounded-2xl blur-xl scale-110"
+             style={{ background: 'rgba(0,214,50,0.15)' }}
+           />
+           <div className="relative w-16 h-16 rounded-2xl overflow-hidden ring-1 ring-brand-500/30 shadow-glow">
+             <img
+               src="/logo.jpg"
+               alt="POSITIVO S+"
+               className="w-full h-full object-cover"
+             />
+           </div>
+         </div>
 
- {/* Password */}
- <div>
- <label htmlFor="password" className="flex items-center gap-2 mb-2">
- <Lock className="w-4 h-4 text-purple-400" />
- Contraseña
- </label>
- <input
- id="password"
- type="password"
- value={password}
- onChange={(e) => setPassword(e.target.value)}
- placeholder="••••••••"
- className="input"
- disabled={loading}
- required
- autoComplete="current-password"
- />
- </div>
+         <div className="mb-0.5">
+           <span className="text-xl font-bold tracking-tight text-white">POSITIVO </span>
+           <span className="text-xl font-bold tracking-tight text-brand-500">S+</span>
+         </div>
+         <p className="text-sm font-medium text-slate-400">Auditor IA · Sistema de evaluación</p>
+       </div>
 
- {/* Submit button */}
- <button
- type="submit"
- disabled={loading}
- className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
- >
- {loading ? (
- <>
- <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
- Iniciando sesión...
- </>
- ) : (
- <>
- <LogIn className="w-5 h-5" />
- Iniciar Sesión
- </>
- )}
- </button>
- </form>
+       {/* Card de login */}
+       <div
+         className="rounded-2xl p-8 border border-dark-border shadow-card relative overflow-hidden"
+         style={{ background: 'linear-gradient(145deg, rgba(18,18,32,0.98), rgba(10,10,20,1))' }}
+       >
+         {/* Línea sutil verde en el top */}
+         <div
+           className="absolute top-0 left-0 right-0 h-px"
+           style={{ background: 'linear-gradient(90deg, transparent, rgba(0,214,50,0.35), transparent)' }}
+         />
 
- {/* Info de contacto para crear cuenta */}
- <div className="mt-6 p-4 bg-blue-500/5 border border-blue-500/20 rounded-xl">
- <div className="flex items-start gap-3">
- <AlertCircle className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
- <div>
- <p className="text-sm font-medium text-blue-400 mb-1">
- ¿No tienes una cuenta?
- </p>
- <p className="text-xs text-slate-400">
- Contacta al administrador del sistema para solicitar acceso.
- </p>
- </div>
- </div>
- </div>
- </div>
+         <form onSubmit={handleSubmit} className="space-y-6">
+           {/* Email */}
+           <div>
+             <label htmlFor="email" className="flex items-center gap-2 mb-2">
+               <Mail className="w-4 h-4 text-brand-500" />
+               Email
+             </label>
+             <input
+               id="email"
+               type="email"
+               value={email}
+               onChange={(e) => setEmail(e.target.value)}
+               placeholder="usuario@ejemplo.com"
+               className="input"
+               disabled={loading}
+               required
+               autoComplete="email"
+               autoFocus
+             />
+           </div>
 
- {/* Footer */}
- <p className="text-center text-slate-500 text-sm mt-8">
- © 2026 Audit AI Pro. Sistema de evaluación inteligente.
- </p>
- </div>
- </div>
+           {/* Contraseña */}
+           <div>
+             <label htmlFor="password" className="flex items-center gap-2 mb-2">
+               <Lock className="w-4 h-4 text-slate-400" />
+               Contraseña
+             </label>
+             <input
+               id="password"
+               type="password"
+               value={password}
+               onChange={(e) => setPassword(e.target.value)}
+               placeholder="••••••••"
+               className="input"
+               disabled={loading}
+               required
+               autoComplete="current-password"
+             />
+           </div>
+
+           {/* Botón de ingreso */}
+           <button
+             type="submit"
+             disabled={loading}
+             className="btn-primary w-full flex items-center justify-center gap-2"
+           >
+             {loading ? (
+               <>
+                 <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                 Iniciando sesión...
+               </>
+             ) : (
+               <>
+                 <LogIn className="w-4 h-4" />
+                 Iniciar Sesión
+               </>
+             )}
+           </button>
+         </form>
+
+         {/* Info de contacto */}
+         <div
+           className="mt-6 p-4 rounded-xl border border-dark-border"
+           style={{ background: 'rgba(10,10,20,0.8)' }}
+         >
+           <div className="flex items-start gap-3">
+             <AlertCircle className="w-4 h-4 text-slate-500 flex-shrink-0 mt-0.5" />
+             <div>
+               <p className="text-sm font-medium text-slate-300 mb-0.5">
+                 ¿No tienes una cuenta?
+               </p>
+               <p className="text-xs text-slate-500">
+                 Contacta al administrador del sistema para solicitar acceso.
+               </p>
+             </div>
+           </div>
+         </div>
+       </div>
+
+       {/* Footer */}
+       <p className="text-center text-slate-600 text-xs mt-8 tracking-wide">
+         © 2026 POSITIVO S+ · Auditor IA · Evaluación inteligente de llamadas
+       </p>
+     </div>
+   </div>
  );
 }

@@ -1,4 +1,4 @@
-// frontend/src/pages/ScriptsAdminPage.tsx
+﻿// frontend/src/pages/ScriptsAdminPage.tsx
 
 import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
@@ -45,22 +45,22 @@ export default function ScriptsAdminPage() {
   const [activeTab, setActiveTab] = useState<'scripts' | 'criteria'>('criteria');
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white px-6 py-10">
+    <div className="min-h-screen bg-slate-950 text-white px-6 py-6">
       <div className="max-w-5xl mx-auto">
 
         {/* ── Page Header ── */}
         <div className="mb-10">
-          <p className="text-xs font-semibold tracking-widest uppercase text-blue-400/70 mb-2">
+          <p className="text-xs font-semibold tracking-widest uppercase text-brand-400/70 mb-2">
             Administración
           </p>
-          <h1 className="text-3xl font-bold tracking-tight text-white">Scripts y Criterios</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Scripts y Criterios</h1>
           <p className="mt-2 text-sm text-slate-400 leading-relaxed">
             Edita los guiones de los agentes y las rúbricas de evaluación sin modificar el código.
           </p>
         </div>
 
         {/* ── Tab Selector ── */}
-        <div className="grid grid-cols-2 gap-3 mb-8">
+        <div className="grid grid-cols-2 gap-3 mb-5">
           {([
             {
               key: 'criteria' as const,
@@ -86,7 +86,7 @@ export default function ScriptsAdminPage() {
                             text-left transition-all duration-300 overflow-hidden
                             ${isActive
                               ? color === 'blue'
-                                ? 'bg-blue-600/10 border-blue-500/40 shadow-[0_0_24px_rgba(59,130,246,0.12)]'
+                                ? 'bg-brand-500/10 border-brand-700/40 shadow-[0_0_24px_rgba(59,130,246,0.12)]'
                                 : 'bg-violet-600/10 border-violet-500/40 shadow-[0_0_24px_rgba(139,92,246,0.12)]'
                               : 'bg-slate-900/50 border-slate-800/60 hover:bg-slate-900/80 hover:border-slate-700/60'
                             }`}
@@ -95,7 +95,7 @@ export default function ScriptsAdminPage() {
                 {isActive && (
                   <div className={`absolute inset-0 opacity-5 pointer-events-none
                     ${color === 'blue'
-                      ? 'bg-gradient-to-br from-blue-400 to-blue-600'
+                      ? 'bg-gradient-to-br from-brand-900/30 to-brand-800/30'
                       : 'bg-gradient-to-br from-violet-400 to-violet-600'
                     }`}
                   />
@@ -106,7 +106,7 @@ export default function ScriptsAdminPage() {
                                  transition-all duration-300
                                  ${isActive
                                    ? color === 'blue'
-                                     ? 'bg-blue-500/20 border border-blue-500/30'
+                                     ? 'bg-brand-500/10 border border-brand-700/40'
                                      : 'bg-violet-500/20 border border-violet-500/30'
                                    : 'bg-slate-800/60 border border-slate-700/40 group-hover:bg-slate-800'
                                  }`}>
@@ -114,7 +114,7 @@ export default function ScriptsAdminPage() {
                     size={18}
                     className={`transition-colors duration-300
                       ${isActive
-                        ? color === 'blue' ? 'text-blue-400' : 'text-violet-400'
+                        ? color === 'blue' ? 'text-brand-400' : 'text-violet-400'
                         : 'text-slate-500 group-hover:text-slate-300'
                       }`}
                   />
@@ -128,7 +128,7 @@ export default function ScriptsAdminPage() {
                   </span>
                   <span className={`text-xs mt-0.5 transition-colors duration-200 truncate
                     ${isActive
-                      ? color === 'blue' ? 'text-blue-400/70' : 'text-violet-400/70'
+                      ? color === 'blue' ? 'text-brand-400/70' : 'text-violet-400/70'
                       : 'text-slate-600 group-hover:text-slate-500'
                     }`}>
                     {description}
@@ -138,7 +138,7 @@ export default function ScriptsAdminPage() {
                 {/* Indicador activo (punto derecho) */}
                 {isActive && (
                   <div className={`absolute right-4 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full
-                    ${color === 'blue' ? 'bg-blue-400' : 'bg-violet-400'}`}
+                    ${color === 'blue' ? 'bg-brand-500/10' : 'bg-violet-400'}`}
                   />
                 )}
               </button>
@@ -172,7 +172,7 @@ function CallTypeSelector({ selected, onChange }: CallTypeSelectorProps) {
           onClick={() => onChange(ct)}
           className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
             selected === ct
-              ? 'bg-blue-500/15 border-blue-500/40 text-blue-300 shadow-[0_0_12px_rgba(59,130,246,0.15)]'
+              ? 'bg-brand-500/10 border-brand-700/40 text-brand-300 shadow-[0_0_12px_rgba(59,130,246,0.15)]'
               : 'bg-transparent border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-300'
           }`}
         >
@@ -231,7 +231,7 @@ function ScriptsTab() {
   return (
     <div>
       {/* Selector */}
-      <div className="mb-6">
+      <div className="mb-4">
         <CallTypeSelector selected={selectedCallType} onChange={setSelectedCallType} />
       </div>
 
@@ -367,8 +367,8 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
         onClick={() => !editingLabel && setExpanded(!expanded)}
       >
         {/* Número de paso */}
-        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500/20 to-blue-600/10
-                        border border-blue-500/30 text-blue-300 text-sm font-bold
+        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-brand-900/30 to-brand-800/30
+                        border border-brand-700/40 text-brand-300 text-sm font-bold
                         flex items-center justify-center tabular-nums">
           {step.step_order}
         </div>
@@ -386,7 +386,7 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
                   if (e.key === 'Escape') { setEditingLabel(false); setLabelValue(step.step_label); }
                 }}
                 className="flex-1 bg-slate-800/80 border border-slate-600/60 rounded-xl px-3 py-1.5
-                           text-sm text-white focus:outline-none focus:border-blue-500/60"
+                           text-sm text-white focus:outline-none focus:border-brand-700/60"
                 onClick={(e) => e.stopPropagation()}
               />
               <button onClick={handleSaveLabel} className="p-1.5 text-green-400 hover:text-green-300 transition-colors">
@@ -435,7 +435,7 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
           </button>
           <button
             onClick={() => setEditingLabel(true)}
-            className="p-2 rounded-xl text-slate-500 hover:text-blue-400 hover:bg-blue-500/10
+            className="p-2 rounded-xl text-slate-500 hover:text-brand-400 hover:bg-brand-500/10
                        transition-all duration-150"
             title="Renombrar"
           >
@@ -462,7 +462,7 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
       <div className="expand-content border-t border-slate-800/60">
         <div className="px-5 py-4 space-y-2">
           {saving && (
-            <p className="flex items-center gap-2 text-xs text-blue-400/80 mb-3">
+            <p className="flex items-center gap-2 text-xs text-brand-400/80 mb-3">
               <Loader2 size={12} className="animate-spin" />
               Guardando...
             </p>
@@ -483,15 +483,15 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
                     value={lineValue}
                     onChange={(e) => setLineValue(e.target.value)}
                     rows={3}
-                    className="w-full bg-slate-900/80 border border-blue-500/40 rounded-xl px-3 py-2
-                               text-sm text-white resize-none focus:outline-none focus:border-blue-500/60"
+                    className="w-full bg-slate-900/80 border border-brand-700/40 rounded-xl px-3 py-2
+                               text-sm text-white resize-none focus:outline-none focus:border-brand-700/60"
                   />
                   <div className="flex gap-2">
                     <button
                       onClick={handleSaveLine}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600/20
-                                 border border-blue-500/30 text-blue-300 text-xs font-medium
-                                 hover:bg-blue-600/30 transition-all duration-150"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-500/10
+                                 border border-brand-700/40 text-brand-300 text-xs font-medium
+                                 hover:bg-brand-500/30 transition-all duration-150"
                     >
                       <Check size={12} /> Guardar
                     </button>
@@ -527,7 +527,7 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
                     </button>
                     <button
                       onClick={() => handleEditLine(idx)}
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-blue-400 hover:bg-blue-500/10
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-brand-400 hover:bg-brand-500/10
                                  transition-all duration-150"
                     >
                       <Pencil size={12} />
@@ -623,7 +623,7 @@ function CriteriaTab() {
   return (
     <div>
       {/* Selector + Stat Chips */}
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <CallTypeSelector selected={selectedCallType} onChange={setSelectedCallType} />
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -661,7 +661,7 @@ interface StatChipProps {
 }
 
 const colorMap = {
-  blue: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+  blue: 'bg-brand-500/10 border-brand-700/20 text-brand-400',
   red: 'bg-red-500/10 border-red-500/20 text-red-400',
   green: 'bg-green-500/10 border-green-500/20 text-green-400',
 };
@@ -759,7 +759,7 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
                   if (e.key === 'Escape') { setEditingName(false); setNameValue(block.block_name); }
                 }}
                 className="flex-1 bg-slate-800/80 border border-slate-600/60 rounded-xl px-3 py-1.5
-                           text-sm text-white focus:outline-none focus:border-blue-500/60"
+                           text-sm text-white focus:outline-none focus:border-brand-700/60"
               />
               <button onClick={handleSaveName} className="p-1.5 text-green-400 hover:text-green-300 transition-colors">
                 <Check size={15} />
@@ -779,7 +779,7 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
         {/* Badges */}
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full
-                           bg-blue-500/10 border border-blue-500/15 text-blue-300 text-xs font-semibold tabular-nums">
+                           bg-brand-500/10 border border-brand-700/15 text-brand-300 text-xs font-semibold tabular-nums">
             <BarChart2 size={10} />
             {blockPoints} pts
           </span>
@@ -800,7 +800,7 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
         >
           <button
             onClick={() => setEditingName(true)}
-            className="p-2 rounded-xl text-slate-500 hover:text-blue-400 hover:bg-blue-500/10
+            className="p-2 rounded-xl text-slate-500 hover:text-brand-400 hover:bg-brand-500/10
                        transition-all duration-150"
           >
             <Pencil size={14} />
@@ -932,8 +932,8 @@ function CriteriaViewRow({ item, onEdit, onUpdate }: CriteriaRowProps) {
         {item.points === null ? (
           <span className="text-slate-600 text-xs">—</span>
         ) : (
-          <span className="inline-block px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/15
-                           text-blue-300 text-xs font-semibold tabular-nums">
+          <span className="inline-block px-2 py-0.5 rounded-full bg-brand-500/10 border border-brand-700/15
+                           text-brand-300 text-xs font-semibold tabular-nums">
             {item.points}
           </span>
         )}
@@ -975,7 +975,7 @@ function CriteriaViewRow({ item, onEdit, onUpdate }: CriteriaRowProps) {
         <div className="flex items-center gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150">
           <button
             onClick={onEdit}
-            className="p-1.5 rounded-lg text-slate-500 hover:text-blue-400 hover:bg-blue-500/10
+            className="p-1.5 rounded-lg text-slate-500 hover:text-brand-400 hover:bg-brand-500/10
                        transition-all duration-150"
           >
             <Pencil size={13} />
@@ -1029,7 +1029,7 @@ function CriteriaEditRow({ item, onSave, onCancel }: CriteriaEditRowProps) {
   };
 
   return (
-    <tr className="border-b border-blue-500/20 bg-blue-950/10 animate-fadeIn">
+    <tr className="border-b border-brand-700/20 bg-brand-500/10 animate-fadeIn">
       <td className="py-4 px-4" colSpan={5}>
         <div className="space-y-4">
           {/* Criterio */}
@@ -1042,8 +1042,8 @@ function CriteriaEditRow({ item, onSave, onCancel }: CriteriaEditRowProps) {
               onChange={(e) => setTopic(e.target.value)}
               rows={2}
               className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2
-                         text-sm text-white resize-none focus:outline-none focus:border-blue-500/60
-                         focus:ring-1 focus:ring-blue-500/20"
+                         text-sm text-white resize-none focus:outline-none focus:border-brand-700/60
+                         focus:ring-1 focus:ring-brand-500/20"
             />
           </div>
 
@@ -1058,8 +1058,8 @@ function CriteriaEditRow({ item, onSave, onCancel }: CriteriaEditRowProps) {
                 onChange={(e) => setPoints(e.target.value)}
                 placeholder="5 o n/a"
                 className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2
-                           text-sm text-white focus:outline-none focus:border-blue-500/60
-                           focus:ring-1 focus:ring-blue-500/20"
+                           text-sm text-white focus:outline-none focus:border-brand-700/60
+                           focus:ring-1 focus:ring-brand-500/20"
               />
             </div>
 
@@ -1072,7 +1072,7 @@ function CriteriaEditRow({ item, onSave, onCancel }: CriteriaEditRowProps) {
                 value={criticality}
                 onChange={(e) => setCriticality(e.target.value as 'Crítico' | '-')}
                 className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2
-                           text-sm text-white focus:outline-none focus:border-blue-500/60"
+                           text-sm text-white focus:outline-none focus:border-brand-700/60"
               >
                 <option value="-">—</option>
                 <option value="Crítico">Crítico</option>
@@ -1112,8 +1112,8 @@ function CriteriaEditRow({ item, onSave, onCancel }: CriteriaEditRowProps) {
               rows={3}
               placeholder="Describe dónde y qué debe buscar la IA para evaluar este criterio..."
               className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2
-                         text-sm text-white resize-none focus:outline-none focus:border-blue-500/60
-                         focus:ring-1 focus:ring-blue-500/20"
+                         text-sm text-white resize-none focus:outline-none focus:border-brand-700/60
+                         focus:ring-1 focus:ring-brand-500/20"
             />
           </div>
 
@@ -1122,9 +1122,9 @@ function CriteriaEditRow({ item, onSave, onCancel }: CriteriaEditRowProps) {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600/20
-                         border border-blue-500/30 text-blue-300 text-sm font-medium
-                         hover:bg-blue-600/30 disabled:opacity-50 transition-all duration-150"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-500/10
+                         border border-brand-700/40 text-brand-300 text-sm font-medium
+                         hover:bg-brand-500/30 disabled:opacity-50 transition-all duration-150"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               {saving ? 'Guardando...' : 'Guardar cambios'}

@@ -1,4 +1,4 @@
-// frontend/src/components/ProcessingStatus.tsx
+﻿// frontend/src/components/ProcessingStatus.tsx
 
 import { Loader2, CheckCircle2, Clock, Brain, FileSearch, Mic, FileSpreadsheet } from 'lucide-react';
 
@@ -75,7 +75,7 @@ export default function ProcessingStatus({ stage, progress, message }: Processin
 
  const getStageColor = (color: string) => {
  const colors: Record<string, string> = {
- blue: 'from-blue-500 to-blue-600',
+ blue: 'from-brand-900/30 to-brand-800/30',
  purple: 'from-purple-500 to-purple-600',
  pink: 'from-pink-500 to-pink-600',
  green: 'from-green-500 to-green-600',
@@ -87,17 +87,17 @@ export default function ProcessingStatus({ stage, progress, message }: Processin
  return (
  <div className="card animate-fadeIn max-w-3xl mx-auto">
  {/* Header */}
- <div className="text-center mb-8">
+ <div className="text-center mb-5">
  {normalizedStage === 'completed' ? (
  <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 mb-4">
  <CheckCircle2 className="w-10 h-10 text-white" />
  </div>
  ) : (
- <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 mb-4 animate-pulse-ring">
+ <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-brand-900/30 to-purple-500 mb-4 animate-pulse-ring">
  <Loader2 className="w-10 h-10 text-white animate-spin" />
  </div>
  )}
- <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+ <h2 className="text-2xl font-bold mb-2 bg-gradient-to-r from-brand-900/30 to-purple-400 bg-clip-text text-transparent">
  {normalizedStage === 'completed' ? '¡Auditoría Completada!' : 'Procesando Auditoría'}
  </h2>
  <p className="text-slate-400">
@@ -113,7 +113,7 @@ export default function ProcessingStatus({ stage, progress, message }: Processin
  <span className="text-sm font-semibold text-slate-300">
  Progreso total
  </span>
- <span className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+ <span className="text-2xl font-bold bg-gradient-to-r from-brand-900/30 to-purple-400 bg-clip-text text-transparent">
  {progress}%
  </span>
  </div>
@@ -122,7 +122,7 @@ export default function ProcessingStatus({ stage, progress, message }: Processin
  className={`absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out shadow-glow ${
  normalizedStage === 'completed'
  ? 'bg-gradient-to-r from-green-500 via-emerald-500 to-green-400'
- : 'bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500'
+ : 'bg-gradient-to-r from-brand-900/30 via-purple-500 to-pink-500'
  }`}
  style={{ width: `${progress}%` }}
  >
@@ -133,13 +133,13 @@ export default function ProcessingStatus({ stage, progress, message }: Processin
 
  {/* Message del SSE */}
  {message && (
- <div className={`mb-6 p-4 rounded-xl ${
+ <div className={`mb-4 p-4 rounded-xl ${
  normalizedStage === 'completed'
  ? 'bg-green-500/10 border border-green-500/30'
- : 'bg-blue-500/10 border border-blue-500/30'
+ : 'bg-brand-500/10 border border-brand-700/40'
  }`}>
  <p className={`text-sm text-center font-medium ${
- normalizedStage === 'completed' ? 'text-green-300' : 'text-blue-300'
+ normalizedStage === 'completed' ? 'text-green-300' : 'text-brand-300'
  }`}>
  {message}
  </p>
@@ -158,7 +158,7 @@ export default function ProcessingStatus({ stage, progress, message }: Processin
  key={s.id}
  className={`relative flex items-center gap-4 p-5 rounded-xl transition-all duration-500 ${
  isCurrent 
- ? 'bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-2 border-blue-500/30 scale-[1.02] shadow-glow' 
+ ? 'bg-gradient-to-r from-brand-900/30 to-purple-500/10 border-2 border-brand-700/40 scale-[1.02] shadow-glow' 
  : isCompleted
  ? 'bg-slate-800/50 border border-green-500/20'
  : 'bg-slate-900/30 border border-slate-800'
@@ -168,7 +168,7 @@ export default function ProcessingStatus({ stage, progress, message }: Processin
  {index < stages.length - 1 && (
  <div 
  className={`absolute left-7 top-full w-0.5 h-3 transition-colors duration-500 ${
- isCompleted ? 'bg-green-500' : isCurrent ? 'bg-blue-500' : 'bg-slate-700'
+ isCompleted ? 'bg-green-500' : isCurrent ? 'bg-brand-500' : 'bg-slate-700'
  }`}
  />
  )}
@@ -208,7 +208,7 @@ export default function ProcessingStatus({ stage, progress, message }: Processin
  </span>
  )}
  {isCurrent && (
- <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30 animate-pulse">
+ <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-brand-500/10 text-brand-400 border border-brand-700/40 animate-pulse">
  En progreso...
  </span>
  )}
@@ -225,7 +225,7 @@ export default function ProcessingStatus({ stage, progress, message }: Processin
  {/* Loading spinner for current stage */}
  {isCurrent && (
  <div className="flex-shrink-0">
- <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+ <Loader2 className="w-5 h-5 text-brand-400 animate-spin" />
  </div>
  )}
  </div>
@@ -235,11 +235,11 @@ export default function ProcessingStatus({ stage, progress, message }: Processin
 
  {/* Footer info */}
  {normalizedStage !== 'completed' && (
- <div className="mt-8 p-4 bg-blue-500/5 border border-blue-500/20 rounded-xl">
+ <div className="mt-8 p-4 bg-brand-500/5 border border-brand-700/20 rounded-xl">
  <div className="flex items-start gap-3">
- <Clock className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+ <Clock className="w-5 h-5 text-brand-400 flex-shrink-0 mt-0.5" />
  <div>
- <p className="text-sm font-medium text-blue-400 mb-1">
+ <p className="text-sm font-medium text-brand-400 mb-1">
  Tiempo estimado: 2-4 minutos
  </p>
  <p className="text-xs text-slate-400">

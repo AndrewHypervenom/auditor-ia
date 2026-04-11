@@ -1,4 +1,4 @@
-// frontend/src/pages/UsersPage.tsx
+﻿// frontend/src/pages/UsersPage.tsx
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -221,7 +221,7 @@ export default function UsersPage() {
  );
  case 'analyst':
  return (
- <span className="inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-blue-900/30 to-indigo-900/30 border border-blue-500/30 rounded-full text-blue-300 text-xs font-medium">
+ <span className="inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-brand-900/30 to-indigo-900/30 border border-brand-700/40 rounded-full text-brand-300 text-xs font-medium">
  <Award className="w-3 h-3" />
  Analista
  </span>
@@ -262,10 +262,10 @@ export default function UsersPage() {
  });
 
  return (
- <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+ <div className="min-h-screen">
  {/* Header */}
- <header className="bg-slate-900/80 backdrop-blur-lg border-b border-slate-800 shadow-2xl sticky top-0 z-50">
- <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+ <header className="sticky top-0 z-50 shadow-header" style={{ background: 'rgba(10, 10, 18, 0.88)', backdropFilter: 'blur(20px) saturate(180%)', WebkitBackdropFilter: 'blur(20px) saturate(180%)', borderBottom: '1px solid rgba(30, 30, 50, 0.8)' }}>
+ <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
  <div className="flex items-center justify-between">
  <div className="flex items-center gap-4">
  <div className="relative">
@@ -275,7 +275,7 @@ export default function UsersPage() {
  </div>
  </div>
  <div>
- <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-rose-400 bg-clip-text text-transparent">
+ <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-rose-400 bg-clip-text text-transparent">
  {isSupervisor ? 'Equipo de Analistas' : 'Gestión de Usuarios'}
  </h1>
  <p className="text-slate-400 text-sm mt-1">
@@ -310,12 +310,12 @@ export default function UsersPage() {
  </header>
 
  {/* Main Content */}
- <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+ <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
  {/* Info Banner */}
  {isSupervisor && (
- <div className="mb-6 p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl">
+ <div className="mb-4 p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl">
  <div className="flex items-start gap-3">
- <UserCheck className="w-5 h-5 text-purple-400 mt-0.5 flex-shrink-0" />
+ <UserCheck className="w-5 h-5 text-brand-400 mt-0.5 flex-shrink-0" />
  <div>
  <h3 className="text-purple-300 font-semibold mb-1">Vista de Supervisor</h3>
  <p className="text-slate-400 text-sm">
@@ -328,8 +328,8 @@ export default function UsersPage() {
  )}
 
  {/* Search and Stats */}
- <div className="card mb-6">
- <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+ <div className="card mb-4">
+ <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
  <div className="relative flex-1 max-w-md">
  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
  <input
@@ -345,7 +345,7 @@ export default function UsersPage() {
  <div className="stat-card bg-gradient-to-br from-purple-900/20 to-pink-900/20 border-purple-500/30">
  <div className="flex items-center gap-3">
  <div className="p-2 bg-purple-600/20 rounded-lg">
- <Users className="w-5 h-5 text-purple-400" />
+ <Users className="w-5 h-5 text-brand-400" />
  </div>
  <div>
  <p className="text-slate-400 text-xs">Total {isSupervisor ? 'Analistas' : 'Usuarios'}</p>
@@ -374,11 +374,11 @@ export default function UsersPage() {
 
  {/* Users Grid - Vista mejorada para ambos roles */}
  {loading ? (
- <div className="flex items-center justify-center py-12">
- <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+ <div className="flex items-center justify-center py-8">
+ <Loader2 className="w-5 h-5 text-brand-400 animate-spin" />
  </div>
  ) : filteredUsers.length === 0 ? (
- <div className="text-center py-12">
+ <div className="text-center py-8">
  <Users className="w-16 h-16 text-slate-600 mx-auto mb-4" />
  <p className="text-slate-400">
  {searchTerm ? 'No se encontraron usuarios' : 'No hay usuarios registrados'}
@@ -415,12 +415,12 @@ export default function UsersPage() {
  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-slate-900 rounded-full flex items-center justify-center border-2 border-slate-800">
  {user.role === 'admin' && <Shield className="w-3 h-3 text-red-400" />}
  {user.role === 'supervisor' && <Eye className="w-3 h-3 text-green-400" />}
- {user.role === 'analyst' && <Award className="w-3 h-3 text-blue-400" />}
+ {user.role === 'analyst' && <Award className="w-3 h-3 text-brand-400" />}
  </div>
  </div>
 
  <div className="flex-1 min-w-0">
- <h3 className="text-lg font-semibold text-white truncate mb-1">
+ <h3 className="text-sm font-semibold text-white truncate mb-1">
  {user.full_name || 'Sin nombre'}
  </h3>
  {getRoleBadge(user.role)}
@@ -444,7 +444,7 @@ export default function UsersPage() {
  <div className="flex items-center gap-2 pt-4 border-t border-slate-700/50">
  <button
  onClick={() => openEditModal(user)}
- className="flex-1 px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-300 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+ className="flex-1 px-3 py-2 bg-brand-500/10 hover:bg-brand-500/30 border border-brand-700/40 text-brand-300 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium"
  title="Editar usuario"
  >
  <Edit className="w-4 h-4" />
@@ -473,7 +473,7 @@ export default function UsersPage() {
  {showCreateModal && isAdmin && (
  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
  <div className="bg-slate-900 rounded-2xl p-6 max-w-md w-full border border-slate-700 shadow-2xl">
- <div className="flex items-center justify-between mb-6">
+ <div className="flex items-center justify-between mb-4">
  <h2 className="text-xl font-bold text-white">Crear Nuevo Usuario</h2>
  <button
  onClick={() => setShowCreateModal(false)}
@@ -569,7 +569,7 @@ export default function UsersPage() {
  {showEditModal && editingUser && isAdmin && (
  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
  <div className="bg-slate-900 rounded-2xl p-6 max-w-md w-full border border-slate-700 shadow-2xl">
- <div className="flex items-center justify-between mb-6">
+ <div className="flex items-center justify-between mb-4">
  <h2 className="text-xl font-bold text-white">Editar Usuario</h2>
  <button
  onClick={() => {

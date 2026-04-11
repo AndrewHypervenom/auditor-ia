@@ -1,4 +1,4 @@
-// frontend/src/pages/SupervisorDashboard.tsx
+﻿// frontend/src/pages/SupervisorDashboard.tsx
 // Dashboard para Supervisor (Consulta Amplia) Puede ELIMINAR auditorías, acceso a costos
 
 import { useState, useEffect } from 'react';
@@ -232,24 +232,33 @@ export default function SupervisorDashboard() {
  };
 
  return (
- <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
- {/* Header */}
- <header className="bg-slate-900/80 backdrop-blur-lg border-b border-slate-800 shadow-2xl sticky top-0 z-50">
- <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+ <div className="min-h-screen">
+ {/* Header glass morphism */}
+ <header
+   className="sticky top-0 z-50 shadow-header"
+   style={{
+     background: 'rgba(10, 10, 18, 0.88)',
+     backdropFilter: 'blur(20px) saturate(180%)',
+     WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+     borderBottom: '1px solid rgba(30, 30, 50, 0.8)'
+   }}
+ >
+ <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
  <div className="flex items-center justify-between">
  <div className="flex items-center gap-4">
- <div className="relative">
- <div className="absolute inset-0 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl blur-lg opacity-50"></div>
- <div className="relative text-5xl p-2 bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl">
- 
- </div>
- </div>
+   {/* Logo S+ */}
+   <div className="relative flex-shrink-0">
+     <div className="absolute inset-0 rounded-xl blur-md" style={{ background: 'rgba(0,214,50,0.15)' }} />
+     <div className="relative w-11 h-11 rounded-xl overflow-hidden ring-1 ring-brand-500/25">
+       <img src="/logo.jpg" alt="S+" className="w-full h-full object-cover" />
+     </div>
+   </div>
  <div>
- <h1 className="text-3xl font-bold bg-gradient-to-r from-green-400 via-emerald-400 to-teal-400 bg-clip-text text-transparent">
+ <h1 className="text-2xl font-bold tracking-tight text-white">
  Panel de Supervisor
  </h1>
- <p className="text-slate-400 text-sm mt-1">
- Consulta Amplia - {profile?.full_name || user?.email}
+ <p className="text-slate-500 text-sm mt-0.5">
+ {profile?.full_name || user?.email}
  </p>
  </div>
  </div>
@@ -257,7 +266,7 @@ export default function SupervisorDashboard() {
  <div className="flex items-center gap-3">
  <button
  onClick={() => loadData()}
- className="btn-secondary flex items-center gap-2"
+ className="btn-ghost flex items-center gap-2 text-sm"
  title="Recargar datos"
  >
  <RefreshCw className="w-4 h-4" />
@@ -265,30 +274,30 @@ export default function SupervisorDashboard() {
  </button>
  <button
  onClick={handleLogout}
- className="btn-secondary flex items-center gap-2"
+ className="btn-ghost flex items-center gap-2 text-sm"
  >
  <LogOut className="w-4 h-4" />
- Cerrar Sesión
+ Salir
  </button>
  </div>
  </div>
  </div>
  </header>
 
- <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+ <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
  {/* Stats Cards - CON COSTOS */}
  {loadingStats ? (
- <div className="flex items-center justify-center py-12">
- <Loader2 className="w-8 h-8 text-green-400 animate-spin" />
+ <div className="flex items-center justify-center py-8">
+ <Loader2 className="w-6 h-6 text-brand-400 animate-spin" />
  </div>
  ) : stats ? (
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+ <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
  <div className="stat-card">
  <div className="flex items-center justify-between mb-2">
  <span className="text-slate-400 text-sm font-medium">Total Auditorías</span>
- <FileText className="w-5 h-5 text-blue-400" />
+ <FileText className="w-5 h-5 text-brand-400" />
  </div>
- <div className="text-3xl font-bold text-white">{stats.totalAudits}</div>
+ <div className="text-2xl font-bold text-white">{stats.totalAudits}</div>
  <div className="text-sm text-slate-500 mt-1">
  {stats.completedAudits} completadas
  </div>
@@ -297,9 +306,9 @@ export default function SupervisorDashboard() {
  <div className="stat-card">
  <div className="flex items-center justify-between mb-2">
  <span className="text-slate-400 text-sm font-medium">Promedio Score</span>
- <TrendingUp className="w-5 h-5 text-purple-400" />
+ <TrendingUp className="w-5 h-5 text-brand-400" />
  </div>
- <div className="text-3xl font-bold text-white">
+ <div className="text-2xl font-bold text-white">
  {Math.round(stats.averageScore)}%
  </div>
  <div className="text-sm text-slate-500 mt-1">
@@ -312,7 +321,7 @@ export default function SupervisorDashboard() {
  <span className="text-slate-400 text-sm font-medium">Este Mes</span>
  <Calendar className="w-5 h-5 text-cyan-400" />
  </div>
- <div className="text-3xl font-bold text-white">{stats.thisMonthAudits}</div>
+ <div className="text-2xl font-bold text-white">{stats.thisMonthAudits}</div>
  <div className="text-sm text-slate-500 mt-1">
  Auditorías realizadas
  </div>
@@ -323,7 +332,7 @@ export default function SupervisorDashboard() {
  <span className="text-slate-400 text-sm font-medium">Costos Totales</span>
  <DollarSign className="w-5 h-5 text-green-400" />
  </div>
- <div className="text-3xl font-bold text-white">
+ <div className="text-2xl font-bold text-white">
  {formatCurrency(stats.totalCosts)}
  </div>
  <div className="text-sm text-slate-500 mt-1">
@@ -338,17 +347,17 @@ export default function SupervisorDashboard() {
  )}
 
  {/* Action Buttons */}
- <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+ <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
  <button
  onClick={() => navigate('/audits')}
- className="stat-card hover:scale-105 transition-transform cursor-pointer bg-gradient-to-br from-blue-900/40 to-blue-800/40 border-blue-500/30"
+ className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-brand-900/40 to-brand-800/40 border-brand-700/40"
  >
  <div className="flex items-center gap-4">
- <div className="p-3 bg-blue-600/20 rounded-xl">
- <FileText className="w-6 h-6 text-blue-400" />
+ <div className="p-2.5 bg-brand-500/10 rounded-lg">
+ <FileText className="w-5 h-5 text-brand-400" />
  </div>
  <div className="text-left">
- <h3 className="text-lg font-semibold text-white">Ver Todas las Auditorías</h3>
+ <h3 className="text-sm font-semibold text-white">Ver Todas las Auditorías</h3>
  <p className="text-sm text-slate-400">Explorar historial completo</p>
  </div>
  </div>
@@ -356,14 +365,14 @@ export default function SupervisorDashboard() {
 
  <button
  onClick={() => navigate('/reports')}
- className="stat-card hover:scale-105 transition-transform cursor-pointer bg-gradient-to-br from-green-900/40 to-green-800/40 border-green-500/30"
+ className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-green-900/40 to-green-800/40 border-green-500/30"
  >
  <div className="flex items-center gap-4">
  <div className="p-3 bg-green-600/20 rounded-xl">
- <BarChart3 className="w-6 h-6 text-green-400" />
+ <BarChart3 className="w-5 h-5 text-green-400" />
  </div>
  <div className="text-left">
- <h3 className="text-lg font-semibold text-white">Generar Reportes</h3>
+ <h3 className="text-sm font-semibold text-white">Generar Reportes</h3>
  <p className="text-sm text-slate-400">Análisis y exportación</p>
  </div>
  </div>
@@ -373,16 +382,16 @@ export default function SupervisorDashboard() {
  {/* Recent Audits List */}
  <div className="card">
  <h2 className="section-header">
- <Clock className="w-6 h-6 text-green-400" />
+ <Clock className="w-5 h-5 text-green-400" />
  Auditorías Recientes
  </h2>
 
  {loading ? (
- <div className="flex items-center justify-center py-12">
- <Loader2 className="w-8 h-8 text-green-400 animate-spin" />
+ <div className="flex items-center justify-center py-8">
+ <Loader2 className="w-6 h-6 text-brand-400 animate-spin" />
  </div>
  ) : !audits || audits.length === 0 ? (
- <div className="text-center py-12">
+ <div className="text-center py-8">
  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-800 mb-4">
  <FileText className="w-8 h-8 text-slate-600" />
  </div>
@@ -403,7 +412,7 @@ export default function SupervisorDashboard() {
  <div className="flex items-start justify-between">
  <div className="flex-1" onClick={() => navigate(`/audit/${audit.id}`)} style={{ cursor: 'pointer' }}>
  <div className="flex items-center gap-3 mb-2">
- <h3 className="text-lg font-semibold text-white">
+ <h3 className="text-sm font-semibold text-white">
  {audit.executive_name}
  </h3>
  {getStatusBadge(audit.status)}
@@ -426,7 +435,7 @@ export default function SupervisorDashboard() {
  Monitoreo
  </span>
  ) : (
- <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/30">
+ <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-500/10 text-brand-400 border border-brand-700/40">
  <PhoneIncoming className="w-3 h-3" />
  Inbound
  </span>
@@ -445,11 +454,11 @@ export default function SupervisorDashboard() {
 
  {/* âœ… RENDERIZADO SEGURO de evaluations y costos */}
  {evaluations.length > 0 && (
- <div className="mt-4 flex items-center gap-6">
+ <div className="mt-4 flex items-center gap-4">
  <div className="flex items-center gap-2">
- <TrendingUp className="w-4 h-4 text-purple-400" />
+ <TrendingUp className="w-4 h-4 text-brand-400" />
  <span className="text-slate-400 text-sm">Score:</span>
- <span className="text-xl font-bold text-purple-400">
+ <span className="text-xl font-bold text-brand-400">
  {evaluations[0].percentage.toFixed(2)}%
  </span>
  <span className="text-sm text-slate-500">

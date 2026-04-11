@@ -1,4 +1,4 @@
-// frontend/src/pages/AiAnalysisPage.tsx
+﻿// frontend/src/pages/AiAnalysisPage.tsx
 // Vista de referencia del caso GPF — se abre en nueva pestaña al confirmar auditoría.
 // Muestra la misma información que la vista "confirming" de NewAuditPage, solo lectura.
 // El procesamiento real (audio, imágenes, Excel) ocurre en la pestaña original.
@@ -126,7 +126,7 @@ export default function AiAnalysisPage() {
   // ── Error state ───────────────────────────────────────────────────────────
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-8">
+      <div className="min-h-screen flex items-center justify-center p-8">
         <div className="flex flex-col items-center gap-4 text-center max-w-md">
           <div className="p-4 rounded-full bg-red-500/10 border border-red-500/30">
             <AlertTriangle className="w-10 h-10 text-red-400" />
@@ -139,7 +139,7 @@ export default function AiAnalysisPage() {
 
   if (!data) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -154,17 +154,17 @@ export default function AiAnalysisPage() {
   ] as const;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+    <div className="min-h-screen text-slate-100">
 
       {/* Header */}
       <header className="bg-slate-900/80 backdrop-blur-lg border-b border-slate-800 sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
           <div className="p-2 rounded-lg bg-purple-600/20 border border-purple-500/30">
-            <Sparkles className="w-5 h-5 text-purple-400" />
+            <Sparkles className="w-5 h-5 text-brand-400" />
           </div>
           <div>
             <h1 className="text-base font-bold text-slate-200">
-              Vista de referencia · Caso <span className="font-mono text-blue-400">{String(attentionId)}</span>
+              Vista de referencia · Caso <span className="font-mono text-brand-400">{String(attentionId)}</span>
             </h1>
             <p className="text-xs text-slate-500">
               {executive} · {callType} · {excelType}
@@ -179,7 +179,7 @@ export default function AiAnalysisPage() {
         <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-800 shadow-2xl p-8">
 
           {/* Tabs */}
-          <div className="flex gap-1 mb-6 bg-slate-800/60 rounded-xl p-1 border border-slate-700 overflow-x-auto">
+          <div className="flex gap-1 mb-4 bg-slate-800/60 rounded-xl p-1 border border-slate-700 overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
@@ -264,7 +264,7 @@ export default function AiAnalysisPage() {
                                   (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden');
                                 }}
                               />
-                              <div className="hidden px-2 py-3 text-xs text-purple-400 font-mono break-all bg-slate-800/80">
+                              <div className="hidden px-2 py-3 text-xs text-brand-400 font-mono break-all bg-slate-800/80">
                                 {url}
                               </div>
                               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">

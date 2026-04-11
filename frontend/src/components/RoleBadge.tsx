@@ -21,18 +21,18 @@ const ROLE_CONFIG = {
   supervisor: {
     label: 'Supervisor',
     icon: Star,
-    bgColor: 'bg-blue-500/10',
-    textColor: 'text-blue-400',
-    borderColor: 'border-blue-500/20',
-    dotColor: 'bg-blue-500',
+    bgColor: 'bg-amber-500/10',
+    textColor: 'text-amber-400',
+    borderColor: 'border-amber-500/20',
+    dotColor: 'bg-amber-400',
   },
   analyst: {
     label: 'Analista',
     icon: Eye,
-    bgColor: 'bg-green-500/10',
-    textColor: 'text-green-400',
-    borderColor: 'border-green-500/20',
-    dotColor: 'bg-green-500',
+    bgColor: 'bg-brand-500/10',
+    textColor: 'text-brand-400',
+    borderColor: 'border-brand-500/20',
+    dotColor: 'bg-brand-500',
   },
   executive: {
     label: 'Ejecutivo',
@@ -108,7 +108,7 @@ export function RoleHeader({ role, userName }: { role: UserRole; userName?: stri
   const Icon = config.icon;
 
   return (
-    <div className="flex items-center gap-3 p-4 bg-slate-800/30 rounded-xl border border-slate-700/50">
+    <div className="flex items-center gap-3 p-4 bg-dark-card rounded-xl border border-dark-border">
       <div className={`p-3 rounded-lg ${config.bgColor}`}>
         <Icon className={`w-6 h-6 ${config.textColor}`} />
       </div>

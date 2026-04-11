@@ -1,780 +1,787 @@
 // frontend/src/components/ResultsView.tsx
 
-import { Download, CheckCircle2, AlertCircle, Clock, TrendingUp, FileText, Award, Target, Sparkles, ChevronDown, ChevronUp, PhoneIncoming, Monitor, Pencil, Check, X, Save, RotateCcw, AlertTriangle, ShieldAlert } from 'lucide-react';
-import { useState } from 'react';
+import {
+  Download, CheckCircle2, AlertCircle, Clock, TrendingUp, FileText, Award,
+  Target, ChevronDown, ChevronUp, PhoneIncoming, Monitor, Pencil, Check,
+  X, Save, RotateCcw, AlertTriangle, ShieldAlert, Plus, ChevronsUpDown,
+  MinusCircle, XCircle
+} from 'lucide-react';
+import { useState, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import { auditService } from '../services/api';
 import type { EvaluationResult } from '../types';
 
 interface ResultsViewProps {
- result: EvaluationResult;
- auditId?: string;
- callType?: string;
- onDownload: () => void;
- onNewAudit: () => void;
+  result: EvaluationResult;
+  auditId?: string;
+  callType?: string;
+  onDownload: () => void;
+  onNewAudit: () => void;
 }
 
+type FilterType = 'all' | 'passed' | 'partial' | 'failed';
+
 export default function ResultsView({ result, auditId, callType, onDownload, onNewAudit }: ResultsViewProps) {
- const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
- scores: true,
- observations: true,
- recommendations: true,
- keyMoments: true,
- transcript: false
- });
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    scores: true,
+    observations: false,
+    recommendations: false,
+    keyMoments: false,
+    transcript: false,
+  });
+  const [expandedCriteria, setExpandedCriteria] = useState<Record<number, boolean>>({});
+  const [allExpanded, setAllExpanded] = useState<boolean | null>(null);
+  const [filter, setFilter] = useState<FilterType>('all');
 
- // Estado de edición de puntajes
- const [scoreEdits, setScoreEdits] = useState<Record<number, number>>({}); // índice → nuevo score
- const [editingIndex, setEditingIndex] = useState<number | null>(null);
- const [editInputValue, setEditInputValue] = useState<string>('');
- const [isSaving, setIsSaving] = useState(false);
+  const [scoreEdits, setScoreEdits] = useState<Record<number, number>>({});
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editInputValue, setEditInputValue] = useState<string>('');
+  const [isSaving, setIsSaving] = useState(false);
 
- const toggleSection = (section: string) => {
- setExpandedSections(prev => ({
- ...prev,
- [section]: !prev[section]
- }));
- };
+  // ── Datos seguros ────────────────────────────────────────────────────────────
+  const safeResult = {
+    percentage: result?.percentage ?? 0,
+    totalScore: result?.totalScore ?? 0,
+    maxPossibleScore: result?.maxPossibleScore ?? 0,
+    detailedScores: Array.isArray(result?.detailedScores) ? result.detailedScores : [],
+    observations: result?.observations ?? 'Sin observaciones',
+    recommendations: Array.isArray(result?.recommendations) ? result.recommendations : [],
+    keyMoments: Array.isArray(result?.keyMoments) ? result.keyMoments : [],
+    transcript: result?.transcript ?? '',
+    audioConfidence: result?.audioConfidence,
+  };
 
- const getScoreColor = (percentage: number) => {
- if (percentage >= 90) return 'text-emerald-400';
- if (percentage >= 80) return 'text-green-400';
- if (percentage >= 70) return 'text-yellow-400';
- if (percentage >= 60) return 'text-orange-400';
- return 'text-red-400';
- };
+  // ── Cálculos en tiempo real ──────────────────────────────────────────────────
+  const currentScores = safeResult.detailedScores.map((s: any, i: number) => ({
+    ...s,
+    score: scoreEdits[i] !== undefined ? scoreEdits[i] : (s.score ?? 0),
+    _globalIndex: i,
+  }));
 
- const getScoreGradient = (percentage: number) => {
- if (percentage >= 90) return 'from-emerald-500 to-green-500';
- if (percentage >= 80) return 'from-green-500 to-emerald-500';
- if (percentage >= 70) return 'from-yellow-500 to-orange-500';
- if (percentage >= 60) return 'from-orange-500 to-red-500';
- return 'from-red-500 to-red-700';
- };
+  const currentTotal = currentScores.reduce((sum: number, s: any) => sum + (s.score ?? 0), 0);
+  const currentMax   = currentScores.reduce((sum: number, s: any) => sum + (s.maxScore ?? 0), 0);
+  const rawPct       = currentMax > 0 ? (currentTotal / currentMax) * 100 : 0;
 
- const getScoreBadge = (percentage: number) => {
- if (percentage >= 90) return { text: 'Excelente', class: 'badge-success', icon: '' };
- if (percentage >= 80) return { text: 'Muy Bueno', class: 'badge-success', icon: '' };
- if (percentage >= 70) return { text: 'Bueno', class: 'badge-warning', icon: '' };
- if (percentage >= 60) return { text: 'Aceptable', class: 'badge-warning', icon: '' };
- return { text: 'Necesita Mejora', class: 'badge-danger', icon: '' };
- };
+  const criticalFailed  = currentScores.filter((s: any) => s.criticality === 'Crítico' && (s.score ?? 0) === 0);
+  const hasCriticalFail = criticalFailed.length > 0;
+  const currentPct      = hasCriticalFail ? 0 : rawPct;
 
- const getImpactIcon = (impact: string) => {
- switch (impact) {
- case 'positive':
- return <CheckCircle2 className="w-4 h-4 text-green-400" />;
- case 'negative':
- return <AlertCircle className="w-4 h-4 text-red-400" />;
- default:
- return <Clock className="w-4 h-4 text-slate-400" />;
- }
- };
+  const criticalOnly = currentScores.filter(
+    (s: any) => s.criticality === 'Crítico' && typeof s.maxScore === 'number' && s.maxScore > 0
+  );
+  const criticalPct =
+    criticalOnly.length > 0
+      ? (criticalOnly.reduce((s: number, x: any) => s + (x.score ?? 0), 0) /
+          criticalOnly.reduce((s: number, x: any) => s + x.maxScore, 0)) * 100
+      : null;
 
- const formatTimestamp = (timestamp: string | number): string => {
- if (!timestamp) return '00:00';
- 
- const timestampStr = String(timestamp);
- 
- if (/^\d{1,2}:\d{2}$/.test(timestampStr)) {
- const [mins, secs] = timestampStr.split(':').map(Number);
- return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
- }
- 
- if (/^\d{1,2}:\d{2}:\d{2}$/.test(timestampStr)) {
- const parts = timestampStr.split(':').map(Number);
- const hours = parts[0] || 0;
- const minutes = parts[1] || 0;
- const seconds = parts[2] || 0;
- 
- const totalMinutes = hours * 60 + minutes;
- return `${totalMinutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
- }
- 
- const totalSeconds = parseInt(timestampStr);
- if (!isNaN(totalSeconds)) {
- const mins = Math.floor(totalSeconds / 60);
- const secs = totalSeconds % 60;
- return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
- }
- 
- return timestampStr;
- };
+  const hasEdits = Object.keys(scoreEdits).length > 0;
 
- const formatTranscript = (transcript: string): string => {
- if (!transcript) return 'No hay transcripción disponible';
- return transcript.replace(/\[([^\]]+)\]/g, (match, timestamp) => {
- const formatted = formatTimestamp(timestamp);
- return `[${formatted}]`;
- });
- };
+  // ── Clasificar criterios ─────────────────────────────────────────────────────
+  const getCriterionStatus = (score: number, maxScore: number): 'passed' | 'partial' | 'failed' => {
+    if (maxScore === 0) return 'passed';
+    const pct = (score / maxScore) * 100;
+    if (pct >= 80) return 'passed';
+    if (pct > 0)   return 'partial';
+    return 'failed';
+  };
 
- // âœ… VALIDACIONES DEFENSIVAS
- const safeResult = {
- percentage: result?.percentage ?? 0,
- totalScore: result?.totalScore ?? 0,
- maxPossibleScore: result?.maxPossibleScore ?? 0,
- detailedScores: Array.isArray(result?.detailedScores) ? result.detailedScores : [],
- observations: result?.observations ?? 'Sin observaciones',
- recommendations: Array.isArray(result?.recommendations) ? result.recommendations : [],
- keyMoments: Array.isArray(result?.keyMoments) ? result.keyMoments : [],
- transcript: result?.transcript ?? '',
- audioConfidence: result?.audioConfidence
- };
+  const filterCounts = useMemo(() => {
+    const counts = { passed: 0, partial: 0, failed: 0 };
+    currentScores.forEach((s: any) => {
+      counts[getCriterionStatus(s.score ?? 0, s.maxScore ?? 0)]++;
+    });
+    return counts;
+  }, [currentScores]);
 
- const getAudioQualityLabel = (confidence: number) => {
- if (confidence >= 90) return { label: 'Excelente', cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' };
- if (confidence >= 75) return { label: 'Buena', cls: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' };
- if (confidence >= 60) return { label: 'Moderada', cls: 'bg-orange-500/20 text-orange-400 border-orange-500/30' };
- return { label: 'Baja', cls: 'bg-red-500/20 text-red-400 border-red-500/30' };
- };
+  // ── Agrupado y filtrado ──────────────────────────────────────────────────────
+  const scoresByBlock = useMemo((): Record<string, any[]> => {
+    return currentScores.reduce((acc: Record<string, any[]>, score: any) => {
+      if (!score?.criterion) return acc;
+      const m = score.criterion.match(/\[(.*?)\]/);
+      const block = m ? m[1] : 'General';
+      if (!acc[block]) acc[block] = [];
+      const status = getCriterionStatus(score.score ?? 0, score.maxScore ?? 0);
+      if (filter === 'all' || filter === status) acc[block].push(score);
+      return acc;
+    }, {});
+  }, [currentScores, filter]);
 
- // ── Cálculos en tiempo real con ediciones ──────────────────────────
- const currentScores = safeResult.detailedScores.map((s: any, i: number) => ({
- ...s,
- score: scoreEdits[i] !== undefined ? scoreEdits[i] : (s.score ?? 0)
- }));
+  const visibleBlocks = Object.entries(scoresByBlock).filter(([, scores]) => scores.length > 0);
 
- const currentTotal = currentScores.reduce((sum: number, s: any) => sum + (s.score ?? 0), 0);
- const currentMax = currentScores.reduce((sum: number, s: any) => sum + (s.maxScore ?? 0), 0);
- const rawPercentage = currentMax > 0 ? (currentTotal / currentMax) * 100 : 0;
+  // ── Estado de expansión por criterio ────────────────────────────────────────
+  const isCriterionExpanded = (idx: number, score: number, maxScore: number) => {
+    if (allExpanded !== null) return allExpanded;
+    if (expandedCriteria[idx] !== undefined) return expandedCriteria[idx];
+    // Auto-expand si tiene falla o puntuación baja
+    const pct = maxScore > 0 ? (score / maxScore) * 100 : 100;
+    return pct < 80;
+  };
 
- // Reevaluar fallo crítico con ediciones actuales
- const criticalFailed = currentScores.filter((s: any) => s.criticality === 'Crítico' && (s.score ?? 0) === 0);
- const hasCriticalFailure = criticalFailed.length > 0;
- const currentPercentage = hasCriticalFailure ? 0 : rawPercentage;
+  const toggleSection = (key: string) =>
+    setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }));
 
- // Porcentaje exclusivo de criterios críticos
- const criticalOnly = currentScores.filter((s: any) => s.criticality === 'Crítico' && typeof s.maxScore === 'number' && s.maxScore > 0);
- const criticalTotalScore = criticalOnly.reduce((sum: number, s: any) => sum + (s.score ?? 0), 0);
- const criticalMaxScore = criticalOnly.reduce((sum: number, s: any) => sum + s.maxScore, 0);
- const criticalPercentage = criticalMaxScore > 0 ? (criticalTotalScore / criticalMaxScore) * 100 : null;
+  const toggleCriterion = (idx: number, currentOpen: boolean) =>
+    setExpandedCriteria(prev => ({ ...prev, [idx]: !currentOpen }));
 
- const hasEdits = Object.keys(scoreEdits).length > 0;
+  const toggleExpandAll = () => {
+    const next = allExpanded === true ? false : true;
+    setAllExpanded(next);
+    setExpandedCriteria({});
+  };
 
- // Helpers de edición
- const startEdit = (idx: number, currentScore: number) => {
- setEditingIndex(idx);
- setEditInputValue(String(currentScore));
- };
+  // ── Edición ──────────────────────────────────────────────────────────────────
+  const startEdit   = (idx: number, cur: number) => { setEditingIndex(idx); setEditInputValue(String(cur)); };
+  const cancelEdit  = () => { setEditingIndex(null); setEditInputValue(''); };
+  const confirmEdit = (idx: number, max: number) => {
+    const v = parseInt(editInputValue, 10);
+    if (!isNaN(v) && v >= 0 && v <= max) setScoreEdits(prev => ({ ...prev, [idx]: v }));
+    setEditingIndex(null); setEditInputValue('');
+  };
+  const discardEdits = () => { setScoreEdits({}); setEditingIndex(null); setEditInputValue(''); };
+  const saveEdits    = async () => {
+    if (!auditId || !hasEdits) return;
+    setIsSaving(true);
+    try {
+      await auditService.updateAuditScores(
+        auditId,
+        currentScores.map((s: any) => ({
+          criterion: s.criterion, score: s.score, maxScore: s.maxScore,
+          observations: s.observations, criticality: s.criticality || '-',
+        }))
+      );
+      setScoreEdits({});
+      toast.success('Puntajes guardados');
+    } catch {
+      toast.error('Error al guardar');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
- const cancelEdit = () => {
- setEditingIndex(null);
- setEditInputValue('');
- };
+  // ── Helpers visuales ─────────────────────────────────────────────────────────
+  const getScoreColor = (pct: number) => {
+    if (pct >= 90) return 'text-brand-400';
+    if (pct >= 80) return 'text-green-400';
+    if (pct >= 70) return 'text-yellow-400';
+    if (pct >= 60) return 'text-orange-400';
+    return 'text-red-400';
+  };
 
- const confirmEdit = (idx: number, maxScore: number) => {
- const parsed = parseInt(editInputValue, 10);
- if (!isNaN(parsed) && parsed >= 0 && parsed <= maxScore) {
- setScoreEdits(prev => ({ ...prev, [idx]: parsed }));
- }
- setEditingIndex(null);
- setEditInputValue('');
- };
+  const getBarBg = (pct: number) => {
+    if (pct >= 80) return 'bg-brand-500';
+    if (pct >= 60) return 'bg-yellow-500';
+    return 'bg-red-500';
+  };
 
- const discardEdits = () => {
- setScoreEdits({});
- setEditingIndex(null);
- setEditInputValue('');
- };
+  const getScoreBadge = (pct: number) => {
+    if (pct >= 90) return { text: 'Excelente',      cls: 'bg-brand-500/10 text-brand-400 border-brand-700/40' };
+    if (pct >= 80) return { text: 'Muy bueno',      cls: 'bg-green-500/10 text-green-400 border-green-500/30' };
+    if (pct >= 70) return { text: 'Bueno',           cls: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30' };
+    if (pct >= 60) return { text: 'Aceptable',       cls: 'bg-orange-500/10 text-orange-400 border-orange-500/30' };
+    return          { text: 'Necesita mejora',       cls: 'bg-red-500/10 text-red-400 border-red-500/30' };
+  };
 
- const saveEdits = async () => {
- if (!auditId || !hasEdits) return;
- setIsSaving(true);
- try {
- const updatedScores = currentScores.map((s: any) => ({
- criterion: s.criterion,
- score: s.score,
- maxScore: s.maxScore,
- observations: s.observations,
- criticality: s.criticality || '-'
- }));
- await auditService.updateAuditScores(auditId, updatedScores);
- setScoreEdits({});
- toast.success('Puntajes guardados correctamente');
- } catch {
- toast.error('Error al guardar los puntajes');
- } finally {
- setIsSaving(false);
- }
- };
- // ────────────────────────────────────────────────────────────────────
+  // Ícono de estado inequívoco por criterio
+  const StatusIcon = ({ score, maxScore, isCritical }: { score: number; maxScore: number; isCritical: boolean }) => {
+    const pct = maxScore > 0 ? (score / maxScore) * 100 : 100;
+    const isCriticalZero = isCritical && score === 0;
+    if (isCriticalZero)  return <ShieldAlert  className="w-4 h-4 text-red-400 flex-shrink-0" />;
+    if (pct >= 80)       return <CheckCircle2 className="w-4 h-4 text-brand-400 flex-shrink-0" />;
+    if (pct > 0)         return <MinusCircle  className="w-4 h-4 text-yellow-400 flex-shrink-0" />;
+    return                      <XCircle      className="w-4 h-4 text-red-400 flex-shrink-0" />;
+  };
 
- const scoreBadge = getScoreBadge(currentPercentage);
+  const getImpactIcon = (impact: string) => {
+    if (impact === 'positive') return <CheckCircle2 className="w-3.5 h-3.5 text-brand-400 flex-shrink-0" />;
+    if (impact === 'negative') return <AlertCircle  className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />;
+    return                            <Clock        className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />;
+  };
 
- // âœ… Agrupar scores por bloque de forma segura (usando currentScores para incluir ediciones)
- const scoresByBlock = currentScores.reduce((acc: Record<string, any[]>, score: any, globalIdx: number) => {
- if (!score || !score.criterion) return acc;
- const match = score.criterion.match(/\[(.*?)\]/);
- const block = match ? match[1] : 'Otros';
- if (!acc[block]) acc[block] = [];
- acc[block].push({ ...score, _globalIndex: globalIdx });
- return acc;
- }, {} as Record<string, any[]>);
+  const getAudioQuality = (c: number) => {
+    if (c >= 90) return { label: 'Excelente', cls: 'bg-brand-500/10 text-brand-400 border-brand-700/30' };
+    if (c >= 75) return { label: 'Buena',     cls: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30' };
+    if (c >= 60) return { label: 'Moderada',  cls: 'bg-orange-500/10 text-orange-400 border-orange-500/30' };
+    return               { label: 'Baja',     cls: 'bg-red-500/10 text-red-400 border-red-500/30' };
+  };
 
- return (
- <div className="space-y-6 animate-fadeIn">
- {/* Header con Score Principal */}
- <div className="card-highlight relative overflow-hidden">
- <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full blur-3xl"></div>
- 
- <div className="relative">
- <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
- <div className="flex-1">
- <div className="flex items-center gap-3 mb-4">
- <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl">
- <Award className="w-8 h-8 text-white" />
- </div>
- <div>
- <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
- Resultados de Evaluación
- </h1>
- <div className="flex items-center gap-3 mt-1">
- <p className="text-slate-400">Análisis completado exitosamente</p>
- {callType && (
- (callType || '').toUpperCase() === 'MONITOREO' ? (
- <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">
- <Monitor className="w-3.5 h-3.5" />
- Monitoreo
- </span>
- ) : (
- <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-500/20 text-blue-400 border border-blue-500/40">
- <PhoneIncoming className="w-3.5 h-3.5" />
- Inbound
- </span>
- )
- )}
- </div>
- </div>
- </div>
- </div>
- 
- <div className="text-center md:text-right">
- <div className="mb-3">
- <div className={`text-7xl font-bold ${getScoreColor(currentPercentage)} drop-shadow-glow transition-all duration-300`}>
- {currentPercentage.toFixed(1)}%
- </div>
- <div className="flex items-center justify-center md:justify-end gap-2 mt-2 flex-wrap">
- <span className={`badge ${scoreBadge.class} text-base px-4 py-1.5`}>
- {scoreBadge.icon} {scoreBadge.text}
- </span>
- {hasCriticalFailure && (
- <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse">
- <ShieldAlert className="w-4 h-4" />
- Criterio Crítico en 0
- </span>
- )}
- {hasEdits && (
- <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40">
- <Pencil className="w-3 h-3" />
- Modificado
- </span>
- )}
- </div>
- </div>
- <div className="text-slate-400 mb-2">
- <span className="text-2xl font-bold text-white">{currentTotal}</span>
- <span className="text-lg"> / {currentMax}</span>
- <span className="text-sm ml-1">puntos</span>
- </div>
- {criticalPercentage !== null && (
- <div className={`text-sm font-semibold ${criticalPercentage === 0 ? 'text-red-400' : criticalPercentage >= 80 ? 'text-green-400' : 'text-yellow-400'}`}>
- <ShieldAlert className="w-3.5 h-3.5 inline mr-1" />
- Críticos: {criticalPercentage.toFixed(1)}%
- </div>
- )}
- </div>
- </div>
+  const formatTimestamp = (ts: string | number): string => {
+    if (!ts) return '00:00';
+    const s = String(ts);
+    if (/^\d{1,2}:\d{2}$/.test(s))    { const [m, sec] = s.split(':').map(Number); return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`; }
+    if (/^\d{1,2}:\d{2}:\d{2}$/.test(s)) { const [h,m,sec]=s.split(':').map(Number); return `${String(h*60+m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`; }
+    const n = parseInt(s);
+    return isNaN(n) ? s : `${String(Math.floor(n/60)).padStart(2,'0')}:${String(n%60).padStart(2,'0')}`;
+  };
 
- {/* Progress Bar */}
- <div className="mt-6">
- <div className="relative w-full h-3 bg-slate-800 rounded-full overflow-hidden">
- <div
- className={`absolute inset-y-0 left-0 bg-gradient-to-r ${getScoreGradient(currentPercentage)} rounded-full transition-all duration-500 shadow-glow`}
- style={{ width: `${Math.max(0, Math.min(100, currentPercentage))}%` }}
- >
- <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent animate-pulse"></div>
- </div>
- </div>
- </div>
+  const formatTranscript = (text: string) =>
+    text ? text.replace(/\[([^\]]+)\]/g, (_, ts) => `[${formatTimestamp(ts)}]`) : 'No hay transcripción disponible';
 
- {/* Action Buttons */}
- <div className="flex flex-wrap gap-3 mt-6">
- <button onClick={onDownload} className="btn-success flex items-center gap-2">
- <Download className="w-4 h-4" />
- Descargar Excel
- </button>
- <button onClick={onNewAudit} className="btn-secondary flex items-center gap-2">
- <Sparkles className="w-4 h-4" />
- Nueva Auditoría
- </button>
- {hasEdits && auditId && (
- <>
- <button
- onClick={saveEdits}
- disabled={isSaving}
- className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-blue-600 hover:bg-blue-500 text-white transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
- >
- <Save className="w-4 h-4" />
- {isSaving ? 'Guardando...' : 'Guardar cambios'}
- </button>
- <button
- onClick={discardEdits}
- disabled={isSaving}
- className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm bg-slate-700 hover:bg-slate-600 text-slate-200 transition-all duration-200 disabled:opacity-60"
- >
- <RotateCcw className="w-4 h-4" />
- Descartar
- </button>
- </>
- )}
- </div>
- </div>
- </div>
+  const scoreBadge = getScoreBadge(currentPct);
 
- {/* Alerta de baja calidad de audio */}
- {safeResult.audioConfidence !== undefined && safeResult.audioConfidence > 0 && safeResult.audioConfidence < 70 && (
- <div className="flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl mt-4">
- <AlertCircle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
- <p className="text-amber-300 text-sm">
- La calidad del audio puede haber afectado esta evaluación (confianza de transcripción: {safeResult.audioConfidence.toFixed(1)}%). Se recomienda revisión manual.
- </p>
- </div>
- )}
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════════════════════════════════════════
+  return (
+    <div className="space-y-3 animate-fadeIn">
 
- {/* Banner de fallo crítico */}
- {hasCriticalFailure && (
- <div className="flex items-start gap-4 p-4 bg-red-950/30 border border-red-500/40 rounded-xl">
- <ShieldAlert className="w-6 h-6 text-red-400 flex-shrink-0 mt-0.5" />
- <div>
- <p className="text-red-300 font-bold mb-1">Fallo en criterio(s) crítico(s) — Resultado: 0%</p>
- <p className="text-red-400/80 text-sm">
- Los siguientes criterios críticos tienen 0 puntos:{' '}
- <span className="font-semibold text-red-300">
- {criticalFailed.map((s: any) => s.criterion.replace(/\[.*?\]\s*/, '')).join(', ')}
- </span>
- </p>
- <p className="text-red-400/60 text-xs mt-1">Puedes editar los puntajes manualmente si es necesario.</p>
- </div>
- </div>
- )}
+      {/* ── 1. TARJETA DE SCORE ─────────────────────────────────────────────── */}
+      <div
+        className="rounded-xl border overflow-hidden"
+        style={{
+          background: 'linear-gradient(145deg, rgba(18,18,32,0.99), rgba(10,10,20,1))',
+          borderColor: hasCriticalFail ? 'rgba(239,68,68,0.3)' : 'rgba(30,30,50,1)',
+        }}
+      >
+        {/* Línea de acento superior */}
+        <div
+          className="h-0.5 w-full"
+          style={{
+            background: hasCriticalFail
+              ? 'linear-gradient(90deg, transparent, rgba(239,68,68,0.6), transparent)'
+              : `linear-gradient(90deg, transparent, ${currentPct >= 80 ? 'rgba(0,214,50,0.5)' : currentPct >= 60 ? 'rgba(234,179,8,0.5)' : 'rgba(239,68,68,0.5)'}, transparent)`,
+          }}
+        />
 
- {/* Stats Cards */}
- <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
- <div className="stat-card">
- <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-sm font-medium">Criterios Evaluados</span>
- <Target className="w-5 h-5 text-blue-400" />
- </div>
- <div className="text-3xl font-bold text-white">{safeResult.detailedScores.length}</div>
- <div className="text-xs text-slate-500 mt-1">Total de ítems</div>
- </div>
+        <div className="p-5">
+          {/* Fila superior: etiqueta + tipo de llamada + botones */}
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 rounded-lg bg-brand-500/10 border border-brand-700/30">
+                <Award className="w-4 h-4 text-brand-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">Resultados de Evaluación</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-xs text-slate-500">Análisis completado</span>
+                  {callType && (
+                    callType.toUpperCase() === 'MONITOREO' ? (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                        <Monitor className="w-3 h-3" /> Monitoreo
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-brand-500/10 text-brand-400 border border-brand-700/25">
+                        <PhoneIncoming className="w-3 h-3" /> Inbound
+                      </span>
+                    )
+                  )}
+                </div>
+              </div>
+            </div>
 
- {criticalPercentage !== null && (
- <div className={`stat-card border ${hasCriticalFailure ? 'border-red-500/40 bg-red-950/10' : 'border-slate-700/50'}`}>
- <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-sm font-medium">% Críticos</span>
- <ShieldAlert className={`w-5 h-5 ${hasCriticalFailure ? 'text-red-400' : 'text-green-400'}`} />
- </div>
- <div className={`text-3xl font-bold ${hasCriticalFailure ? 'text-red-400' : criticalPercentage >= 80 ? 'text-green-400' : 'text-yellow-400'}`}>
- {criticalPercentage.toFixed(1)}%
- </div>
- <div className="text-xs text-slate-500 mt-1">{criticalOnly.length} criterios críticos</div>
- </div>
- )}
+            {/* Acciones */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {hasEdits && auditId && (
+                <>
+                  <button onClick={discardEdits} disabled={isSaving}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-dark-card border border-dark-border text-slate-400 hover:text-white transition-all">
+                    <RotateCcw className="w-3.5 h-3.5" /> Descartar
+                  </button>
+                  <button onClick={saveEdits} disabled={isSaving}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand-500 text-black hover:bg-brand-400 transition-all disabled:opacity-50 shadow-md shadow-brand-500/20">
+                    <Save className="w-3.5 h-3.5" />
+                    {isSaving ? 'Guardando…' : 'Guardar cambios'}
+                  </button>
+                </>
+              )}
+              <button onClick={onDownload} className="btn-success flex items-center gap-1.5">
+                <Download className="w-3.5 h-3.5" /> Descargar Excel
+              </button>
+              <button onClick={onNewAudit} className="btn-secondary flex items-center gap-1.5">
+                <Plus className="w-3.5 h-3.5" /> Nueva
+              </button>
+            </div>
+          </div>
 
- <div className="stat-card">
- <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-sm font-medium">Recomendaciones</span>
- <TrendingUp className="w-5 h-5 text-green-400" />
- </div>
- <div className="text-3xl font-bold text-white">{safeResult.recommendations.length}</div>
- <div className="text-xs text-slate-500 mt-1">Sugerencias de mejora</div>
- </div>
+          {/* Puntuación principal + mini stats */}
+          <div className="flex items-stretch gap-5">
+            {/* % grande */}
+            <div className="flex-shrink-0 flex flex-col justify-center min-w-[100px]">
+              <div className={`text-5xl font-black tabular-nums leading-none ${getScoreColor(currentPct)}`}>
+                {currentPct.toFixed(1)}<span className="text-xl font-semibold text-slate-500">%</span>
+              </div>
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${scoreBadge.cls}`}>
+                  {scoreBadge.text}
+                </span>
+                {hasCriticalFail && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/25 animate-pulse">
+                    <ShieldAlert className="w-3 h-3" /> Crítico
+                  </span>
+                )}
+                {hasEdits && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/25">
+                    <Pencil className="w-3 h-3" /> Editado
+                  </span>
+                )}
+              </div>
+            </div>
 
- <div className="stat-card">
- <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-sm font-medium">Momentos Clave</span>
- <Clock className="w-5 h-5 text-orange-400" />
- </div>
- <div className="text-3xl font-bold text-white">{safeResult.keyMoments.length}</div>
- <div className="text-xs text-slate-500 mt-1">Puntos destacados</div>
- </div>
- </div>
+            {/* Divisor */}
+            <div className="w-px bg-dark-border self-stretch flex-shrink-0" />
 
- {/* Scores Detallados */}
- <div className="card">
- <button 
- onClick={() => toggleSection('scores')}
- className="w-full flex items-center justify-between mb-6 group"
- >
- <h2 className="section-header mb-0">
- <Target className="w-6 h-6 text-blue-400" />
- Evaluación Detallada
- </h2>
- {expandedSections.scores ? (
- <ChevronUp className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
- ) : (
- <ChevronDown className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
- )}
- </button>
- 
- {expandedSections.scores && (
- <div className="space-y-6">
- {Object.entries(scoresByBlock).map(([block, scores]) => (
- <div key={block} className="space-y-4">
- <h3 className="text-lg font-semibold text-blue-400 flex items-center gap-2 pb-2 border-b border-slate-800">
- <span className="p-1.5 bg-blue-500/10 rounded-lg">
- <Target className="w-4 h-4" />
- </span>
- {block}
- </h3>
- 
- <div className="space-y-4">
- {scores.map((score: any) => {
- const globalIdx: number = score._globalIndex;
- const isCritical = score.criticality === 'Crítico';
- const isEdited = scoreEdits[globalIdx] !== undefined;
- const isCurrentlyEditing = editingIndex === globalIdx;
+            {/* Stats en grid 2×2 */}
+            <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-2 content-center">
+              <div>
+                <p className="text-xs text-slate-500 mb-0.5">Puntos obtenidos</p>
+                <p className="text-base font-bold text-white tabular-nums">
+                  {currentTotal} <span className="text-slate-600 font-normal text-xs">/ {currentMax}</span>
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 mb-0.5">Criterios evaluados</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-base font-bold text-white tabular-nums">{safeResult.detailedScores.length}</p>
+                  {filterCounts.failed > 0 && (
+                    <span className="text-xs font-semibold text-red-400">{filterCounts.failed} fallido{filterCounts.failed > 1 ? 's' : ''}</span>
+                  )}
+                </div>
+              </div>
+              {criticalPct !== null && (
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">Criterios críticos</p>
+                  <p className={`text-base font-bold tabular-nums ${hasCriticalFail ? 'text-red-400' : criticalPct >= 80 ? 'text-brand-400' : 'text-yellow-400'}`}>
+                    {criticalPct.toFixed(0)}%
+                    <span className="text-slate-600 font-normal text-xs ml-1">({criticalOnly.length})</span>
+                  </p>
+                </div>
+              )}
+              {safeResult.audioConfidence !== undefined && safeResult.audioConfidence > 0 && (
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">Calidad de audio</p>
+                  <p className="text-base font-bold text-white tabular-nums">
+                    {safeResult.audioConfidence.toFixed(0)}%
+                    <span className={`text-xs font-semibold ml-1 ${getAudioQuality(safeResult.audioConfidence).cls.split(' ')[1]}`}>
+                      {getAudioQuality(safeResult.audioConfidence).label}
+                    </span>
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
 
- const safeScore = {
- criterion: score?.criterion ?? 'Sin criterio',
- score: score?.score ?? 0,
- maxScore: score?.maxScore ?? 0,
- observations: score?.observations ?? score?.justification ?? 'Sin justificación disponible',
- evidence: Array.isArray(score?.evidence) ? score.evidence : [],
- criticality: score?.criticality || '-'
- };
+          {/* Barra de progreso */}
+          <div className="mt-4 flex items-center gap-3">
+            <div className="flex-1 relative h-2 bg-dark-border rounded-full overflow-hidden">
+              <div
+                className={`absolute inset-y-0 left-0 rounded-full transition-all duration-700 ${getBarBg(currentPct)}`}
+                style={{ width: `${Math.max(0, Math.min(100, currentPct))}%` }}
+              />
+            </div>
+            <span className="text-xs text-slate-600 tabular-nums flex-shrink-0">{currentPct.toFixed(0)}%</span>
+          </div>
+        </div>
+      </div>
 
- const percentage = safeScore.maxScore > 0
- ? Math.round((safeScore.score / safeScore.maxScore) * 100)
- : 0;
+      {/* ── ALERTAS ─────────────────────────────────────────────────────────── */}
+      {hasCriticalFail && (
+        <div className="flex items-start gap-3 p-3.5 rounded-xl border border-red-500/30 bg-red-950/20">
+          <ShieldAlert className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-red-300 mb-0.5">
+              Criterio(s) crítico(s) en 0 — Resultado final: 0%
+            </p>
+            <p className="text-xs text-red-400/80 leading-relaxed">
+              {criticalFailed.map((s: any) => s.criterion.replace(/\[.*?\]\s*/, '')).join(' · ')}
+            </p>
+          </div>
+        </div>
+      )}
+      {safeResult.audioConfidence !== undefined && safeResult.audioConfidence > 0 && safeResult.audioConfidence < 70 && (
+        <div className="flex items-start gap-3 p-3.5 rounded-xl border border-amber-500/25 bg-amber-500/5">
+          <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-amber-300 leading-relaxed">
+            Calidad de audio baja ({safeResult.audioConfidence.toFixed(1)}%). La transcripción puede tener errores. Se recomienda revisión manual.
+          </p>
+        </div>
+      )}
 
- const isCriticalZero = isCritical && safeScore.score === 0;
+      {/* ── 2. EVALUACIÓN DETALLADA ──────────────────────────────────────────── */}
+      <div className="rounded-xl border border-dark-border overflow-hidden" style={{ background: 'linear-gradient(145deg, rgba(18,18,32,0.97), rgba(10,10,20,1))' }}>
 
- return (
- <div
- key={globalIdx}
- className={`p-5 rounded-xl border transition-all duration-300 ${
- isCriticalZero
- ? 'bg-red-950/20 border-red-500/40 hover:border-red-400/60'
- : isEdited
- ? 'bg-amber-950/10 border-amber-500/30 hover:border-amber-400/50'
- : 'bg-slate-800/30 border-slate-700/50 hover:border-blue-500/30'
- }`}
- >
- {/* Cabecera: nombre + badges + botón editar */}
- <div className="flex items-start justify-between mb-3 gap-3">
- <div className="flex-1 min-w-0">
- <div className="flex items-center gap-2 flex-wrap mb-1">
- <h4 className="text-base font-semibold text-white">
- {safeScore.criterion.replace(/\[.*?\]\s*/, '')}
- </h4>
- {isCritical && (
- <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-500/15 text-red-400 border border-red-500/30 flex-shrink-0">
- <ShieldAlert className="w-3 h-3" />
- Crítico
- </span>
- )}
- {isEdited && (
- <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 flex-shrink-0">
- <Pencil className="w-3 h-3" />
- Editado
- </span>
- )}
- </div>
+        {/* Cabecera de sección con filtros */}
+        <div className="px-4 py-3 border-b border-dark-border">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            {/* Filtros */}
+            <div className="flex items-center gap-1 flex-wrap">
+              {(
+                [
+                  { key: 'all',     label: 'Todos',       count: safeResult.detailedScores.length, color: 'text-slate-300' },
+                  { key: 'passed',  label: 'Aprobados',   count: filterCounts.passed,              color: 'text-brand-400'  },
+                  { key: 'partial', label: 'Parciales',   count: filterCounts.partial,             color: 'text-yellow-400' },
+                  { key: 'failed',  label: 'Reprobados',  count: filterCounts.failed,              color: 'text-red-400'    },
+                ] as const
+              ).map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setFilter(tab.key)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    filter === tab.key
+                      ? 'bg-white/8 text-white border border-white/10'
+                      : 'text-slate-500 hover:text-slate-300 hover:bg-white/4'
+                  }`}
+                >
+                  <span className={filter === tab.key ? 'text-white' : tab.color}>{tab.count}</span>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
- {/* Puntaje: modo lectura o modo edición */}
- {isCurrentlyEditing ? (
- <div className="flex items-center gap-2 mt-2">
- <div className="flex flex-col gap-1.5">
- <div className="flex items-center gap-2">
- <input
- type="number"
- min={0}
- max={safeScore.maxScore}
- value={editInputValue}
- onChange={e => setEditInputValue(e.target.value)}
- onKeyDown={e => {
- if (e.key === 'Enter') confirmEdit(globalIdx, safeScore.maxScore);
- if (e.key === 'Escape') cancelEdit();
- }}
- autoFocus
- className="w-20 px-2 py-1 bg-slate-900 border border-blue-500 rounded-lg text-white text-sm font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-500/50"
- />
- <span className="text-slate-400 text-sm">/ {safeScore.maxScore}</span>
- <button
- onClick={() => confirmEdit(globalIdx, safeScore.maxScore)}
- className="p-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white transition-colors"
- title="Confirmar"
- >
- <Check className="w-3.5 h-3.5" />
- </button>
- <button
- onClick={cancelEdit}
- className="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
- title="Cancelar"
- >
- <X className="w-3.5 h-3.5" />
- </button>
- </div>
- <input
- type="range"
- min={0}
- max={safeScore.maxScore}
- value={parseInt(editInputValue) || 0}
- onChange={e => setEditInputValue(e.target.value)}
- className="w-40 accent-blue-500"
- />
- </div>
- </div>
- ) : (
- <div className="flex items-center gap-3 mt-1">
- <span className="text-sm text-slate-400">
- Puntos:{' '}
- <span className={`font-bold ${isCriticalZero ? 'text-red-400' : 'text-white'}`}>
- {safeScore.score}
- </span>
- /{safeScore.maxScore}
- </span>
- <span className={`text-sm font-bold ${
- percentage >= 80 ? 'text-green-400' :
- percentage >= 60 ? 'text-yellow-400' :
- 'text-red-400'
- }`}>
- {percentage}%
- </span>
- </div>
- )}
- </div>
+            {/* Expandir / Colapsar todo */}
+            <button
+              onClick={toggleExpandAll}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-300 hover:bg-white/4 transition-all border border-transparent hover:border-white/8"
+            >
+              <ChevronsUpDown className="w-3.5 h-3.5" />
+              {allExpanded === true ? 'Colapsar todo' : 'Expandir todo'}
+            </button>
+          </div>
+        </div>
 
- {/* Botón editar (solo cuando no está en modo edición) */}
- {!isCurrentlyEditing && safeScore.maxScore > 0 && (
- <button
- onClick={() => startEdit(globalIdx, safeScore.score)}
- className="flex-shrink-0 p-2 rounded-lg bg-slate-700/50 hover:bg-blue-600/30 hover:text-blue-300 text-slate-400 transition-all duration-200 border border-transparent hover:border-blue-500/40"
- title="Editar puntaje"
- >
- <Pencil className="w-4 h-4" />
- </button>
- )}
- </div>
+        {/* Lista de criterios agrupada por bloque */}
+        {visibleBlocks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <CheckCircle2 className="w-8 h-8 text-brand-400 mb-2" />
+            <p className="text-sm font-semibold text-slate-300">Sin criterios en esta categoría</p>
+          </div>
+        ) : (
+          visibleBlocks.map(([block, scores], blockIdx) => {
+            const blockTotal = scores.reduce((s: number, x: any) => s + (x.score ?? 0), 0);
+            const blockMax   = scores.reduce((s: number, x: any) => s + (x.maxScore ?? 0), 0);
+            const blockPct   = blockMax > 0 ? (blockTotal / blockMax) * 100 : 0;
+            const blockFails = scores.filter((s: any) => getCriterionStatus(s.score ?? 0, s.maxScore ?? 0) === 'failed').length;
 
- {/* Alerta crítico en cero */}
- {isCriticalZero && (
- <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg">
- <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
- <p className="text-xs text-red-300 font-semibold">
- Criterio crítico con 0 puntos — el resultado global es 0%
- </p>
- </div>
- )}
+            return (
+              <div key={block} className={blockIdx > 0 ? 'border-t border-dark-border/70' : ''}>
+                {/* Encabezado del bloque */}
+                <div className="flex items-center justify-between px-4 py-2 bg-dark-surface/50">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs font-bold text-slate-300 tracking-wide">{block}</span>
+                    <span className="text-xs text-slate-600">{scores.length} criterio{scores.length !== 1 ? 's' : ''}</span>
+                    {blockFails > 0 && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20">
+                        {blockFails} fallido{blockFails > 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-xs text-slate-600 tabular-nums">{blockTotal}/{blockMax} pts</span>
+                    <div className="w-14 h-1.5 bg-dark-border rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${getBarBg(blockPct)} transition-all duration-300`}
+                        style={{ width: `${Math.max(0, Math.min(100, blockPct))}%` }} />
+                    </div>
+                    <span className={`text-xs font-bold tabular-nums w-8 text-right ${getScoreColor(blockPct)}`}>
+                      {blockPct.toFixed(0)}%
+                    </span>
+                  </div>
+                </div>
 
- {/* Progress bar */}
- {!isCurrentlyEditing && (
- <div className="mb-3">
- <div className="relative w-full h-2 bg-slate-800 rounded-full overflow-hidden">
- <div
- className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${
- percentage >= 80 ? 'bg-gradient-to-r from-green-500 to-emerald-500' :
- percentage >= 60 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' :
- 'bg-gradient-to-r from-red-500 to-red-700'
- }`}
- style={{ width: `${Math.max(0, Math.min(100, percentage))}%` }}
- />
- </div>
- </div>
- )}
+                {/* Criterios */}
+                <div className="divide-y divide-dark-border/40">
+                  {scores.map((score: any) => {
+                    const idx         = score._globalIndex;
+                    const isCritical  = score.criticality === 'Crítico';
+                    const isEdited    = scoreEdits[idx] !== undefined;
+                    const isEditing   = editingIndex === idx;
+                    const safeScore   = score.score ?? 0;
+                    const safeMax     = score.maxScore ?? 0;
+                    const pct         = safeMax > 0 ? Math.round((safeScore / safeMax) * 100) : 0;
+                    const isCritZero  = isCritical && safeScore === 0;
+                    const name        = (score.criterion ?? '').replace(/\[.*?\]\s*/, '');
+                    const observations= score.observations ?? score.justification ?? '';
+                    const evidence    = Array.isArray(score.evidence) ? score.evidence : [];
+                    const hasDetail   = observations || evidence.length > 0;
+                    const isExpanded  = isCriterionExpanded(idx, safeScore, safeMax);
+                    const status      = getCriterionStatus(safeScore, safeMax);
 
- {/* Justificación */}
- <div className="mb-3 p-4 bg-slate-900/50 rounded-lg border border-slate-800">
- <p className="text-sm font-semibold text-purple-400 mb-2 flex items-center gap-2">
- <FileText className="w-4 h-4" />
- Justificación:
- </p>
- <p className="text-slate-300 leading-relaxed">{safeScore.observations}</p>
- </div>
+                    return (
+                      <div
+                        key={idx}
+                        className={`transition-colors ${
+                          isCritZero  ? 'bg-red-950/15 hover:bg-red-950/20'   :
+                          status === 'failed'  ? 'bg-red-950/8 hover:bg-red-950/12'   :
+                          status === 'partial' ? 'bg-amber-950/8 hover:bg-amber-950/12' :
+                          'hover:bg-white/[0.015]'
+                        }`}
+                      >
+                        {/* ── FILA PRINCIPAL ─────────────────────────────── */}
+                        <div className="flex items-center gap-3 px-4 py-2.5">
+                          {/* Ícono de estado (siempre visible) */}
+                          <div className="flex-shrink-0">
+                            <StatusIcon score={safeScore} maxScore={safeMax} isCritical={isCritical} />
+                          </div>
 
- {/* Evidencia (si existe) */}
- {safeScore.evidence.length > 0 && (
- <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
- <p className="text-sm font-semibold text-blue-400 mb-2 flex items-center gap-2">
- <CheckCircle2 className="w-4 h-4" />
- Evidencia:
- </p>
- <ul className="space-y-1.5">
- {safeScore.evidence.map((ev: string, i: number) => (
- <li key={i} className="text-sm text-slate-400 flex items-start gap-2 leading-relaxed">
- <span className="text-blue-400 mt-1 flex-shrink-0">â–¸</span>
- <span>{ev}</span>
- </li>
- ))}
- </ul>
- </div>
- )}
- </div>
- );
- })}
- </div>
- </div>
- ))}
- </div>
- )}
- </div>
+                          {/* Nombre + badges */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`text-sm leading-snug ${
+                                status === 'failed' ? 'text-red-200 font-medium' :
+                                status === 'partial' ? 'text-yellow-100 font-medium' :
+                                'text-slate-200 font-medium'
+                              }`}>
+                                {name}
+                              </span>
+                              {isCritical && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20 flex-shrink-0">
+                                  <ShieldAlert className="w-3 h-3" /> Crítico
+                                </span>
+                              )}
+                              {isEdited && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex-shrink-0">
+                                  <Pencil className="w-3 h-3" /> Editado
+                                </span>
+                              )}
+                            </div>
+                          </div>
 
- {/* Observaciones */}
- <div className="card">
- <button 
- onClick={() => toggleSection('observations')}
- className="w-full flex items-center justify-between mb-6 group"
- >
- <h2 className="section-header mb-0">
- <FileText className="w-6 h-6 text-purple-400" />
- Observaciones Generales
- </h2>
- {expandedSections.observations ? (
- <ChevronUp className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
- ) : (
- <ChevronDown className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
- )}
- </button>
- 
- {expandedSections.observations && (
- <div className="p-6 bg-slate-800/30 rounded-xl border border-slate-700/50">
- <p className="text-slate-200 whitespace-pre-wrap leading-relaxed">
- {safeResult.observations}
- </p>
- </div>
- )}
- </div>
+                          {/* Score + acciones (lado derecho) */}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {isEditing ? (
+                              // ── Modo edición ─────────────────────────────
+                              <div className="flex items-center gap-2">
+                                <div className="flex flex-col gap-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <input
+                                      type="number" min={0} max={safeMax}
+                                      value={editInputValue}
+                                      onChange={e => setEditInputValue(e.target.value)}
+                                      onKeyDown={e => {
+                                        if (e.key === 'Enter') confirmEdit(idx, safeMax);
+                                        if (e.key === 'Escape') cancelEdit();
+                                      }}
+                                      autoFocus
+                                      className="w-14 px-2 py-1 text-center text-sm font-bold bg-dark-bg border border-brand-700 rounded-lg text-white focus:outline-none focus:ring-1 focus:ring-brand-500"
+                                    />
+                                    <span className="text-xs text-slate-500">/ {safeMax} pts</span>
+                                  </div>
+                                  <input
+                                    type="range" min={0} max={safeMax}
+                                    value={parseInt(editInputValue) || 0}
+                                    onChange={e => setEditInputValue(e.target.value)}
+                                    className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                                    style={{ accentColor: '#00D632' }}
+                                  />
+                                </div>
+                                <button onClick={() => confirmEdit(idx, safeMax)}
+                                  className="p-1.5 rounded-lg bg-brand-500 text-black hover:bg-brand-400 transition-colors" title="Confirmar (Enter)">
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={cancelEdit}
+                                  className="p-1.5 rounded-lg bg-dark-card border border-dark-border text-slate-400 hover:text-white transition-colors" title="Cancelar (Esc)">
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              // ── Modo lectura ──────────────────────────────
+                              <>
+                                {/* Barra compacta */}
+                                <div className="w-16 h-1.5 bg-dark-border rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${getBarBg(pct)} transition-all duration-300`}
+                                    style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
+                                  />
+                                </div>
+                                {/* Puntos */}
+                                <span className={`text-xs tabular-nums font-semibold w-14 text-right ${
+                                  status === 'failed' ? 'text-red-400' :
+                                  status === 'partial' ? 'text-yellow-400' : 'text-brand-400'
+                                }`}>
+                                  {safeScore}/{safeMax} pts
+                                </span>
+                                {/* % */}
+                                <span className={`text-sm font-bold tabular-nums w-9 text-right ${getScoreColor(pct)}`}>
+                                  {pct}%
+                                </span>
+                                {/* Botón editar — siempre visible */}
+                                {safeMax > 0 && (
+                                  <button
+                                    onClick={() => startEdit(idx, safeScore)}
+                                    className="p-1.5 rounded-lg text-slate-600 hover:text-brand-400 hover:bg-brand-500/10 border border-transparent hover:border-brand-700/30 transition-all"
+                                    title="Editar puntaje"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {/* Expand toggle — solo si hay detalle */}
+                                {hasDetail && (
+                                  <button
+                                    onClick={() => toggleCriterion(idx, isExpanded)}
+                                    className="p-1.5 rounded-lg text-slate-600 hover:text-slate-300 transition-colors"
+                                    title={isExpanded ? 'Ocultar justificación' : 'Ver justificación'}
+                                  >
+                                    {isExpanded
+                                      ? <ChevronUp   className="w-3.5 h-3.5" />
+                                      : <ChevronDown className="w-3.5 h-3.5" />
+                                    }
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
 
- {/* Recomendaciones */}
- <div className="card">
- <button 
- onClick={() => toggleSection('recommendations')}
- className="w-full flex items-center justify-between mb-6 group"
- >
- <h2 className="section-header mb-0">
- <TrendingUp className="w-6 h-6 text-green-400" />
- Recomendaciones
- </h2>
- {expandedSections.recommendations ? (
- <ChevronUp className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
- ) : (
- <ChevronDown className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
- )}
- </button>
- 
- {expandedSections.recommendations && (
- <div className="space-y-3">
- {safeResult.recommendations.length > 0 ? (
- safeResult.recommendations.map((rec, index) => (
- <div 
- key={index} 
- className="flex items-start gap-4 p-4 bg-green-500/5 border border-green-500/20 rounded-xl hover:border-green-500/40 transition-all duration-300"
- >
- <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center border border-green-500/30">
- <span className="text-sm font-bold text-green-400">{index + 1}</span>
- </div>
- <p className="text-slate-200 flex-1 leading-relaxed pt-0.5">{rec}</p>
- </div>
- ))
- ) : (
- <div className="p-6 text-center text-slate-400">
- No hay recomendaciones disponibles
- </div>
- )}
- </div>
- )}
- </div>
+                        {/* ── JUSTIFICACIÓN EXPANDIDA ─────────────────────── */}
+                        {isExpanded && !isEditing && hasDetail && (
+                          <div className="px-4 pb-3 ml-7 max-w-[62%]">
+                            {/* Alerta crítico */}
+                            {isCritZero && (
+                              <div className="flex items-center gap-2 mb-2 px-3 py-1.5 rounded-lg bg-red-500/8 border border-red-500/20">
+                                <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
+                                <p className="text-xs text-red-300 font-medium">
+                                  Criterio crítico en 0 — el resultado global es 0%
+                                </p>
+                              </div>
+                            )}
 
- {/* Momentos Clave */}
- {safeResult.keyMoments.length > 0 && (
- <div className="card">
- <button 
- onClick={() => toggleSection('keyMoments')}
- className="w-full flex items-center justify-between mb-6 group"
- >
- <h2 className="section-header mb-0">
- <Clock className="w-6 h-6 text-orange-400" />
- Momentos Clave de la Llamada
- </h2>
- {expandedSections.keyMoments ? (
- <ChevronUp className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
- ) : (
- <ChevronDown className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
- )}
- </button>
- 
- {expandedSections.keyMoments && (
- <div className="space-y-3">
- {safeResult.keyMoments.map((moment, index) => {
- // âœ… Validación defensiva para cada momento
- const safeMoment = {
- timestamp: moment?.timestamp ?? '00:00',
- impact: moment?.impact ?? moment?.type ?? 'neutral',
- event: moment?.event ?? moment?.type ?? 'Sin título',
- description: moment?.description ?? 'Sin descripción'
- };
+                            {/* Justificación de la IA */}
+                            {observations && (
+                              <div className="mb-2.5 p-3 rounded-lg border border-dark-border/60 bg-dark-surface/40">
+                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                                  <FileText className="w-3 h-3" /> Justificación de la IA
+                                </p>
+                                <p className="text-sm text-slate-300 leading-relaxed">{observations}</p>
+                              </div>
+                            )}
 
- return (
- <div 
- key={index} 
- className="flex items-start gap-4 p-5 bg-slate-800/30 rounded-xl border border-slate-700/50 hover:border-blue-500/30 transition-all duration-300"
- >
- <div className="flex items-center gap-3 flex-shrink-0">
- <span className="font-mono text-blue-400 text-base font-bold px-3 py-1.5 bg-blue-500/10 rounded-lg border border-blue-500/30">
- {formatTimestamp(safeMoment.timestamp)}
- </span>
- {getImpactIcon(safeMoment.impact)}
- </div>
- <div className="flex-1">
- <p className="font-semibold text-white mb-1">{safeMoment.event}</p>
- <p className="text-sm text-slate-400 leading-relaxed">{safeMoment.description}</p>
- </div>
- </div>
- );
- })}
- </div>
- )}
- </div>
- )}
+                            {/* Evidencia */}
+                            {evidence.length > 0 && (
+                              <div className="p-3 rounded-lg border border-dark-border/60 bg-dark-surface/40">
+                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                                  <CheckCircle2 className="w-3 h-3" /> Evidencia encontrada
+                                </p>
+                                <ul className="space-y-1.5">
+                                  {evidence.map((ev: string, i: number) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-slate-400 leading-relaxed">
+                                      <span className="text-brand-500 mt-0.5 flex-shrink-0">▸</span>
+                                      <span>{ev}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
 
- {/* Transcripción */}
- <div className="card">
- <button
- onClick={() => toggleSection('transcript')}
- className="w-full flex items-center justify-between mb-6 group"
- >
- <div className="flex items-center gap-3">
- <h2 className="section-header mb-0">
- <FileText className="w-6 h-6 text-slate-400" />
- Transcripción Completa
- </h2>
- {safeResult.audioConfidence !== undefined && safeResult.audioConfidence > 0 && (() => {
- const q = getAudioQualityLabel(safeResult.audioConfidence!);
- return (
- <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${q.cls}`}>
- Calidad de audio: {safeResult.audioConfidence!.toFixed(1)}% — {q.label}
- </span>
- );
- })()}
- </div>
- {expandedSections.transcript ? (
- <ChevronUp className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
- ) : (
- <ChevronDown className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
- )}
- </button>
- 
- {expandedSections.transcript && (
- <div className="bg-slate-900/50 rounded-xl p-6 border border-slate-800 max-h-[600px] overflow-y-auto">
- <p className="text-slate-300 whitespace-pre-wrap leading-relaxed font-mono text-sm">
- {formatTranscript(safeResult.transcript)}
- </p>
- </div>
- )}
- </div>
- </div>
- );
+      {/* ── 3 — 5. SECCIONES SECUNDARIAS ────────────────────────────────────── */}
+      {[
+        {
+          key: 'observations',
+          icon: <FileText className="w-3.5 h-3.5 text-brand-400" />,
+          label: 'Observaciones Generales',
+          count: null,
+          content: (
+            <div className="px-4 py-3 border-t border-dark-border">
+              <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
+                {safeResult.observations}
+              </p>
+            </div>
+          ),
+        },
+        safeResult.recommendations.length > 0 && {
+          key: 'recommendations',
+          icon: <TrendingUp className="w-3.5 h-3.5 text-green-400" />,
+          label: 'Recomendaciones',
+          count: safeResult.recommendations.length,
+          content: (
+            <div className="border-t border-dark-border divide-y divide-dark-border/40">
+              {safeResult.recommendations.map((rec, i) => (
+                <div key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-white/[0.015] transition-colors">
+                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-brand-500/10 border border-brand-700/30 flex items-center justify-center text-xs font-bold text-brand-400 mt-0.5">
+                    {i + 1}
+                  </span>
+                  <p className="text-sm text-slate-300 leading-relaxed">{rec}</p>
+                </div>
+              ))}
+            </div>
+          ),
+        },
+        safeResult.keyMoments.length > 0 && {
+          key: 'keyMoments',
+          icon: <Clock className="w-3.5 h-3.5 text-orange-400" />,
+          label: 'Momentos Clave',
+          count: safeResult.keyMoments.length,
+          content: (
+            <div className="border-t border-dark-border divide-y divide-dark-border/40">
+              {safeResult.keyMoments.map((moment: any, i: number) => {
+                const m = {
+                  timestamp: moment?.timestamp ?? '00:00',
+                  impact: moment?.impact ?? moment?.type ?? 'neutral',
+                  event: moment?.event ?? moment?.type ?? 'Sin título',
+                  description: moment?.description ?? '',
+                };
+                return (
+                  <div key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-white/[0.015] transition-colors">
+                    <span className="flex-shrink-0 font-mono text-xs font-bold text-brand-400 bg-brand-500/10 border border-brand-700/25 rounded px-2 py-1 mt-0.5 tabular-nums">
+                      {formatTimestamp(m.timestamp)}
+                    </span>
+                    {getImpactIcon(m.impact)}
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-200">{m.event}</p>
+                      {m.description && <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{m.description}</p>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ),
+        },
+        {
+          key: 'transcript',
+          icon: <FileText className="w-3.5 h-3.5 text-slate-500" />,
+          label: 'Transcripción Completa',
+          count: null,
+          badge: safeResult.audioConfidence !== undefined && safeResult.audioConfidence > 0 && (() => {
+            const q = getAudioQuality(safeResult.audioConfidence!);
+            return (
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${q.cls}`}>
+                {safeResult.audioConfidence!.toFixed(0)}% · {q.label}
+              </span>
+            );
+          })(),
+          content: (
+            <div className="border-t border-dark-border px-4 py-3 max-h-80 overflow-y-auto">
+              <p className="text-sm text-slate-400 whitespace-pre-wrap leading-relaxed font-mono">
+                {formatTranscript(safeResult.transcript)}
+              </p>
+            </div>
+          ),
+        },
+      ].filter(Boolean).map((section: any) => (
+        <div
+          key={section.key}
+          className="rounded-xl border border-dark-border overflow-hidden"
+          style={{ background: 'linear-gradient(145deg, rgba(18,18,32,0.97), rgba(10,10,20,1))' }}
+        >
+          <button
+            onClick={() => toggleSection(section.key)}
+            className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.02] transition-colors group"
+          >
+            <div className="flex items-center gap-2">
+              {section.icon}
+              <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">{section.label}</span>
+              {section.count !== null && section.count !== undefined && (
+                <span className="text-xs font-bold text-slate-600">{section.count}</span>
+              )}
+              {section.badge}
+            </div>
+            {expandedSections[section.key]
+              ? <ChevronUp   className="w-4 h-4 text-slate-500 group-hover:text-slate-300 transition-colors" />
+              : <ChevronDown className="w-4 h-4 text-slate-500 group-hover:text-slate-300 transition-colors" />
+            }
+          </button>
+          {expandedSections[section.key] && section.content}
+        </div>
+      ))}
+
+    </div>
+  );
 }

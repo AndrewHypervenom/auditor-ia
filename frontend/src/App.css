@@ -120,7 +120,7 @@
 
 .kpi-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.5), 0 0 16px rgba(0, 214, 50, 0.07);
 }
 
 /* Responsive adjustments */
@@ -161,15 +161,15 @@
   left: 50%;
   transform: translateX(-50%);
   padding: 0.5rem 0.75rem;
-  background-color: #1e293b;
+  background-color: #141424;
   color: white;
-  border-radius: 0.375rem;
+  border-radius: 0.5rem;
   font-size: 0.75rem;
   white-space: normal;
   max-width: 250px;
   z-index: 50;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-  border: 1px solid #334155;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  border: 1px solid #1e1e32;
   margin-bottom: 0.25rem;
   word-wrap: break-word;
 }
@@ -234,17 +234,17 @@
 }
 
 .audit-table-container::-webkit-scrollbar-track {
-  background: #1e293b;
+  background: #0a0a12;
   border-radius: 4px;
 }
 
 .audit-table-container::-webkit-scrollbar-thumb {
-  background: #475569;
+  background: #1e1e32;
   border-radius: 4px;
 }
 
 .audit-table-container::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
+  background: rgba(0, 214, 50, 0.3);
 }
 
 /* Mejoras para accesibilidad */

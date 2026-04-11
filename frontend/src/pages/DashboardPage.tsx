@@ -1,4 +1,4 @@
-// frontend/src/pages/DashboardPage.tsx
+﻿// frontend/src/pages/DashboardPage.tsx
 // Dashboard inteligente que renderiza la vista correcta según el rol del usuario
 
 import { useEffect } from 'react';
@@ -16,7 +16,7 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto mb-4" />
+          <Loader2 className="w-12 h-12 text-brand-400 animate-spin mx-auto mb-4" />
           <p className="text-white">Cargando dashboard...</p>
         </div>
       </div>
