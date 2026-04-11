@@ -63,18 +63,18 @@ export default function ScriptsAdminPage() {
         <div className="grid grid-cols-2 gap-3 mb-8">
           {([
             {
-              key: 'scripts' as const,
-              icon: BookOpen,
-              label: 'Scripts de Agentes',
-              description: 'Guiones y frases por paso',
-              color: 'blue',
-            },
-            {
               key: 'criteria' as const,
               icon: ClipboardList,
               label: 'Criterios de Evaluación',
               description: 'Rúbricas y ponderaciones',
               color: 'purple',
+            },
+            {
+              key: 'scripts' as const,
+              icon: BookOpen,
+              label: 'Scripts de Agentes',
+              description: 'Guiones y frases por paso',
+              color: 'blue',
             },
           ]).map(({ key, icon: Icon, label, description, color }) => {
             const isActive = activeTab === key;
