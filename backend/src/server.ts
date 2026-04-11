@@ -1866,6 +1866,62 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  tokensUsados: evaluation.usage
  });
 
+ // ── 6b. Auto-score "Subir Excel" basado en transacciones GPF ─────────────
+ // Regla: si GPF tiene transacciones, el agente debió haberlas subido.
+ const hasTransactions = attentionData.transactions.length > 0;
+
+ if (hasTransactions) {
+   const excelIdx = evaluation.detailedScores.findIndex(
+     (s: any) => s.criterion.includes('Subir Excel')
+   );
+
+   if (excelIdx !== -1) {
+     const excelDs = evaluation.detailedScores[excelIdx];
+     const prevScore = excelDs.score;
+
+     if (prevScore < excelDs.maxScore) {
+       const scoreDiff = excelDs.maxScore - prevScore;
+
+       evaluation.detailedScores[excelIdx] = {
+         ...excelDs,
+         score: excelDs.maxScore,
+         observations:
+           `[Auto-calificado] GPF reporta ${attentionData.transactions.length} transacción(es); ` +
+           `el agente debió haber subido el Excel. ` +
+           `Evaluador IA asignó: ${prevScore}/${excelDs.maxScore}. ` +
+           excelDs.observations
+       };
+
+       (evaluation as any).totalScore = evaluation.totalScore + scoreDiff;
+
+       // Respetar la regla de fallo crítico: si hay fallo, percentage se mantiene en 0
+       if (!evaluation.criticalFailure) {
+         (evaluation as any).percentage = evaluation.maxPossibleScore > 0
+           ? Math.round((evaluation.totalScore / evaluation.maxPossibleScore) * 100)
+           : 0;
+       }
+
+       logger.info('[PASO 6b] Auto-calificacion "Subir Excel" aplicada', {
+         transacciones: attentionData.transactions.length,
+         scoreAnterior: prevScore,
+         scoreNuevo: excelDs.maxScore,
+         totalScoreNuevo: evaluation.totalScore,
+         percentageNuevo: evaluation.percentage,
+         criticalFailure: evaluation.criticalFailure ?? false
+       });
+     } else {
+       logger.info('[PASO 6b] "Subir Excel" ya tenia puntaje maximo, sin cambios', {
+         score: excelDs.score,
+         maxScore: excelDs.maxScore
+       });
+     }
+   } else {
+     logger.warn('[PASO 6b] Criterio "Subir Excel" no encontrado en detailedScores', {
+       criterios: evaluation.detailedScores.map((s: any) => s.criterion)
+     });
+   }
+ }
+
  // ── 7. Generate Excel ────────────────────────────────────────────────────
  progressBroadcaster.progress(sseClientId, 'excel', 88, 'Generando reporte Excel...');
 
