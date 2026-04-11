@@ -193,29 +193,29 @@ export const FRAUD_CRITERIA: EvaluationBlock[] = [
         applies: false,
         whatToLookFor: 'No aplica para FRAUDE (en fraude se BLOQUEA, no se desbloquea)'
       },
-      { 
-        topic: 'Bloqueo correcto', 
-        criticality: 'Crítico', 
-        points: 7, 
+      {
+        topic: 'Bloqueo correcto',
+        criticality: 'Crítico',
+        points: 7,
         applies: true,
         whatToLookFor: 'En capturas VISION: tipo de bloqueo correcto aplicado (BLKI para fraude)'
+      },
+      {
+        topic: 'Valida compras en ARTD y ARSD',
+        criticality: '-',
+        points: 5,
+        applies: true,
+        whatToLookFor: 'En capturas VISION: transacciones validadas en pantallas ARTD y ARSD'
       }
     ]
   },
   {
     blockName: 'VRM',
     topics: [
-      { 
-        topic: 'Valida compras en ARTD y ARSD', 
-        criticality: '-', 
-        points: 5, 
-        applies: true,
-        whatToLookFor: 'En capturas VRM: transacciones validadas en pantallas ARTD y ARSD'
-      },
-      { 
-        topic: 'Calificación de transacciones, comentarios y aplica mantenimiento', 
-        criticality: 'Crítico', 
-        points: 10, 
+      {
+        topic: 'Calificación de transacciones, comentarios y aplica mantenimiento',
+        criticality: 'Crítico',
+        points: 10,
         applies: true,
         whatToLookFor: 'En VRM: transacciones calificadas correctamente, comentarios agregados, y mantenimiento aplicado'
       }
@@ -490,25 +490,25 @@ export const TH_CONFIRMA_CRITERIA: EvaluationBlock[] = [
         applies: true,
         whatToLookFor: 'En VISION: verificar que el código de bloqueo fue RETIRADO. Buscar data.block_types_marked (debe estar vacío o con código de desbloqueo) y fechas de modificación. En VCAS: account_status = ACTIVE.'
       },
-      { 
-        topic: 'Bloqueo correcto', 
-        criticality: 'Crítico', 
-        points: 'n/a', 
+      {
+        topic: 'Bloqueo correcto',
+        criticality: 'Crítico',
+        points: 'n/a',
         applies: false,
         whatToLookFor: 'No aplica (se desbloquea)'
+      },
+      {
+        topic: 'Valida compras en ARTD y ARSD',
+        criticality: '-',
+        points: 'n/a',
+        applies: false,
+        whatToLookFor: 'No aplica para TH CONFIRMA'
       }
     ]
   },
   {
     blockName: 'VRM',
     topics: [
-      { 
-        topic: 'Valida compras en ARTD y ARSD', 
-        criticality: '-', 
-        points: 'n/a', 
-        applies: false,
-        whatToLookFor: 'No aplica'
-      },
       {
         topic: 'Calificación de transacciones, comentarios y aplica mantenimiento',
         criticality: 'Crítico',

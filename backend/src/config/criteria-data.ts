@@ -60,12 +60,12 @@ export const FRAUDE_ROEXT_CRITERIA: CriteriaBlock[] = [
       { topic: 'Comentarios correctos en ASHI', criticality: '-', points: 5 },
       { topic: 'Desbloquea tarjeta BLKI, BLKT, BPT0, BNFC', criticality: '-', points: 'n/a' },
       { topic: 'Bloqueo correcto', criticality: 'Crítico', points: 7 },
+      { topic: 'Valida compras en ARTD y ARSD', criticality: '-', points: 5 },
     ]
   },
   {
     blockName: 'VRM',
     topics: [
-      { topic: 'Valida compras en ART0 y ARSD', criticality: '-', points: 5 },
       { topic: 'Calificación de transacciones, comentarios y aplica mantenimiento', criticality: 'Crítico', points: 10 },
     ]
   },
@@ -132,12 +132,12 @@ export const TH_CONFIRMA_CRITERIA: CriteriaBlock[] = [
       { topic: 'Comentarios correctos en ASHI', criticality: '-', points: 5 },
       { topic: 'Desbloquea tarjeta BLKI, BLKT, BPT0, BNFC', criticality: 'Crítico', points: 5 }, // ← DIFERENTE: Crítico 5 pts
       { topic: 'Bloqueo correcto', criticality: '-', points: 'n/a' }, // ← DIFERENTE: n/a
+      { topic: 'Valida compras en ARTD y ARSD', criticality: '-', points: 'n/a' }, // ← DIFERENTE: n/a (en FRAUDE era 5)
     ]
   },
   {
     blockName: 'VRM',
     topics: [
-      { topic: 'Valida compras en ART0 y ARSD', criticality: '-', points: 'n/a' }, // ← DIFERENTE: n/a (en FRAUDE era 5)
       { topic: 'Calificación de transacciones, comentarios y aplica mantenimiento', criticality: 'Crítico', points: 10 },
     ]
   },
