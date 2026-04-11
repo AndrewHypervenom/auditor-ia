@@ -24,7 +24,7 @@ import {
   type CriteriaItem,
 } from '../services/api';
 
-const CALL_TYPES = ['FRAUDE', 'MONITOREO', 'TH CONFIRMA'];
+const CALL_TYPES = ['FRAUDE', 'TH CONFIRMA'];
 
 // ─── Helpers ────────────────────────────────────────────────
 
