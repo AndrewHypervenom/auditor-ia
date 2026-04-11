@@ -13,30 +13,27 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({
  children,
  allowedRoles,
- requirePermission
+ requirePermission,
 }: ProtectedRouteProps) {
  const { user, profile, loading, hasPermission } = useAuth();
  const location = useLocation();
 
- // Spinner solo durante carga inicial (primer login o caché expirada)
+ // Spinner solo durante la carga inicial (primer login o caché expirada)
+ // Para usuarios con sesión cacheada, loading=false desde el primer render → sin spinner
  if (loading) {
  return (
  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
- <div className="text-center">
- <div className="inline-block h-10 w-10 animate-spin rounded-full border-4 border-solid border-blue-400 border-r-transparent"></div>
- </div>
+ <div className="inline-block h-10 w-10 animate-spin rounded-full border-4 border-solid border-blue-400 border-r-transparent" />
  </div>
  );
  }
 
- // Redirigir a login si no está autenticado
- if (!user) {
+ // Sin sesión activa ni caché de perfil → redirigir al login
+ if (!user && !profile) {
  return <Navigate to="/login" state={{ from: location }} replace />;
  }
 
- // Si no hay perfil pero hay usuario, mostrar error
- // NOTA: Si la cuenta está desactivada, AuthContext ya cerró la sesión
- // automáticamente, por lo que nunca llegaremos aquí con is_active=false
+ // Si no hay perfil (caché expirada y fallo de carga desde DB), mostrar error
  if (!profile) {
  return (
  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -107,6 +104,6 @@ export function ProtectedRoute({
  );
  }
 
- // Todo OK - renderizar children
+ // Todo OK - renderizar contenido
  return <>{children}</>;
 }
