@@ -619,20 +619,29 @@ class DatabaseService {
   // CRITERIOS DINÁMICOS
   // ============================================================
 
+  private normalizeCallTypeForDB(callType: string): string {
+    const upper = callType.toUpperCase().trim();
+    if (upper.includes('MONITOREO')) return 'MONITOREO';
+    if (upper.includes('TH CONFIRMA') || upper.includes('TH_CONFIRMA')) return 'TH CONFIRMA';
+    if (upper.includes('FRAUDE') || upper.includes('ROEXT')) return 'FRAUDE';
+    return callType;
+  }
+
   async getCriteriaForCallType(callType: string): Promise<any[]> {
-    const key = callType.toUpperCase();
+    const normalized = this.normalizeCallTypeForDB(callType);
+    const key = normalized.toUpperCase();
     const cached = this.criteriaCache.get(key);
     if (cached && this.isCacheValid(cached)) return cached.data;
 
     const { data: blocks, error: blocksError } = await supabaseAdmin
       .from('evaluation_blocks')
       .select('*')
-      .eq('call_type', callType)
+      .eq('call_type', normalized)
       .eq('is_active', true)
       .order('block_order', { ascending: true });
 
     if (blocksError || !blocks || blocks.length === 0) {
-      logger.warn('Warning: could not load criteria blocks from DB', { callType, blocksError });
+      logger.warn('Warning: could not load criteria blocks from DB', { callType, normalized, blocksError });
       return [];
     }
 
