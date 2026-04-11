@@ -933,6 +933,182 @@ app.get('/api/admin/test/:service', authenticateUser, requireAdmin, async (req: 
  }
 });
 
+// ============================================================
+// SCRIPTS DINÁMICOS — CRUD
+// ============================================================
+
+app.get('/api/admin/scripts', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const scripts = await databaseService.getAllScripts();
+    res.json(scripts);
+  } catch (error: any) {
+    logger.error('Error fetching scripts:', error);
+    res.status(500).json({ error: 'Error al obtener scripts' });
+  }
+});
+
+app.get('/api/admin/scripts/:callType', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const callType = decodeURIComponent(req.params.callType);
+    const scripts = await databaseService.getScriptsForCallType(callType);
+    res.json(scripts);
+  } catch (error: any) {
+    logger.error('Error fetching scripts by call type:', error);
+    res.status(500).json({ error: 'Error al obtener scripts' });
+  }
+});
+
+app.post('/api/admin/scripts', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { call_type, step_key, step_label, step_order, lines } = req.body;
+    if (!call_type || !step_key || !step_label) {
+      return res.status(400).json({ error: 'call_type, step_key y step_label son requeridos' });
+    }
+    const script = await databaseService.createScript({
+      call_type,
+      step_key,
+      step_label,
+      step_order: step_order ?? 0,
+      lines: lines ?? []
+    });
+    res.status(201).json(script);
+  } catch (error: any) {
+    logger.error('Error creating script:', error);
+    res.status(500).json({ error: 'Error al crear script' });
+  }
+});
+
+app.put('/api/admin/scripts/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { step_label, step_order, lines, is_active } = req.body;
+    const script = await databaseService.updateScript(id, { step_label, step_order, lines, is_active });
+    res.json(script);
+  } catch (error: any) {
+    logger.error('Error updating script:', error);
+    res.status(500).json({ error: 'Error al actualizar script' });
+  }
+});
+
+app.delete('/api/admin/scripts/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await databaseService.deleteScript(id);
+    res.json({ success: true });
+  } catch (error: any) {
+    logger.error('Error deleting script:', error);
+    res.status(500).json({ error: 'Error al eliminar script' });
+  }
+});
+
+// ============================================================
+// CRITERIOS DINÁMICOS — CRUD
+// ============================================================
+
+app.get('/api/admin/criteria', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const blocks = await databaseService.getAllCriteriaBlocks();
+    res.json(blocks);
+  } catch (error: any) {
+    logger.error('Error fetching criteria:', error);
+    res.status(500).json({ error: 'Error al obtener criterios' });
+  }
+});
+
+app.post('/api/admin/blocks', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { call_type, block_name, block_order } = req.body;
+    if (!call_type || !block_name) {
+      return res.status(400).json({ error: 'call_type y block_name son requeridos' });
+    }
+    const block = await databaseService.createBlock({
+      call_type,
+      block_name,
+      block_order: block_order ?? 0
+    });
+    res.status(201).json(block);
+  } catch (error: any) {
+    logger.error('Error creating block:', error);
+    res.status(500).json({ error: 'Error al crear bloque' });
+  }
+});
+
+app.put('/api/admin/blocks/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { block_name, block_order, is_active } = req.body;
+    const block = await databaseService.updateBlock(id, { block_name, block_order, is_active });
+    res.json(block);
+  } catch (error: any) {
+    logger.error('Error updating block:', error);
+    res.status(500).json({ error: 'Error al actualizar bloque' });
+  }
+});
+
+app.delete('/api/admin/blocks/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await databaseService.deleteBlock(id);
+    res.json({ success: true });
+  } catch (error: any) {
+    logger.error('Error deleting block:', error);
+    res.status(500).json({ error: 'Error al eliminar bloque' });
+  }
+});
+
+app.post('/api/admin/criteria', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { block_id, topic, criticality, points, applies, what_to_look_for, criteria_order } = req.body;
+    if (!block_id || !topic) {
+      return res.status(400).json({ error: 'block_id y topic son requeridos' });
+    }
+    const criteria = await databaseService.createCriteria({
+      block_id,
+      topic,
+      criticality: criticality ?? '-',
+      points: points === 'n/a' || points === null ? null : Number(points),
+      applies: applies !== false,
+      what_to_look_for,
+      criteria_order: criteria_order ?? 0
+    });
+    res.status(201).json(criteria);
+  } catch (error: any) {
+    logger.error('Error creating criteria:', error);
+    res.status(500).json({ error: 'Error al crear criterio' });
+  }
+});
+
+app.put('/api/admin/criteria/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { topic, criticality, points, applies, what_to_look_for, criteria_order, is_active } = req.body;
+    const criteria = await databaseService.updateCriteria(id, {
+      topic,
+      criticality,
+      points: points === 'n/a' || points === null ? null : (points !== undefined ? Number(points) : undefined),
+      applies,
+      what_to_look_for,
+      criteria_order,
+      is_active
+    });
+    res.json(criteria);
+  } catch (error: any) {
+    logger.error('Error updating criteria:', error);
+    res.status(500).json({ error: 'Error al actualizar criterio' });
+  }
+});
+
+app.delete('/api/admin/criteria/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await databaseService.deleteCriteria(id);
+    res.json({ success: true });
+  } catch (error: any) {
+    logger.error('Error deleting criteria:', error);
+    res.status(500).json({ error: 'Error al eliminar criterio' });
+  }
+});
+
 // ============================================
 // GPF API PROXY
 // ============================================

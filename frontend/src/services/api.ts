@@ -517,6 +517,108 @@ export const gpfService = {
  }
 };
 
+// ============================================================
+// Scripts dinámicos (admin)
+// ============================================================
+export const scriptsService = {
+  async getAll() {
+    const response = await api.get('/admin/scripts');
+    return response.data as ScriptStep[];
+  },
+  async getByCallType(callType: string) {
+    const response = await api.get(`/admin/scripts/${encodeURIComponent(callType)}`);
+    return response.data as ScriptStep[];
+  },
+  async create(payload: Omit<ScriptStep, 'id' | 'is_active' | 'created_at' | 'updated_at'>) {
+    const response = await api.post('/admin/scripts', payload);
+    return response.data as ScriptStep;
+  },
+  async update(id: string, payload: Partial<Pick<ScriptStep, 'step_label' | 'step_order' | 'lines' | 'is_active'>>) {
+    const response = await api.put(`/admin/scripts/${id}`, payload);
+    return response.data as ScriptStep;
+  },
+  async remove(id: string) {
+    const response = await api.delete(`/admin/scripts/${id}`);
+    return response.data;
+  }
+};
+
+// ============================================================
+// Criterios dinámicos (admin)
+// ============================================================
+export const criteriaService = {
+  async getAll() {
+    const response = await api.get('/admin/criteria');
+    return response.data as CriteriaBlock[];
+  },
+  // Bloques
+  async createBlock(payload: { call_type: string; block_name: string; block_order: number }) {
+    const response = await api.post('/admin/blocks', payload);
+    return response.data as CriteriaBlock;
+  },
+  async updateBlock(id: string, payload: Partial<{ block_name: string; block_order: number; is_active: boolean }>) {
+    const response = await api.put(`/admin/blocks/${id}`, payload);
+    return response.data as CriteriaBlock;
+  },
+  async removeBlock(id: string) {
+    const response = await api.delete(`/admin/blocks/${id}`);
+    return response.data;
+  },
+  // Criterios individuales
+  async createCriteria(payload: Omit<CriteriaItem, 'id' | 'is_active' | 'created_at' | 'updated_at'>) {
+    const response = await api.post('/admin/criteria', payload);
+    return response.data as CriteriaItem;
+  },
+  async updateCriteria(id: string, payload: Partial<Omit<CriteriaItem, 'id' | 'block_id' | 'created_at' | 'updated_at'>>) {
+    const response = await api.put(`/admin/criteria/${id}`, payload);
+    return response.data as CriteriaItem;
+  },
+  async removeCriteria(id: string) {
+    const response = await api.delete(`/admin/criteria/${id}`);
+    return response.data;
+  }
+};
+
+// ============================================================
+// Tipos para scripts y criterios
+// ============================================================
+export interface ScriptStep {
+  id: string;
+  call_type: string;
+  step_key: string;
+  step_label: string;
+  step_order: number;
+  lines: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CriteriaBlock {
+  id: string;
+  call_type: string;
+  block_name: string;
+  block_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  criteria: CriteriaItem[];
+}
+
+export interface CriteriaItem {
+  id: string;
+  block_id: string;
+  topic: string;
+  criticality: 'Crítico' | '-';
+  points: number | null;
+  applies: boolean;
+  what_to_look_for: string | null;
+  criteria_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // CRUD de usuarios (admin)
 export const userService = {
  async getUsers() {

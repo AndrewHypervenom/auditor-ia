@@ -15,6 +15,7 @@ import SettingsPage from './pages/SettingsPage';
 import ReportsPage from './pages/ReportsPage';
 import AuditsViewPage from './pages/AuditsViewPage';
 import AiAnalysisPage from './pages/AiAnalysisPage';
+import ScriptsAdminPage from './pages/ScriptsAdminPage';
 
 function App() {
   return (
@@ -144,6 +145,16 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <SettingsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Administración de Scripts y Criterios - Solo Admin */}
+          <Route
+            path="/scripts-admin"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <ScriptsAdminPage />
               </ProtectedRoute>
             }
           />

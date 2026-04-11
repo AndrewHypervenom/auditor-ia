@@ -5,6 +5,7 @@ import { logger } from '../utils/logger.js';
 import type { AuditInput, TranscriptResult, ImageAnalysis, EvaluationResult } from '../types/index.js';
 import { getCriteriaForCallType, type EvaluationBlock } from '../config/evaluation-criteria.js';
 import { getScriptForCallType } from '../config/scripts-content.js';
+import { getDatabaseService } from './database.service.js';
 import * as fs from 'fs';
 
 class EvaluatorService {
@@ -53,8 +54,14 @@ class EvaluatorService {
  totalMentions: verbalEvidence.length
  });
 
- // PASO 3: Obtener criterios
- const criteria = getCriteriaForCallType(auditInput.callType);
+ // PASO 3: Obtener criterios (primero desde BD, fallback a archivos estáticos)
+ let criteria: EvaluationBlock[];
+ try {
+   const dbCriteria = await getDatabaseService().getCriteriaForCallType(auditInput.callType);
+   criteria = dbCriteria.length > 0 ? (dbCriteria as EvaluationBlock[]) : getCriteriaForCallType(auditInput.callType);
+ } catch {
+   criteria = getCriteriaForCallType(auditInput.callType);
+ }
 
  // PASO 4: Evaluación con MATCHING MEJORADO
  const { evaluation, tokensUsed: evalTokens } = await this.evaluateWithEnhancedMatching(
@@ -460,6 +467,22 @@ EJEMPLO DE RESPUESTA CORRECTA:
 
  const maxPossibleScore = topicsToEvaluate.reduce((sum, t) => sum + t.maxScore, 0);
 
+ // Cargar script desde BD (fallback a archivos estáticos)
+ let scriptSteps: any;
+ try {
+   const dbScripts = await getDatabaseService().getScriptsForCallType(auditInput.callType);
+   if (dbScripts.length > 0) {
+     scriptSteps = dbScripts.reduce((acc: any, s: any) => {
+       acc[s.step_key] = s.lines;
+       return acc;
+     }, {});
+   } else {
+     scriptSteps = getScriptForCallType(auditInput.callType);
+   }
+ } catch {
+   scriptSteps = getScriptForCallType(auditInput.callType);
+ }
+
  // Construir prompt con MATCHING MEJORADO
  const prompt = this.buildEnhancedMatchingPrompt(
  auditInput,
@@ -467,7 +490,8 @@ EJEMPLO DE RESPUESTA CORRECTA:
  verbalEvidence,
  topicsToEvaluate,
  maxPossibleScore,
- transcript.text
+ transcript.text,
+ scriptSteps
  );
 
  const response = await this.client.chat.completions.create({
@@ -559,7 +583,8 @@ Si hay duda → Revisa toda la evidencia disponible antes de decidir
  verbalEvidence: string[],
  topics: any[],
  maxScore: number,
- transcriptText: string
+ transcriptText: string,
+ scriptSteps?: any
  ): string {
  // Formatear evidencia estructurada de forma más clara
  const structuredEvidence = Object.entries(visualEvidence)
@@ -629,7 +654,7 @@ SCRIPT OFICIAL DE REFERENCIA (${auditInput.callType})
 ╚═════════════════════════════════════╝
 
 PASOS OBLIGATORIOS DEL SCRIPT:
-${JSON.stringify(getScriptForCallType(auditInput.callType), null, 2)}
+${JSON.stringify(scriptSteps ?? getScriptForCallType(auditInput.callType), null, 2)}
 
 El agente debe seguir estos pasos en orden para cumplir el script.
 

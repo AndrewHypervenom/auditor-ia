@@ -42,7 +42,8 @@ import {
  Terminal,
  Activity,
  Copy,
- ChevronDown
+ ChevronDown,
+ BookOpen
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -1514,6 +1515,21 @@ export default function AdminDashboard() {
  <div className="text-left">
  <h3 className="text-lg font-semibold text-white">Configuración</h3>
  <p className="text-sm text-slate-400">Sistema y APIs</p>
+ </div>
+ </div>
+ </button>
+
+ <button
+ onClick={() => navigate('/scripts-admin')}
+ className="stat-card hover:scale-105 transition-transform cursor-pointer bg-gradient-to-br from-emerald-900/20 to-emerald-800/20 border-emerald-500/30"
+ >
+ <div className="flex items-center gap-4">
+ <div className="p-3 bg-emerald-500/20 rounded-xl">
+ <BookOpen className="w-6 h-6 text-emerald-400" />
+ </div>
+ <div className="text-left">
+ <h3 className="text-lg font-semibold text-white">Scripts y Criterios</h3>
+ <p className="text-sm text-slate-400">Guiones y rúbricas</p>
  </div>
  </div>
  </button>

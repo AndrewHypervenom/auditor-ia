@@ -1,14 +1,15 @@
 // frontend/src/routes/routes.config.tsx
 
 import type { UserRole } from '../types/auth.types';
-import { 
-  LayoutDashboard, 
-  FileText, 
-  PlusCircle, 
-  Users, 
-  DollarSign, 
-  Settings, 
-  FileSearch 
+import {
+  LayoutDashboard,
+  FileText,
+  PlusCircle,
+  Users,
+  DollarSign,
+  Settings,
+  FileSearch,
+  BookOpen
 } from 'lucide-react';
 
 export interface RouteConfig {
@@ -79,6 +80,14 @@ export const ROUTES: RouteConfig[] = [
     path: '/settings',
     name: 'Configuración',
     icon: Settings,
+    allowedRoles: ['admin'],
+    requirePermission: 'config:manage',
+    showInMenu: true,
+  },
+  {
+    path: '/scripts-admin',
+    name: 'Scripts y Criterios',
+    icon: BookOpen,
     allowedRoles: ['admin'],
     requirePermission: 'config:manage',
     showInMenu: true,

@@ -19,6 +19,7 @@ backend/results/
 # ── Documentación interna (credenciales) ──────────────
 scripts/
 .claude/
+supabase/
 
 # ── Logs ──────────────────────────────────────────────
 *.log

@@ -520,6 +520,267 @@ class DatabaseService {
     }
   }
 
+  // ============================================================
+  // SCRIPTS DINÁMICOS
+  // ============================================================
+
+  private scriptsCache: Map<string, { data: any; timestamp: number }> = new Map();
+  private criteriaCache: Map<string, { data: any; timestamp: number }> = new Map();
+  private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+
+  private isCacheValid(entry: { data: any; timestamp: number }): boolean {
+    return Date.now() - entry.timestamp < this.CACHE_TTL_MS;
+  }
+
+  invalidateScriptsCache(): void {
+    this.scriptsCache.clear();
+  }
+
+  invalidateCriteriaCache(): void {
+    this.criteriaCache.clear();
+  }
+
+  async getScriptsForCallType(callType: string): Promise<any[]> {
+    const key = callType.toUpperCase();
+    const cached = this.scriptsCache.get(key);
+    if (cached && this.isCacheValid(cached)) return cached.data;
+
+    const { data, error } = await supabaseAdmin
+      .from('call_scripts')
+      .select('*')
+      .eq('call_type', callType)
+      .eq('is_active', true)
+      .order('step_order', { ascending: true });
+
+    if (error) {
+      logger.warn('Warning: could not load scripts from DB, returning empty', { callType, error });
+      return [];
+    }
+
+    this.scriptsCache.set(key, { data: data || [], timestamp: Date.now() });
+    return data || [];
+  }
+
+  async getAllScripts(): Promise<any[]> {
+    const { data, error } = await supabaseAdmin
+      .from('call_scripts')
+      .select('*')
+      .order('call_type')
+      .order('step_order', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  async createScript(payload: {
+    call_type: string;
+    step_key: string;
+    step_label: string;
+    step_order: number;
+    lines: string[];
+  }): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('call_scripts')
+      .insert(payload)
+      .select()
+      .single();
+    if (error) throw error;
+    this.invalidateScriptsCache();
+    return data;
+  }
+
+  async updateScript(id: string, payload: Partial<{
+    step_label: string;
+    step_order: number;
+    lines: string[];
+    is_active: boolean;
+  }>): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('call_scripts')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    this.invalidateScriptsCache();
+    return data;
+  }
+
+  async deleteScript(id: string): Promise<void> {
+    const { error } = await supabaseAdmin
+      .from('call_scripts')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    this.invalidateScriptsCache();
+  }
+
+  // ============================================================
+  // CRITERIOS DINÁMICOS
+  // ============================================================
+
+  async getCriteriaForCallType(callType: string): Promise<any[]> {
+    const key = callType.toUpperCase();
+    const cached = this.criteriaCache.get(key);
+    if (cached && this.isCacheValid(cached)) return cached.data;
+
+    const { data: blocks, error: blocksError } = await supabaseAdmin
+      .from('evaluation_blocks')
+      .select('*')
+      .eq('call_type', callType)
+      .eq('is_active', true)
+      .order('block_order', { ascending: true });
+
+    if (blocksError || !blocks || blocks.length === 0) {
+      logger.warn('Warning: could not load criteria blocks from DB', { callType, blocksError });
+      return [];
+    }
+
+    const blockIds = blocks.map((b: any) => b.id);
+
+    const { data: criteria, error: criteriaError } = await supabaseAdmin
+      .from('evaluation_criteria')
+      .select('*')
+      .in('block_id', blockIds)
+      .order('criteria_order', { ascending: true });
+
+    if (criteriaError) {
+      logger.warn('Warning: could not load criteria from DB', { criteriaError });
+      return [];
+    }
+
+    // Mapear al formato EvaluationBlock[] que usa el evaluator
+    const result = blocks.map((block: any) => ({
+      blockName: block.block_name,
+      topics: (criteria || [])
+        .filter((c: any) => c.block_id === block.id)
+        .map((c: any) => ({
+          topic: c.topic,
+          criticality: c.criticality as 'Crítico' | '-',
+          points: c.points === null ? 'n/a' : c.points,
+          applies: c.applies,
+          whatToLookFor: c.what_to_look_for || ''
+        }))
+    }));
+
+    this.criteriaCache.set(key, { data: result, timestamp: Date.now() });
+    return result;
+  }
+
+  async getAllCriteriaBlocks(): Promise<any[]> {
+    const { data: blocks, error: blocksError } = await supabaseAdmin
+      .from('evaluation_blocks')
+      .select('*')
+      .order('call_type')
+      .order('block_order', { ascending: true });
+
+    if (blocksError) throw blocksError;
+    if (!blocks || blocks.length === 0) return [];
+
+    const blockIds = blocks.map((b: any) => b.id);
+
+    const { data: criteria, error: criteriaError } = await supabaseAdmin
+      .from('evaluation_criteria')
+      .select('*')
+      .in('block_id', blockIds)
+      .order('criteria_order', { ascending: true });
+
+    if (criteriaError) throw criteriaError;
+
+    return blocks.map((block: any) => ({
+      ...block,
+      criteria: (criteria || []).filter((c: any) => c.block_id === block.id)
+    }));
+  }
+
+  async createBlock(payload: {
+    call_type: string;
+    block_name: string;
+    block_order: number;
+  }): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('evaluation_blocks')
+      .insert(payload)
+      .select()
+      .single();
+    if (error) throw error;
+    this.invalidateCriteriaCache();
+    return data;
+  }
+
+  async updateBlock(id: string, payload: Partial<{
+    block_name: string;
+    block_order: number;
+    is_active: boolean;
+  }>): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('evaluation_blocks')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    this.invalidateCriteriaCache();
+    return data;
+  }
+
+  async deleteBlock(id: string): Promise<void> {
+    const { error } = await supabaseAdmin
+      .from('evaluation_blocks')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    this.invalidateCriteriaCache();
+  }
+
+  async createCriteria(payload: {
+    block_id: string;
+    topic: string;
+    criticality: string;
+    points: number | null;
+    applies: boolean;
+    what_to_look_for?: string;
+    criteria_order: number;
+  }): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('evaluation_criteria')
+      .insert(payload)
+      .select()
+      .single();
+    if (error) throw error;
+    this.invalidateCriteriaCache();
+    return data;
+  }
+
+  async updateCriteria(id: string, payload: Partial<{
+    topic: string;
+    criticality: string;
+    points: number | null;
+    applies: boolean;
+    what_to_look_for: string;
+    criteria_order: number;
+    is_active: boolean;
+  }>): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('evaluation_criteria')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    this.invalidateCriteriaCache();
+    return data;
+  }
+
+  async deleteCriteria(id: string): Promise<void> {
+    const { error } = await supabaseAdmin
+      .from('evaluation_criteria')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    this.invalidateCriteriaCache();
+  }
+
   /**
    * Registrar actividad de auditorÃ­a
    */
@@ -573,8 +834,23 @@ export const databaseService = {
   getUserAudits: (userId: string, userRole: string, limit?: number, offset?: number) => getDatabaseService().getUserAudits(userId, userRole, limit, offset),
   getAuditById: (auditId: string, userId: string, userRole: string) => getDatabaseService().getAuditById(auditId, userId, userRole),
   getExcelData: (filename: string) => getDatabaseService().getExcelData(filename),
-  logAuditActivity: (auditId: string, userId: string, action: string, details?: any, ip?: string, ua?: string) => 
-    getDatabaseService().logAuditActivity(auditId, userId, action, details, ip, ua)
+  logAuditActivity: (auditId: string, userId: string, action: string, details?: any, ip?: string, ua?: string) =>
+    getDatabaseService().logAuditActivity(auditId, userId, action, details, ip, ua),
+  // Scripts dinámicos
+  getScriptsForCallType: (callType: string) => getDatabaseService().getScriptsForCallType(callType),
+  getAllScripts: () => getDatabaseService().getAllScripts(),
+  createScript: (payload: Parameters<DatabaseService['createScript']>[0]) => getDatabaseService().createScript(payload),
+  updateScript: (id: string, payload: Parameters<DatabaseService['updateScript']>[1]) => getDatabaseService().updateScript(id, payload),
+  deleteScript: (id: string) => getDatabaseService().deleteScript(id),
+  // Criterios dinámicos
+  getCriteriaForCallType: (callType: string) => getDatabaseService().getCriteriaForCallType(callType),
+  getAllCriteriaBlocks: () => getDatabaseService().getAllCriteriaBlocks(),
+  createBlock: (payload: Parameters<DatabaseService['createBlock']>[0]) => getDatabaseService().createBlock(payload),
+  updateBlock: (id: string, payload: Parameters<DatabaseService['updateBlock']>[1]) => getDatabaseService().updateBlock(id, payload),
+  deleteBlock: (id: string) => getDatabaseService().deleteBlock(id),
+  createCriteria: (payload: Parameters<DatabaseService['createCriteria']>[0]) => getDatabaseService().createCriteria(payload),
+  updateCriteria: (id: string, payload: Parameters<DatabaseService['updateCriteria']>[1]) => getDatabaseService().updateCriteria(id, payload),
+  deleteCriteria: (id: string) => getDatabaseService().deleteCriteria(id),
 };
 
 export { DatabaseService };
