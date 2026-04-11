@@ -313,3 +313,49 @@ label {
   z-index: 1;
   cursor: pointer;
 }
+
+/* ─── Expand/Collapse animado (ScriptStepCard / CriteriaBlockCard) ─────── */
+.expand-content {
+  overflow: hidden;
+  transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s ease-out;
+}
+
+[data-state="open"] > .expand-content {
+  max-height: 1200px;
+  opacity: 1;
+}
+
+[data-state="closed"] > .expand-content {
+  max-height: 0;
+  opacity: 0;
+}
+
+/* ─── Skeleton loading ──────────────────────────────────────────────────── */
+.skeleton {
+  @apply bg-slate-800/60 rounded-lg;
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.04) 50%,
+    transparent 100%
+  );
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+/* ─── Toggle iOS ────────────────────────────────────────────────────────── */
+.toggle-track {
+  @apply relative inline-flex w-9 h-5 rounded-full transition-colors duration-200 cursor-pointer flex-shrink-0;
+}
+
+.toggle-thumb {
+  @apply absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200;
+}

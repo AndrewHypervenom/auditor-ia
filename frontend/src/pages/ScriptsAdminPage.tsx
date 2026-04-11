@@ -11,10 +11,12 @@ import {
   Check,
   X,
   ChevronDown,
-  ChevronUp,
   AlertTriangle,
   Save,
   RotateCcw,
+  BarChart2,
+  ListChecks,
+  Loader2,
 } from 'lucide-react';
 import {
   scriptsService,
@@ -43,44 +45,81 @@ export default function ScriptsAdminPage() {
   const [activeTab, setActiveTab] = useState<'scripts' | 'criteria'>('scripts');
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-white">Administración de Scripts y Criterios</h1>
-          <p className="text-slate-400 mt-1 text-sm">
+    <div className="min-h-screen bg-slate-950 text-white px-6 py-10">
+      <div className="max-w-5xl mx-auto">
+
+        {/* ── Page Header ── */}
+        <div className="mb-10">
+          <p className="text-xs font-semibold tracking-widest uppercase text-blue-400/70 mb-2">
+            Administración
+          </p>
+          <h1 className="text-3xl font-bold tracking-tight text-white">Scripts y Criterios</h1>
+          <p className="mt-2 text-sm text-slate-400 leading-relaxed">
             Edita los guiones de los agentes y las rúbricas de evaluación sin modificar el código.
           </p>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b border-slate-800">
-          <button
-            onClick={() => setActiveTab('scripts')}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
-              activeTab === 'scripts'
-                ? 'border-blue-500 text-blue-400'
-                : 'border-transparent text-slate-400 hover:text-white'
-            }`}
-          >
-            <BookOpen size={16} />
-            Scripts de Agentes
-          </button>
-          <button
-            onClick={() => setActiveTab('criteria')}
-            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px ${
-              activeTab === 'criteria'
-                ? 'border-blue-500 text-blue-400'
-                : 'border-transparent text-slate-400 hover:text-white'
-            }`}
-          >
-            <ClipboardList size={16} />
-            Criterios de Evaluación
-          </button>
+        {/* ── Segmented Control ── */}
+        <div className="relative inline-flex bg-slate-900/80 border border-slate-800/60 rounded-2xl p-1.5 backdrop-blur-sm mb-8">
+          {/* Pill deslizante */}
+          <div
+            className="absolute inset-y-1.5 rounded-xl bg-white/10 border border-white/10 shadow-sm transition-all duration-300 ease-in-out"
+            style={{
+              width: '50%',
+              transform: `translateX(${activeTab === 'scripts' ? '0%' : '100%'})`,
+            }}
+          />
+          {(['scripts', 'criteria'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`relative z-10 flex items-center gap-2 px-6 py-2.5 text-sm font-medium rounded-xl transition-colors duration-200 ${
+                activeTab === tab ? 'text-white' : 'text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              {tab === 'scripts' ? (
+                <BookOpen size={15} className={activeTab === tab ? 'text-blue-400' : ''} />
+              ) : (
+                <ClipboardList size={15} className={activeTab === tab ? 'text-blue-400' : ''} />
+              )}
+              {tab === 'scripts' ? 'Scripts de Agentes' : 'Criterios de Evaluación'}
+            </button>
+          ))}
         </div>
 
-        {activeTab === 'scripts' ? <ScriptsTab /> : <CriteriaTab />}
+        {/* ── Tab Content ── */}
+        <div key={activeTab} className="animate-fadeIn">
+          {activeTab === 'scripts' ? <ScriptsTab /> : <CriteriaTab />}
+        </div>
+
       </div>
+    </div>
+  );
+}
+
+// ─── Pill Selector de Call Type ───────────────────────────────
+
+interface CallTypeSelectorProps {
+  selected: string;
+  onChange: (ct: string) => void;
+}
+
+function CallTypeSelector({ selected, onChange }: CallTypeSelectorProps) {
+  return (
+    <div className="flex items-center gap-2">
+      {CALL_TYPES.map((ct) => (
+        <button
+          key={ct}
+          onClick={() => onChange(ct)}
+          className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
+            selected === ct
+              ? 'bg-blue-500/15 border-blue-500/40 text-blue-300 shadow-[0_0_12px_rgba(59,130,246,0.15)]'
+              : 'bg-transparent border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-300'
+          }`}
+        >
+          {ct}
+        </button>
+      ))}
     </div>
   );
 }
@@ -111,7 +150,7 @@ function ScriptsTab() {
 
   const handleAddStep = async () => {
     const newOrder = currentSteps.length > 0
-      ? Math.max(...currentSteps.map(s => s.step_order)) + 1
+      ? Math.max(...currentSteps.map((s) => s.step_order)) + 1
       : 1;
     try {
       await scriptsService.create({
@@ -128,29 +167,17 @@ function ScriptsTab() {
     }
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <SkeletonLoader />;
 
   return (
     <div>
-      {/* Selector tipo de llamada */}
-      <div className="flex gap-2 mb-6 flex-wrap">
-        {CALL_TYPES.map(ct => (
-          <button
-            key={ct}
-            onClick={() => setSelectedCallType(ct)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              selectedCallType === ct
-                ? 'bg-blue-600 text-white'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
-          >
-            {ct}
-          </button>
-        ))}
+      {/* Selector */}
+      <div className="mb-6">
+        <CallTypeSelector selected={selectedCallType} onChange={setSelectedCallType} />
       </div>
 
-      <div className="space-y-4">
-        {currentSteps.map(step => (
+      <div className="space-y-3">
+        {currentSteps.map((step) => (
           <ScriptStepCard
             key={step.id}
             step={step}
@@ -160,15 +187,14 @@ function ScriptsTab() {
         ))}
 
         {currentSteps.length === 0 && (
-          <div className="card p-8 text-center text-slate-400">
-            No hay pasos definidos para {selectedCallType}. Agrega el primero.
-          </div>
+          <EmptyState
+            icon={<BookOpen size={28} className="text-slate-600" />}
+            title="Sin pasos definidos"
+            description={`Agrega el primer paso para ${selectedCallType}`}
+          />
         )}
 
-        <button onClick={handleAddStep} className="btn-secondary flex items-center gap-2 w-full justify-center py-3">
-          <Plus size={16} />
-          Agregar paso
-        </button>
+        <AddButton onClick={handleAddStep} label="Agregar paso" />
       </div>
     </div>
   );
@@ -271,73 +297,150 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
   };
 
   return (
-    <div className="card border border-slate-700/50">
-      {/* Header del paso */}
-      <div className="flex items-center justify-between p-4">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <span className="flex-shrink-0 w-7 h-7 rounded-full bg-blue-600/20 text-blue-400 text-sm font-bold flex items-center justify-center">
-            {step.step_order}
-          </span>
+    <div
+      className="group bg-slate-900/60 border border-slate-800/60 rounded-2xl overflow-hidden
+                 transition-all duration-300 hover:border-slate-700/60 hover:bg-slate-900/80"
+      data-state={expanded ? 'open' : 'closed'}
+    >
+      {/* ── Header del paso ── */}
+      <div
+        className="flex items-center gap-4 px-5 py-4 cursor-pointer select-none"
+        onClick={() => !editingLabel && setExpanded(!expanded)}
+      >
+        {/* Número de paso */}
+        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500/20 to-blue-600/10
+                        border border-blue-500/30 text-blue-300 text-sm font-bold
+                        flex items-center justify-center tabular-nums">
+          {step.step_order}
+        </div>
 
+        {/* Label */}
+        <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
           {editingLabel ? (
-            <div className="flex items-center gap-2 flex-1">
+            <div className="flex items-center gap-2">
               <input
                 autoFocus
                 value={labelValue}
-                onChange={e => setLabelValue(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleSaveLabel(); if (e.key === 'Escape') { setEditingLabel(false); setLabelValue(step.step_label); } }}
-                className="flex-1 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-white"
+                onChange={(e) => setLabelValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveLabel();
+                  if (e.key === 'Escape') { setEditingLabel(false); setLabelValue(step.step_label); }
+                }}
+                className="flex-1 bg-slate-800/80 border border-slate-600/60 rounded-xl px-3 py-1.5
+                           text-sm text-white focus:outline-none focus:border-blue-500/60"
+                onClick={(e) => e.stopPropagation()}
               />
-              <button onClick={handleSaveLabel} className="text-green-400 hover:text-green-300"><Check size={16} /></button>
-              <button onClick={() => { setEditingLabel(false); setLabelValue(step.step_label); }} className="text-slate-400 hover:text-white"><X size={16} /></button>
+              <button onClick={handleSaveLabel} className="p-1.5 text-green-400 hover:text-green-300 transition-colors">
+                <Check size={15} />
+              </button>
+              <button
+                onClick={() => { setEditingLabel(false); setLabelValue(step.step_label); }}
+                className="p-1.5 text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                <X size={15} />
+              </button>
             </div>
           ) : (
-            <span className="font-medium text-white truncate">{step.step_label}</span>
+            <span className="font-semibold text-white text-[15px] truncate block">{step.step_label}</span>
           )}
         </div>
 
-        <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-          <button onClick={handleMoveUp} disabled={step.step_order <= 1} className="p-1.5 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed">
-            <ChevronUp size={16} />
+        {/* Badge frases */}
+        <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-slate-800/60 border border-slate-700/40
+                         text-slate-400 text-xs tabular-nums">
+          {lines.length} {lines.length === 1 ? 'frase' : 'frases'}
+        </span>
+
+        {/* Acciones (hover) */}
+        <div
+          className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={handleMoveUp}
+            disabled={step.step_order <= 1}
+            className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-slate-700/50
+                       disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-150"
+            title="Subir"
+          >
+            <ChevronDown size={14} className="rotate-180" />
           </button>
-          <button onClick={handleMoveDown} disabled={step.step_order >= totalSteps} className="p-1.5 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed">
-            <ChevronDown size={16} />
+          <button
+            onClick={handleMoveDown}
+            disabled={step.step_order >= totalSteps}
+            className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-slate-700/50
+                       disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-150"
+            title="Bajar"
+          >
+            <ChevronDown size={14} />
           </button>
-          <button onClick={() => setEditingLabel(true)} className="p-1.5 text-slate-400 hover:text-blue-400">
-            <Pencil size={16} />
+          <button
+            onClick={() => setEditingLabel(true)}
+            className="p-2 rounded-xl text-slate-500 hover:text-blue-400 hover:bg-blue-500/10
+                       transition-all duration-150"
+            title="Renombrar"
+          >
+            <Pencil size={14} />
           </button>
-          <button onClick={handleDeleteStep} className="p-1.5 text-slate-400 hover:text-red-400">
-            <Trash2 size={16} />
-          </button>
-          <button onClick={() => setExpanded(!expanded)} className="p-1.5 text-slate-400 hover:text-white ml-1">
-            {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          <button
+            onClick={handleDeleteStep}
+            className="p-2 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10
+                       transition-all duration-150"
+            title="Eliminar paso"
+          >
+            <Trash2 size={14} />
           </button>
         </div>
+
+        {/* Chevron */}
+        <ChevronDown
+          size={16}
+          className={`flex-shrink-0 text-slate-500 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}
+        />
       </div>
 
-      {/* Frases del paso */}
-      {expanded && (
-        <div className="border-t border-slate-700/50 p-4 space-y-2">
-          {saving && <p className="text-xs text-blue-400 flex items-center gap-1"><Save size={12} /> Guardando...</p>}
+      {/* ── Frases expandibles ── */}
+      <div className="expand-content border-t border-slate-800/60">
+        <div className="px-5 py-4 space-y-2">
+          {saving && (
+            <p className="flex items-center gap-2 text-xs text-blue-400/80 mb-3">
+              <Loader2 size={12} className="animate-spin" />
+              Guardando...
+            </p>
+          )}
 
           {lines.map((line, idx) => (
-            <div key={idx} className="flex items-start gap-2 group">
-              <span className="flex-shrink-0 w-5 h-5 mt-1 rounded bg-slate-700 text-slate-400 text-xs flex items-center justify-center">{idx + 1}</span>
+            <div key={idx} className="flex items-start gap-3 group/line">
+              {/* Número de frase */}
+              <span className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-lg bg-slate-800/60
+                               text-slate-500 text-[11px] font-medium flex items-center justify-center tabular-nums">
+                {idx + 1}
+              </span>
 
               {editingLineIdx === idx ? (
-                <div className="flex-1 flex flex-col gap-1">
+                <div className="flex-1 flex flex-col gap-2">
                   <textarea
                     autoFocus
                     value={lineValue}
-                    onChange={e => setLineValue(e.target.value)}
+                    onChange={(e) => setLineValue(e.target.value)}
                     rows={3}
-                    className="w-full bg-slate-900 border border-blue-500/50 rounded px-3 py-2 text-sm text-white resize-none"
+                    className="w-full bg-slate-900/80 border border-blue-500/40 rounded-xl px-3 py-2
+                               text-sm text-white resize-none focus:outline-none focus:border-blue-500/60"
                   />
                   <div className="flex gap-2">
-                    <button onClick={handleSaveLine} className="btn-primary py-1 px-3 text-xs flex items-center gap-1">
+                    <button
+                      onClick={handleSaveLine}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600/20
+                                 border border-blue-500/30 text-blue-300 text-xs font-medium
+                                 hover:bg-blue-600/30 transition-all duration-150"
+                    >
                       <Check size={12} /> Guardar
                     </button>
-                    <button onClick={() => setEditingLineIdx(null)} className="btn-secondary py-1 px-3 text-xs">
+                    <button
+                      onClick={() => setEditingLineIdx(null)}
+                      className="px-3 py-1.5 rounded-xl text-slate-400 text-xs font-medium
+                                 hover:text-slate-200 hover:bg-slate-800/60 transition-all duration-150"
+                    >
                       Cancelar
                     </button>
                   </div>
@@ -345,18 +448,37 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
               ) : (
                 <div className="flex-1 flex items-start justify-between gap-2">
                   <p className="text-sm text-slate-300 leading-relaxed">{line}</p>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                    <button onClick={() => handleMoveLine(idx, 'up')} disabled={idx === 0} className="p-1 text-slate-400 hover:text-white disabled:opacity-30">
-                      <ChevronUp size={13} />
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover/line:opacity-100
+                                  transition-opacity duration-150 flex-shrink-0">
+                    <button
+                      onClick={() => handleMoveLine(idx, 'up')}
+                      disabled={idx === 0}
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-700/50
+                                 disabled:opacity-30 transition-all duration-150"
+                    >
+                      <ChevronDown size={12} className="rotate-180" />
                     </button>
-                    <button onClick={() => handleMoveLine(idx, 'down')} disabled={idx === lines.length - 1} className="p-1 text-slate-400 hover:text-white disabled:opacity-30">
-                      <ChevronDown size={13} />
+                    <button
+                      onClick={() => handleMoveLine(idx, 'down')}
+                      disabled={idx === lines.length - 1}
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-700/50
+                                 disabled:opacity-30 transition-all duration-150"
+                    >
+                      <ChevronDown size={12} />
                     </button>
-                    <button onClick={() => handleEditLine(idx)} className="p-1 text-slate-400 hover:text-blue-400">
-                      <Pencil size={13} />
+                    <button
+                      onClick={() => handleEditLine(idx)}
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-blue-400 hover:bg-blue-500/10
+                                 transition-all duration-150"
+                    >
+                      <Pencil size={12} />
                     </button>
-                    <button onClick={() => handleDeleteLine(idx)} className="p-1 text-slate-400 hover:text-red-400">
-                      <Trash2 size={13} />
+                    <button
+                      onClick={() => handleDeleteLine(idx)}
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10
+                                 transition-all duration-150"
+                    >
+                      <Trash2 size={12} />
                     </button>
                   </div>
                 </div>
@@ -364,11 +486,19 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
             </div>
           ))}
 
-          <button onClick={handleAddLine} className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 mt-2">
-            <Plus size={14} /> Agregar frase
+          {/* Agregar frase */}
+          <button
+            onClick={handleAddLine}
+            className="flex items-center gap-2 mt-3 w-full px-4 py-2.5 rounded-xl
+                       border border-dashed border-slate-700/60 text-slate-500
+                       hover:text-slate-300 hover:border-slate-600 hover:bg-slate-800/30
+                       transition-all duration-200 text-sm"
+          >
+            <Plus size={14} />
+            Agregar frase
           </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -399,14 +529,22 @@ function CriteriaTab() {
 
   const totalPoints = currentBlocks.reduce((sum, block) => {
     const blockPts = (block.criteria || [])
-      .filter(c => c.applies && c.points !== null)
+      .filter((c) => c.applies && c.points !== null)
       .reduce((s, c) => s + (c.points ?? 0), 0);
     return sum + blockPts;
   }, 0);
 
+  const criticalCount = currentBlocks.reduce((sum, block) => {
+    return sum + (block.criteria || []).filter((c) => c.criticality === 'Crítico' && c.applies).length;
+  }, 0);
+
+  const totalCriteria = currentBlocks.reduce((sum, block) => {
+    return sum + (block.criteria || []).filter((c) => c.applies).length;
+  }, 0);
+
   const handleAddBlock = async () => {
     const newOrder = currentBlocks.length > 0
-      ? Math.max(...currentBlocks.map(b => b.block_order)) + 1
+      ? Math.max(...currentBlocks.map((b) => b.block_order)) + 1
       : 1;
     try {
       await criteriaService.createBlock({
@@ -421,49 +559,60 @@ function CriteriaTab() {
     }
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <SkeletonLoader />;
 
   return (
     <div>
-      {/* Selector */}
+      {/* Selector + Stat Chips */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <div className="flex gap-2 flex-wrap">
-          {CALL_TYPES.map(ct => (
-            <button
-              key={ct}
-              onClick={() => setSelectedCallType(ct)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                selectedCallType === ct
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              {ct}
-            </button>
-          ))}
-        </div>
-        <div className="text-sm text-slate-400">
-          Puntaje máximo total: <span className="text-white font-semibold">{totalPoints} pts</span>
+        <CallTypeSelector selected={selectedCallType} onChange={setSelectedCallType} />
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <StatChip icon={BarChart2} label={`${totalPoints} pts`} color="blue" />
+          <StatChip icon={AlertTriangle} label={`${criticalCount} críticos`} color="red" />
+          <StatChip icon={ListChecks} label={`${totalCriteria} criterios`} color="green" />
         </div>
       </div>
 
-      <div className="space-y-4">
-        {currentBlocks.map(block => (
+      <div className="space-y-3">
+        {currentBlocks.map((block) => (
           <CriteriaBlockCard key={block.id} block={block} onUpdate={load} />
         ))}
 
         {currentBlocks.length === 0 && (
-          <div className="card p-8 text-center text-slate-400">
-            No hay bloques definidos para {selectedCallType}. Agrega el primero.
-          </div>
+          <EmptyState
+            icon={<ClipboardList size={28} className="text-slate-600" />}
+            title="Sin bloques definidos"
+            description={`Agrega el primer bloque de criterios para ${selectedCallType}`}
+          />
         )}
 
-        <button onClick={handleAddBlock} className="btn-secondary flex items-center gap-2 w-full justify-center py-3">
-          <Plus size={16} />
-          Agregar bloque
-        </button>
+        <AddButton onClick={handleAddBlock} label="Agregar bloque" />
       </div>
     </div>
+  );
+}
+
+// ─── Stat Chip ────────────────────────────────────────────────
+
+interface StatChipProps {
+  icon: React.ElementType;
+  label: string;
+  color: 'blue' | 'red' | 'green';
+}
+
+const colorMap = {
+  blue: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+  red: 'bg-red-500/10 border-red-500/20 text-red-400',
+  green: 'bg-green-500/10 border-green-500/20 text-green-400',
+};
+
+function StatChip({ icon: Icon, label, color }: StatChipProps) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-medium tabular-nums ${colorMap[color]}`}>
+      <Icon size={11} />
+      {label}
+    </span>
   );
 }
 
@@ -481,8 +630,9 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
   const [editingCriteriaId, setEditingCriteriaId] = useState<string | null>(null);
 
   const criteria = (block.criteria || []).sort((a, b) => a.criteria_order - b.criteria_order);
-  const blockPoints = criteria.filter(c => c.applies && c.points !== null).reduce((s, c) => s + (c.points ?? 0), 0);
-  const criticalCount = criteria.filter(c => c.criticality === 'Crítico' && c.applies).length;
+  const blockPoints = criteria.filter((c) => c.applies && c.points !== null).reduce((s, c) => s + (c.points ?? 0), 0);
+  const criticalCount = criteria.filter((c) => c.criticality === 'Crítico' && c.applies).length;
+  const appliedCount = criteria.filter((c) => c.applies).length;
 
   const handleSaveName = async () => {
     setEditingName(false);
@@ -497,7 +647,7 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
   };
 
   const handleDeleteBlock = async () => {
-    if (!confirm(`¿Eliminar el bloque "${block.block_name}" y todos sus criterios? Esta acción no se puede deshacer.`)) return;
+    if (!confirm(`¿Eliminar el bloque "${block.block_name}" y todos sus criterios?`)) return;
     try {
       await criteriaService.removeBlock(block.id);
       toast.success('Bloque eliminado');
@@ -508,7 +658,7 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
   };
 
   const handleAddCriteria = async () => {
-    const newOrder = criteria.length > 0 ? Math.max(...criteria.map(c => c.criteria_order)) + 1 : 1;
+    const newOrder = criteria.length > 0 ? Math.max(...criteria.map((c) => c.criteria_order)) + 1 : 1;
     try {
       await criteriaService.createCriteria({
         block_id: block.id,
@@ -527,83 +677,148 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
   };
 
   return (
-    <div className="card border border-slate-700/50">
-      {/* Header bloque */}
-      <div className="flex items-center justify-between p-4">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
+    <div
+      className="group bg-slate-900/60 border border-slate-800/60 rounded-2xl overflow-hidden
+                 transition-all duration-300 hover:border-slate-700/60 hover:bg-slate-900/80"
+      data-state={expanded ? 'open' : 'closed'}
+    >
+      {/* ── Header del bloque ── */}
+      <div
+        className="flex items-center gap-4 px-5 py-4 cursor-pointer select-none"
+        onClick={() => !editingName && setExpanded(!expanded)}
+      >
+        {/* Nombre */}
+        <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
           {editingName ? (
-            <div className="flex items-center gap-2 flex-1">
+            <div className="flex items-center gap-2">
               <input
                 autoFocus
                 value={nameValue}
-                onChange={e => setNameValue(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') { setEditingName(false); setNameValue(block.block_name); } }}
-                className="flex-1 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-white"
+                onChange={(e) => setNameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveName();
+                  if (e.key === 'Escape') { setEditingName(false); setNameValue(block.block_name); }
+                }}
+                className="flex-1 bg-slate-800/80 border border-slate-600/60 rounded-xl px-3 py-1.5
+                           text-sm text-white focus:outline-none focus:border-blue-500/60"
               />
-              <button onClick={handleSaveName} className="text-green-400 hover:text-green-300"><Check size={16} /></button>
-              <button onClick={() => { setEditingName(false); setNameValue(block.block_name); }} className="text-slate-400 hover:text-white"><X size={16} /></button>
+              <button onClick={handleSaveName} className="p-1.5 text-green-400 hover:text-green-300 transition-colors">
+                <Check size={15} />
+              </button>
+              <button
+                onClick={() => { setEditingName(false); setNameValue(block.block_name); }}
+                className="p-1.5 text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                <X size={15} />
+              </button>
             </div>
           ) : (
-            <span className="font-semibold text-white">{block.block_name}</span>
+            <span className="font-semibold text-white text-[15px] truncate block">{block.block_name}</span>
           )}
-
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <span className="badge badge-info text-xs">{blockPoints} pts</span>
-            {criticalCount > 0 && (
-              <span className="badge badge-danger flex items-center gap-1 text-xs">
-                <AlertTriangle size={10} /> {criticalCount} crítico{criticalCount > 1 ? 's' : ''}
-              </span>
-            )}
-            <span className="text-slate-400 text-xs">{criteria.filter(c => c.applies).length} criterios</span>
-          </div>
         </div>
 
-        <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-          <button onClick={() => setEditingName(true)} className="p-1.5 text-slate-400 hover:text-blue-400">
-            <Pencil size={16} />
+        {/* Badges */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full
+                           bg-blue-500/10 border border-blue-500/15 text-blue-300 text-xs font-semibold tabular-nums">
+            <BarChart2 size={10} />
+            {blockPoints} pts
+          </span>
+          {criticalCount > 0 && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full
+                             bg-red-500/10 border border-red-500/15 text-red-300 text-xs font-medium">
+              <AlertTriangle size={10} />
+              {criticalCount} crítico{criticalCount > 1 ? 's' : ''}
+            </span>
+          )}
+          <span className="text-slate-500 text-xs tabular-nums">{appliedCount} criterios</span>
+        </div>
+
+        {/* Acciones (hover) */}
+        <div
+          className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => setEditingName(true)}
+            className="p-2 rounded-xl text-slate-500 hover:text-blue-400 hover:bg-blue-500/10
+                       transition-all duration-150"
+          >
+            <Pencil size={14} />
           </button>
-          <button onClick={handleDeleteBlock} className="p-1.5 text-slate-400 hover:text-red-400">
-            <Trash2 size={16} />
+          <button
+            onClick={handleDeleteBlock}
+            className="p-2 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10
+                       transition-all duration-150"
+          >
+            <Trash2 size={14} />
           </button>
-          <button onClick={() => setExpanded(!expanded)} className="p-1.5 text-slate-400 hover:text-white ml-1">
-            {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </div>
+
+        {/* Chevron */}
+        <ChevronDown
+          size={16}
+          className={`flex-shrink-0 text-slate-500 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}
+        />
+      </div>
+
+      {/* ── Tabla de criterios ── */}
+      <div className="expand-content border-t border-slate-800/60">
+        {criteria.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-800/60 bg-slate-950/70 backdrop-blur-sm">
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-widest text-slate-500">
+                    Criterio
+                  </th>
+                  <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-20">
+                    Pts
+                  </th>
+                  <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-24">
+                    Criticidad
+                  </th>
+                  <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-16">
+                    Aplica
+                  </th>
+                  <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-20">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {criteria.map((c) =>
+                  editingCriteriaId === c.id ? (
+                    <CriteriaEditRow
+                      key={c.id}
+                      item={c}
+                      onSave={() => { setEditingCriteriaId(null); onUpdate(); }}
+                      onCancel={() => setEditingCriteriaId(null)}
+                    />
+                  ) : (
+                    <CriteriaViewRow
+                      key={c.id}
+                      item={c}
+                      onEdit={() => setEditingCriteriaId(c.id)}
+                      onUpdate={onUpdate}
+                    />
+                  )
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="px-5 py-4">
+          <button
+            onClick={handleAddCriteria}
+            className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-300 transition-colors duration-150"
+          >
+            <Plus size={14} />
+            Agregar criterio
           </button>
         </div>
       </div>
-
-      {/* Tabla de criterios */}
-      {expanded && (
-        <div className="border-t border-slate-700/50">
-          {criteria.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-700/50 bg-slate-900/30">
-                    <th className="text-left py-2 px-4 text-slate-400 font-medium">Criterio</th>
-                    <th className="text-center py-2 px-3 text-slate-400 font-medium w-20">Puntos</th>
-                    <th className="text-center py-2 px-3 text-slate-400 font-medium w-24">Criticidad</th>
-                    <th className="text-center py-2 px-3 text-slate-400 font-medium w-16">Aplica</th>
-                    <th className="text-center py-2 px-3 text-slate-400 font-medium w-20">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {criteria.map(c => (
-                    editingCriteriaId === c.id
-                      ? <CriteriaEditRow key={c.id} item={c} onSave={() => { setEditingCriteriaId(null); onUpdate(); }} onCancel={() => setEditingCriteriaId(null)} />
-                      : <CriteriaViewRow key={c.id} item={c} onEdit={() => setEditingCriteriaId(c.id)} onUpdate={onUpdate} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          <div className="p-4">
-            <button onClick={handleAddCriteria} className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300">
-              <Plus size={14} /> Agregar criterio
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -638,47 +853,80 @@ function CriteriaViewRow({ item, onEdit, onUpdate }: CriteriaRowProps) {
   };
 
   return (
-    <tr className="border-b border-slate-800/50 hover:bg-slate-800/20 group">
-      <td className="py-2 px-4 text-slate-300 max-w-xs">
+    <tr className="border-b border-slate-800/40 hover:bg-slate-800/20 group transition-colors duration-150">
+      {/* Criterio */}
+      <td className="py-3 px-4 max-w-xs">
         <div className="flex flex-col gap-0.5">
-          <span className={item.applies ? '' : 'line-through opacity-40'}>{item.topic}</span>
+          <span className={`text-[14px] leading-snug ${item.applies ? 'text-slate-200' : 'line-through text-slate-500'}`}>
+            {item.topic}
+          </span>
           {item.what_to_look_for && (
-            <span className="text-xs text-slate-500 truncate max-w-xs" title={item.what_to_look_for}>
-              {item.what_to_look_for.substring(0, 80)}{item.what_to_look_for.length > 80 ? '…' : ''}
+            <span className="text-[12px] text-slate-500 leading-relaxed line-clamp-2" title={item.what_to_look_for}>
+              {item.what_to_look_for}
             </span>
           )}
         </div>
       </td>
-      <td className="py-2 px-3 text-center">
-        {item.points === null
-          ? <span className="text-slate-500 text-xs">n/a</span>
-          : <span className="font-medium text-white">{item.points}</span>}
+
+      {/* Puntos */}
+      <td className="py-3 px-3 text-center">
+        {item.points === null ? (
+          <span className="text-slate-600 text-xs">—</span>
+        ) : (
+          <span className="inline-block px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/15
+                           text-blue-300 text-xs font-semibold tabular-nums">
+            {item.points}
+          </span>
+        )}
       </td>
-      <td className="py-2 px-3 text-center">
-        {item.criticality === 'Crítico'
-          ? <span className="badge badge-danger text-xs flex items-center gap-1 justify-center"><AlertTriangle size={10} /> Crítico</span>
-          : <span className="text-slate-500 text-xs">-</span>}
+
+      {/* Criticidad */}
+      <td className="py-3 px-3 text-center">
+        {item.criticality === 'Crítico' ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full
+                           bg-red-500/10 border border-red-500/15 text-red-300 text-xs font-medium">
+            <AlertTriangle size={10} />
+            Crítico
+          </span>
+        ) : (
+          <span className="text-slate-700 text-sm">—</span>
+        )}
       </td>
-      <td className="py-2 px-3 text-center">
+
+      {/* Toggle Aplica (iOS style) */}
+      <td className="py-3 px-3 text-center">
         <button
           onClick={handleToggleApplies}
           title={item.applies ? 'Deshabilitar' : 'Habilitar'}
-          className={`w-5 h-5 rounded border-2 flex items-center justify-center mx-auto transition-colors ${
-            item.applies
-              ? 'bg-green-600 border-green-500'
-              : 'bg-transparent border-slate-600 hover:border-slate-400'
-          }`}
+          className="toggle-track mx-auto"
+          style={{ backgroundColor: item.applies ? 'rgba(59,130,246,0.5)' : '' }}
         >
-          {item.applies && <Check size={10} />}
+          <span
+            className="toggle-thumb"
+            style={{
+              transform: item.applies ? 'translateX(16px)' : 'translateX(2px)',
+              backgroundColor: item.applies ? '#fff' : '#64748b',
+            }}
+          />
         </button>
       </td>
-      <td className="py-2 px-3">
-        <div className="flex items-center gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={onEdit} className="p-1 text-slate-400 hover:text-blue-400">
-            <Pencil size={14} />
+
+      {/* Acciones */}
+      <td className="py-3 px-3">
+        <div className="flex items-center gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+          <button
+            onClick={onEdit}
+            className="p-1.5 rounded-lg text-slate-500 hover:text-blue-400 hover:bg-blue-500/10
+                       transition-all duration-150"
+          >
+            <Pencil size={13} />
           </button>
-          <button onClick={handleDelete} className="p-1 text-slate-400 hover:text-red-400">
-            <Trash2 size={14} />
+          <button
+            onClick={handleDelete}
+            className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10
+                       transition-all duration-150"
+          >
+            <Trash2 size={13} />
           </button>
         </div>
       </td>
@@ -722,71 +970,114 @@ function CriteriaEditRow({ item, onSave, onCancel }: CriteriaEditRowProps) {
   };
 
   return (
-    <tr className="border-b border-blue-500/30 bg-blue-950/20">
-      <td className="py-3 px-4" colSpan={5}>
-        <div className="space-y-3">
+    <tr className="border-b border-blue-500/20 bg-blue-950/10 animate-fadeIn">
+      <td className="py-4 px-4" colSpan={5}>
+        <div className="space-y-4">
+          {/* Criterio */}
           <div>
-            <label className="text-xs text-slate-400 mb-1 block">Criterio (tema)</label>
+            <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
+              Criterio (tema)
+            </label>
             <textarea
               value={topic}
-              onChange={e => setTopic(e.target.value)}
+              onChange={(e) => setTopic(e.target.value)}
               rows={2}
-              className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white resize-none"
+              className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2
+                         text-sm text-white resize-none focus:outline-none focus:border-blue-500/60
+                         focus:ring-1 focus:ring-blue-500/20"
             />
           </div>
 
           <div className="grid grid-cols-3 gap-3">
+            {/* Puntos */}
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">Puntos (o "n/a")</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
+                Puntos (o "n/a")
+              </label>
               <input
                 value={points}
-                onChange={e => setPoints(e.target.value)}
+                onChange={(e) => setPoints(e.target.value)}
                 placeholder="5 o n/a"
-                className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white"
+                className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2
+                           text-sm text-white focus:outline-none focus:border-blue-500/60
+                           focus:ring-1 focus:ring-blue-500/20"
               />
             </div>
+
+            {/* Criticidad */}
             <div>
-              <label className="text-xs text-slate-400 mb-1 block">Criticidad</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
+                Criticidad
+              </label>
               <select
                 value={criticality}
-                onChange={e => setCriticality(e.target.value as 'Crítico' | '-')}
-                className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white"
+                onChange={(e) => setCriticality(e.target.value as 'Crítico' | '-')}
+                className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2
+                           text-sm text-white focus:outline-none focus:border-blue-500/60"
               >
-                <option value="-">-</option>
+                <option value="-">—</option>
                 <option value="Crítico">Crítico</option>
               </select>
             </div>
+
+            {/* Aplica */}
             <div className="flex items-end pb-2">
-              <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={applies}
-                  onChange={e => setApplies(e.target.checked)}
-                  className="w-4 h-4 accent-blue-600"
-                />
-                Aplica
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <button
+                  type="button"
+                  onClick={() => setApplies(!applies)}
+                  className="toggle-track"
+                  style={{ backgroundColor: applies ? 'rgba(59,130,246,0.5)' : 'rgba(51,65,85,0.8)' }}
+                >
+                  <span
+                    className="toggle-thumb"
+                    style={{
+                      transform: applies ? 'translateX(16px)' : 'translateX(2px)',
+                      backgroundColor: applies ? '#fff' : '#64748b',
+                    }}
+                  />
+                </button>
+                <span className="text-sm text-slate-300 font-medium">Aplica</span>
               </label>
             </div>
           </div>
 
+          {/* Qué buscar */}
           <div>
-            <label className="text-xs text-slate-400 mb-1 block">Qué buscar (instrucciones para la IA)</label>
+            <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
+              Qué buscar (instrucciones para la IA)
+            </label>
             <textarea
               value={whatToLookFor}
-              onChange={e => setWhatToLookFor(e.target.value)}
+              onChange={(e) => setWhatToLookFor(e.target.value)}
               rows={3}
               placeholder="Describe dónde y qué debe buscar la IA para evaluar este criterio..."
-              className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white resize-none"
+              className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2
+                         text-sm text-white resize-none focus:outline-none focus:border-blue-500/60
+                         focus:ring-1 focus:ring-blue-500/20"
             />
           </div>
 
+          {/* Botones */}
           <div className="flex gap-2">
-            <button onClick={handleSave} disabled={saving} className="btn-primary py-1.5 px-4 text-sm flex items-center gap-1.5">
-              {saving ? <RotateCcw size={14} className="animate-spin" /> : <Save size={14} />}
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600/20
+                         border border-blue-500/30 text-blue-300 text-sm font-medium
+                         hover:bg-blue-600/30 disabled:opacity-50 transition-all duration-150"
+            >
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               {saving ? 'Guardando...' : 'Guardar cambios'}
             </button>
-            <button onClick={onCancel} disabled={saving} className="btn-secondary py-1.5 px-4 text-sm flex items-center gap-1">
-              <X size={14} /> Cancelar
+            <button
+              onClick={onCancel}
+              disabled={saving}
+              className="px-4 py-2 rounded-xl text-slate-400 text-sm font-medium
+                         hover:text-slate-200 hover:bg-slate-800/60 disabled:opacity-50
+                         transition-all duration-150"
+            >
+              Cancelar
             </button>
           </div>
         </div>
@@ -795,12 +1086,72 @@ function CriteriaEditRow({ item, onSave, onCancel }: CriteriaEditRowProps) {
   );
 }
 
-// ─── Spinner ─────────────────────────────────────────────────
+// ─── Empty State ─────────────────────────────────────────────
 
-function LoadingSpinner() {
+interface EmptyStateProps {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}
+
+function EmptyState({ icon, title, description }: EmptyStateProps) {
   return (
-    <div className="flex items-center justify-center py-20">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+    <div className="flex flex-col items-center justify-center py-20 gap-4">
+      <div className="w-16 h-16 rounded-3xl bg-slate-900/60 border border-slate-800/60
+                      flex items-center justify-center">
+        {icon}
+      </div>
+      <div className="text-center">
+        <p className="text-slate-400 font-medium">{title}</p>
+        <p className="text-slate-600 text-sm mt-1">{description}</p>
+      </div>
     </div>
   );
 }
+
+// ─── Add Button ──────────────────────────────────────────────
+
+interface AddButtonProps {
+  onClick: () => void;
+  label: string;
+}
+
+function AddButton({ onClick, label }: AddButtonProps) {
+  return (
+    <button
+      onClick={onClick}
+      className="group flex items-center justify-center gap-2 w-full mt-1 py-3.5 rounded-2xl
+                 border border-dashed border-slate-700/60 text-slate-500
+                 hover:text-slate-300 hover:border-slate-600 hover:bg-slate-900/40
+                 transition-all duration-200 text-sm font-medium"
+    >
+      <div className="w-6 h-6 rounded-full border border-slate-700 group-hover:border-slate-500
+                      flex items-center justify-center transition-colors duration-200">
+        <Plus size={13} />
+      </div>
+      {label}
+    </button>
+  );
+}
+
+// ─── Skeleton Loader ─────────────────────────────────────────
+
+function SkeletonLoader() {
+  return (
+    <div className="space-y-3 animate-pulse">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="bg-slate-900/60 border border-slate-800/60 rounded-2xl p-5">
+          <div className="flex items-center gap-4">
+            <div className="w-8 h-8 rounded-full skeleton" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 skeleton rounded-full w-48" />
+              <div className="h-3 skeleton rounded-full w-32" />
+            </div>
+            <div className="h-5 skeleton rounded-full w-16" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
