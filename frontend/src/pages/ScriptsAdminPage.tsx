@@ -42,7 +42,7 @@ function groupByCallType<T extends { call_type: string }>(items: T[]): Record<st
 // ─── Componente principal ────────────────────────────────────
 
 export default function ScriptsAdminPage() {
-  const [activeTab, setActiveTab] = useState<'scripts' | 'criteria'>('scripts');
+  const [activeTab, setActiveTab] = useState<'scripts' | 'criteria'>('criteria');
 
   return (
     <div className="min-h-screen bg-slate-950 text-white px-6 py-10">
