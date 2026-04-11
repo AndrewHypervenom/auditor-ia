@@ -59,32 +59,91 @@ export default function ScriptsAdminPage() {
           </p>
         </div>
 
-        {/* ── Segmented Control ── */}
-        <div className="relative inline-flex bg-slate-900/80 border border-slate-800/60 rounded-2xl p-1.5 backdrop-blur-sm mb-8">
-          {/* Pill deslizante */}
-          <div
-            className="absolute inset-y-1.5 rounded-xl bg-white/10 border border-white/10 shadow-sm transition-all duration-300 ease-in-out"
-            style={{
-              width: '50%',
-              transform: `translateX(${activeTab === 'scripts' ? '0%' : '100%'})`,
-            }}
-          />
-          {(['scripts', 'criteria'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`relative z-10 flex items-center gap-2 px-6 py-2.5 text-sm font-medium rounded-xl transition-colors duration-200 ${
-                activeTab === tab ? 'text-white' : 'text-slate-500 hover:text-slate-300'
-              }`}
-            >
-              {tab === 'scripts' ? (
-                <BookOpen size={15} className={activeTab === tab ? 'text-blue-400' : ''} />
-              ) : (
-                <ClipboardList size={15} className={activeTab === tab ? 'text-blue-400' : ''} />
-              )}
-              {tab === 'scripts' ? 'Scripts de Agentes' : 'Criterios de Evaluación'}
-            </button>
-          ))}
+        {/* ── Tab Selector ── */}
+        <div className="grid grid-cols-2 gap-3 mb-8">
+          {([
+            {
+              key: 'scripts' as const,
+              icon: BookOpen,
+              label: 'Scripts de Agentes',
+              description: 'Guiones y frases por paso',
+              color: 'blue',
+            },
+            {
+              key: 'criteria' as const,
+              icon: ClipboardList,
+              label: 'Criterios de Evaluación',
+              description: 'Rúbricas y ponderaciones',
+              color: 'purple',
+            },
+          ]).map(({ key, icon: Icon, label, description, color }) => {
+            const isActive = activeTab === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                className={`group relative flex items-center gap-4 px-5 py-4 rounded-2xl border
+                            text-left transition-all duration-300 overflow-hidden
+                            ${isActive
+                              ? color === 'blue'
+                                ? 'bg-blue-600/10 border-blue-500/40 shadow-[0_0_24px_rgba(59,130,246,0.12)]'
+                                : 'bg-violet-600/10 border-violet-500/40 shadow-[0_0_24px_rgba(139,92,246,0.12)]'
+                              : 'bg-slate-900/50 border-slate-800/60 hover:bg-slate-900/80 hover:border-slate-700/60'
+                            }`}
+              >
+                {/* Glow de fondo al estar activo */}
+                {isActive && (
+                  <div className={`absolute inset-0 opacity-5 pointer-events-none
+                    ${color === 'blue'
+                      ? 'bg-gradient-to-br from-blue-400 to-blue-600'
+                      : 'bg-gradient-to-br from-violet-400 to-violet-600'
+                    }`}
+                  />
+                )}
+
+                {/* Icono con fondo */}
+                <div className={`relative flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center
+                                 transition-all duration-300
+                                 ${isActive
+                                   ? color === 'blue'
+                                     ? 'bg-blue-500/20 border border-blue-500/30'
+                                     : 'bg-violet-500/20 border border-violet-500/30'
+                                   : 'bg-slate-800/60 border border-slate-700/40 group-hover:bg-slate-800'
+                                 }`}>
+                  <Icon
+                    size={18}
+                    className={`transition-colors duration-300
+                      ${isActive
+                        ? color === 'blue' ? 'text-blue-400' : 'text-violet-400'
+                        : 'text-slate-500 group-hover:text-slate-300'
+                      }`}
+                  />
+                </div>
+
+                {/* Texto */}
+                <div className="relative flex flex-col min-w-0">
+                  <span className={`text-sm font-semibold transition-colors duration-200 truncate
+                    ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`}>
+                    {label}
+                  </span>
+                  <span className={`text-xs mt-0.5 transition-colors duration-200 truncate
+                    ${isActive
+                      ? color === 'blue' ? 'text-blue-400/70' : 'text-violet-400/70'
+                      : 'text-slate-600 group-hover:text-slate-500'
+                    }`}>
+                    {description}
+                  </span>
+                </div>
+
+                {/* Indicador activo (punto derecho) */}
+                {isActive && (
+                  <div className={`absolute right-4 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full
+                    ${color === 'blue' ? 'bg-blue-400' : 'bg-violet-400'}`}
+                  />
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* ── Tab Content ── */}
