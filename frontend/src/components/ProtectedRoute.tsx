@@ -3,7 +3,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import type { UserRole } from '../types/auth.types';
-import { useEffect, useState } from 'react';
 
 interface ProtectedRouteProps {
  children: React.ReactNode;
@@ -11,52 +10,20 @@ interface ProtectedRouteProps {
  requirePermission?: string;
 }
 
-export function ProtectedRoute({ 
- children, 
+export function ProtectedRoute({
+ children,
  allowedRoles,
- requirePermission 
+ requirePermission
 }: ProtectedRouteProps) {
  const { user, profile, loading, hasPermission } = useAuth();
  const location = useLocation();
- const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
 
- // Mostrar advertencia si tarda demasiado
- useEffect(() => {
- if (loading) {
- const warningTimer = setTimeout(() => {
- setShowTimeoutWarning(true);
- }, 8000);
-
- return () => clearTimeout(warningTimer);
- } else {
- setShowTimeoutWarning(false);
- }
- }, [loading]);
-
- // Mostrar loading mientras se verifica la autenticación
+ // Spinner solo durante carga inicial (primer login o caché expirada)
  if (loading) {
  return (
  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
- <div className="text-center max-w-md px-4">
- <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-400 border-r-transparent"></div>
- <p className="mt-4 text-white text-lg">Verificando autenticación...</p>
- 
- {showTimeoutWarning && (
- <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
- <p className="text-yellow-400 text-sm mb-2">
- La verificación está tomando más tiempo de lo esperado
- </p>
- <p className="text-slate-300 text-xs mb-3">
- Esto puede deberse a una conexión lenta. Si el problema persiste:
- </p>
- <button
- onClick={() => window.location.reload()}
- className="px-4 py-2 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 rounded-lg text-sm transition-colors"
- >
- Recargar página
- </button>
- </div>
- )}
+ <div className="text-center">
+ <div className="inline-block h-10 w-10 animate-spin rounded-full border-4 border-solid border-blue-400 border-r-transparent"></div>
  </div>
  </div>
  );

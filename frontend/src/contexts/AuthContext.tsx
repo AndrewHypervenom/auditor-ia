@@ -24,14 +24,38 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // ============================================
-// CONFIGURACIÓN DE TIMEOUTS
+// CONFIGURACIÓN DE TIMEOUTS Y CACHÉ
 // ============================================
-const PROFILE_LOAD_TIMEOUT = 15000; // 15 segundos
-const INIT_TIMEOUT = 20000; // 20 segundos
+const PROFILE_LOAD_TIMEOUT = 8000; // 8 segundos (solo para carga inicial sin caché)
 const CACHE_DURATION = 30 * 60 * 1000; // 30 minutos
+const PROFILE_STORAGE_KEY = 'auth_profile_cache';
 
-// Caché del perfil
+// Caché en memoria
 const profileCache = new Map<string, { profile: UserProfile; timestamp: number }>();
+
+// Caché persistente en localStorage
+function saveProfileToStorage(userId: string, profile: UserProfile) {
+  try {
+    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify({
+      userId, profile, timestamp: Date.now()
+    }));
+  } catch {}
+}
+
+function getProfileFromStorage(userId: string): UserProfile | null {
+  try {
+    const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
+    if (!raw) return null;
+    const { userId: cachedId, profile, timestamp } = JSON.parse(raw);
+    if (cachedId !== userId) return null;
+    if (Date.now() - timestamp > CACHE_DURATION) return null;
+    return profile;
+  } catch { return null; }
+}
+
+function clearProfileStorage() {
+  localStorage.removeItem(PROFILE_STORAGE_KEY);
+}
 
 // ============================================
 // LOGGING DE EVENTOS DE AUTENTICACIÓN
@@ -125,14 +149,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  return null;
  }
 
- // Guardar en caché
+ // Guardar en caché (memoria y localStorage)
  profileCache.set(userId, {
  profile: userProfile,
  timestamp: Date.now()
  });
+ saveProfileToStorage(userId, userProfile);
 
  logAuthEvent('PROFILE_LOADED', { userId, role: userProfile.role });
- 
+
  return userProfile;
  } catch (error: any) {
  logAuthEvent('PROFILE_LOAD_TIMEOUT', { userId });
@@ -166,57 +191,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  try {
  logAuthEvent('AUTH_INIT_START');
 
- const initTimeout = setTimeout(() => {
- if (!initializationComplete.current && isMounted) {
- logAuthEvent('AUTH_INIT_TIMEOUT');
- setLoading(false);
- }
- }, INIT_TIMEOUT);
-
  const { data: { session: initialSession }, error } = await supabase.auth.getSession();
- 
+
  if (!isMounted) return;
 
  if (error) {
  logAuthEvent('SESSION_ERROR', { error: error.message });
  setLoading(false);
- clearTimeout(initTimeout);
+ return;
+ }
+
+ if (!initialSession?.user) {
+ logAuthEvent('NO_SESSION');
+ initializationComplete.current = true;
+ setLoading(false);
  return;
  }
 
  setSession(initialSession);
- setUser(initialSession?.user ?? null);
- 
- if (initialSession?.user) {
+ setUser(initialSession.user);
+
  logAuthEvent('SESSION_FOUND', {
  userId: initialSession.user.id,
  email: initialSession.user.email
  });
- 
+
+ // Fase 1: buscar perfil en localStorage (sincrónico, instantáneo)
+ const cachedProfile = getProfileFromStorage(initialSession.user.id);
+
+ if (cachedProfile) {
+ // Servir desde caché → sin spinner para el usuario
+ setProfile(cachedProfile);
+ // También poblar el Map en memoria
+ profileCache.set(initialSession.user.id, { profile: cachedProfile, timestamp: Date.now() });
+ autoRefreshCleanup.current = setupAutoRefresh();
+ initializationComplete.current = true;
+ setLoading(false);
+
+ // Fase 2: verificar y refrescar en background (sin bloquear UI)
+ loadUserProfile(initialSession.user.id).then(freshProfile => {
+ if (!isMounted) return;
+ if (freshProfile) {
+ setProfile(freshProfile);
+ }
+ // Si null por cuenta inactiva: loadUserProfile ya llamó signOut()
+ // Si null por error de red: mantenemos el perfil cacheado
+ });
+
+ } else {
+ // Sin caché: carga normal (solo ocurre en el primer login o caché expirada)
  const userProfile = await loadUserProfile(initialSession.user.id);
 
- // Si null por cuenta inactiva: loadUserProfile ya llamó signOut() → SIGNED_OUT limpia el estado.
- // Si null por timeout/error: mantenemos la sesión para no expulsar al usuario por lentitud de red.
  if (isMounted && userProfile) {
  setProfile(userProfile);
  autoRefreshCleanup.current = setupAutoRefresh();
  }
- } else {
- logAuthEvent('NO_SESSION');
- }
- 
+
  initializationComplete.current = true;
- clearTimeout(initTimeout);
- 
- if (isMounted) {
- setLoading(false);
+ if (isMounted) setLoading(false);
  }
 
  } catch (error) {
  logAuthEvent('AUTH_INIT_ERROR', { error });
- if (isMounted) {
- setLoading(false);
- }
+ if (isMounted) setLoading(false);
  }
  };
 
@@ -253,6 +290,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  logAuthEvent('USER_SIGNED_OUT');
  setProfile(null);
  profileCache.clear();
+ clearProfileStorage();
 
  if (autoRefreshCleanup.current) {
  autoRefreshCleanup.current();
@@ -358,9 +396,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  setUser(null);
  setProfile(null);
  setSession(null);
- 
+
  profileCache.clear();
- 
+ clearProfileStorage();
+
  if (autoRefreshCleanup.current) {
  autoRefreshCleanup.current();
  autoRefreshCleanup.current = null;
