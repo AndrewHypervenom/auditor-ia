@@ -659,6 +659,34 @@ export const plantillaService = {
   },
 };
 
+// AI Prompts (admin)
+export interface AiPrompt {
+  id: string;
+  prompt_key: string;
+  prompt_name: string;
+  description: string | null;
+  content: string;
+  model: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export const promptsService = {
+  async getAll(): Promise<AiPrompt[]> {
+    const response = await api.get('/admin/ai-prompts');
+    return response.data as AiPrompt[];
+  },
+  async update(id: string, payload: Partial<Pick<AiPrompt, 'content' | 'prompt_name' | 'description' | 'is_active'>>): Promise<AiPrompt> {
+    const response = await api.put(`/admin/ai-prompts/${id}`, payload);
+    return response.data as AiPrompt;
+  },
+  async seedDefaults(): Promise<{ success: boolean; results: Record<string, string> }> {
+    const response = await api.post('/admin/seed-defaults');
+    return response.data;
+  },
+};
+
 // CRUD de usuarios (admin)
 export const userService = {
  async getUsers() {

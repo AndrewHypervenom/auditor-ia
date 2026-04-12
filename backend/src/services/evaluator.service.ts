@@ -494,54 +494,21 @@ EJEMPLO DE RESPUESTA CORRECTA:
  scriptSteps
  );
 
+ let evaluationSystemPrompt: string;
+ try {
+   const fromDb = await getDatabaseService().getPromptByKey('evaluation_system');
+   evaluationSystemPrompt = fromDb ?? this.getHardcodedEvaluationSystemPrompt();
+ } catch {
+   logger.warn('[EVALUATOR] No se pudo cargar evaluation_system desde BD, usando fallback');
+   evaluationSystemPrompt = this.getHardcodedEvaluationSystemPrompt();
+ }
+
  const response = await this.client.chat.completions.create({
  model: 'gpt-5.4-mini',
  messages: [
  {
  role: 'system',
- content: `Eres un auditor experto que evalúa con MÁXIMA PRECISIÓN basándose en EVIDENCIA CONCRETA.
-
-**FILOSOFÍA DE CALIFICACIÓN:**
-
-Si la evidencia está presente en los datos estructurados → OTORGA PUNTOS COMPLETOS
-Si la evidencia NO está presente → 0 puntos
-Si hay duda → Revisa toda la evidencia disponible antes de decidir
-
-**REGLAS DE MATCHING:**
-
-1. CAMPOS CRÍTICOS tienen prioridad absoluta:
- - has_case_number = true → Hay número de caso
- - has_blocked_status = true → La tarjeta está bloqueada
- - has_folio_number = true → El folio fue creado
- - has_fraud_checkboxes = true → Los checkboxes están marcados
- - has_transactions = true → Hay transacciones calificadas
-
-2. Para cada tópico, BUSCA la evidencia específica:
- - "Cierre correcto del caso" → Busca en transcripción menciones de pasos siguientes
- - "Creación y llenado correcto del caso" → Busca case_number + checkboxes + comentarios
- - "Bloquea tarjeta" → Busca account_status: BLOCKED o block_types_marked
- - "Crea el Folio Correctamente" → Busca folio_number y folio_created: true
-
-3. PENALIZA SOLO si la evidencia contradice el criterio:
- - Si dice "Bloquea tarjeta" pero account_status = "ACTIVE" → 0 puntos
- - Si dice "Crea folio" pero folio_created = false → 0 puntos
-
-4. NO PENALICES por ausencia de evidencia si el sistema no aplica:
- - Si no hay imagen de VRM → No se puede validar VRM
- - Si no hay imagen de BI → No se puede validar folio
-
-5. USA TODA LA EVIDENCIA:
- - Combina visual + verbal
- - Si el agente menciona algo en audio Y se ve en imagen → Puntos completos
- - Si solo está en uno → Evalúa si es suficiente
-
-**CRITERIO DE PUNTUACIÓN:**
-
-- Evidencia CLARA y COMPLETA → Puntos completos (100%)
-- Evidencia PARCIAL pero válida → Puntos parciales (50-80%)
-- SIN evidencia o evidencia contradictoria → 0 puntos
-
-**NO SEAS CONSERVADOR - SI LA EVIDENCIA EXISTE, ÚSALA**`
+ content: evaluationSystemPrompt
  },
  {
  role: 'user',
@@ -1237,6 +1204,52 @@ CRITERIO:
  Si encuentras evidencia clara → PUNTOS COMPLETOS
  Si evidencia parcial → PUNTOS PARCIALES
  Si no hay evidencia → 0 puntos`;
+ }
+
+ private getHardcodedEvaluationSystemPrompt(): string {
+   return `Eres un auditor experto que evalúa con MÁXIMA PRECISIÓN basándose en EVIDENCIA CONCRETA.
+
+**FILOSOFÍA DE CALIFICACIÓN:**
+
+Si la evidencia está presente en los datos estructurados → OTORGA PUNTOS COMPLETOS
+Si la evidencia NO está presente → 0 puntos
+Si hay duda → Revisa toda la evidencia disponible antes de decidir
+
+**REGLAS DE MATCHING:**
+
+1. CAMPOS CRÍTICOS tienen prioridad absoluta:
+ - has_case_number = true → Hay número de caso
+ - has_blocked_status = true → La tarjeta está bloqueada
+ - has_folio_number = true → El folio fue creado
+ - has_fraud_checkboxes = true → Los checkboxes están marcados
+ - has_transactions = true → Hay transacciones calificadas
+
+2. Para cada tópico, BUSCA la evidencia específica:
+ - "Cierre correcto del caso" → Busca en transcripción menciones de pasos siguientes
+ - "Creación y llenado correcto del caso" → Busca case_number + checkboxes + comentarios
+ - "Bloquea tarjeta" → Busca account_status: BLOCKED o block_types_marked
+ - "Crea el Folio Correctamente" → Busca folio_number y folio_created: true
+
+3. PENALIZA SOLO si la evidencia contradice el criterio:
+ - Si dice "Bloquea tarjeta" pero account_status = "ACTIVE" → 0 puntos
+ - Si dice "Crea folio" pero folio_created = false → 0 puntos
+
+4. NO PENALICES por ausencia de evidencia si el sistema no aplica:
+ - Si no hay imagen de VRM → No se puede validar VRM
+ - Si no hay imagen de BI → No se puede validar folio
+
+5. USA TODA LA EVIDENCIA:
+ - Combina visual + verbal
+ - Si el agente menciona algo en audio Y se ve en imagen → Puntos completos
+ - Si solo está en uno → Evalúa si es suficiente
+
+**CRITERIO DE PUNTUACIÓN:**
+
+- Evidencia CLARA y COMPLETA → Puntos completos (100%)
+- Evidencia PARCIAL pero válida → Puntos parciales (50-80%)
+- SIN evidencia o evidencia contradictoria → 0 puntos
+
+**NO SEAS CONSERVADOR - SI LA EVIDENCIA EXISTE, ÚSALA**`;
  }
 
  private getSystemFromBlock(blockName: string): string {

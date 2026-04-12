@@ -552,6 +552,7 @@ class DatabaseService {
 
   private scriptsCache: Map<string, { data: any; timestamp: number }> = new Map();
   private criteriaCache: Map<string, { data: any; timestamp: number }> = new Map();
+  private promptsCache: Map<string, { data: any; timestamp: number }> = new Map();
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
 
   private isCacheValid(entry: { data: any; timestamp: number }): boolean {
@@ -564,6 +565,10 @@ class DatabaseService {
 
   invalidateCriteriaCache(): void {
     this.criteriaCache.clear();
+  }
+
+  invalidatePromptsCache(): void {
+    this.promptsCache.clear();
   }
 
   async getScriptsForCallType(callType: string): Promise<any[]> {
@@ -879,6 +884,56 @@ class DatabaseService {
     if (error) throw error;
   }
 
+  // ============================================================
+  // AI PROMPTS
+  // ============================================================
+
+  async getPromptByKey(key: string): Promise<string | null> {
+    const cached = this.promptsCache.get(key);
+    if (cached && this.isCacheValid(cached)) return cached.data;
+
+    const { data, error } = await supabaseAdmin
+      .from('ai_prompts')
+      .select('content')
+      .eq('prompt_key', key)
+      .eq('is_active', true)
+      .single();
+
+    if (error || !data) {
+      logger.warn(`ai_prompts: no se pudo cargar el prompt '${key}' desde BD`, { error });
+      return null;
+    }
+
+    this.promptsCache.set(key, { data: data.content, timestamp: Date.now() });
+    return data.content;
+  }
+
+  async getAllPrompts(): Promise<any[]> {
+    const { data, error } = await supabaseAdmin
+      .from('ai_prompts')
+      .select('*')
+      .order('prompt_key');
+    if (error) throw error;
+    return data || [];
+  }
+
+  async updatePrompt(id: string, payload: Partial<{
+    content: string;
+    prompt_name: string;
+    description: string;
+    is_active: boolean;
+  }>): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('ai_prompts')
+      .update({ ...payload, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    this.invalidatePromptsCache();
+    return data;
+  }
+
   /**
    * Registrar actividad de auditorÃ­a
    */
@@ -955,6 +1010,11 @@ export const databaseService = {
   updatePlantillaItem: (id: string, payload: Parameters<DatabaseService['updatePlantillaItem']>[1]) => getDatabaseService().updatePlantillaItem(id, payload),
   renamePlantillaCategoria: (oldName: string, newName: string) => getDatabaseService().renamePlantillaCategoria(oldName, newName),
   deletePlantillaItem: (id: string) => getDatabaseService().deletePlantillaItem(id),
+  // AI Prompts
+  getPromptByKey: (key: string) => getDatabaseService().getPromptByKey(key),
+  getAllPrompts: () => getDatabaseService().getAllPrompts(),
+  updatePrompt: (id: string, payload: Parameters<DatabaseService['updatePrompt']>[1]) => getDatabaseService().updatePrompt(id, payload),
+  invalidatePromptsCache: () => getDatabaseService().invalidatePromptsCache(),
 };
 
 export { DatabaseService };

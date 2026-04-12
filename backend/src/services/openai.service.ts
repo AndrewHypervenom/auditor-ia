@@ -4,6 +4,7 @@ import OpenAI from 'openai';
 import { logger } from '../utils/logger.js';
 import type { ImageAnalysis } from '../types/index.js';
 import * as fs from 'fs';
+import { getDatabaseService } from './database.service.js';
 
 class OpenAIService {
  private client: OpenAI;
@@ -43,7 +44,7 @@ class OpenAIService {
  },
  {
  type: 'text',
- text: this.getEnhancedImageAnalysisPrompt()
+ text: await this.getEnhancedImageAnalysisPrompt()
  }
  ]
  }
@@ -93,7 +94,17 @@ class OpenAIService {
  }
  }
 
- private getEnhancedImageAnalysisPrompt(): string {
+ private async getEnhancedImageAnalysisPrompt(): Promise<string> {
+   try {
+     const fromDb = await getDatabaseService().getPromptByKey('image_analysis');
+     if (fromDb) return fromDb;
+   } catch {
+     logger.warn('[OPENAI] No se pudo cargar image_analysis desde BD, usando fallback hardcodeado');
+   }
+   return this.getHardcodedImageAnalysisPrompt();
+ }
+
+ private getHardcodedImageAnalysisPrompt(): string {
  return `Analiza esta captura de pantalla de sistema bancario con MÁXIMA PRECISIÓN y EXTRAE TODOS LOS DATOS VISIBLES.
 
 **OBJETIVO:** Lee cada línea de texto visible y extrae TODOS los datos relevantes.
@@ -354,19 +365,8 @@ Ahora analiza la imagen proporcionada siguiendo TODOS estos pasos y reglas.`;
  /**
  * Corrige errores obvios de reconocimiento de voz en transcripciones bancarias
  */
- async correctTranscription(text: string): Promise<string> {
- if (!text || text.length < 10) return text;
-
- try {
- logger.info('[OPENAI] Iniciando post-corrección de transcripción', { longitud: text.length });
-
- const response = await this.client.chat.completions.create({
- model: 'gpt-5.4-mini',
- temperature: 0,
- messages: [
- {
- role: 'system',
- content: `Eres un corrector de transcripciones de call center bancario mexicano (Bradescard).
+ private getHardcodedTranscriptionCorrectionPrompt(): string {
+   return `Eres un corrector de transcripciones de call center bancario mexicano (Bradescard).
 
 CORRECCIONES DE MARCA (aplica siempre):
 - "Prascar", "Brascar", "Bascar", "Brascart", "Prascart" → "Bradescard"
@@ -382,7 +382,31 @@ REGLAS ESTRICTAS:
 - Mantén exactamente: VCAS, FALCON, VISION, VRM, BI, OTP, NIP, CallerID, BLKI, BLKT, BNFC
 - NO cambies el significado ni el contenido de la conversación real
 - NO inventes ni agregues información que no esté en el audio
-- Devuelve SOLO el texto corregido, sin explicaciones ni comentarios`
+- Devuelve SOLO el texto corregido, sin explicaciones ni comentarios`;
+ }
+
+ async correctTranscription(text: string): Promise<string> {
+ if (!text || text.length < 10) return text;
+
+ try {
+ logger.info('[OPENAI] Iniciando post-corrección de transcripción', { longitud: text.length });
+
+ let systemContent: string;
+ try {
+   const fromDb = await getDatabaseService().getPromptByKey('transcription_correction');
+   systemContent = fromDb ?? this.getHardcodedTranscriptionCorrectionPrompt();
+ } catch {
+   logger.warn('[OPENAI] No se pudo cargar transcription_correction desde BD, usando fallback');
+   systemContent = this.getHardcodedTranscriptionCorrectionPrompt();
+ }
+
+ const response = await this.client.chat.completions.create({
+ model: 'gpt-5.4-mini',
+ temperature: 0,
+ messages: [
+ {
+ role: 'system',
+ content: systemContent
  },
  {
  role: 'user',

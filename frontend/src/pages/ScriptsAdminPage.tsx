@@ -20,17 +20,21 @@ import {
   BarChart2,
   ListChecks,
   Loader2,
+  Brain,
+  Database,
 } from 'lucide-react';
 import {
   scriptsService,
   criteriaService,
+  promptsService,
   type ScriptStep,
   type CriteriaBlock,
   type CriteriaItem,
+  type AiPrompt,
 } from '../services/api';
 import PlantillaGPFTab from '../components/PlantillaGPFTab';
 
-const CALL_TYPES = ['FRAUDE', 'TH CONFIRMA'];
+const CALL_TYPES = ['FRAUDE', 'MONITOREO', 'TH CONFIRMA'];
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -47,7 +51,7 @@ function groupByCallType<T extends { call_type: string }>(items: T[]): Record<st
 
 export default function ScriptsAdminPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'scripts' | 'criteria' | 'plantilla'>('criteria');
+  const [activeTab, setActiveTab] = useState<'scripts' | 'criteria' | 'plantilla' | 'ai_prompts'>('criteria');
 
   return (
     <div className="min-h-screen text-white">
@@ -55,12 +59,15 @@ export default function ScriptsAdminPage() {
       <div className="max-w-5xl mx-auto px-6 py-6">
 
         {/* ── Description ── */}
-        <p className="mb-6 text-sm text-slate-400 leading-relaxed">
+        <p className="mb-4 text-sm text-slate-400 leading-relaxed">
           Edita los guiones de los agentes y las rúbricas de evaluación sin modificar el código.
         </p>
 
+        {/* ── Seed Button ── */}
+        <SeedButton />
+
         {/* ── Tab Selector ── */}
-        <div className="grid grid-cols-3 gap-3 mb-5">
+        <div className="grid grid-cols-4 gap-3 mb-5">
           {([
             {
               key: 'criteria' as const,
@@ -83,6 +90,13 @@ export default function ScriptsAdminPage() {
               description: 'Calificación y Sub-calificación',
               color: 'teal',
             },
+            {
+              key: 'ai_prompts' as const,
+              icon: Brain,
+              label: 'Comportamiento IA',
+              description: 'Prompts de análisis y evaluación',
+              color: 'amber',
+            },
           ]).map(({ key, icon: Icon, label, description, color }) => {
             const isActive = activeTab === key;
             return (
@@ -96,6 +110,8 @@ export default function ScriptsAdminPage() {
                                 ? 'bg-brand-500/10 border-brand-700/40 shadow-[0_0_24px_rgba(59,130,246,0.12)]'
                                 : color === 'teal'
                                 ? 'bg-teal-600/10 border-teal-500/40 shadow-[0_0_24px_rgba(20,184,166,0.12)]'
+                                : color === 'amber'
+                                ? 'bg-amber-600/10 border-amber-500/40 shadow-[0_0_24px_rgba(245,158,11,0.12)]'
                                 : 'bg-violet-600/10 border-violet-500/40 shadow-[0_0_24px_rgba(139,92,246,0.12)]'
                               : 'bg-slate-900/50 border-slate-800/60 hover:bg-slate-900/80 hover:border-slate-700/60'
                             }`}
@@ -107,6 +123,8 @@ export default function ScriptsAdminPage() {
                       ? 'bg-gradient-to-br from-brand-900/30 to-brand-800/30'
                       : color === 'teal'
                       ? 'bg-gradient-to-br from-teal-400 to-teal-600'
+                      : color === 'amber'
+                      ? 'bg-gradient-to-br from-amber-400 to-amber-600'
                       : 'bg-gradient-to-br from-violet-400 to-violet-600'
                     }`}
                   />
@@ -120,6 +138,8 @@ export default function ScriptsAdminPage() {
                                      ? 'bg-brand-500/10 border border-brand-700/40'
                                      : color === 'teal'
                                      ? 'bg-teal-500/20 border border-teal-500/30'
+                                     : color === 'amber'
+                                     ? 'bg-amber-500/20 border border-amber-500/30'
                                      : 'bg-violet-500/20 border border-violet-500/30'
                                    : 'bg-slate-800/60 border border-slate-700/40 group-hover:bg-slate-800'
                                  }`}>
@@ -127,7 +147,7 @@ export default function ScriptsAdminPage() {
                     size={18}
                     className={`transition-colors duration-300
                       ${isActive
-                        ? color === 'blue' ? 'text-brand-400' : color === 'teal' ? 'text-teal-400' : 'text-violet-400'
+                        ? color === 'blue' ? 'text-brand-400' : color === 'teal' ? 'text-teal-400' : color === 'amber' ? 'text-amber-400' : 'text-violet-400'
                         : 'text-slate-500 group-hover:text-slate-300'
                       }`}
                   />
@@ -141,7 +161,7 @@ export default function ScriptsAdminPage() {
                   </span>
                   <span className={`text-xs mt-0.5 transition-colors duration-200 truncate
                     ${isActive
-                      ? color === 'blue' ? 'text-brand-400/70' : color === 'teal' ? 'text-teal-400/70' : 'text-violet-400/70'
+                      ? color === 'blue' ? 'text-brand-400/70' : color === 'teal' ? 'text-teal-400/70' : color === 'amber' ? 'text-amber-400/70' : 'text-violet-400/70'
                       : 'text-slate-600 group-hover:text-slate-500'
                     }`}>
                     {description}
@@ -151,7 +171,7 @@ export default function ScriptsAdminPage() {
                 {/* Indicador activo (punto derecho) */}
                 {isActive && (
                   <div className={`absolute right-4 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full
-                    ${color === 'blue' ? 'bg-brand-500/10' : color === 'teal' ? 'bg-teal-400' : 'bg-violet-400'}`}
+                    ${color === 'blue' ? 'bg-brand-500/10' : color === 'teal' ? 'bg-teal-400' : color === 'amber' ? 'bg-amber-400' : 'bg-violet-400'}`}
                   />
                 )}
               </button>
@@ -165,6 +185,8 @@ export default function ScriptsAdminPage() {
             ? <ScriptsTab />
             : activeTab === 'criteria'
             ? <CriteriaTab />
+            : activeTab === 'ai_prompts'
+            ? <AiPromptsTab />
             : <PlantillaGPFTab />
           }
         </div>
@@ -1228,6 +1250,194 @@ function SkeletonLoader() {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ─── Seed Button ──────────────────────────────────────────────
+
+function SeedButton() {
+  const [loading, setLoading] = useState(false);
+
+  const handleSeed = async () => {
+    if (!confirm('¿Cargar datos predeterminados desde los archivos estáticos?\n\nSolo insertará datos si las tablas están vacías (operación segura e idempotente).')) return;
+    setLoading(true);
+    try {
+      const result = await promptsService.seedDefaults();
+      const lines = Object.entries(result.results).map(([k, v]) => `• ${k}: ${v}`).join('\n');
+      toast.success(`Datos cargados:\n${lines}`, { duration: 6000 });
+    } catch {
+      toast.error('Error al cargar datos predeterminados');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex justify-end mb-4">
+      <button
+        onClick={handleSeed}
+        disabled={loading}
+        className="flex items-center gap-2 px-4 py-2 rounded-xl
+                   bg-amber-500/10 border border-amber-700/40 text-amber-300
+                   text-sm font-medium hover:bg-amber-500/20 transition-all duration-200
+                   disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {loading ? <Loader2 size={15} className="animate-spin" /> : <Database size={15} />}
+        Cargar datos predeterminados
+      </button>
+    </div>
+  );
+}
+
+// ─── Tab: Comportamiento IA (AI Prompts) ─────────────────────
+
+function AiPromptsTab() {
+  const [prompts, setPrompts] = useState<AiPrompt[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await promptsService.getAll();
+      setPrompts(data);
+    } catch {
+      toast.error('Error al cargar prompts de IA');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (loading) return <SkeletonLoader />;
+
+  if (prompts.length === 0) {
+    return (
+      <EmptyState
+        icon={<Brain size={28} className="text-slate-600" />}
+        title="Sin prompts configurados"
+        description='Ejecuta "Cargar datos predeterminados" para inicializar los prompts desde los archivos estáticos.'
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-slate-500 leading-relaxed">
+        Estos son los prompts enviados a la IA en cada etapa del proceso de auditoría.
+        Edítalos con cuidado — afectan directamente cómo la IA analiza imágenes, evalúa llamadas y corrige transcripciones.
+      </p>
+      {prompts.map((prompt) => (
+        <PromptEditor key={prompt.id} prompt={prompt} onUpdate={load} />
+      ))}
+    </div>
+  );
+}
+
+// ─── Editor de Prompt individual ─────────────────────────────
+
+interface PromptEditorProps {
+  prompt: AiPrompt;
+  onUpdate: () => void;
+}
+
+function PromptEditor({ prompt, onUpdate }: PromptEditorProps) {
+  const [content, setContent] = useState(prompt.content);
+  const [expanded, setExpanded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const isDirty = content !== prompt.content;
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await promptsService.update(prompt.id, { content });
+      toast.success('Prompt actualizado');
+      onUpdate();
+    } catch {
+      toast.error('Error al guardar prompt');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReset = () => {
+    setContent(prompt.content);
+  };
+
+  return (
+    <div className="bg-slate-900/60 border border-slate-800/60 rounded-2xl overflow-hidden">
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-5 py-4 cursor-pointer select-none"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30
+                          flex items-center justify-center">
+            <Brain size={16} className="text-amber-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-white truncate">{prompt.prompt_name}</p>
+            {prompt.description && (
+              <p className="text-xs text-slate-500 mt-0.5 truncate">{prompt.description}</p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0 ml-3">
+          {isDirty && (
+            <span className="text-xs text-amber-400 font-medium">Cambios sin guardar</span>
+          )}
+          <span className="text-xs text-slate-600 font-mono tabular-nums">
+            {content.length.toLocaleString()} car.
+          </span>
+          <ChevronDown
+            size={16}
+            className={`text-slate-500 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+          />
+        </div>
+      </div>
+
+      {/* Editor (expandido) */}
+      {expanded && (
+        <div className="px-5 pb-5 border-t border-slate-800/60">
+          <div className="mt-4">
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              rows={22}
+              className="w-full bg-slate-950/70 border border-slate-700/50 rounded-xl px-4 py-3
+                         text-sm text-slate-200 font-mono leading-relaxed resize-y
+                         focus:outline-none focus:border-amber-700/50 focus:ring-1 focus:ring-amber-700/30
+                         placeholder:text-slate-600"
+              spellCheck={false}
+              placeholder="Escribe el prompt de sistema aquí..."
+            />
+          </div>
+          <div className="flex items-center gap-2 mt-3 justify-end">
+            <button
+              onClick={handleReset}
+              disabled={!isDirty || saving}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                         text-slate-400 hover:text-slate-200 border border-slate-700/50 hover:border-slate-600
+                         transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <RotateCcw size={12} /> Descartar
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!isDirty || saving}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold
+                         bg-amber-500/10 border border-amber-700/40 text-amber-300
+                         hover:bg-amber-500/20 transition-all
+                         disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+              Guardar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
