@@ -71,7 +71,7 @@ export default function AuditsViewPage() {
  const { audits: data } = await auditService.getUserAudits();
  setAudits(data);
  } catch (error: any) {
- toast.error('Error al cargar auditorÃ­as');
+ toast.error('Error al cargar auditorías');
  console.error(error);
  } finally {
  setLoading(false);
@@ -103,7 +103,7 @@ export default function AuditsViewPage() {
  }
  };
 
- // ExportaciÃ³n mejorada a Excel con formato profesional
+ // Exportación mejorada a Excel con formato profesional
  const exportToExcel = async () => {
  if (filteredAndSortedAudits.length === 0) {
  toast.error('No hay datos para exportar');
@@ -115,7 +115,7 @@ export default function AuditsViewPage() {
  toast.loading('Generando reporte Excel...', { id: 'export-excel' });
 
  const workbook = new ExcelJS.Workbook();
- workbook.creator = 'Sistema de AuditorÃ­as AI';
+ workbook.creator = 'Sistema de Auditorías AI';
  workbook.created = new Date();
  workbook.company = 'Call Center Analytics';
 
@@ -125,7 +125,7 @@ export default function AuditsViewPage() {
  views: [{ state: 'frozen', xSplit: 0, ySplit: 1 }]
  });
 
- // EstadÃ­sticas calculadas
+ // Estadísticas calculadas
  const totalAudits = filteredAndSortedAudits.length;
  const completedAudits = filteredAndSortedAudits.filter(a => a.status === 'completed').length;
  const processingAudits = filteredAndSortedAudits.filter(a => a.status === 'processing').length;
@@ -144,10 +144,10 @@ export default function AuditsViewPage() {
  { key: 'detail', width: 50 }
  ];
 
- // TÃ­tulo principal
+ // Título principal
  summarySheet.mergeCells('A1:C1');
  const titleCell = summarySheet.getCell('A1');
- titleCell.value = 'Ã°Å¸â€œÅ  REPORTE DE AUDITORÃAS - RESUMEN EJECUTIVO';
+         titleCell.value = '📊 REPORTE DE AUDITORÍAS - RESUMEN EJECUTIVO';
  titleCell.font = { size: 16, bold: true, color: { argb: 'FF10B981' } };
  titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
  titleCell.fill = {
@@ -158,7 +158,7 @@ export default function AuditsViewPage() {
  summarySheet.getRow(1).height = 30;
 
  // Headers
- summarySheet.addRow(['MÃ©trica', 'Valor', 'Detalle']);
+ summarySheet.addRow(['Métrica', 'Valor', 'Detalle']);
  const headerRow = summarySheet.getRow(2);
  headerRow.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
  headerRow.fill = {
@@ -172,33 +172,33 @@ export default function AuditsViewPage() {
  // Datos del resumen
  const summaryData = [
  {
- metric: 'Ã°Å¸â€œÂ Total de AuditorÃ­as',
+ metric: ' Total de Auditorías',
  value: totalAudits.toString(),
  detail: `${completedAudits} completadas, ${processingAudits} en proceso, ${errorAudits} con errores`
  },
  {
- metric: 'Ã¢Å“â€¦ Tasa de Ã‰xito',
+ metric: 'Tasa de Éxito',
  value: totalAudits > 0 ? `${((completedAudits / totalAudits) * 100).toFixed(1)}%` : '0%',
- detail: `${completedAudits} de ${totalAudits} auditorÃ­as completadas exitosamente`
+ detail: `${completedAudits} de ${totalAudits} auditorías completadas exitosamente`
  },
  {
- metric: 'Ã¢Â­Â Score Promedio',
+         metric: 'Score Promedio',
  value: avgScore > 0 ? `${avgScore.toFixed(2)}%` : 'N/A',
- detail: `Basado en ${auditsWithScore.length} auditorÃ­as evaluadas`
+ detail: `Basado en ${auditsWithScore.length} auditorías evaluadas`
  },
  {
- metric: 'Ã°Å¸â€œÅ  Mejor Score',
+ metric: 'Mejor Score',
  value: auditsWithScore.length > 0 
  ? `${Math.max(...auditsWithScore.map(a => a.evaluations![0].percentage)).toFixed(2)}%`
  : 'N/A',
- detail: 'Score mÃ¡s alto obtenido en el perÃ­odo'
+ detail: 'Score más alto obtenido en el período'
  },
  {
- metric: 'Ã°Å¸â€œâ€° Score MÃ¡s Bajo',
+ metric: '° Score Más Bajo',
  value: auditsWithScore.length > 0 
  ? `${Math.min(...auditsWithScore.map(a => a.evaluations![0].percentage)).toFixed(2)}%`
  : 'N/A',
- detail: 'Score mÃ¡s bajo obtenido en el perÃ­odo'
+ detail: 'Score más bajo obtenido en el período'
  }
  ];
 
@@ -206,17 +206,17 @@ export default function AuditsViewPage() {
  if (isSupervisor) {
  summaryData.push(
  {
- metric: 'Ã°Å¸â€™Â° Costo Total',
+ metric: '° Costo Total',
  value: `$${totalCost.toFixed(4)} USD`,
- detail: `Costo acumulado de ${totalAudits} auditorÃ­as procesadas`
+ detail: `Costo acumulado de ${totalAudits} auditorías procesadas`
  },
  {
- metric: 'Ã°Å¸â€™Âµ Costo Promedio',
+ metric: 'µ Costo Promedio',
  value: `$${avgCost.toFixed(4)} USD`,
- detail: 'Costo promedio por auditorÃ­a'
+ detail: 'Costo promedio por auditoría'
  },
  {
- metric: 'Ã°Å¸â€œË† Eficiencia',
+ metric: 'Ë† Eficiencia',
  value: avgScore > 0 ? `$${(avgCost / (avgScore / 100)).toFixed(4)}` : 'N/A',
  detail: 'Costo por punto de score obtenido'
  }
@@ -224,7 +224,7 @@ export default function AuditsViewPage() {
  }
 
  summaryData.push({
- metric: 'Ã°Å¸â€œâ€¦ Fecha de GeneraciÃ³n',
+ metric: '¦ Fecha de Generación',
  value: new Date().toLocaleDateString('es-ES', { 
  year: 'numeric', 
  month: 'long', 
@@ -263,27 +263,27 @@ export default function AuditsViewPage() {
  });
  });
 
- // ========== HOJA 2: AUDITORÃAS DETALLADAS ==========
- const detailSheet = workbook.addWorksheet('AuditorÃ­as Detalladas', {
+ // ========== HOJA 2: AUDITORÍAS DETALLADAS ==========
+ const detailSheet = workbook.addWorksheet('Auditorías Detalladas', {
  properties: { tabColor: { argb: 'FF3B82F6' } },
  views: [{ state: 'frozen', xSplit: 0, ySplit: 1 }]
  });
 
  // Configurar columnas
  const columns: any[] = [
- { header: 'Ã°Å¸â€œâ€¦ Fecha', key: 'fecha', width: 20 },
- { header: 'Ã°Å¸â€˜Â¤ Ejecutivo', key: 'ejecutivo', width: 25 },
- { header: 'Ã°Å¸â€ â€ ID Ejecutivo', key: 'id_ejecutivo', width: 18 },
- { header: 'Ã°Å¸Å½Â¯ Cliente', key: 'cliente', width: 25 },
- { header: 'Ã°Å¸â€œÅ¾ Tipo Llamada', key: 'tipo_llamada', width: 16 },
+ { header: 'Fecha', key: 'fecha', width: 20 },
+ { header: 'Ejecutivo', key: 'ejecutivo', width: 25 },
+         { header: 'ID Ejecutivo', key: 'id_ejecutivo', width: 18 },
+ { header: 'Cliente', key: 'cliente', width: 25 },
+ { header: 'Tipo Llamada', key: 'tipo_llamada', width: 16 },
  { header: 'Creado por', key: 'creado_por', width: 22 },
- { header: 'Ã¢Å“â€¦ Estado', key: 'estado', width: 14 },
- { header: 'Ã¢Â­Â Score (%)', key: 'score', width: 14 },
- { header: 'Ã°Å¸Å½â€“Ã¯Â¸Â Puntos', key: 'puntos', width: 14 }
+         { header: 'Estado', key: 'estado', width: 14 },
+         { header: 'Score (%)', key: 'score', width: 14 },
+         { header: 'Puntos', key: 'puntos', width: 14 }
  ];
 
  if (isSupervisor) {
- columns.push({ header: 'Ã°Å¸â€™Â° Costo (USD)', key: 'costo', width: 16 });
+ columns.push({ header: 'Costo (USD)', key: 'costo', width: 16 });
  }
 
  detailSheet.columns = columns;
@@ -306,10 +306,10 @@ export default function AuditsViewPage() {
  ejecutivo: audit.executive_name || 'Sin nombre',
  id_ejecutivo: audit.executive_id || 'N/A',
  cliente: truncateText(audit.client_id || 'N/A', 30),
- tipo_llamada: (audit.call_type || '').toUpperCase() === 'MONITOREO' ? 'ðŸ–¥ï¸ Monitoreo' : 'ðŸ“ž Inbound',
+ tipo_llamada: (audit.call_type || '').toUpperCase() === 'MONITOREO' ? '🖥️ Monitoreo' : '📞 Inbound',
  creado_por: audit.created_by_name || 'Desconocido',
- estado: audit.status === 'completed' ? 'Ã¢Å“â€¦ Completada' : 
- audit.status === 'processing' ? 'Ã¢ÂÂ³ Procesando' : 'Ã¢ÂÅ’ Error',
+         estado: audit.status === 'completed' ? '✅ Completada' :
+         audit.status === 'processing' ? '⏳ Procesando' : '❌ Error',
  score: audit.evaluations?.[0]?.percentage 
  ? `${audit.evaluations[0].percentage.toFixed(1)}%` 
  : 'N/A',
@@ -334,7 +334,7 @@ export default function AuditsViewPage() {
  };
  }
 
- // Colorear el score segÃºn el valor
+ // Colorear el score según el valor
  if (audit.evaluations?.[0]?.percentage) {
  const scoreCell = excelRow.getCell('score');
  const score = audit.evaluations[0].percentage;
@@ -360,7 +360,7 @@ export default function AuditsViewPage() {
  }
  };
 
- // AlineaciÃ³n
+ // Alineación
  excelRow.eachCell((cell) => {
  cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: false };
  cell.border = {
@@ -390,19 +390,19 @@ export default function AuditsViewPage() {
  }
  });
 
- // Agregar filtros automÃ¡ticos
+ // Agregar filtros automáticos
  detailSheet.autoFilter = {
  from: 'A1',
  to: isSupervisor ? 'J1' : 'I1'
  };
 
- // ========== HOJA 3: ANÃLISIS POR EJECUTIVO ==========
- const executivesSheet = workbook.addWorksheet('AnÃ¡lisis por Ejecutivo', {
+ // ========== HOJA 3: ANÁLISIS POR EJECUTIVO ==========
+ const executivesSheet = workbook.addWorksheet('Análisis por Ejecutivo', {
  properties: { tabColor: { argb: 'FFA855F7' } },
  views: [{ state: 'frozen', xSplit: 0, ySplit: 1 }]
  });
 
- // Agrupar auditorÃ­as por ejecutivo
+ // Agrupar auditorías por ejecutivo
  const executiveStats = new Map<string, {
  name: string;
  total: number;
@@ -443,20 +443,20 @@ export default function AuditsViewPage() {
 
  // Configurar columnas
  const execColumns: any[] = [
- { header: 'Ã°Å¸â€˜Â¤ Ejecutivo', key: 'ejecutivo', width: 25 },
- { header: 'Ã°Å¸â€ â€ ID', key: 'id', width: 18 },
- { header: 'Ã°Å¸â€œÂ Total', key: 'total', width: 12 },
- { header: 'Ã¢Å“â€¦ Completadas', key: 'completadas', width: 14 },
- { header: 'Ã°Å¸â€œÅ  Tasa Ã‰xito', key: 'tasa', width: 14 },
- { header: 'Ã¢Â­Â Score Prom.', key: 'score_prom', width: 14 },
- { header: 'Ã°Å¸Å½Â¯ Mejor Score', key: 'mejor', width: 14 },
- { header: 'Ã°Å¸â€œâ€° Peor Score', key: 'peor', width: 14 }
+ { header: 'Ejecutivo', key: 'ejecutivo', width: 25 },
+         { header: 'ID', key: 'id', width: 18 },
+         { header: 'Total', key: 'total', width: 12 },
+         { header: 'Completadas', key: 'completadas', width: 14 },
+         { header: 'Tasa Éxito', key: 'tasa', width: 14 },
+         { header: 'Score Prom.', key: 'score_prom', width: 14 },
+ { header: 'Mejor Score', key: 'mejor', width: 14 },
+ { header: 'Peor Score', key: 'peor', width: 14 }
  ];
 
  if (isSupervisor) {
  execColumns.push(
- { header: 'Ã°Å¸â€™Â° Costo Total', key: 'costo_total', width: 16 },
- { header: 'Ã°Å¸â€™Âµ Costo Prom.', key: 'costo_prom', width: 16 }
+ { header: 'Costo Total', key: 'costo_total', width: 16 },
+ { header: 'Costo Prom.', key: 'costo_prom', width: 16 }
  );
  }
 
@@ -540,7 +540,7 @@ export default function AuditsViewPage() {
  color: { argb: 'FFA855F7' },
  size: 11
  };
- excelRow.getCell('ejecutivo').value = `Ã°Å¸Ââ€  ${rowData.ejecutivo}`;
+         excelRow.getCell('ejecutivo').value = `👤 ${rowData.ejecutivo}`;
  }
  });
 
@@ -637,7 +637,7 @@ export default function AuditsViewPage() {
 
  // Aplicar filtros
  const filteredAudits = audits.filter(audit => {
- // BÃºsqueda
+ // Búsqueda
  const searchLower = searchTerm.toLowerCase();
  const matchesSearch = 
  audit.executive_name.toLowerCase().includes(searchLower) ||
@@ -717,7 +717,7 @@ export default function AuditsViewPage() {
  }
  };
 
- // Calcular estadÃ­sticas
+ // Calcular estadísticas
  const stats = {
  total: filteredAndSortedAudits.length,
  completed: filteredAndSortedAudits.filter(a => a.status === 'completed').length,
@@ -732,22 +732,21 @@ export default function AuditsViewPage() {
 
  return (
  <div className="min-h-screen">
- {/* Header mejorado */}
- <header className="bg-slate-900/50 backdrop-blur-sm border-b border-slate-800 sticky top-0 z-10">
+ {/* Header glass-morphism */}
+ <header className="sticky top-0 z-50" style={{ background: 'rgba(10, 10, 18, 0.88)', backdropFilter: 'blur(20px) saturate(180%)', WebkitBackdropFilter: 'blur(20px) saturate(180%)', borderBottom: '1px solid rgba(30, 30, 50, 0.8)' }}>
  <div className="max-w-[1600px] mx-auto px-6 py-4">
  <div className="flex items-center justify-between">
  <div className="flex items-center gap-4">
  <BackButton onClick={() => navigate(-1)} />
+ <div className="relative flex-shrink-0">
+ <div className="absolute inset-0 rounded-xl blur-md" style={{ background: 'rgba(0,214,50,0.15)' }} />
+ <div className="relative w-11 h-11 rounded-xl overflow-hidden ring-1 ring-brand-500/25">
+ <img src="/logo.jpg" alt="S+" className="w-full h-full object-cover" />
+ </div>
+ </div>
  <div>
- <div className="flex items-center gap-3">
- <div className="p-2 bg-green-500/20 rounded-lg">
- <FileText className="w-5 h-5 text-green-400" />
- </div>
- <div>
- <h1 className="text-2xl font-bold text-white">Explorador de AuditorÃ­as</h1>
- <p className="text-slate-400 text-sm mt-0.5">AnÃ¡lisis completo y exportaciÃ³n de datos</p>
- </div>
- </div>
+ <h1 className="text-2xl font-bold text-white tracking-tight">Explorador de Auditorías</h1>
+ <p className="text-slate-500 text-sm mt-0.5">Análisis completo y exportación de datos</p>
  </div>
  </div>
  <button
@@ -771,7 +770,7 @@ export default function AuditsViewPage() {
  <FileText className="w-4 h-4 text-brand-400" />
  </div>
  <div className="text-2xl font-bold text-brand-400">{stats.total}</div>
- <div className="text-xs text-slate-500 mt-1">AuditorÃ­as</div>
+ <div className="text-xs text-slate-500 mt-1">Auditorías</div>
  </div>
 
  <div className="stat-card bg-slate-800/50 border-green-500/30 hover:border-green-400/60 transition-all">
@@ -803,7 +802,7 @@ export default function AuditsViewPage() {
  <div className="text-xs text-slate-500 mt-1">Con problemas</div>
  </div>
 
- <div className="stat-card bg-slate-800/50 border-purple-500/30 hover:border-purple-400/60 transition-all">
+ <div className="stat-card bg-slate-800/50 border-brand-700/40 hover:border-brand-500/50 transition-all">
  <div className="flex items-center justify-between mb-2">
  <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Score Prom.</span>
  <TrendingUp className="w-4 h-4 text-brand-400" />
@@ -811,7 +810,7 @@ export default function AuditsViewPage() {
  <div className={`text-2xl font-bold ${getScoreColor(stats.avgScore)}`}>
  {stats.avgScore > 0 ? `${stats.avgScore.toFixed(1)}%` : 'N/A'}
  </div>
- <div className="text-xs text-slate-500 mt-1">CalificaciÃ³n media</div>
+ <div className="text-xs text-slate-500 mt-1">Calificación media</div>
  </div>
 
  {isSupervisor && (
@@ -831,7 +830,7 @@ export default function AuditsViewPage() {
  {/* Barra de controles mejorada */}
  <div className="card mb-4">
  <div className="flex flex-col lg:flex-row gap-4">
- {/* BÃºsqueda */}
+ {/* Búsqueda */}
  <div className="flex-1 relative">
  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
  <input
@@ -839,7 +838,7 @@ export default function AuditsViewPage() {
  value={searchTerm}
  onChange={(e) => setSearchTerm(e.target.value)}
  placeholder="Buscar por ejecutivo, ID, cliente o creador..."
- className="w-full pl-10 pr-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+ className="input pl-10"
  />
  </div>
 
@@ -850,8 +849,8 @@ export default function AuditsViewPage() {
  onClick={() => setShowFilters(!showFilters)}
  className={`px-4 py-2.5 rounded-lg transition-all flex items-center gap-2 font-medium ${
  showFilters
- ? 'bg-green-600 text-white'
- : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 border border-slate-700'
+ ? 'bg-brand-500 text-black'
+ : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 border border-[#1e1e32]'
  }`}
  >
  <SlidersHorizontal className="w-5 h-5" />
@@ -864,7 +863,7 @@ export default function AuditsViewPage() {
  onClick={() => setViewMode('grid')}
  className={`p-2 rounded transition-colors ${
  viewMode === 'grid'
- ? 'bg-green-600 text-white'
+ ? 'bg-brand-500 text-black'
  : 'text-slate-400 hover:text-white'
  }`}
  title="Vista en tarjetas"
@@ -875,7 +874,7 @@ export default function AuditsViewPage() {
  onClick={() => setViewMode('table')}
  className={`p-2 rounded transition-colors ${
  viewMode === 'table'
- ? 'bg-green-600 text-white'
+ ? 'bg-brand-500 text-black'
  : 'text-slate-400 hover:text-white'
  }`}
  title="Vista en tabla"
@@ -904,7 +903,7 @@ export default function AuditsViewPage() {
 
  {/* Panel de Filtros */}
  {showFilters && (
- <div className="mt-4 pt-4 border-t border-slate-700">
+ <div className="mt-4 pt-4 border-t border-[#1e1e32]">
  {/* Accesos rápidos */}
  <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
  <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Accesos rápidos</span>
@@ -940,12 +939,12 @@ export default function AuditsViewPage() {
  <select
  value={statusFilter}
  onChange={(e) => setStatusFilter(e.target.value)}
- className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+ className="input"
  >
  <option value="all">Todos los estados</option>
- <option value="completed">Ã¢Å“â€¦ Completadas</option>
- <option value="processing">Ã¢ÂÂ³ Procesando</option>
- <option value="error">Ã¢ÂÅ’ Con Error</option>
+         <option value="completed">Completadas</option>
+         <option value="processing">Procesando</option>
+         <option value="error">Con Error</option>
  </select>
  </div>
 
@@ -954,26 +953,26 @@ export default function AuditsViewPage() {
  <select
  value={callTypeFilter}
  onChange={(e) => setCallTypeFilter(e.target.value)}
- className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+ className="input"
  >
  <option value="all">Todas las llamadas</option>
- <option value="INBOUND">ðŸ“ž Inbound</option>
- <option value="MONITOREO">ðŸ–¥ï¸ Monitoreo</option>
+         <option value="INBOUND">📞 Inbound</option>
+         <option value="MONITOREO">🖥️ Monitoreo</option>
  </select>
  </div>
 
  <div>
- <label className="block text-sm text-slate-400 mb-2 font-medium">PerÃ­odo</label>
+         <label className="block text-sm text-slate-400 mb-2 font-medium">Período</label>
  <select
  value={dateFilter}
  onChange={(e) => setDateFilter(e.target.value)}
- className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+ className="input"
  >
- <option value="all">Ã°Å¸â€œâ€¦ Todo el tiempo</option>
+         <option value="all">Todo el tiempo</option>
  <option value="today">Hoy</option>
  <option value="yesterday">Ayer (día vencido)</option>
- <option value="week">Ãšltima semana</option>
- <option value="month">Ãšltimo mes</option>
+         <option value="week">Última semana</option>
+         <option value="month">Último mes</option>
  </select>
  </div>
  </div>
@@ -984,16 +983,16 @@ export default function AuditsViewPage() {
  {/* Contenido */}
  {loading ? (
  <div className="flex items-center justify-center py-20">
- <Loader2 className="w-12 h-12 text-green-500 animate-spin" />
+ <Loader2 className="w-12 h-12 text-brand-400 animate-spin" />
  </div>
  ) : filteredAndSortedAudits.length === 0 ? (
  <div className="card text-center py-16">
  <FileText className="w-16 h-16 text-slate-600 mx-auto mb-4" />
- <h3 className="text-xl font-semibold text-white mb-2">No se encontraron auditorÃ­as</h3>
+ <h3 className="text-xl font-semibold text-white mb-2">No se encontraron auditorías</h3>
  <p className="text-slate-400 mb-4">
  {searchTerm || statusFilter !== 'all' || callTypeFilter !== 'all' || dateFilter !== 'all'
- ? 'Intenta ajustar los filtros de bÃºsqueda'
- : 'AÃºn no hay auditorÃ­as registradas'}
+         ? 'Intenta ajustar los filtros de búsqueda'
+ : 'Aún no hay auditorías registradas'}
  </p>
  {(searchTerm || statusFilter !== 'all' || callTypeFilter !== 'all' || dateFilter !== 'all') && (
  <button
@@ -1032,7 +1031,7 @@ export default function AuditsViewPage() {
  {getStatusBadge(audit.status)}
  </div>
 
- {/* Info de la auditorÃ­a */}
+ {/* Info de la auditoría */}
  <div className="space-y-3 mb-4">
  <div className="flex items-center gap-2 text-sm">
  <User className="w-4 h-4 text-slate-500 flex-shrink-0" />
@@ -1046,7 +1045,7 @@ export default function AuditsViewPage() {
  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
  : 'bg-brand-500/10 text-brand-300 border border-brand-700/40'
  }`}>
- {(audit.call_type || '').toUpperCase() === 'MONITOREO' ? 'ðŸ–¥ï¸ Monitoreo' : 'ðŸ“ž Inbound'}
+ {(audit.call_type || '').toUpperCase() === 'MONITOREO' ? '🖥️ Monitoreo' : '📞 Inbound'}
  </span>
  </div>
  <div className="flex items-center gap-2 text-sm">
@@ -1097,7 +1096,7 @@ export default function AuditsViewPage() {
  e.stopPropagation();
  navigate(`/audit/${audit.id}`);
  }}
- className="flex-1 px-3 py-2 bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 text-green-300 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+ className="flex-1 px-3 py-2 bg-brand-500/10 hover:bg-brand-500/20 border border-brand-700/40 text-brand-400 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium"
  >
  <Eye className="w-4 h-4" />
  Ver Detalles
@@ -1124,13 +1123,13 @@ export default function AuditsViewPage() {
  <div className="overflow-x-auto">
  <table className="w-full">
  <thead>
- <tr className="border-b border-slate-700 bg-slate-800/50">
+ <tr className="border-b border-[#1e1e32] bg-[#141424]/80">
  <th className="px-4 py-3 text-left">
  <button
  onClick={() => handleSort('created_at')}
  className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-medium whitespace-nowrap"
  >
- Ã°Å¸â€œâ€¦ Fecha
+ Fecha
  {sortField === 'created_at' && (
  sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
  )}
@@ -1141,13 +1140,13 @@ export default function AuditsViewPage() {
  onClick={() => handleSort('executive_name')}
  className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-medium whitespace-nowrap"
  >
- Ã°Å¸â€˜Â¤ Ejecutivo
+ Ejecutivo
  {sortField === 'executive_name' && (
  sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
  )}
  </button>
  </th>
- <th className="px-4 py-3 text-left text-slate-400 text-sm font-medium whitespace-nowrap">Ã°Å¸Å½Â¯ Cliente</th>
+ <th className="px-4 py-3 text-left text-slate-400 text-sm font-medium whitespace-nowrap">Cliente</th>
  <th className="px-4 py-3 text-left text-slate-400 text-sm font-medium whitespace-nowrap">Tipo</th>
  <th className="px-4 py-3 text-left text-slate-400 text-sm font-medium whitespace-nowrap">Creado por</th>
  <th className="px-4 py-3 text-left">
@@ -1155,7 +1154,7 @@ export default function AuditsViewPage() {
  onClick={() => handleSort('status')}
  className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-medium whitespace-nowrap"
  >
- Ã¢Å“â€¦ Estado
+ Estado
  {sortField === 'status' && (
  sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
  )}
@@ -1166,14 +1165,14 @@ export default function AuditsViewPage() {
  onClick={() => handleSort('score')}
  className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-medium whitespace-nowrap"
  >
- Ã¢Â­Â Score
+ Score
  {sortField === 'score' && (
  sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
  )}
  </button>
  </th>
  {isSupervisor && (
- <th className="px-4 py-3 text-left text-slate-400 text-sm font-medium whitespace-nowrap">Ã°Å¸â€™Â° Costo</th>
+ <th className="px-4 py-3 text-left text-slate-400 text-sm font-medium whitespace-nowrap">Costo</th>
  )}
  <th className="px-4 py-3 text-right text-slate-400 text-sm font-medium whitespace-nowrap">Acciones</th>
  </tr>
@@ -1182,8 +1181,8 @@ export default function AuditsViewPage() {
  {filteredAndSortedAudits.map((audit, index) => (
  <tr
  key={audit.id}
- className={`border-b border-slate-800 hover:bg-slate-800/50 transition-colors cursor-pointer ${
- index % 2 === 0 ? 'bg-slate-900/20' : ''
+ className={`border-b border-[#1e1e32] hover:bg-[#1a1a2e]/60 transition-colors cursor-pointer ${
+ index % 2 === 0 ? 'bg-[#0a0a12]/30' : ''
  }`}
  onClick={() => navigate(`/audit/${audit.id}`)}
  >
@@ -1202,7 +1201,7 @@ export default function AuditsViewPage() {
  </span>
  </td>
  <td className="px-4 py-4 text-sm text-slate-300 whitespace-nowrap">
- {(audit.call_type || '').toUpperCase() === 'MONITOREO' ? 'ðŸ–¥ï¸ Monitoreo' : 'ðŸ“ž Inbound'}
+ {(audit.call_type || '').toUpperCase() === 'MONITOREO' ? '🖥️ Monitoreo' : '📞 Inbound'}
  </td>
  <td className="px-4 py-4 text-sm whitespace-nowrap">
  <span className="text-cyan-300 font-medium" title={audit.created_by_email || ''}>
@@ -1238,7 +1237,7 @@ export default function AuditsViewPage() {
  e.stopPropagation();
  navigate(`/audit/${audit.id}`);
  }}
- className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-green-400"
+ className="p-2 hover:bg-[#1a1a2e] rounded-lg transition-colors text-brand-400"
  title="Ver detalles"
  >
  <Eye className="w-4 h-4" />

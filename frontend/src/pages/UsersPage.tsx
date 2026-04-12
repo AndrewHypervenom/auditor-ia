@@ -208,7 +208,7 @@ export default function UsersPage() {
  switch (role) {
  case 'admin':
  return (
- <span className="inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-red-900/30 to-pink-900/30 border border-red-500/30 rounded-full text-red-300 text-xs font-medium">
+ <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-900/20 border border-red-500/30 rounded-full text-red-300 text-xs font-medium">
  <Shield className="w-3 h-3" />
  Administrador
  </span>
@@ -229,7 +229,7 @@ export default function UsersPage() {
  );
  default:
  return (
- <span className="inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-500/30 rounded-full text-purple-300 text-xs font-medium">
+ <span className="inline-flex items-center gap-1 px-3 py-1 bg-slate-800/50 border border-[#1e1e32] rounded-full text-slate-400 text-xs font-medium">
  <UserIcon className="w-3 h-3" />
  {role || 'Sin rol'}
  </span>
@@ -270,14 +270,14 @@ export default function UsersPage() {
  <div className="flex items-center justify-between">
  <div className="flex items-center gap-4">
  <BackButton onClick={() => navigate('/dashboard')} />
- <div className="relative">
- <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl blur-lg opacity-50"></div>
- <div className="relative p-3 bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl">
- <Users className="w-8 h-8 text-white" />
+ <div className="relative flex-shrink-0">
+ <div className="absolute inset-0 rounded-xl blur-md" style={{ background: 'rgba(0,214,50,0.15)' }} />
+ <div className="relative w-11 h-11 rounded-xl overflow-hidden ring-1 ring-brand-500/25">
+ <img src="/logo.jpg" alt="S+" className="w-full h-full object-cover" />
  </div>
  </div>
  <div>
- <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-rose-400 bg-clip-text text-transparent">
+ <h1 className="text-2xl font-bold text-white tracking-tight">
  {isSupervisor ? 'Equipo de Analistas' : 'Gestión de Usuarios'}
  </h1>
  <p className="text-slate-400 text-sm mt-1">
@@ -308,11 +308,11 @@ export default function UsersPage() {
  <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
  {/* Info Banner */}
  {isSupervisor && (
- <div className="mb-4 p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl">
+ <div className="mb-4 p-4 bg-brand-500/10 border border-brand-700/40 rounded-xl">
  <div className="flex items-start gap-3">
  <UserCheck className="w-5 h-5 text-brand-400 mt-0.5 flex-shrink-0" />
  <div>
- <h3 className="text-purple-300 font-semibold mb-1">Vista de Supervisor</h3>
+ <h3 className="text-brand-400 font-semibold mb-1">Vista de Supervisor</h3>
  <p className="text-slate-400 text-sm">
  Puedes consultar la información de los analistas del equipo. 
  No tienes permisos para crear, editar o eliminar usuarios.
@@ -332,14 +332,14 @@ export default function UsersPage() {
  placeholder="Buscar por nombre o email..."
  value={searchTerm}
  onChange={(e) => setSearchTerm(e.target.value)}
- className="w-full pl-10 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+ className="input pl-10"
  />
  </div>
 
  <div className="flex items-center gap-4">
- <div className="stat-card bg-gradient-to-br from-purple-900/20 to-pink-900/20 border-purple-500/30">
+ <div className="stat-card">
  <div className="flex items-center gap-3">
- <div className="p-2 bg-purple-600/20 rounded-lg">
+ <div className="p-2 bg-brand-500/10 rounded-lg">
  <Users className="w-5 h-5 text-brand-400" />
  </div>
  <div>
@@ -384,7 +384,7 @@ export default function UsersPage() {
  {filteredUsers.map((user) => (
  <div
  key={user.id}
- className="group relative p-5 bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50 rounded-xl hover:border-purple-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10"
+ className="group relative p-5 bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-[#1e1e32] rounded-xl hover:border-brand-700/40 transition-all duration-300 hover:shadow-lg hover:shadow-brand-500/10"
  >
  {/* Status Badge */}
  <div className="absolute top-3 right-3">
@@ -404,7 +404,7 @@ export default function UsersPage() {
  {/* User Avatar */}
  <div className="flex items-start gap-4 mb-4">
  <div className="relative">
- <div className="w-14 h-14 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl flex items-center justify-center">
+ <div className="w-14 h-14 bg-brand-500/20 border border-brand-700/40 rounded-xl flex items-center justify-center">
  <UserIcon className="w-7 h-7 text-white" />
  </div>
  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-slate-900 rounded-full flex items-center justify-center border-2 border-slate-800">
@@ -436,7 +436,7 @@ export default function UsersPage() {
 
  {/* Actions - Solo para Admin */}
  {isAdmin && (
- <div className="flex items-center gap-2 pt-4 border-t border-slate-700/50">
+ <div className="flex items-center gap-2 pt-4 border-t border-[#1e1e32]">
  <button
  onClick={() => openEditModal(user)}
  className="flex-1 px-3 py-2 bg-brand-500/10 hover:bg-brand-500/30 border border-brand-700/40 text-brand-300 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium"
@@ -467,7 +467,7 @@ export default function UsersPage() {
  {/* Modal Crear Usuario - Solo Admin */}
  {showCreateModal && isAdmin && (
  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
- <div className="bg-slate-900 rounded-2xl p-6 max-w-md w-full border border-slate-700 shadow-2xl">
+ <div className="bg-[#141424] rounded-2xl p-6 max-w-md w-full border border-[#1e1e32] shadow-2xl">
  <div className="flex items-center justify-between mb-4">
  <h2 className="text-xl font-bold text-white">Crear Nuevo Usuario</h2>
  <button
@@ -485,7 +485,7 @@ export default function UsersPage() {
  type="text"
  value={newUser.full_name}
  onChange={(e) => setNewUser(prev => ({ ...prev, full_name: e.target.value }))}
- className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+ className="input"
  placeholder="Juan Pérez"
  required
  />
@@ -497,7 +497,7 @@ export default function UsersPage() {
  type="email"
  value={newUser.email}
  onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
- className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+ className="input"
  placeholder="juan@ejemplo.com"
  required
  />
@@ -509,7 +509,7 @@ export default function UsersPage() {
  type="password"
  value={newUser.password}
  onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
- className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+ className="input"
  placeholder="Mínimo 6 caracteres"
  required
  minLength={6}
@@ -521,7 +521,7 @@ export default function UsersPage() {
  <select
  value={newUser.role}
  onChange={(e) => setNewUser(prev => ({ ...prev, role: e.target.value as UserRole }))}
- className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+ className="input"
  >
  <option value="analyst">Analista</option>
  <option value="supervisor">Supervisor</option>
@@ -533,7 +533,7 @@ export default function UsersPage() {
  <button
  type="button"
  onClick={() => setShowCreateModal(false)}
- className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+ className="flex-1 btn-secondary"
  >
  Cancelar
  </button>
@@ -563,7 +563,7 @@ export default function UsersPage() {
  {/* Modal Editar Usuario - Solo Admin */}
  {showEditModal && editingUser && isAdmin && (
  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
- <div className="bg-slate-900 rounded-2xl p-6 max-w-md w-full border border-slate-700 shadow-2xl">
+ <div className="bg-[#141424] rounded-2xl p-6 max-w-md w-full border border-[#1e1e32] shadow-2xl">
  <div className="flex items-center justify-between mb-4">
  <h2 className="text-xl font-bold text-white">Editar Usuario</h2>
  <button
@@ -584,7 +584,7 @@ export default function UsersPage() {
  type="email"
  value={editingUser.email}
  disabled
- className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-500 cursor-not-allowed"
+ className="input opacity-50 cursor-not-allowed"
  />
  <p className="text-xs text-slate-500 mt-1">El email no se puede modificar</p>
  </div>
@@ -595,7 +595,7 @@ export default function UsersPage() {
  type="text"
  value={editForm.full_name}
  onChange={(e) => setEditForm(prev => ({ ...prev, full_name: e.target.value }))}
- className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+ className="input"
  placeholder="Juan Pérez"
  required
  />
@@ -607,7 +607,7 @@ export default function UsersPage() {
  value={editForm.role}
  onChange={(e) => setEditForm(prev => ({ ...prev, role: e.target.value as UserRole }))}
  disabled={editingUser.id === profile?.id}
- className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+ className="input disabled:opacity-50 disabled:cursor-not-allowed"
  >
  <option value="analyst">Analista</option>
  <option value="supervisor">Supervisor</option>
@@ -625,7 +625,7 @@ export default function UsersPage() {
  setShowEditModal(false);
  setEditingUser(null);
  }}
- className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+ className="flex-1 btn-secondary"
  >
  Cancelar
  </button>

@@ -168,7 +168,7 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-brand-500/50 border-r-transparent"></div>
           <p className="mt-4 text-white">Cargando configuración...</p>
@@ -178,28 +178,32 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="mb-5">
-          <div className="mb-4">
-            <BackButton onClick={() => navigate('/dashboard')} />
-          </div>
-
+    <div className="min-h-screen">
+      {/* Header glass-morphism */}
+      <header className="sticky top-0 z-50" style={{ background: 'rgba(10, 10, 18, 0.88)', backdropFilter: 'blur(20px) saturate(180%)', WebkitBackdropFilter: 'blur(20px) saturate(180%)', borderBottom: '1px solid rgba(30, 30, 50, 0.8)' }}>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-slate-600/20 rounded-xl">
-              <Settings className="w-8 h-8 text-slate-400" />
+            <BackButton onClick={() => navigate('/dashboard')} />
+            <div className="relative flex-shrink-0">
+              <div className="absolute inset-0 rounded-xl blur-md" style={{ background: 'rgba(0,214,50,0.15)' }} />
+              <div className="relative w-11 h-11 rounded-xl overflow-hidden ring-1 ring-brand-500/25">
+                <img src="/logo.jpg" alt="S+" className="w-full h-full object-cover" />
+              </div>
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">Configuración del Sistema</h1>
-              <p className="text-slate-400">Gestiona las APIs y configuraciones del sistema</p>
+              <h1 className="text-2xl font-bold text-white tracking-tight">Configuración del Sistema</h1>
+              <p className="text-slate-500 text-sm mt-0.5">Gestiona las APIs y configuraciones del sistema</p>
             </div>
           </div>
         </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div>
 
         {/* Status Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
-          <div className="bg-slate-800/50 backdrop-blur-lg rounded-xl p-4 border border-slate-700">
+          <div className="card">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Brain className="w-5 h-5 text-brand-400" />
@@ -216,7 +220,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="bg-slate-800/50 backdrop-blur-lg rounded-xl p-4 border border-slate-700">
+          <div className="card">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Mic className="w-5 h-5 text-brand-400" />
@@ -233,10 +237,10 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="bg-slate-800/50 backdrop-blur-lg rounded-xl p-4 border border-slate-700">
+          <div className="card">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Database className="w-6 h-6 text-emerald-400" />
+                <Database className="w-6 h-6 text-brand-400" />
                 <div>
                   <p className="text-sm text-slate-400">Supabase</p>
                   <p className="text-xs text-slate-500">Base de datos</p>
@@ -252,13 +256,14 @@ export default function SettingsPage() {
         </div>
 
         {/* Configuration Form */}
-        <div className="bg-slate-800/50 backdrop-blur-lg rounded-xl border border-slate-700 p-6 space-y-6">
+        <div className="card space-y-6">
           {/* OpenAI Config */}
           <div>
+            <h3 className="section-header mb-4">OpenAI API</h3>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Brain className="w-5 h-5 text-brand-400" />
-                <h3 className="text-sm font-semibold text-white">OpenAI API</h3>
+                <span className="text-sm text-slate-400">GPT-4o — Análisis de auditorías</span>
               </div>
               <button
                 onClick={() => testConnection('openai')}
@@ -284,7 +289,7 @@ export default function SettingsPage() {
                   value={config.openai_api_key}
                   onChange={(e) => setConfig(prev => ({ ...prev, openai_api_key: e.target.value }))}
                   placeholder="sk-..."
-                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 pr-12"
+                  className="input pr-12"
                 />
                 <button
                   onClick={() => toggleShowKey('openai')}
@@ -300,19 +305,20 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="border-t border-slate-700"></div>
+          <div className="border-t border-[#1e1e32]"></div>
 
           {/* AssemblyAI Config */}
           <div>
+            <h3 className="section-header mb-4">AssemblyAI API</h3>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Mic className="w-5 h-5 text-brand-400" />
-                <h3 className="text-sm font-semibold text-white">AssemblyAI API</h3>
+                <span className="text-sm text-slate-400">Transcripción de llamadas</span>
               </div>
               <button
                 onClick={() => testConnection('assemblyai')}
                 disabled={testing === 'assemblyai' || !config.assemblyai_api_key}
-                className="flex items-center gap-2 px-3 py-1.5 bg-purple-500/10 text-brand-400 border border-purple-500/20 rounded-lg text-sm hover:bg-purple-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-3 py-1.5 bg-brand-500/10 text-brand-400 border border-brand-700/20 rounded-lg text-sm hover:bg-brand-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {testing === 'assemblyai' ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -333,7 +339,7 @@ export default function SettingsPage() {
                   value={config.assemblyai_api_key}
                   onChange={(e) => setConfig(prev => ({ ...prev, assemblyai_api_key: e.target.value }))}
                   placeholder="..."
-                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 pr-12"
+                  className="input pr-12"
                 />
                 <button
                   onClick={() => toggleShowKey('assemblyai')}
@@ -349,19 +355,20 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="border-t border-slate-700"></div>
+          <div className="border-t border-[#1e1e32]"></div>
 
           {/* Supabase Config */}
           <div>
+            <h3 className="section-header mb-4">Supabase Database</h3>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <Database className="w-5 h-5 text-emerald-400" />
-                <h3 className="text-sm font-semibold text-white">Supabase Database</h3>
+                <Database className="w-5 h-5 text-brand-400" />
+                <span className="text-sm text-slate-400">Base de datos y autenticación</span>
               </div>
               <button
                 onClick={() => testConnection('supabase')}
                 disabled={testing === 'supabase' || !config.supabase_url}
-                className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-sm hover:bg-emerald-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-3 py-1.5 bg-brand-500/10 text-brand-400 border border-brand-700/20 rounded-lg text-sm hover:bg-brand-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {testing === 'supabase' ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -379,7 +386,7 @@ export default function SettingsPage() {
                   value={config.supabase_url}
                   onChange={(e) => setConfig(prev => ({ ...prev, supabase_url: e.target.value }))}
                   placeholder="https://xxxxx.supabase.co"
-                  className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="input"
                 />
               </div>
 
@@ -394,7 +401,7 @@ export default function SettingsPage() {
                     value={config.supabase_anon_key}
                     onChange={(e) => setConfig(prev => ({ ...prev, supabase_anon_key: e.target.value }))}
                     placeholder="eyJ..."
-                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 pr-12"
+                    className="input pr-12"
                   />
                   <button
                     onClick={() => toggleShowKey('supabase_anon')}
@@ -416,7 +423,7 @@ export default function SettingsPage() {
                     value={config.supabase_service_role_key}
                     onChange={(e) => setConfig(prev => ({ ...prev, supabase_service_role_key: e.target.value }))}
                     placeholder="eyJ..."
-                    className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 pr-12"
+                    className="input pr-12"
                   />
                   <button
                     onClick={() => toggleShowKey('supabase_service')}
@@ -429,7 +436,7 @@ export default function SettingsPage() {
 
               <div className="flex items-start gap-2 text-xs text-slate-500">
                 <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <p>Encuentra tus credenciales en <a href="https://app.supabase.com" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">app.supabase.com</a> → Settings → API</p>
+                <p>Encuentra tus credenciales en <a href="https://app.supabase.com" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">app.supabase.com</a> → Settings → API</p>
               </div>
             </div>
           </div>
@@ -440,7 +447,7 @@ export default function SettingsPage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-brand-900/30 to-purple-500 text-white rounded-lg font-medium hover:from-brand-900/30 hover:to-purple-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-primary flex items-center gap-2 px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? (
               <>
@@ -456,6 +463,7 @@ export default function SettingsPage() {
           </button>
         </div>
       </div>
+      </main>
     </div>
   );
 }

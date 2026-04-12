@@ -132,11 +132,11 @@ const EXAMPLE_DATA = {
  ],
  
  callTypeDistribution: [
- { name: 'Ventas', value: 45, color: '#a855f7' },
- { name: 'Soporte', value: 38, color: '#ec4899' },
- { name: 'Retención', value: 22, color: '#06b6d4' },
+ { name: 'Ventas', value: 45, color: '#00D632' },
+ { name: 'Soporte', value: 38, color: '#1ADE50' },
+ { name: 'Retención', value: 22, color: '#00b82b' },
  { name: 'Cobranza', value: 18, color: '#f59e0b' },
- { name: 'Otros', value: 33, color: '#6366f1' }
+ { name: 'Otros', value: 33, color: '#009422' }
  ]
 };
 
@@ -352,7 +352,7 @@ export default function ReportsPage() {
  const result = Object.entries(typeData).map(([name, value]) => ({
  name,
  value,
- color: name === 'Entrante' ? '#a855f7' : '#ec4899'
+ color: name === 'Entrante' ? '#00D632' : '#1ADE50'
  }));
 
  return result.length > 0 ? result : EXAMPLE_DATA.callTypeDistribution;
@@ -364,7 +364,7 @@ export default function ReportsPage() {
  const CustomTooltip = ({ active, payload, label }: any) => {
  if (active && payload && payload.length) {
  return (
- <div className="bg-slate-900/95 backdrop-blur-sm border border-purple-500/30 rounded-xl p-4 shadow-2xl">
+ <div className="bg-slate-900/95 backdrop-blur-sm border border-brand-700/40 rounded-xl p-4 shadow-2xl">
  <p className="text-white font-semibold mb-2">{label}</p>
  {payload.map((entry: any, index: number) => (
  <p key={index} className="text-sm flex items-center gap-2" style={{ color: entry.color }}>
@@ -683,7 +683,7 @@ export default function ReportsPage() {
  <div className="mb-5">
  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5">
  <div className="flex items-center gap-3">
- <div className="p-2 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl border border-purple-500/30">
+ <div className="p-2 bg-brand-500/10 rounded-xl">
  <Activity className="w-5 h-5 text-brand-400" />
  </div>
  <div>
@@ -695,9 +695,9 @@ export default function ReportsPage() {
  <button
  onClick={toggleDataSource}
  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all duration-200 transform ${
- useRealData 
- ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/30 hover:shadow-xl hover:scale-[1.02]' 
- : 'bg-slate-800 text-slate-300 border border-slate-700 hover:border-purple-500/50 hover:scale-[1.02]'
+ useRealData
+ ? 'bg-brand-500 text-black shadow-lg shadow-brand-500/30 hover:bg-brand-400 hover:shadow-xl hover:scale-[1.02]'
+ : 'bg-slate-800 text-slate-300 border border-[#1e1e32] hover:border-brand-700/40 hover:scale-[1.02]'
  }`}
  >
  {useRealData ? <Database className="w-5 h-5" /> : <Sparkles className="w-5 h-5" />}
@@ -764,11 +764,11 @@ export default function ReportsPage() {
 
  {/* Score Promedio */}
  <div className="group relative">
- <div className="absolute inset-0 bg-gradient-to-br from-purple-600/10 to-pink-600/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
- <div className="relative stat-card bg-slate-800/50 backdrop-blur-sm border-purple-500/30 hover:border-purple-400/60 transition-all duration-300 transform hover:-translate-y-1 shadow-xl hover:shadow-purple-500/20">
+ <div className="absolute inset-0 bg-gradient-to-br from-brand-900/20 to-brand-800/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+ <div className="relative stat-card bg-slate-800/50 backdrop-blur-sm border-brand-700/40 hover:border-brand-500/50 transition-all duration-300 transform hover:-translate-y-1 shadow-xl hover:shadow-brand-500/20">
  <div className="flex items-center justify-between mb-3">
  <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">Score Promedio</span>
- <div className="p-2 bg-purple-500/20 rounded-xl group-hover:bg-purple-500/30 transition-colors duration-200">
+ <div className="p-2 bg-brand-500/10 rounded-xl group-hover:bg-brand-500/20 transition-colors duration-200">
  <Award className="w-5 h-5 text-brand-400" />
  </div>
  </div>
@@ -808,7 +808,7 @@ export default function ReportsPage() {
  {/* Gráficos principales - Primera fila */}
  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
  {/* Gráfico de Dona - Distribución por Estado */}
- <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/10 transform hover:-translate-y-1">
+ <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-brand-500/10 transform hover:-translate-y-1">
  <div className="flex items-center justify-between mb-4">
  <h3 className="text-xl font-bold text-white flex items-center gap-2">
  <div className="p-2 bg-brand-500/10 rounded-xl">
@@ -856,7 +856,7 @@ export default function ReportsPage() {
  </div>
 
  {/* Gráfico de Línea - Auditorías por Mes */}
- <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/10 transform hover:-translate-y-1">
+ <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-brand-500/10 transform hover:-translate-y-1">
  <div className="flex items-center justify-between mb-4">
  <h3 className="text-xl font-bold text-white flex items-center gap-2">
  <div className="p-2 bg-purple-500/20 rounded-xl">
@@ -913,11 +913,11 @@ export default function ReportsPage() {
  {/* Gráficos principales - Segunda fila */}
  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
  {/* Gráfico de Barras - Top Agentes */}
- <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/10 transform hover:-translate-y-1">
+ <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-brand-500/10 transform hover:-translate-y-1">
  <div className="flex items-center justify-between mb-4">
  <h3 className="text-xl font-bold text-white flex items-center gap-2">
- <div className="p-2 bg-indigo-500/20 rounded-xl">
- <Users className="w-5 h-5 text-indigo-400" />
+ <div className="p-2 bg-brand-500/10 rounded-xl">
+ <Users className="w-5 h-5 text-brand-400" />
  </div>
  Top 8 Agentes
  </h3>
@@ -966,7 +966,7 @@ export default function ReportsPage() {
  </div>
 
  {/* Gráfico de Área - Tendencia de Scores */}
- <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/10 transform hover:-translate-y-1">
+ <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-brand-500/10 transform hover:-translate-y-1">
  <div className="flex items-center justify-between mb-4">
  <h3 className="text-xl font-bold text-white flex items-center gap-2">
  <div className="p-2 bg-green-500/20 rounded-xl">
@@ -1024,11 +1024,11 @@ export default function ReportsPage() {
  {/* Sección adicional - Gráficos de métricas - SIEMPRE SE MUESTRAN */}
  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
  {/* Gráfico Radar - Métricas de Performance */}
- <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/10 transform hover:-translate-y-1">
+ <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-brand-500/10 transform hover:-translate-y-1">
  <div className="flex items-center justify-between mb-4">
  <h3 className="text-xl font-bold text-white flex items-center gap-2">
- <div className="p-2 bg-pink-500/20 rounded-xl">
- <Target className="w-5 h-5 text-pink-400" />
+ <div className="p-2 bg-brand-500/10 rounded-xl">
+ <Target className="w-5 h-5 text-brand-400" />
  </div>
  Métricas de Performance
  </h3>
@@ -1067,11 +1067,11 @@ export default function ReportsPage() {
  </div>
 
  {/* Gráfico de Dona - Distribución por Tipo de Llamada */}
- <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/10 transform hover:-translate-y-1">
+ <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-brand-500/10 transform hover:-translate-y-1">
  <div className="flex items-center justify-between mb-4">
  <h3 className="text-xl font-bold text-white flex items-center gap-2">
- <div className="p-2 bg-cyan-500/20 rounded-xl">
- <Activity className="w-5 h-5 text-cyan-400" />
+ <div className="p-2 bg-brand-500/10 rounded-xl">
+ <Activity className="w-5 h-5 text-brand-400" />
  </div>
  Tipos de Llamada
  </h3>
@@ -1172,11 +1172,11 @@ export default function ReportsPage() {
  </div>
  
  <div className="group relative">
- <div className="absolute inset-0 bg-gradient-to-br from-purple-600/5 to-pink-600/5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
- <div className="relative p-6 bg-slate-800/50 border border-purple-500/30 rounded-xl hover:border-purple-400/60 transition-all duration-300 transform hover:-translate-y-1">
+ <div className="absolute inset-0 bg-gradient-to-br from-brand-900/20 to-brand-800/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+ <div className="relative p-6 bg-slate-800/50 border border-brand-700/40 rounded-xl hover:border-brand-500/50 transition-all duration-300 transform hover:-translate-y-1">
  <div className="flex items-center justify-between mb-3">
  <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">Eficiencia</span>
- <div className="p-2 bg-purple-500/20 rounded-lg group-hover:bg-purple-500/30 transition-colors duration-200">
+ <div className="p-2 bg-brand-500/10 rounded-lg group-hover:bg-brand-500/20 transition-colors duration-200">
  <Zap className="w-5 h-5 text-brand-400" />
  </div>
  </div>
