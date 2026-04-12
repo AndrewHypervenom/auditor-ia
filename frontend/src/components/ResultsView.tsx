@@ -19,7 +19,7 @@ interface ResultsViewProps {
   onNewAudit: () => void;
 }
 
-type FilterType = 'all' | 'passed' | 'partial' | 'failed';
+type FilterType = 'all' | 'passed' | 'partial' | 'failed' | 'critical';
 
 export default function ResultsView({ result, auditId, callType, onDownload, onNewAudit }: ResultsViewProps) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -92,9 +92,10 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
   };
 
   const filterCounts = useMemo(() => {
-    const counts = { passed: 0, partial: 0, failed: 0 };
+    const counts = { passed: 0, partial: 0, failed: 0, critical: 0 };
     currentScores.forEach((s: any) => {
       counts[getCriterionStatus(s.score ?? 0, s.maxScore ?? 0)]++;
+      if (s.criticality === 'Crítico') counts.critical++;
     });
     return counts;
   }, [currentScores]);
@@ -107,7 +108,8 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
       const block = m ? m[1] : 'General';
       if (!acc[block]) acc[block] = [];
       const status = getCriterionStatus(score.score ?? 0, score.maxScore ?? 0);
-      if (filter === 'all' || filter === status) acc[block].push(score);
+      const isCrit = score.criticality === 'Crítico';
+      if (filter === 'all' || filter === status || (filter === 'critical' && isCrit)) acc[block].push(score);
       return acc;
     }, {});
   }, [currentScores, filter]);
@@ -428,10 +430,11 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
             <div className="flex items-center gap-1 flex-wrap">
               {(
                 [
-                  { key: 'all',     label: 'Todos',       count: safeResult.detailedScores.length, color: 'text-slate-300' },
-                  { key: 'passed',  label: 'Aprobados',   count: filterCounts.passed,              color: 'text-brand-400'  },
-                  { key: 'partial', label: 'Parciales',   count: filterCounts.partial,             color: 'text-yellow-400' },
-                  { key: 'failed',  label: 'Reprobados',  count: filterCounts.failed,              color: 'text-red-400'    },
+                  { key: 'all',      label: 'Todos',       count: safeResult.detailedScores.length, color: 'text-slate-300'  },
+                  { key: 'passed',   label: 'Aprobados',   count: filterCounts.passed,              color: 'text-brand-400'  },
+                  { key: 'partial',  label: 'Parciales',   count: filterCounts.partial,             color: 'text-yellow-400' },
+                  { key: 'failed',   label: 'Reprobados',  count: filterCounts.failed,              color: 'text-red-400'    },
+                  { key: 'critical', label: 'Críticos',    count: filterCounts.critical,            color: 'text-red-400'    },
                 ] as const
               ).map(tab => (
                 <button
@@ -443,6 +446,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
                       : 'text-slate-500 hover:text-slate-300 hover:bg-white/4'
                   }`}
                 >
+                  {tab.key === 'critical' && <ShieldAlert className={`w-3 h-3 ${filter === tab.key ? 'text-white' : 'text-red-400'}`} />}
                   <span className={filter === tab.key ? 'text-white' : tab.color}>{tab.count}</span>
                   {tab.label}
                 </button>
@@ -468,10 +472,12 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
           </div>
         ) : (
           visibleBlocks.map(([block, scores], blockIdx) => {
-            const blockTotal = scores.reduce((s: number, x: any) => s + (x.score ?? 0), 0);
-            const blockMax   = scores.reduce((s: number, x: any) => s + (x.maxScore ?? 0), 0);
-            const blockPct   = blockMax > 0 ? (blockTotal / blockMax) * 100 : 0;
-            const blockFails = scores.filter((s: any) => getCriterionStatus(s.score ?? 0, s.maxScore ?? 0) === 'failed').length;
+            const blockTotal         = scores.reduce((s: number, x: any) => s + (x.score ?? 0), 0);
+            const blockMax           = scores.reduce((s: number, x: any) => s + (x.maxScore ?? 0), 0);
+            const blockPct           = blockMax > 0 ? (blockTotal / blockMax) * 100 : 0;
+            const blockFails         = scores.filter((s: any) => getCriterionStatus(s.score ?? 0, s.maxScore ?? 0) === 'failed').length;
+            const blockCritical      = scores.filter((s: any) => s.criticality === 'Crítico').length;
+            const blockCriticalFailed = scores.filter((s: any) => s.criticality === 'Crítico' && (s.score ?? 0) === 0).length;
 
             return (
               <div key={block} className={blockIdx > 0 ? 'border-t border-dark-border/70' : ''}>
@@ -483,6 +489,17 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
                     {blockFails > 0 && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20">
                         {blockFails} fallido{blockFails > 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {blockCritical > 0 && (
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold border ${
+                        blockCriticalFailed > 0
+                          ? 'bg-red-500/15 text-red-300 border-red-500/30'
+                          : 'bg-red-500/8 text-red-400/70 border-red-500/15'
+                      }`}>
+                        <ShieldAlert className="w-3 h-3" />
+                        {blockCritical} crítico{blockCritical > 1 ? 's' : ''}
+                        {blockCriticalFailed > 0 && ` · ${blockCriticalFailed} fallido${blockCriticalFailed > 1 ? 's' : ''}`}
                       </span>
                     )}
                   </div>
@@ -521,7 +538,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
                         key={idx}
                         className={`transition-colors border-l-2 ${
                           isCritZero  ? 'bg-red-950/20 hover:bg-red-950/25 border-l-red-500/60'   :
-                          isCritical  ? 'bg-red-950/8  hover:bg-red-950/12  border-l-red-700/40'  :
+                          isCritical  ? 'bg-red-950/8  hover:bg-red-950/12  border-l-brand-500/40' :
                           status === 'failed'  ? 'bg-red-950/8 hover:bg-red-950/12 border-l-transparent'   :
                           status === 'partial' ? 'bg-amber-950/8 hover:bg-amber-950/12 border-l-transparent' :
                           'hover:bg-white/[0.015] border-l-transparent'
