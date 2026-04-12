@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import BackButton from '../components/BackButton';
 import { useAuth, useRole } from '../contexts/AuthContext';
 import { auditService, getAuditTotalCost, type Audit } from '../services/api';
 import { 
@@ -736,12 +737,7 @@ export default function AuditsViewPage() {
  <div className="max-w-[1600px] mx-auto px-6 py-4">
  <div className="flex items-center justify-between">
  <div className="flex items-center gap-4">
- <button
- onClick={() => navigate(-1)}
- className="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white"
- >
- <ArrowLeft className="w-5 h-5" />
- </button>
+ <BackButton onClick={() => navigate(-1)} />
  <div>
  <div className="flex items-center gap-3">
  <div className="p-2 bg-green-500/20 rounded-lg">

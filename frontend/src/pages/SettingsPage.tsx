@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import BackButton from '../components/BackButton';
 import { useAuth } from '../contexts/AuthContext';
 import { 
   Settings, 
@@ -181,13 +182,9 @@ export default function SettingsPage() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-5">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="flex items-center gap-2 text-slate-400 hover:text-white mb-4 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Volver al Dashboard</span>
-          </button>
+          <div className="mb-4">
+            <BackButton onClick={() => navigate('/dashboard')} />
+          </div>
 
           <div className="flex items-center gap-4">
             <div className="p-3 bg-slate-600/20 rounded-xl">

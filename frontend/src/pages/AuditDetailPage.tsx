@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import BackButton from '../components/BackButton';
 import { auditService, type AuditDetail } from '../services/api';
 import ResultsView from '../components/ResultsView';
 import { ArrowLeft, Loader2, UserCheck } from 'lucide-react';
@@ -104,13 +105,7 @@ export default function AuditDetailPage() {
       <header className="sticky top-0 z-50 shadow-header" style={{ background: 'rgba(10, 10, 18, 0.88)', backdropFilter: 'blur(20px) saturate(180%)', WebkitBackdropFilter: 'blur(20px) saturate(180%)', borderBottom: '1px solid rgba(30, 30, 50, 0.8)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="btn-ghost flex items-center gap-2"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              Volver al Dashboard
-            </button>
+            <BackButton onClick={() => navigate('/dashboard')} />
           </div>
         </div>
       </header>

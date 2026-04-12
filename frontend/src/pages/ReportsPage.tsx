@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import BackButton from '../components/BackButton';
 import { useAuth, useRole } from '../contexts/AuthContext';
 import { auditService, getAuditTotalCost, type Audit } from '../services/api';
 import ExcelJS from 'exceljs';
@@ -648,6 +649,7 @@ export default function ReportsPage() {
  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
  <div className="flex items-center justify-between h-16">
  <div className="flex items-center gap-4">
+   <BackButton onClick={() => navigate('/dashboard')} />
    <div className="relative flex-shrink-0">
      <div className="absolute inset-0 rounded-xl blur-md" style={{ background: 'rgba(0,214,50,0.15)' }} />
      <div className="relative w-11 h-11 rounded-xl overflow-hidden ring-1 ring-brand-500/25">
@@ -664,15 +666,6 @@ export default function ReportsPage() {
  </div>
  </div>
 
- <div className="flex items-center gap-3">
- <button
- onClick={() => navigate('/dashboard')}
- className="btn-ghost flex items-center gap-2 transition-all duration-200 hover:scale-105"
- >
- <ArrowLeft className="w-5 h-5" />
- <span className="hidden sm:inline">Volver</span>
- </button>
- </div>
  </div>
  </div>
  </header>

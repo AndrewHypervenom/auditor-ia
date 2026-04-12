@@ -5,11 +5,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth, useRole } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
 import { userService } from '../services/api';
-import { 
- Users, 
- Plus, 
- Edit, 
- Trash2, 
+import BackButton from '../components/BackButton';
+import {
+ Users,
+ Plus,
+ Edit,
+ Trash2,
  Search,
  ArrowLeft,
  Shield,
@@ -268,6 +269,7 @@ export default function UsersPage() {
  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
  <div className="flex items-center justify-between">
  <div className="flex items-center gap-4">
+ <BackButton onClick={() => navigate('/dashboard')} />
  <div className="relative">
  <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl blur-lg opacity-50"></div>
  <div className="relative p-3 bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl">
@@ -296,14 +298,7 @@ export default function UsersPage() {
  Nuevo Usuario
  </button>
  )}
- 
- <button
- onClick={() => navigate('/dashboard')}
- className="btn-ghost flex items-center gap-2"
- >
- <ArrowLeft className="w-5 h-5" />
- Volver
- </button>
+
  </div>
  </div>
  </div>
