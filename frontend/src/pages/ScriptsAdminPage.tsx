@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import {
   BookOpen,
   ClipboardList,
+  Table,
   Plus,
   Trash2,
   Pencil,
@@ -27,6 +28,7 @@ import {
   type CriteriaBlock,
   type CriteriaItem,
 } from '../services/api';
+import PlantillaGPFTab from '../components/PlantillaGPFTab';
 
 const CALL_TYPES = ['FRAUDE', 'TH CONFIRMA'];
 
@@ -45,11 +47,11 @@ function groupByCallType<T extends { call_type: string }>(items: T[]): Record<st
 
 export default function ScriptsAdminPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'scripts' | 'criteria'>('criteria');
+  const [activeTab, setActiveTab] = useState<'scripts' | 'criteria' | 'plantilla'>('criteria');
 
   return (
     <div className="min-h-screen text-white">
-      <AppHeader showBack onBack={() => navigate('/dashboard')} title="Scripts y Criterios" />
+      <AppHeader showBack onBack={() => navigate('/dashboard')} title="Criterios, Scripts y Plantilla GPF" />
       <div className="max-w-5xl mx-auto px-6 py-6">
 
         {/* ── Description ── */}
@@ -58,7 +60,7 @@ export default function ScriptsAdminPage() {
         </p>
 
         {/* ── Tab Selector ── */}
-        <div className="grid grid-cols-2 gap-3 mb-5">
+        <div className="grid grid-cols-3 gap-3 mb-5">
           {([
             {
               key: 'criteria' as const,
@@ -74,6 +76,13 @@ export default function ScriptsAdminPage() {
               description: 'Guiones y frases por paso',
               color: 'blue',
             },
+            {
+              key: 'plantilla' as const,
+              icon: Table,
+              label: 'Plantilla Cierre de GPF',
+              description: 'Calificación y Sub-calificación',
+              color: 'teal',
+            },
           ]).map(({ key, icon: Icon, label, description, color }) => {
             const isActive = activeTab === key;
             return (
@@ -85,6 +94,8 @@ export default function ScriptsAdminPage() {
                             ${isActive
                               ? color === 'blue'
                                 ? 'bg-brand-500/10 border-brand-700/40 shadow-[0_0_24px_rgba(59,130,246,0.12)]'
+                                : color === 'teal'
+                                ? 'bg-teal-600/10 border-teal-500/40 shadow-[0_0_24px_rgba(20,184,166,0.12)]'
                                 : 'bg-violet-600/10 border-violet-500/40 shadow-[0_0_24px_rgba(139,92,246,0.12)]'
                               : 'bg-slate-900/50 border-slate-800/60 hover:bg-slate-900/80 hover:border-slate-700/60'
                             }`}
@@ -94,6 +105,8 @@ export default function ScriptsAdminPage() {
                   <div className={`absolute inset-0 opacity-5 pointer-events-none
                     ${color === 'blue'
                       ? 'bg-gradient-to-br from-brand-900/30 to-brand-800/30'
+                      : color === 'teal'
+                      ? 'bg-gradient-to-br from-teal-400 to-teal-600'
                       : 'bg-gradient-to-br from-violet-400 to-violet-600'
                     }`}
                   />
@@ -105,6 +118,8 @@ export default function ScriptsAdminPage() {
                                  ${isActive
                                    ? color === 'blue'
                                      ? 'bg-brand-500/10 border border-brand-700/40'
+                                     : color === 'teal'
+                                     ? 'bg-teal-500/20 border border-teal-500/30'
                                      : 'bg-violet-500/20 border border-violet-500/30'
                                    : 'bg-slate-800/60 border border-slate-700/40 group-hover:bg-slate-800'
                                  }`}>
@@ -112,7 +127,7 @@ export default function ScriptsAdminPage() {
                     size={18}
                     className={`transition-colors duration-300
                       ${isActive
-                        ? color === 'blue' ? 'text-brand-400' : 'text-violet-400'
+                        ? color === 'blue' ? 'text-brand-400' : color === 'teal' ? 'text-teal-400' : 'text-violet-400'
                         : 'text-slate-500 group-hover:text-slate-300'
                       }`}
                   />
@@ -126,7 +141,7 @@ export default function ScriptsAdminPage() {
                   </span>
                   <span className={`text-xs mt-0.5 transition-colors duration-200 truncate
                     ${isActive
-                      ? color === 'blue' ? 'text-brand-400/70' : 'text-violet-400/70'
+                      ? color === 'blue' ? 'text-brand-400/70' : color === 'teal' ? 'text-teal-400/70' : 'text-violet-400/70'
                       : 'text-slate-600 group-hover:text-slate-500'
                     }`}>
                     {description}
@@ -136,7 +151,7 @@ export default function ScriptsAdminPage() {
                 {/* Indicador activo (punto derecho) */}
                 {isActive && (
                   <div className={`absolute right-4 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full
-                    ${color === 'blue' ? 'bg-brand-500/10' : 'bg-violet-400'}`}
+                    ${color === 'blue' ? 'bg-brand-500/10' : color === 'teal' ? 'bg-teal-400' : 'bg-violet-400'}`}
                   />
                 )}
               </button>
@@ -146,7 +161,12 @@ export default function ScriptsAdminPage() {
 
         {/* ── Tab Content ── */}
         <div key={activeTab} className="animate-fadeIn">
-          {activeTab === 'scripts' ? <ScriptsTab /> : <CriteriaTab />}
+          {activeTab === 'scripts'
+            ? <ScriptsTab />
+            : activeTab === 'criteria'
+            ? <CriteriaTab />
+            : <PlantillaGPFTab />
+          }
         </div>
 
       </div>

@@ -86,7 +86,7 @@ export const ROUTES: RouteConfig[] = [
   },
   {
     path: '/scripts-admin',
-    name: 'Scripts y Criterios',
+    name: 'Criterios, Scripts y Plantilla GPF',
     icon: BookOpen,
     allowedRoles: ['admin'],
     requirePermission: 'config:manage',

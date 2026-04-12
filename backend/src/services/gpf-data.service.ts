@@ -228,6 +228,8 @@ class GpfDataService {
  ),
  callType:
  a['Llamada en curso'] || a['Calificación'] || a['Sub-calificación'] || 'GPF',
+ calificacion: a['Calificación'] || undefined,
+ subCalificacion: a['Sub-calificación'] || undefined,
  clientId: String(
  a['Socio'] || a['Caso'] || a.client_id || ''
  ),

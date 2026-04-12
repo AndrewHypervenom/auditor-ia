@@ -59,6 +59,8 @@ export interface Audit {
  executive_name: string;
  executive_id: string;
  call_type: string;
+ calificacion?: string;
+ sub_calificacion?: string;
  client_id: string;
  call_date: string;
  call_duration: string | null;

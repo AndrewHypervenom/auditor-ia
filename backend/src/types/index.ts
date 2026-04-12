@@ -9,6 +9,8 @@ export interface AuditInput {
  executiveName: string; // Nombre del ejecutivo/agente
  executiveId: string; // ID del ejecutivo/agente
  callType: string; // Tipo de llamada: 'FRAUDE', 'TH CONFIRMA', etc.
+ calificacion?: string; // Calificación GPF (Categoría de la Plantilla cierre de GPF)
+ subCalificacion?: string; // Sub-calificación GPF (Tipo de Cierre de la Plantilla)
  excelType?: 'INBOUND' | 'MONITOREO'; // Tipo de Excel (determina formato del reporte)
  clientId: string; // ID del cliente (ej: "6786724")
  callDate: string; // Fecha de la llamada en formato ISO

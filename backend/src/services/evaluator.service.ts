@@ -629,6 +629,8 @@ ${fieldsSection}`;
 
 **Información de la Auditoría:**
 - Tipo: ${auditInput.callType}
+- Calificación: ${auditInput.calificacion || 'No especificada'}
+- Sub-calificación: ${auditInput.subCalificacion || 'No especificada'}
 - Ejecutivo: ${auditInput.executiveName} (ID: ${auditInput.executiveId})
 - Cliente: ${auditInput.clientId}
 - Fecha: ${auditInput.callDate}

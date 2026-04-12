@@ -69,6 +69,8 @@ class DatabaseService {
           executive_name: auditInput.executiveName,
           executive_id: auditInput.executiveId,
           call_type: auditInput.callType,
+          calificacion: auditInput.calificacion || null,
+          sub_calificacion: auditInput.subCalificacion || null,
           client_id: auditInput.clientId,
           call_date: auditInput.callDate,
           call_duration: auditInput.callDuration || null,
