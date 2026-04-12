@@ -33,6 +33,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
   const [allExpanded, setAllExpanded] = useState<boolean | null>(null);
   const [filter, setFilter] = useState<FilterType>('all');
 
+  const [localScores, setLocalScores] = useState<any[]>(result.detailedScores ?? []);
   const [scoreEdits, setScoreEdits] = useState<Record<number, number>>({});
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editInputValue, setEditInputValue] = useState<string>('');
@@ -52,7 +53,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
   };
 
   // ── Cálculos en tiempo real ──────────────────────────────────────────────────
-  const currentScores = safeResult.detailedScores.map((s: any, i: number) => ({
+  const currentScores = localScores.map((s: any, i: number) => ({
     ...s,
     score: scoreEdits[i] !== undefined ? scoreEdits[i] : (s.score ?? 0),
     _globalIndex: i,
@@ -150,6 +151,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
           observations: s.observations, criticality: s.criticality || '-',
         }))
       );
+      setLocalScores(currentScores.map((s: any) => ({ ...s })));
       setScoreEdits({});
       toast.success('Puntajes guardados');
     } catch {

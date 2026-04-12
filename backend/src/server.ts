@@ -581,7 +581,7 @@ app.patch('/api/audits/:auditId/scores', authenticateUser, async (req: Request, 
  .from('evaluations')
  .update({
  detailed_scores: detailedScores,
- total_score: totalScore,
+ total_score: criticalFailure ? 0 : totalScore,
  max_possible_score: maxPossibleScore,
  percentage
  })
