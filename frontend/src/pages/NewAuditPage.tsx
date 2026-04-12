@@ -1159,7 +1159,7 @@ export default function NewAuditPage() {
  onClick={handleConfirm}
  disabled={!audioUrl || audioLoading}
  title={!audioUrl && !audioLoading ? 'Se requiere audio para realizar la auditoría' : undefined}
- className="flex-1 px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg hover:shadow-purple-500/50 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:from-purple-600 disabled:hover:to-pink-600 disabled:shadow-none"
+ className="flex-1 px-6 py-4 bg-brand-500 hover:bg-brand-400 text-black rounded-lg font-semibold transition-all shadow-lg shadow-brand-500/30 hover:shadow-brand-400/40 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-brand-500 disabled:shadow-none"
  >
  <Sparkles className="w-5 h-5" />
  Confirmar y Auditar
