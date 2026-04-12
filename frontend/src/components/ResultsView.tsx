@@ -34,6 +34,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
   const [filter, setFilter] = useState<FilterType>('all');
 
   const [localScores, setLocalScores] = useState<any[]>(result.detailedScores ?? []);
+  const [savedPercentage, setSavedPercentage] = useState<number>(result.percentage ?? 0);
   const [scoreEdits, setScoreEdits] = useState<Record<number, number>>({});
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editInputValue, setEditInputValue] = useState<string>('');
@@ -63,9 +64,14 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
   const currentMax   = currentScores.reduce((sum: number, s: any) => sum + (s.maxScore ?? 0), 0);
   const rawPct       = currentMax > 0 ? (currentTotal / currentMax) * 100 : 0;
 
+  const hasEdits = Object.keys(scoreEdits).length > 0;
+
   const criticalFailed  = currentScores.filter((s: any) => s.criticality === 'Crítico' && (s.score ?? 0) === 0);
-  const hasCriticalFail = criticalFailed.length > 0;
+  // hasCriticalFail: detectado en tiempo real (edición activa) O por el percentage=0 guardado en BD (registros sin campo criticality)
+  const hasCriticalFail = criticalFailed.length > 0 || (!hasEdits && savedPercentage === 0 && rawPct > 0);
   const currentPct      = hasCriticalFail ? 0 : rawPct;
+  // displayPct: muestra el porcentaje guardado en BD cuando no hay ediciones activas
+  const displayPct      = hasEdits ? currentPct : savedPercentage;
 
   const criticalOnly = currentScores.filter(
     (s: any) => s.criticality === 'Crítico' && typeof s.maxScore === 'number' && s.maxScore > 0
@@ -75,8 +81,6 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
       ? (criticalOnly.reduce((s: number, x: any) => s + (x.score ?? 0), 0) /
           criticalOnly.reduce((s: number, x: any) => s + x.maxScore, 0)) * 100
       : null;
-
-  const hasEdits = Object.keys(scoreEdits).length > 0;
 
   // ── Clasificar criterios ─────────────────────────────────────────────────────
   const getCriterionStatus = (score: number, maxScore: number): 'passed' | 'partial' | 'failed' => {
@@ -144,7 +148,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
     if (!auditId || !hasEdits) return;
     setIsSaving(true);
     try {
-      await auditService.updateAuditScores(
+      const saved = await auditService.updateAuditScores(
         auditId,
         currentScores.map((s: any) => ({
           criterion: s.criterion, score: s.score, maxScore: s.maxScore,
@@ -152,6 +156,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
         }))
       );
       setLocalScores(currentScores.map((s: any) => ({ ...s })));
+      setSavedPercentage(saved.percentage);
       setScoreEdits({});
       toast.success('Puntajes guardados');
     } catch {
@@ -219,7 +224,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
   const formatTranscript = (text: string) =>
     text ? text.replace(/\[([^\]]+)\]/g, (_, ts) => `[${formatTimestamp(ts)}]`) : 'No hay transcripción disponible';
 
-  const scoreBadge = getScoreBadge(currentPct);
+  const scoreBadge = getScoreBadge(displayPct);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // RENDER
@@ -241,7 +246,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
           style={{
             background: hasCriticalFail
               ? 'linear-gradient(90deg, transparent, rgba(239,68,68,0.6), transparent)'
-              : `linear-gradient(90deg, transparent, ${currentPct >= 80 ? 'rgba(0,214,50,0.5)' : currentPct >= 60 ? 'rgba(234,179,8,0.5)' : 'rgba(239,68,68,0.5)'}, transparent)`,
+              : `linear-gradient(90deg, transparent, ${displayPct >= 80 ? 'rgba(0,214,50,0.5)' : displayPct >= 60 ? 'rgba(234,179,8,0.5)' : 'rgba(239,68,68,0.5)'}, transparent)`,
           }}
         />
 
@@ -299,8 +304,8 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
           <div className="flex items-stretch gap-5">
             {/* % grande */}
             <div className="flex-shrink-0 flex flex-col justify-center min-w-[100px]">
-              <div className={`text-5xl font-black tabular-nums leading-none ${getScoreColor(currentPct)}`}>
-                {currentPct.toFixed(1)}<span className="text-xl font-semibold text-slate-500">%</span>
+              <div className={`text-5xl font-black tabular-nums leading-none ${getScoreColor(displayPct)}`}>
+                {displayPct.toFixed(1)}<span className="text-xl font-semibold text-slate-500">%</span>
               </div>
               <div className="mt-2 flex items-center gap-2 flex-wrap">
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${scoreBadge.cls}`}>
@@ -339,13 +344,16 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
                   )}
                 </div>
               </div>
-              {criticalPct !== null && (
+              {criticalOnly.length > 0 && (
                 <div>
-                  <p className="text-xs text-slate-500 mb-0.5">Criterios críticos</p>
-                  <p className={`text-base font-bold tabular-nums ${hasCriticalFail ? 'text-red-400' : criticalPct >= 80 ? 'text-brand-400' : 'text-yellow-400'}`}>
-                    {criticalPct.toFixed(0)}%
-                    <span className="text-slate-600 font-normal text-xs ml-1">({criticalOnly.length})</span>
-                  </p>
+                  <p className="text-xs text-slate-500 mb-0.5">Críticos</p>
+                  <div className="flex items-center gap-1.5">
+                    <ShieldAlert className={`w-3.5 h-3.5 flex-shrink-0 ${hasCriticalFail ? 'text-red-400' : 'text-slate-500'}`} />
+                    <p className={`text-base font-bold tabular-nums ${hasCriticalFail ? 'text-red-400' : criticalPct !== null && criticalPct >= 80 ? 'text-brand-400' : 'text-yellow-400'}`}>
+                      {criticalFailed.length}/{criticalOnly.length}
+                      {hasCriticalFail && <span className="text-red-400 font-normal text-xs ml-1">fallidos</span>}
+                    </p>
+                  </div>
                 </div>
               )}
               {safeResult.audioConfidence !== undefined && safeResult.audioConfidence > 0 && (
@@ -366,26 +374,38 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
           <div className="mt-4 flex items-center gap-3">
             <div className="flex-1 relative h-2 bg-dark-border rounded-full overflow-hidden">
               <div
-                className={`absolute inset-y-0 left-0 rounded-full transition-all duration-700 ${getBarBg(currentPct)}`}
-                style={{ width: `${Math.max(0, Math.min(100, currentPct))}%` }}
+                className={`absolute inset-y-0 left-0 rounded-full transition-all duration-700 ${getBarBg(displayPct)}`}
+                style={{ width: `${Math.max(0, Math.min(100, displayPct))}%` }}
               />
             </div>
-            <span className="text-xs text-slate-600 tabular-nums flex-shrink-0">{currentPct.toFixed(0)}%</span>
+            <span className="text-xs text-slate-600 tabular-nums flex-shrink-0">{displayPct.toFixed(0)}%</span>
           </div>
         </div>
       </div>
 
       {/* ── ALERTAS ─────────────────────────────────────────────────────────── */}
       {hasCriticalFail && (
-        <div className="flex items-start gap-3 p-3.5 rounded-xl border border-red-500/30 bg-red-950/20">
+        <div className="flex items-start gap-3 p-3.5 rounded-xl border border-red-500/40 bg-red-950/25">
           <ShieldAlert className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-red-300 mb-0.5">
-              Criterio(s) crítico(s) en 0 — Resultado final: 0%
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-red-300 mb-1">
+              Fallo en criterio crítico — Resultado final: 0%
             </p>
-            <p className="text-xs text-red-400/80 leading-relaxed">
-              {criticalFailed.map((s: any) => s.criterion.replace(/\[.*?\]\s*/, '')).join(' · ')}
-            </p>
+            {criticalFailed.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {criticalFailed.map((s: any) => (
+                  <span key={s.criterion}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-red-500/15 text-red-300 border border-red-500/30">
+                    <ShieldAlert className="w-3 h-3" />
+                    {s.criterion.replace(/\[.*?\]\s*/, '')}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-red-400/80">
+                Un criterio crítico quedó en 0 puntos. Revisa los criterios marcados con <ShieldAlert className="inline w-3 h-3 mx-0.5" /> en la lista.
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -499,11 +519,12 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
                     return (
                       <div
                         key={idx}
-                        className={`transition-colors ${
-                          isCritZero  ? 'bg-red-950/15 hover:bg-red-950/20'   :
-                          status === 'failed'  ? 'bg-red-950/8 hover:bg-red-950/12'   :
-                          status === 'partial' ? 'bg-amber-950/8 hover:bg-amber-950/12' :
-                          'hover:bg-white/[0.015]'
+                        className={`transition-colors border-l-2 ${
+                          isCritZero  ? 'bg-red-950/20 hover:bg-red-950/25 border-l-red-500/60'   :
+                          isCritical  ? 'bg-red-950/8  hover:bg-red-950/12  border-l-red-700/40'  :
+                          status === 'failed'  ? 'bg-red-950/8 hover:bg-red-950/12 border-l-transparent'   :
+                          status === 'partial' ? 'bg-amber-950/8 hover:bg-amber-950/12 border-l-transparent' :
+                          'hover:bg-white/[0.015] border-l-transparent'
                         }`}
                       >
                         {/* ── FILA PRINCIPAL ─────────────────────────────── */}
@@ -524,7 +545,11 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
                                 {name}
                               </span>
                               {isCritical && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20 flex-shrink-0">
+                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold flex-shrink-0 ${
+                                  isCritZero
+                                    ? 'bg-red-500/20 text-red-300 border border-red-500/40'
+                                    : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                }`}>
                                   <ShieldAlert className="w-3 h-3" /> Crítico
                                 </span>
                               )}
