@@ -1540,6 +1540,13 @@ export default function AdminDashboard() {
 
  {/* Main Content */}
  <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+ {/* Título de página */}
+ {!showGpfPanel && (
+   <div className="mb-5">
+     <h1 className="text-xl font-bold text-white tracking-tight">Panel de Administrador</h1>
+     <p className="text-slate-500 text-sm mt-0.5">{profile?.full_name || user?.email}</p>
+   </div>
+ )}
  {showGpfPanel ? renderGpfPanel() : renderNormalView()}
  </main>
  </div>

@@ -743,6 +743,11 @@ export default function AuditsViewPage() {
  />
 
  <main className="max-w-[1600px] mx-auto px-6 py-8">
+ {/* Título de página */}
+ <div className="mb-5">
+   <h1 className="text-xl font-bold text-white tracking-tight">Explorador de Auditorías</h1>
+   <p className="text-slate-500 text-sm mt-0.5">Análisis completo y exportación de datos</p>
+ </div>
  {/* KPI Cards mejorados */}
  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-5">
  <div className="stat-card bg-slate-800/50 border-brand-700/40 hover:border-brand-500/50/60 transition-all">

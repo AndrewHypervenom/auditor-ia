@@ -484,6 +484,14 @@ export default function NewAuditPage() {
  <AppHeader showBack onBack={() => navigate('/')} />
 
  <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+ {/* Título de página */}
+ <div className="mb-5">
+   <h1 className="text-xl font-bold text-white tracking-tight">Nueva Auditoría</h1>
+   <p className="text-slate-500 text-sm mt-0.5 flex items-center gap-1.5">
+     <Database className="w-3 h-3" />
+     Evaluación automática desde API GPF
+   </p>
+ </div>
 
  {/* ── SELECTING STATE ────────────────────────────────────────────────── */}
  {state === 'selecting' && (
