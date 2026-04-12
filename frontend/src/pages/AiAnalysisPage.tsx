@@ -157,7 +157,7 @@ export default function AiAnalysisPage() {
   return (
     <div className="min-h-screen text-slate-100">
 
-      <AppHeader showBack onBack={() => window.close()} backLabel="Cerrar" />
+      <AppHeader showBack onBack={() => window.close()} backLabel="Cerrar" title="Análisis IA" />
 
       {/* Contenido */}
       <main className="max-w-5xl mx-auto px-4 py-6">

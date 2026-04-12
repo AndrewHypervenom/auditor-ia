@@ -636,15 +636,10 @@ export default function ReportsPage() {
 
  return (
  <div className="min-h-screen">
- <AppHeader showBack onBack={() => navigate('/dashboard')} />
+ <AppHeader showBack onBack={() => navigate('/dashboard')} title="Reportes y Análisis" />
 
  {/* Main Content */}
  <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
- {/* Título de página */}
- <div className="mb-5">
-   <h1 className="text-xl font-bold text-white tracking-tight">Reportes y Análisis</h1>
-   <p className="text-slate-500 text-sm mt-0.5">Dashboard de métricas</p>
- </div>
  {loading ? (
  <div className="flex flex-col items-center justify-center py-20 gap-4">
  <Loader2 className="w-12 h-12 text-brand-400 animate-spin" />

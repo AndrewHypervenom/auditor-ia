@@ -235,6 +235,7 @@ export default function SupervisorDashboard() {
  return (
  <div className="min-h-screen">
  <AppHeader
+   title="Panel de Supervisor"
    rightContent={
      <>
        <button onClick={() => loadData()} className="btn-ghost flex items-center gap-1.5 text-xs" title="Recargar datos">
@@ -250,11 +251,6 @@ export default function SupervisorDashboard() {
  />
 
  <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
- {/* Título de página */}
- <div className="mb-5">
-   <h1 className="text-xl font-bold text-white tracking-tight">Panel de Supervisor</h1>
-   <p className="text-slate-500 text-sm mt-0.5">{profile?.full_name || user?.email}</p>
- </div>
  {/* Stats Cards - CON COSTOS */}
  {loadingStats ? (
  <div className="flex items-center justify-center py-8">

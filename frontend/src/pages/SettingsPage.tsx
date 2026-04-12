@@ -178,15 +178,10 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen">
-      <AppHeader showBack onBack={() => navigate('/dashboard')} />
+      <AppHeader showBack onBack={() => navigate('/dashboard')} title="Configuración del Sistema" />
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div>
-        {/* Título de página */}
-        <div className="mb-5">
-          <h1 className="text-xl font-bold text-white tracking-tight">Configuración del Sistema</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Gestiona las APIs y configuraciones del sistema</p>
-        </div>
 
         {/* Status Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">

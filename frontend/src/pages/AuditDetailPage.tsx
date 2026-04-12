@@ -101,7 +101,7 @@ export default function AuditDetailPage() {
 
   return (
     <div className="min-h-screen">
-      <AppHeader showBack onBack={() => navigate('/dashboard')} />
+      <AppHeader showBack onBack={() => navigate('/dashboard')} title="Detalle de Auditoría" />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">

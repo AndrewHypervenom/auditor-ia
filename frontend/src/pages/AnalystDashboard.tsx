@@ -176,6 +176,7 @@ export default function AnalystDashboard() {
  return (
  <div className="min-h-screen">
  <AppHeader
+   title="Panel de Analista"
    rightContent={
      <button onClick={handleLogout} className="btn-ghost flex items-center gap-1.5 text-xs">
        <LogOut className="w-3.5 h-3.5" />
@@ -185,11 +186,6 @@ export default function AnalystDashboard() {
  />
 
  <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
- {/* Título de página */}
- <div className="mb-5">
-   <h1 className="text-xl font-bold text-white tracking-tight">Panel de Analista</h1>
-   <p className="text-slate-500 text-sm mt-0.5">{profile?.full_name || user?.email}</p>
- </div>
  {/* Action Buttons */}
  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
  <button

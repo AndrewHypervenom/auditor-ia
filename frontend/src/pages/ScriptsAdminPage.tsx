@@ -49,19 +49,13 @@ export default function ScriptsAdminPage() {
 
   return (
     <div className="min-h-screen text-white">
-      <AppHeader showBack onBack={() => navigate('/dashboard')} />
+      <AppHeader showBack onBack={() => navigate('/dashboard')} title="Scripts y Criterios" />
       <div className="max-w-5xl mx-auto px-6 py-6">
 
-        {/* ── Page Header ── */}
-        <div className="mb-8">
-          <p className="text-xs font-semibold tracking-widest uppercase text-brand-400/70 mb-2">
-            Administración
-          </p>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Scripts y Criterios</h1>
-          <p className="mt-2 text-sm text-slate-400 leading-relaxed">
-            Edita los guiones de los agentes y las rúbricas de evaluación sin modificar el código.
-          </p>
-        </div>
+        {/* ── Description ── */}
+        <p className="mb-6 text-sm text-slate-400 leading-relaxed">
+          Edita los guiones de los agentes y las rúbricas de evaluación sin modificar el código.
+        </p>
 
         {/* ── Tab Selector ── */}
         <div className="grid grid-cols-2 gap-3 mb-5">

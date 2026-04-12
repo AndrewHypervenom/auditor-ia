@@ -266,6 +266,7 @@ export default function UsersPage() {
  <AppHeader
  showBack
  onBack={() => navigate('/dashboard')}
+ title={isSupervisor ? 'Equipo de Analistas' : 'Gestión de Usuarios'}
  rightContent={isAdmin ? (
    <button onClick={() => setShowCreateModal(true)} className="btn-primary flex items-center gap-1.5 text-xs py-1 px-3">
      <Plus className="w-3.5 h-3.5" />
@@ -276,15 +277,6 @@ export default function UsersPage() {
 
  {/* Main Content */}
  <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
- {/* Título de página */}
- <div className="mb-5">
-   <h1 className="text-xl font-bold text-white tracking-tight">
-     {isSupervisor ? 'Equipo de Analistas' : 'Gestión de Usuarios'}
-   </h1>
-   <p className="text-slate-500 text-sm mt-0.5">
-     {isSupervisor ? 'Consulta del equipo de trabajo' : 'Administración completa del sistema'}
-   </p>
- </div>
  {/* Info Banner */}
  {isSupervisor && (
  <div className="mb-4 p-4 bg-brand-500/10 border border-brand-700/40 rounded-xl">
