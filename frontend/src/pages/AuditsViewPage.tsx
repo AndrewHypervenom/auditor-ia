@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import BackButton from '../components/BackButton';
+import AppHeader from '../components/AppHeader';
 import { useAuth, useRole } from '../contexts/AuthContext';
 import { auditService, getAuditTotalCost, type Audit } from '../services/api';
 import { 
@@ -15,7 +15,6 @@ import {
  Download,
  Filter,
  Search,
- ArrowLeft,
  Calendar,
  DollarSign,
  Loader2,
@@ -732,34 +731,16 @@ export default function AuditsViewPage() {
 
  return (
  <div className="min-h-screen">
- {/* Header glass-morphism */}
- <header className="sticky top-0 z-50" style={{ background: 'rgba(10, 10, 18, 0.88)', backdropFilter: 'blur(20px) saturate(180%)', WebkitBackdropFilter: 'blur(20px) saturate(180%)', borderBottom: '1px solid rgba(30, 30, 50, 0.8)' }}>
- <div className="max-w-[1600px] mx-auto px-6 py-4">
- <div className="flex items-center justify-between">
- <div className="flex items-center gap-4">
- <BackButton onClick={() => navigate(-1)} />
- <div className="relative flex-shrink-0">
- <div className="absolute inset-0 rounded-xl blur-md" style={{ background: 'rgba(0,214,50,0.15)' }} />
- <div className="relative w-11 h-11 rounded-xl overflow-hidden ring-1 ring-brand-500/25">
- <img src="/logo.jpg" alt="S+" className="w-full h-full object-cover" />
- </div>
- </div>
- <div>
- <h1 className="text-2xl font-bold text-white tracking-tight">Explorador de Auditorías</h1>
- <p className="text-slate-500 text-sm mt-0.5">Análisis completo y exportación de datos</p>
- </div>
- </div>
- <button
- onClick={handleRefresh}
- disabled={refreshing}
- className="btn-secondary flex items-center gap-2"
- >
- <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
- Actualizar
- </button>
- </div>
- </div>
- </header>
+ <AppHeader
+ showBack
+ onBack={() => navigate(-1)}
+ rightContent={
+   <button onClick={handleRefresh} disabled={refreshing} className="btn-ghost flex items-center gap-1.5 text-xs">
+     <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+     Actualizar
+   </button>
+ }
+ />
 
  <main className="max-w-[1600px] mx-auto px-6 py-8">
  {/* KPI Cards mejorados */}

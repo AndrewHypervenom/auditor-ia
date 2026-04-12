@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import BackButton from '../components/BackButton';
+import AppHeader from '../components/AppHeader';
 import { auditService, type AuditDetail } from '../services/api';
 import ResultsView from '../components/ResultsView';
-import { ArrowLeft, Loader2, UserCheck } from 'lucide-react';
+import { Loader2, UserCheck } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 export default function AuditDetailPage() {
@@ -101,14 +101,7 @@ export default function AuditDetailPage() {
 
   return (
     <div className="min-h-screen">
-      {/* Header */}
-      <header className="sticky top-0 z-50 shadow-header" style={{ background: 'rgba(10, 10, 18, 0.88)', backdropFilter: 'blur(20px) saturate(180%)', WebkitBackdropFilter: 'blur(20px) saturate(180%)', borderBottom: '1px solid rgba(30, 30, 50, 0.8)' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center gap-4">
-            <BackButton onClick={() => navigate('/dashboard')} />
-          </div>
-        </div>
-      </header>
+      <AppHeader showBack onBack={() => navigate('/dashboard')} />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">

@@ -21,6 +21,7 @@ import {
   Sparkles,
   AlertTriangle,
 } from 'lucide-react';
+import AppHeader from '../components/AppHeader';
 
 interface AttentionDetail {
   imageUrls: string[];
@@ -156,26 +157,25 @@ export default function AiAnalysisPage() {
   return (
     <div className="min-h-screen text-slate-100">
 
-      {/* Header */}
-      <header className="bg-slate-900/80 backdrop-blur-lg border-b border-slate-800 sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-purple-600/20 border border-purple-500/30">
-            <Sparkles className="w-5 h-5 text-brand-400" />
+      <AppHeader showBack onBack={() => window.close()} backLabel="Cerrar" />
+
+      {/* Contenido */}
+      <main className="max-w-5xl mx-auto px-4 py-6">
+        {/* Context bar — case info */}
+        <div className="flex items-center gap-3 mb-6 px-4 py-3 bg-slate-900/60 border border-slate-800 rounded-xl">
+          <div className="p-1.5 rounded-lg bg-purple-600/20 border border-purple-500/30 flex-shrink-0">
+            <Sparkles className="w-4 h-4 text-brand-400" />
           </div>
           <div>
-            <h1 className="text-base font-bold text-slate-200">
+            <p className="text-sm font-semibold text-slate-200">
               Vista de referencia · Caso <span className="font-mono text-brand-400">{String(attentionId)}</span>
-            </h1>
+            </p>
             <p className="text-xs text-slate-500">
               {executive} · {callType} · {excelType}
               <span className="ml-2 text-yellow-500/80">— La auditoría se procesa en la pestaña anterior</span>
             </p>
           </div>
         </div>
-      </header>
-
-      {/* Contenido */}
-      <main className="max-w-5xl mx-auto px-4 py-8">
         <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-800 shadow-2xl p-8">
 
           {/* Tabs */}

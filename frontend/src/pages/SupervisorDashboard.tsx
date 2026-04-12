@@ -5,13 +5,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, useRole } from '../contexts/AuthContext';
 import { auditService, getAuditTotalCost, type Audit } from '../services/api';
-import { 
+import {
  Shield,
- LogOut, 
- FileText, 
- TrendingUp, 
- Clock, 
- CheckCircle2, 
+ LogOut,
+ FileText,
+ TrendingUp,
+ Clock,
+ CheckCircle2,
  AlertCircle,
  Eye,
  BarChart3,
@@ -27,6 +27,7 @@ import {
  Trash2,
  UserCheck
 } from 'lucide-react';
+import AppHeader from '../components/AppHeader';
 import toast from 'react-hot-toast';
 
 interface Stats {
@@ -233,56 +234,20 @@ export default function SupervisorDashboard() {
 
  return (
  <div className="min-h-screen">
- {/* Header glass morphism */}
- <header
-   className="sticky top-0 z-50 shadow-header"
-   style={{
-     background: 'rgba(10, 10, 18, 0.88)',
-     backdropFilter: 'blur(20px) saturate(180%)',
-     WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-     borderBottom: '1px solid rgba(30, 30, 50, 0.8)'
-   }}
- >
- <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
- <div className="flex items-center justify-between">
- <div className="flex items-center gap-4">
-   {/* Logo S+ */}
-   <div className="relative flex-shrink-0">
-     <div className="absolute inset-0 rounded-xl blur-md" style={{ background: 'rgba(0,214,50,0.15)' }} />
-     <div className="relative w-11 h-11 rounded-xl overflow-hidden ring-1 ring-brand-500/25">
-       <img src="/logo.jpg" alt="S+" className="w-full h-full object-cover" />
-     </div>
-   </div>
- <div>
- <h1 className="text-2xl font-bold tracking-tight text-white">
- Panel de Supervisor
- </h1>
- <p className="text-slate-500 text-sm mt-0.5">
- {profile?.full_name || user?.email}
- </p>
- </div>
- </div>
-
- <div className="flex items-center gap-3">
- <button
- onClick={() => loadData()}
- className="btn-ghost flex items-center gap-2 text-sm"
- title="Recargar datos"
- >
- <RefreshCw className="w-4 h-4" />
- Actualizar
- </button>
- <button
- onClick={handleLogout}
- className="btn-ghost flex items-center gap-2 text-sm"
- >
- <LogOut className="w-4 h-4" />
- Salir
- </button>
- </div>
- </div>
- </div>
- </header>
+ <AppHeader
+   rightContent={
+     <>
+       <button onClick={() => loadData()} className="btn-ghost flex items-center gap-1.5 text-xs" title="Recargar datos">
+         <RefreshCw className="w-3.5 h-3.5" />
+         Actualizar
+       </button>
+       <button onClick={handleLogout} className="btn-ghost flex items-center gap-1.5 text-xs">
+         <LogOut className="w-3.5 h-3.5" />
+         Salir
+       </button>
+     </>
+   }
+ />
 
  <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
  {/* Stats Cards - CON COSTOS */}

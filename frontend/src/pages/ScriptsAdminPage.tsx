@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import BackButton from '../components/BackButton';
+import AppHeader from '../components/AppHeader';
 import toast from 'react-hot-toast';
 import {
   BookOpen,
@@ -48,14 +48,12 @@ export default function ScriptsAdminPage() {
   const [activeTab, setActiveTab] = useState<'scripts' | 'criteria'>('criteria');
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white px-6 py-6">
-      <div className="max-w-5xl mx-auto">
+    <div className="min-h-screen text-white">
+      <AppHeader showBack onBack={() => navigate('/dashboard')} />
+      <div className="max-w-5xl mx-auto px-6 py-6">
 
         {/* ── Page Header ── */}
-        <div className="mb-10">
-          <div className="mb-4">
-            <BackButton onClick={() => navigate('/dashboard')} />
-          </div>
+        <div className="mb-8">
           <p className="text-xs font-semibold tracking-widest uppercase text-brand-400/70 mb-2">
             Administración
           </p>

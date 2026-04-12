@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import BackButton from '../components/BackButton';
+import AppHeader from '../components/AppHeader';
 import { useAuth } from '../contexts/AuthContext';
 import { 
-  Settings, 
-  ArrowLeft,
+  Settings,
   Key,
   Database,
   Mic,
@@ -179,24 +178,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen">
-      {/* Header glass-morphism */}
-      <header className="sticky top-0 z-50" style={{ background: 'rgba(10, 10, 18, 0.88)', backdropFilter: 'blur(20px) saturate(180%)', WebkitBackdropFilter: 'blur(20px) saturate(180%)', borderBottom: '1px solid rgba(30, 30, 50, 0.8)' }}>
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center gap-4">
-            <BackButton onClick={() => navigate('/dashboard')} />
-            <div className="relative flex-shrink-0">
-              <div className="absolute inset-0 rounded-xl blur-md" style={{ background: 'rgba(0,214,50,0.15)' }} />
-              <div className="relative w-11 h-11 rounded-xl overflow-hidden ring-1 ring-brand-500/25">
-                <img src="/logo.jpg" alt="S+" className="w-full h-full object-cover" />
-              </div>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">Configuración del Sistema</h1>
-              <p className="text-slate-500 text-sm mt-0.5">Gestiona las APIs y configuraciones del sistema</p>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AppHeader showBack onBack={() => navigate('/dashboard')} />
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div>

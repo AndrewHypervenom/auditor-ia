@@ -5,14 +5,13 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth, useRole } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
 import { userService } from '../services/api';
-import BackButton from '../components/BackButton';
+import AppHeader from '../components/AppHeader';
 import {
  Users,
  Plus,
  Edit,
  Trash2,
  Search,
- ArrowLeft,
  Shield,
  Star,
  Eye,
@@ -264,45 +263,16 @@ export default function UsersPage() {
 
  return (
  <div className="min-h-screen">
- {/* Header */}
- <header className="sticky top-0 z-50 shadow-header" style={{ background: 'rgba(10, 10, 18, 0.88)', backdropFilter: 'blur(20px) saturate(180%)', WebkitBackdropFilter: 'blur(20px) saturate(180%)', borderBottom: '1px solid rgba(30, 30, 50, 0.8)' }}>
- <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
- <div className="flex items-center justify-between">
- <div className="flex items-center gap-4">
- <BackButton onClick={() => navigate('/dashboard')} />
- <div className="relative flex-shrink-0">
- <div className="absolute inset-0 rounded-xl blur-md" style={{ background: 'rgba(0,214,50,0.15)' }} />
- <div className="relative w-11 h-11 rounded-xl overflow-hidden ring-1 ring-brand-500/25">
- <img src="/logo.jpg" alt="S+" className="w-full h-full object-cover" />
- </div>
- </div>
- <div>
- <h1 className="text-2xl font-bold text-white tracking-tight">
- {isSupervisor ? 'Equipo de Analistas' : 'Gestión de Usuarios'}
- </h1>
- <p className="text-slate-400 text-sm mt-1">
- {isSupervisor 
- ? 'Consulta del equipo de trabajo' 
- : 'Administración completa del sistema'}
- </p>
- </div>
- </div>
-
- <div className="flex items-center gap-3">
- {isAdmin && (
- <button
- onClick={() => setShowCreateModal(true)}
- className="btn-primary flex items-center gap-2"
- >
- <Plus className="w-5 h-5" />
- Nuevo Usuario
- </button>
- )}
-
- </div>
- </div>
- </div>
- </header>
+ <AppHeader
+ showBack
+ onBack={() => navigate('/dashboard')}
+ rightContent={isAdmin ? (
+   <button onClick={() => setShowCreateModal(true)} className="btn-primary flex items-center gap-1.5 text-xs py-1 px-3">
+     <Plus className="w-3.5 h-3.5" />
+     Nuevo Usuario
+   </button>
+ ) : undefined}
+ />
 
  {/* Main Content */}
  <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">

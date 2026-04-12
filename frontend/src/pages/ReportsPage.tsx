@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import BackButton from '../components/BackButton';
+import AppHeader from '../components/AppHeader';
 import { useAuth, useRole } from '../contexts/AuthContext';
 import { auditService, getAuditTotalCost, type Audit } from '../services/api';
 import ExcelJS from 'exceljs';
@@ -636,39 +636,7 @@ export default function ReportsPage() {
 
  return (
  <div className="min-h-screen">
- {/* Header Mejorado */}
- <header
-   className="sticky top-0 z-50 shadow-header"
-   style={{
-     background: 'rgba(10, 10, 18, 0.88)',
-     backdropFilter: 'blur(20px) saturate(180%)',
-     WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-     borderBottom: '1px solid rgba(30, 30, 50, 0.8)'
-   }}
- >
- <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
- <div className="flex items-center justify-between h-16">
- <div className="flex items-center gap-4">
-   <BackButton onClick={() => navigate('/dashboard')} />
-   <div className="relative flex-shrink-0">
-     <div className="absolute inset-0 rounded-xl blur-md" style={{ background: 'rgba(0,214,50,0.15)' }} />
-     <div className="relative w-11 h-11 rounded-xl overflow-hidden ring-1 ring-brand-500/25">
-       <img src="/logo.jpg" alt="S+" className="w-full h-full object-cover" />
-     </div>
-   </div>
- <div>
- <h1 className="text-xl font-bold tracking-tight text-white">
- Reportes y Análisis
- </h1>
- <p className="text-slate-500 text-sm mt-0.5">
- Dashboard de métricas
- </p>
- </div>
- </div>
-
- </div>
- </div>
- </header>
+ <AppHeader showBack onBack={() => navigate('/dashboard')} />
 
  {/* Main Content */}
  <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">

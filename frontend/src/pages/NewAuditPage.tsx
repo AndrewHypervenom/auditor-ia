@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import BackButton from '../components/BackButton';
+import AppHeader from '../components/AppHeader';
 import { toast } from 'react-hot-toast';
 import ProcessingStatus from '../components/ProcessingStatus';
 import { auditService, gpfService } from '../services/api';
@@ -481,23 +481,7 @@ export default function NewAuditPage() {
 
  return (
  <div className="min-h-screen">
- {/* Header */}
- <header className="sticky top-0 z-50 shadow-header" style={{ background: 'rgba(10, 10, 18, 0.88)', backdropFilter: 'blur(20px) saturate(180%)', WebkitBackdropFilter: 'blur(20px) saturate(180%)', borderBottom: '1px solid rgba(30, 30, 50, 0.8)' }}>
- <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
- <div className="flex items-center gap-4">
- <BackButton onClick={() => navigate('/')} />
- <div>
- <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-3">
- Nueva Auditoría
- </h1>
- <p className="text-slate-400 text-sm mt-1 flex items-center gap-2">
- <Database className="w-3 h-3" />
- Evaluación automática desde API GPF
- </p>
- </div>
- </div>
- </div>
- </header>
+ <AppHeader showBack onBack={() => navigate('/')} />
 
  <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
 

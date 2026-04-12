@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { auditService, gpfService, getAuditTotalCost, type Audit, type GpfProxyResponse } from '../services/api';
 import { FileDown, CalendarRange } from 'lucide-react';
+import AppHeader from '../components/AppHeader';
 import { 
  Sparkles,
  LogOut,
@@ -26,8 +27,6 @@ import {
  BarChart3,
  FileSpreadsheet,
  RefreshCw,
- ArrowLeft,
- Home,
  PhoneIncoming,
  Monitor,
  Globe,
@@ -1512,79 +1511,32 @@ export default function AdminDashboard() {
 
  return (
  <div className="min-h-screen">
- {/* Header glass morphism */}
- <header
-   className="sticky top-0 z-50 shadow-header"
-   style={{
-     background: 'rgba(10, 10, 18, 0.88)',
-     backdropFilter: 'blur(20px) saturate(180%)',
-     WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-     borderBottom: '1px solid rgba(30, 30, 50, 0.8)'
-   }}
- >
- <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
- <div className="flex items-center justify-between">
- <div className="flex items-center gap-4">
-   {/* Logo S+ */}
-   <div className="relative flex-shrink-0">
-     <div className="absolute inset-0 rounded-xl blur-md" style={{ background: 'rgba(0,214,50,0.15)' }} />
-     <div className="relative w-11 h-11 rounded-xl overflow-hidden ring-1 ring-brand-500/25">
-       <img src="/logo.jpg" alt="S+" className="w-full h-full object-cover" />
-     </div>
-   </div>
- <div>
- <h1 className="text-2xl font-bold tracking-tight text-white">
- Panel de Administrador
- </h1>
- <p className="text-slate-500 text-sm mt-0.5">
- {profile?.full_name || user?.email}
- </p>
- </div>
- </div>
-
- <div className="flex items-center gap-3">
- {/* Badge de rol */}
- <div className="flex items-center gap-2 px-3 py-1.5 bg-dark-card border border-red-500/25 rounded-lg">
- <Shield className="w-4 h-4 text-red-400" />
- <span className="text-sm font-medium text-slate-300">Administrador</span>
- </div>
-
- {/* Botón integración GPF */}
- <button
- onClick={() => {
- setShowGpfPanel(!showGpfPanel);
- if (!showGpfPanel) setShowTestPanel(false);
- }}
- className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
- showGpfPanel
- ? 'bg-teal-500/20 border border-teal-500/50 text-teal-300'
- : 'bg-slate-800 border border-slate-700 text-slate-400 hover:border-teal-500/50'
- }`}
- title="Integración API GPF"
- >
- <Globe className="w-4 h-4" />
- <span className="text-sm font-medium">API GPF</span>
- </button>
-
- <button
- onClick={() => navigate('/audit/new')}
- className="btn-primary flex items-center gap-2"
- >
- <Plus className="w-5 h-5" />
- Nueva Auditoría
- </button>
- 
- <button
- onClick={handleLogout}
- className="btn-ghost flex items-center gap-2"
- >
- <LogOut className="w-5 h-5" />
- Cerrar Sesión
- </button>
- </div>
- </div>
- </div>
- </header>
+ <AppHeader
+   rightContent={
+     <>
+       <button
+         onClick={() => setShowGpfPanel(!showGpfPanel)}
+         className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs transition-all ${
+           showGpfPanel
+             ? 'bg-teal-500/20 border border-teal-500/50 text-teal-300'
+             : 'bg-slate-800 border border-slate-700 text-slate-400 hover:border-teal-500/50'
+         }`}
+         title="Integración API GPF"
+       >
+         <Globe className="w-3.5 h-3.5" />
+         API GPF
+       </button>
+       <button onClick={() => navigate('/audit/new')} className="btn-primary flex items-center gap-1.5 text-xs py-1 px-3">
+         <Plus className="w-3.5 h-3.5" />
+         Nueva Auditoría
+       </button>
+       <button onClick={handleLogout} className="btn-ghost flex items-center gap-1.5 text-xs">
+         <LogOut className="w-3.5 h-3.5" />
+         Salir
+       </button>
+     </>
+   }
+ />
 
  {/* Main Content */}
  <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
