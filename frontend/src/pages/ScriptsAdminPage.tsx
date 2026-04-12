@@ -1,6 +1,8 @@
 ﻿// frontend/src/pages/ScriptsAdminPage.tsx
 
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import BackButton from '../components/BackButton';
 import toast from 'react-hot-toast';
 import {
   BookOpen,
@@ -42,6 +44,7 @@ function groupByCallType<T extends { call_type: string }>(items: T[]): Record<st
 // ─── Componente principal ────────────────────────────────────
 
 export default function ScriptsAdminPage() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'scripts' | 'criteria'>('criteria');
 
   return (
@@ -50,6 +53,9 @@ export default function ScriptsAdminPage() {
 
         {/* ── Page Header ── */}
         <div className="mb-10">
+          <div className="mb-4">
+            <BackButton onClick={() => navigate('/dashboard')} />
+          </div>
           <p className="text-xs font-semibold tracking-widest uppercase text-brand-400/70 mb-2">
             Administración
           </p>
