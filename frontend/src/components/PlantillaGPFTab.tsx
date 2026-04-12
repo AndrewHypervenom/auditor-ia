@@ -1,147 +1,408 @@
 // frontend/src/components/PlantillaGPFTab.tsx
-// Tabla de referencia de la Plantilla Cierre de GPF — solo lectura
+// Plantilla Cierre de GPF — editable (CRUD completo)
 
-const PLANTILLA_DATA: Array<{
-  categoria: string;
-  entries: Array<{ tipoCierre: string; descripcion: string }>;
-}> = [
-  {
-    categoria: 'Aclaración Simple',
-    entries: [
-      { tipoCierre: 'ATM', descripcion: 'Cuando el TH marca por disposición de efectivo y no se le otorga' },
-      { tipoCierre: 'Cancelación de servicios', descripcion: 'Canceló algún servicio y se lo siguen cobrando' },
-      { tipoCierre: 'Recid mecánica diferente', descripcion: 'En general cualquier cargo diferente' },
-      { tipoCierre: 'Cargo duplicado', descripcion: 'Más de dos cargos misma cantidad, fecha, comercio' },
-      { tipoCierre: 'Cargos adicionales no autorizados por mi', descripcion: 'Cargo no autorizado con tarjeta presente en rango de 15 minutos' },
-      { tipoCierre: 'Devolución no aplicada', descripcion: 'No reconoce compra o no recibe devolución (5 días hábiles)' },
-      { tipoCierre: 'Discrepancia y servicios', descripcion: 'No reconoce monto, agrega servicio' },
-      { tipoCierre: 'Monto modificado', descripcion: 'Cargo por diferente cantidad' },
-      { tipoCierre: 'No pagué / pagué otro medio', descripcion: 'No pagó pero se le cobró' },
-    ],
-  },
-  {
-    categoria: 'Aviso de Viaje',
-    entries: [
-      { tipoCierre: 'Aviso de viaje USA', descripcion: 'Aplica para cualquier estado de USA' },
-      { tipoCierre: 'Aviso de viaje Extranjero', descripcion: 'Aplica para cualquier país extranjero' },
-      { tipoCierre: 'Internet', descripcion: 'No reconoce compras por internet' },
-      { tipoCierre: 'Clonación de banda magnética', descripcion: 'No reconoce compras por banda magnética entrada U' },
-      { tipoCierre: 'Robo de credenciales', descripcion: 'No reconoce tarjeta, sin term dato' },
-      { tipoCierre: 'Adicional no reconocida', descripcion: 'No reconoce tarjeta adicional o reposición' },
-    ],
-  },
-  {
-    categoria: 'Fraude/ROEXT',
-    entries: [
-      { tipoCierre: 'Doble emboso', descripcion: 'No reconoce compras con régimen o doble emboso ATC liberado' },
-      { tipoCierre: 'Robada/Extraviada', descripcion: 'No cuenta con tarjeta por robo o extravío' },
-      { tipoCierre: 'Actualización de datos no reconocida', descripcion: 'No reconoce cambio de datos en cuenta o teléfono' },
-      { tipoCierre: 'Primeras partes', descripcion: 'No reconoce ningún cargo ni terminal V o D' },
-      { tipoCierre: 'ATM', descripcion: 'No reconoce disposición en efectivo' },
-      { tipoCierre: 'Sin firma en documentos', descripcion: 'Sin firma en documentos' },
-      { tipoCierre: 'Se liberan tarjetas/cuenta', descripcion: 'Comentario de liberar en ASHS o caja de comentarios' },
-      { tipoCierre: 'Sin datos del cliente', descripcion: 'Sin comentarios o se desiste documentación' },
-      { tipoCierre: 'Validación cuenta nueva', descripcion: 'Sin comentarios o se desiste documentación' },
-    ],
-  },
-  {
-    categoria: 'Seguimiento de originación',
-    entries: [
-      { tipoCierre: 'Cancelaciones', descripcion: 'Cancelar cuenta o seguros' },
-      { tipoCierre: 'Seguimiento de aclaración', descripcion: 'Seguimiento aclaración o cambio de status' },
-      { tipoCierre: 'Estado de cuenta', descripcion: 'Sin comentarios o estado de cuenta' },
-      { tipoCierre: 'Lugares y coberturas de pago', descripcion: 'Dudas en estado de cuenta' },
-      { tipoCierre: 'Otros bloqueos', descripcion: 'Validación de crédito en la tarjeta' },
-      { tipoCierre: 'Promociones', descripcion: 'Promociones no válidas' },
-      { tipoCierre: 'Saldos', descripcion: 'Dudas en saldo' },
-      { tipoCierre: 'Bloqueo BLK1', descripcion: 'No reconoce regla o score alto. Fecha de expiración. Nip incorrecto' },
-      { tipoCierre: 'Bloqueo BKT', descripcion: 'Incorrecto' },
-    ],
-  },
-  {
-    categoria: 'Servicio al cliente',
-    entries: [
-      { tipoCierre: 'Sin registro en plataformas', descripcion: 'Sin registro en Falcon/VCAS/Vision' },
-      { tipoCierre: 'MSI no permitido', descripcion: 'Rechazo cresp 302' },
-      { tipoCierre: 'Ingreso incorrecto de CVV', descripcion: 'Validación de ingreso de salida' },
-      { tipoCierre: 'Bloqueo P preventivo', descripcion: 'Bloqueo P desbloqueable BPTS' },
-      { tipoCierre: 'VCAS/Visión', descripcion: 'OCC no registra aunque datos correctos' },
-    ],
-  },
-  {
-    categoria: 'Th confirma movimientos',
-    entries: [
-      { tipoCierre: 'Sin registro en plataformas', descripcion: 'Sin registro en Falcon/VCAS/Vision' },
-      { tipoCierre: 'MSI no permitido', descripcion: 'Rechazo cresp 302' },
-      { tipoCierre: 'Ingreso incorrecto de CVV', descripcion: 'Validación de ingreso de salida' },
-      { tipoCierre: 'Bloqueo P preventivo', descripcion: 'Bloqueo P desbloqueable BPTS' },
-    ],
-  },
-  {
-    categoria: 'Th no pasa autenticación',
-    entries: [
-      { tipoCierre: 'No recibió OTP', descripcion: 'No recibió OTP aunque datos correctos' },
-      { tipoCierre: 'Mal interpretación de datos', descripcion: 'Error de interpretación de datos' },
-    ],
-  },
-  {
-    categoria: 'General',
-    entries: [
-      { tipoCierre: 'Th no responde / llamada cortada', descripcion: 'No se escucha o se cortó la llamada antes de saber porque se comunicó el th' },
-    ],
-  },
-];
+import { useState, useEffect, useCallback } from 'react';
+import { Plus, Pencil, Trash2, Check, X, ChevronDown, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { plantillaService, type PlantillaGPFItem } from '../services/api';
+
+// ── Helpers ──────────────────────────────────────────────────
+
+function groupByCategoria(items: PlantillaGPFItem[]): Map<string, PlantillaGPFItem[]> {
+  const map = new Map<string, PlantillaGPFItem[]>();
+  for (const item of items) {
+    const list = map.get(item.categoria) ?? [];
+    list.push(item);
+    map.set(item.categoria, list);
+  }
+  return map;
+}
+
+// ── Componente principal ─────────────────────────────────────
 
 export default function PlantillaGPFTab() {
+  const [items, setItems] = useState<PlantillaGPFItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await plantillaService.getAll();
+      setItems(data);
+    } catch {
+      toast.error('Error al cargar la Plantilla GPF');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const grouped = groupByCategoria(items);
+
+  // Calcular el siguiente orden de categoría
+  const nextCategoriaOrden = () => {
+    if (items.length === 0) return 1;
+    return Math.max(...items.map((i) => i.categoria_orden)) + 1;
+  };
+
+  const handleAddCategoria = async () => {
+    const nombre = prompt('Nombre de la nueva categoría:');
+    if (!nombre?.trim()) return;
+    const catOrden = nextCategoriaOrden();
+    try {
+      await plantillaService.create({
+        categoria: nombre.trim(),
+        tipo_cierre: 'Nuevo tipo de cierre',
+        descripcion: '',
+        categoria_orden: catOrden,
+        tipo_orden: 1,
+      });
+      toast.success('Categoría agregada');
+      load();
+    } catch {
+      toast.error('Error al agregar categoría');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16 text-slate-500">
+        <Loader2 size={20} className="animate-spin mr-2" />
+        Cargando plantilla...
+      </div>
+    );
+  }
+
   return (
-    <div className="animate-fadeIn">
+    <div>
       <p className="mb-5 text-sm text-slate-400 leading-relaxed">
-        Tabla de referencia para el Cierre de GPF. La <span className="text-teal-400 font-medium">Calificación</span> corresponde
-        a la Categoría y la <span className="text-teal-400 font-medium">Sub-calificación</span> al Tipo de Cierre.
-        Estos campos se registran automáticamente en cada auditoría proveniente de GPF.
+        Tabla editable de Cierre de GPF. La{' '}
+        <span className="text-teal-400 font-medium">Calificación</span> corresponde a la Categoría y la{' '}
+        <span className="text-teal-400 font-medium">Sub-calificación</span> al Tipo de Cierre.
+        Estos datos se registran en cada auditoría GPF y se pasan al evaluador IA como contexto.
       </p>
 
-      <div className="rounded-2xl border border-slate-800 overflow-hidden">
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="bg-slate-800/70 border-b border-slate-700/60">
-              <th className="px-4 py-3 text-left text-xs font-semibold text-teal-400 uppercase tracking-wider w-48">
-                Categoría (Calificación)
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-teal-400 uppercase tracking-wider w-64">
-                Tipo de Cierre (Sub-calificación)
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-teal-400 uppercase tracking-wider">
-                Descripción
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {PLANTILLA_DATA.map((group) =>
-              group.entries.map((entry, idx) => (
-                <tr
-                  key={`${group.categoria}-${idx}`}
-                  className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors"
-                >
-                  {idx === 0 && (
-                    <td
-                      rowSpan={group.entries.length}
-                      className="px-4 py-2.5 align-top font-semibold text-white bg-slate-900/50 border-r border-slate-700/40 whitespace-nowrap"
-                    >
-                      {group.categoria}
-                    </td>
-                  )}
-                  <td className="px-4 py-2.5 text-slate-300 border-r border-slate-800/40">
-                    {entry.tipoCierre}
-                  </td>
-                  <td className="px-4 py-2.5 text-slate-400">
-                    {entry.descripcion}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div className="space-y-3">
+        {[...grouped.entries()].map(([categoria, catItems]) => (
+          <CategoriaCard
+            key={categoria}
+            categoria={categoria}
+            items={catItems}
+            onUpdate={load}
+          />
+        ))}
+
+        {grouped.size === 0 && (
+          <div className="py-12 flex flex-col items-center gap-2 text-slate-500">
+            <p className="text-sm">Sin categorías definidas</p>
+          </div>
+        )}
+
+        {/* Agregar categoría */}
+        <button
+          onClick={handleAddCategoria}
+          className="flex items-center gap-2 w-full px-4 py-3 rounded-2xl
+                     border border-dashed border-slate-700/60 text-slate-500
+                     hover:text-teal-400 hover:border-teal-700/50 hover:bg-teal-900/10
+                     transition-all duration-200 text-sm"
+        >
+          <Plus size={15} />
+          Agregar categoría
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Card de categoría ─────────────────────────────────────────
+
+interface CategoriaCardProps {
+  categoria: string;
+  items: PlantillaGPFItem[];
+  onUpdate: () => void;
+}
+
+function CategoriaCard({ categoria, items, onUpdate }: CategoriaCardProps) {
+  const [expanded, setExpanded] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState(categoria);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const sorted = [...items].sort((a, b) => a.tipo_orden - b.tipo_orden);
+
+  const handleSaveName = async () => {
+    setEditingName(false);
+    if (nameValue.trim() === categoria) return;
+    try {
+      await plantillaService.renameCategoria(categoria, nameValue.trim());
+      toast.success('Categoría renombrada');
+      onUpdate();
+    } catch {
+      toast.error('Error al renombrar categoría');
+      setNameValue(categoria);
+    }
+  };
+
+  const handleDeleteCategoria = async () => {
+    if (!confirm(`¿Eliminar la categoría "${categoria}" y todos sus tipos de cierre?`)) return;
+    try {
+      await Promise.all(items.map((item) => plantillaService.remove(item.id)));
+      toast.success('Categoría eliminada');
+      onUpdate();
+    } catch {
+      toast.error('Error al eliminar categoría');
+    }
+  };
+
+  const handleAddItem = async () => {
+    const nextOrder = sorted.length > 0 ? Math.max(...sorted.map((i) => i.tipo_orden)) + 1 : 1;
+    try {
+      await plantillaService.create({
+        categoria,
+        tipo_cierre: 'Nuevo tipo de cierre',
+        descripcion: '',
+        categoria_orden: items[0]?.categoria_orden ?? 0,
+        tipo_orden: nextOrder,
+      });
+      toast.success('Tipo de cierre agregado');
+      onUpdate();
+    } catch {
+      toast.error('Error al agregar tipo de cierre');
+    }
+  };
+
+  return (
+    <div
+      className="group bg-slate-900/60 border border-slate-800/60 rounded-2xl overflow-hidden
+                 transition-all duration-300 hover:border-slate-700/60 hover:bg-slate-900/80"
+    >
+      {/* ── Header ── */}
+      <div
+        className="flex items-center gap-4 px-5 py-4 cursor-pointer select-none"
+        onClick={() => !editingName && setExpanded(!expanded)}
+      >
+        {/* Nombre categoría */}
+        <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+          {editingName ? (
+            <div className="flex items-center gap-2">
+              <input
+                autoFocus
+                value={nameValue}
+                onChange={(e) => setNameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveName();
+                  if (e.key === 'Escape') { setEditingName(false); setNameValue(categoria); }
+                }}
+                className="flex-1 bg-slate-800/80 border border-slate-600/60 rounded-xl px-3 py-1.5
+                           text-sm text-white focus:outline-none focus:border-teal-700/60"
+              />
+              <button onClick={handleSaveName} className="p-1.5 text-green-400 hover:text-green-300 transition-colors">
+                <Check size={15} />
+              </button>
+              <button
+                onClick={() => { setEditingName(false); setNameValue(categoria); }}
+                className="p-1.5 text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          ) : (
+            <span className="font-semibold text-white text-[15px] truncate block">{categoria}</span>
+          )}
+        </div>
+
+        {/* Badge count */}
+        <span className="flex-shrink-0 text-slate-500 text-xs tabular-nums">
+          {sorted.length} {sorted.length === 1 ? 'tipo' : 'tipos'}
+        </span>
+
+        {/* Acciones */}
+        <div
+          className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => setEditingName(true)}
+            className="p-2 rounded-xl text-slate-500 hover:text-teal-400 hover:bg-teal-500/10
+                       transition-all duration-150"
+            title="Renombrar categoría"
+          >
+            <Pencil size={14} />
+          </button>
+          <button
+            onClick={handleDeleteCategoria}
+            className="p-2 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10
+                       transition-all duration-150"
+            title="Eliminar categoría"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+
+        <ChevronDown
+          size={16}
+          className={`flex-shrink-0 text-slate-500 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}
+        />
+      </div>
+
+      {/* ── Filas expandibles ── */}
+      {expanded && (
+        <div className="border-t border-slate-800/60">
+          {/* Header de columnas */}
+          <div className="grid grid-cols-[2fr_3fr_auto] gap-3 px-5 py-2 bg-slate-800/30">
+            <span className="text-xs font-semibold text-teal-400/70 uppercase tracking-wider">Tipo de Cierre</span>
+            <span className="text-xs font-semibold text-teal-400/70 uppercase tracking-wider">Descripción</span>
+            <span className="w-16" />
+          </div>
+
+          <div className="divide-y divide-slate-800/40">
+            {sorted.map((item) => (
+              <ItemRow
+                key={item.id}
+                item={item}
+                isEditing={editingId === item.id}
+                onStartEdit={() => setEditingId(item.id)}
+                onCancelEdit={() => setEditingId(null)}
+                onSaved={() => { setEditingId(null); onUpdate(); }}
+                onDeleted={() => onUpdate()}
+              />
+            ))}
+          </div>
+
+          {/* Agregar tipo de cierre */}
+          <div className="px-5 py-3">
+            <button
+              onClick={handleAddItem}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-slate-500
+                         border border-dashed border-slate-700/50
+                         hover:text-teal-400 hover:border-teal-700/50 hover:bg-teal-900/10
+                         transition-all duration-200"
+            >
+              <Plus size={13} />
+              Agregar tipo de cierre
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Fila editable ─────────────────────────────────────────────
+
+interface ItemRowProps {
+  item: PlantillaGPFItem;
+  isEditing: boolean;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSaved: () => void;
+  onDeleted: () => void;
+}
+
+function ItemRow({ item, isEditing, onStartEdit, onCancelEdit, onSaved, onDeleted }: ItemRowProps) {
+  const [tipoCierre, setTipoCierre] = useState(item.tipo_cierre);
+  const [descripcion, setDescripcion] = useState(item.descripcion);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setTipoCierre(item.tipo_cierre);
+    setDescripcion(item.descripcion);
+  }, [item]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await plantillaService.update(item.id, { tipo_cierre: tipoCierre.trim(), descripcion: descripcion.trim() });
+      toast.success('Guardado');
+      onSaved();
+    } catch {
+      toast.error('Error al guardar');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm(`¿Eliminar "${item.tipo_cierre}"?`)) return;
+    try {
+      await plantillaService.remove(item.id);
+      toast.success('Eliminado');
+      onDeleted();
+    } catch {
+      toast.error('Error al eliminar');
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <div className="px-5 py-3 bg-slate-800/20 space-y-2">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">Tipo de Cierre</label>
+            <input
+              autoFocus
+              value={tipoCierre}
+              onChange={(e) => setTipoCierre(e.target.value)}
+              className="w-full bg-slate-900/80 border border-slate-600/60 rounded-xl px-3 py-2
+                         text-sm text-white focus:outline-none focus:border-teal-700/60"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">Descripción</label>
+            <input
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              className="w-full bg-slate-900/80 border border-slate-600/60 rounded-xl px-3 py-2
+                         text-sm text-white focus:outline-none focus:border-teal-700/60"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500/10
+                       border border-teal-700/40 text-teal-300 text-xs font-medium
+                       hover:bg-teal-500/20 disabled:opacity-50 transition-all duration-150"
+          >
+            {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+            Guardar
+          </button>
+          <button
+            onClick={onCancelEdit}
+            className="px-3 py-1.5 rounded-xl text-slate-400 text-xs font-medium
+                       hover:text-slate-200 hover:bg-slate-800/60 transition-all duration-150"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="group/row grid grid-cols-[2fr_3fr_auto] gap-3 items-center px-5 py-3
+                    hover:bg-slate-800/20 transition-colors">
+      <span className="text-sm text-slate-300">{item.tipo_cierre}</span>
+      <span className="text-sm text-slate-400">{item.descripcion}</span>
+      <div className="flex items-center gap-0.5 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150">
+        <button
+          onClick={onStartEdit}
+          className="p-1.5 rounded-lg text-slate-500 hover:text-teal-400 hover:bg-teal-500/10
+                     transition-all duration-150"
+          title="Editar"
+        >
+          <Pencil size={13} />
+        </button>
+        <button
+          onClick={handleDelete}
+          className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10
+                     transition-all duration-150"
+          title="Eliminar"
+        >
+          <Trash2 size={13} />
+        </button>
       </div>
     </div>
   );

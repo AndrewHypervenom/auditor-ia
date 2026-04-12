@@ -621,6 +621,44 @@ export interface CriteriaItem {
   updated_at: string;
 }
 
+// ============================================================
+// Plantilla GPF (admin)
+// ============================================================
+export interface PlantillaGPFItem {
+  id: string;
+  categoria: string;
+  tipo_cierre: string;
+  descripcion: string;
+  categoria_orden: number;
+  tipo_orden: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export const plantillaService = {
+  async getAll() {
+    const response = await api.get('/admin/plantilla-gpf');
+    return response.data as PlantillaGPFItem[];
+  },
+  async create(payload: { categoria: string; tipo_cierre: string; descripcion: string; categoria_orden: number; tipo_orden: number }) {
+    const response = await api.post('/admin/plantilla-gpf', payload);
+    return response.data as PlantillaGPFItem;
+  },
+  async update(id: string, payload: Partial<Pick<PlantillaGPFItem, 'categoria' | 'tipo_cierre' | 'descripcion' | 'categoria_orden' | 'tipo_orden'>>) {
+    const response = await api.put(`/admin/plantilla-gpf/${id}`, payload);
+    return response.data as PlantillaGPFItem;
+  },
+  async renameCategoria(oldName: string, newName: string) {
+    const response = await api.put('/admin/plantilla-gpf/rename-categoria', { oldName, newName });
+    return response.data;
+  },
+  async remove(id: string) {
+    const response = await api.delete(`/admin/plantilla-gpf/${id}`);
+    return response.data;
+  },
+};
+
 // CRUD de usuarios (admin)
 export const userService = {
  async getUsers() {

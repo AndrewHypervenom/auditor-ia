@@ -1109,6 +1109,77 @@ app.delete('/api/admin/criteria/:id', authenticateUser, requireAdmin, async (req
   }
 });
 
+// ============================================================
+// PLANTILLA GPF — CRUD
+// ============================================================
+
+app.get('/api/admin/plantilla-gpf', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const items = await databaseService.getAllPlantillaGPF();
+    res.json(items);
+  } catch (error: any) {
+    logger.error('Error fetching plantilla GPF:', error);
+    res.status(500).json({ error: 'Error al obtener plantilla GPF' });
+  }
+});
+
+app.post('/api/admin/plantilla-gpf', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { categoria, tipo_cierre, descripcion, categoria_orden, tipo_orden } = req.body;
+    if (!categoria || !tipo_cierre) {
+      return res.status(400).json({ error: 'categoria y tipo_cierre son requeridos' });
+    }
+    const item = await databaseService.createPlantillaItem({
+      categoria,
+      tipo_cierre,
+      descripcion: descripcion || '',
+      categoria_orden: categoria_orden ?? 0,
+      tipo_orden: tipo_orden ?? 0,
+    });
+    res.status(201).json(item);
+  } catch (error: any) {
+    logger.error('Error creating plantilla item:', error);
+    res.status(500).json({ error: 'Error al crear item de plantilla' });
+  }
+});
+
+app.put('/api/admin/plantilla-gpf/rename-categoria', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { oldName, newName } = req.body;
+    if (!oldName || !newName) {
+      return res.status(400).json({ error: 'oldName y newName son requeridos' });
+    }
+    await databaseService.renamePlantillaCategoria(oldName, newName);
+    res.json({ success: true });
+  } catch (error: any) {
+    logger.error('Error renaming categoria:', error);
+    res.status(500).json({ error: 'Error al renombrar categoría' });
+  }
+});
+
+app.put('/api/admin/plantilla-gpf/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { categoria, tipo_cierre, descripcion, categoria_orden, tipo_orden } = req.body;
+    const item = await databaseService.updatePlantillaItem(id, { categoria, tipo_cierre, descripcion, categoria_orden, tipo_orden });
+    res.json(item);
+  } catch (error: any) {
+    logger.error('Error updating plantilla item:', error);
+    res.status(500).json({ error: 'Error al actualizar item de plantilla' });
+  }
+});
+
+app.delete('/api/admin/plantilla-gpf/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await databaseService.deletePlantillaItem(id);
+    res.json({ success: true });
+  } catch (error: any) {
+    logger.error('Error deleting plantilla item:', error);
+    res.status(500).json({ error: 'Error al eliminar item de plantilla' });
+  }
+});
+
 // ============================================
 // GPF API PROXY
 // ============================================

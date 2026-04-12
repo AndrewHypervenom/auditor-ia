@@ -792,6 +792,69 @@ class DatabaseService {
     this.invalidateCriteriaCache();
   }
 
+  // ── Plantilla GPF ──────────────────────────────────────────
+
+  async getAllPlantillaGPF(): Promise<any[]> {
+    const { data, error } = await supabaseAdmin
+      .from('plantilla_gpf')
+      .select('*')
+      .eq('is_active', true)
+      .order('categoria_orden', { ascending: true })
+      .order('tipo_orden', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  }
+
+  async createPlantillaItem(payload: {
+    categoria: string;
+    tipo_cierre: string;
+    descripcion: string;
+    categoria_orden: number;
+    tipo_orden: number;
+  }): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('plantilla_gpf')
+      .insert(payload)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async updatePlantillaItem(id: string, payload: Partial<{
+    categoria: string;
+    tipo_cierre: string;
+    descripcion: string;
+    categoria_orden: number;
+    tipo_orden: number;
+    is_active: boolean;
+  }>): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('plantilla_gpf')
+      .update({ ...payload, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async deletePlantillaItem(id: string): Promise<void> {
+    const { error } = await supabaseAdmin
+      .from('plantilla_gpf')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+  }
+
+  async renamePlantillaCategoria(oldName: string, newName: string): Promise<void> {
+    const { error } = await supabaseAdmin
+      .from('plantilla_gpf')
+      .update({ categoria: newName, updated_at: new Date().toISOString() })
+      .eq('categoria', oldName);
+    if (error) throw error;
+  }
+
   /**
    * Registrar actividad de auditorÃ­a
    */
