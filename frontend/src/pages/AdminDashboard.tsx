@@ -17,6 +17,7 @@ import {
  CheckCircle2,
  AlertCircle,
  Loader2,
+ XCircle,
  TrendingUp,
  DollarSign,
  Users,
@@ -24,14 +25,7 @@ import {
  Shield,
  BarChart3,
  FileSpreadsheet,
- Server,
- XCircle,
- WifiOff,
- Bug,
- TestTube2,
- Eye,
  RefreshCw,
- Lock,
  ArrowLeft,
  Home,
  PhoneIncoming,
@@ -47,8 +41,6 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// Tipos para las vistas de prueba
-type TestView = 'normal' | 'error404' | 'error500' | 'noConnection' | 'maintenance' | 'unauthorized' | 'emptyState' | 'loading';
 
 interface SystemStats {
  totalUsers: number;
@@ -66,10 +58,6 @@ export default function AdminDashboard() {
  const [loading, setLoading] = useState(true);
  const [deletingId, setDeletingId] = useState<string | null>(null);
  
- // Estados para vistas de prueba
- const [testView, setTestView] = useState<TestView>('normal');
- const [showTestPanel, setShowTestPanel] = useState(false);
-
  // Estados para integración GPF
  const [showGpfPanel, setShowGpfPanel] = useState(false);
  const [gpfEnv, setGpfEnv] = useState<'test' | 'prod'>('test');
@@ -114,11 +102,9 @@ export default function AdminDashboard() {
  });
 
  useEffect(() => {
- if (testView === 'normal') {
  loadAudits();
  loadSystemStats();
- }
- }, [testView]);
+ }, []);
 
  // HELPER para obtener evaluations de forma segura
  const getEvaluations = (audit: Audit | null | undefined) => {
@@ -1249,244 +1235,8 @@ export default function AdminDashboard() {
  });
  };
 
- // Renderizar vistas de prueba estilo Microsoft Copilot
- const renderTestView = () => {
- const TestViewContainer = ({ children }: { children: React.ReactNode }) => (
- <div className="flex items-center justify-center min-h-[600px] px-4">
- <div className="max-w-2xl w-full">
- {children}
- </div>
- </div>
- );
-
- const BackButton = () => (
- <div className="flex gap-3 mt-8">
- <button 
- onClick={() => setTestView('normal')} 
- className="flex-1 px-6 py-3 bg-brand-500 hover:bg-brand-400 text-black text-white rounded-lg font-medium transition-all flex items-center justify-center gap-2"
- >
- <Home className="w-4 h-4" />
- Volver al Dashboard
- </button>
- <button 
- onClick={() => window.location.reload()} 
- className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-all flex items-center gap-2"
- >
- <RefreshCw className="w-4 h-4" />
- Recargar
- </button>
- </div>
- );
-
- switch (testView) {
- case 'error404':
- return (
- <TestViewContainer>
- <div className="text-center">
- <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-red-500/10 mb-4">
- <XCircle className="w-12 h-12 text-red-500" />
- </div>
- <h1 className="text-8xl font-bold text-white mb-2">404</h1>
- <h2 className="text-2xl font-semibold text-white mb-3">Página no encontrada</h2>
- <p className="text-slate-400 text-lg mb-2">
- Lo sentimos, la página que buscas no existe.
- </p>
- <p className="text-slate-500 mb-5">
- Es posible que haya sido movida o eliminada.
- </p>
- <BackButton />
- </div>
- </TestViewContainer>
- );
-
- case 'error500':
- return (
- <TestViewContainer>
- <div className="text-center">
- <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-orange-500/10 mb-4">
- <Server className="w-12 h-12 text-orange-500 animate-pulse" />
- </div>
- <h1 className="text-8xl font-bold text-white mb-2">500</h1>
- <h2 className="text-2xl font-semibold text-white mb-3">Error interno del servidor</h2>
- <p className="text-slate-400 text-lg mb-2">
- Algo salió mal en nuestros servidores.
- </p>
- <p className="text-slate-500 mb-5">
- Nuestro equipo ha sido notificado y está trabajando en una solución.
- </p>
- <BackButton />
- </div>
- </TestViewContainer>
- );
-
- case 'noConnection':
- return (
- <TestViewContainer>
- <div className="text-center">
- <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-yellow-500/10 mb-4">
- <WifiOff className="w-12 h-12 text-yellow-500" />
- </div>
- <h2 className="text-3xl font-semibold text-white mb-3">Sin conexión a internet</h2>
- <p className="text-slate-400 text-lg mb-2">
- No se pudo establecer conexión con el servidor.
- </p>
- <p className="text-slate-500 mb-5">
- Verifica tu conexión a internet e intenta nuevamente.
- </p>
- <div className="flex gap-3">
- <button 
- onClick={() => {
- toast.loading('Verificando conexión...', { id: 'connection' });
- setTimeout(() => {
- toast.success('Conexión restablecida', { id: 'connection' });
- setTestView('normal');
- }, 1500);
- }} 
- className="flex-1 px-6 py-3 bg-brand-500 hover:bg-brand-400 text-black text-white rounded-lg font-medium transition-all flex items-center justify-center gap-2"
- >
- <RefreshCw className="w-4 h-4" />
- Reintentar conexión
- </button>
- <button 
- onClick={() => setTestView('normal')} 
- className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-all"
- >
- Cancelar
- </button>
- </div>
- </div>
- </TestViewContainer>
- );
-
- case 'maintenance':
- return (
- <TestViewContainer>
- <div className="text-center">
- <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-brand-500/10 mb-4">
- <Settings className="w-12 h-12 text-brand-500 animate-spin" style={{ animationDuration: '3s' }} />
- </div>
- <h2 className="text-3xl font-semibold text-white mb-3">Mantenimiento programado</h2>
- <p className="text-slate-400 text-lg mb-2">
- Estamos realizando mejoras en el sistema.
- </p>
- <p className="text-slate-500 mb-4">
- El servicio volverá a estar disponible pronto.
- </p>
- <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500/10 border border-brand-700/40 rounded-lg mb-5">
- <Clock className="w-4 h-4 text-brand-400" />
- <span className="text-brand-400 font-medium">Tiempo estimado: 30 minutos</span>
- </div>
- <BackButton />
- </div>
- </TestViewContainer>
- );
-
- case 'unauthorized':
- return (
- <TestViewContainer>
- <div className="text-center">
- <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-red-500/10 mb-4">
- <Lock className="w-12 h-12 text-red-500" />
- </div>
- <h2 className="text-3xl font-semibold text-white mb-3">Acceso denegado</h2>
- <p className="text-slate-400 text-lg mb-2">
- No tienes los permisos necesarios para acceder a este recurso.
- </p>
- <p className="text-slate-500 mb-5">
- Contacta al administrador del sistema si crees que esto es un error.
- </p>
- <div className="flex gap-3">
- <button 
- onClick={() => setTestView('normal')} 
- className="flex-1 px-6 py-3 bg-brand-500 hover:bg-brand-400 text-black text-white rounded-lg font-medium transition-all flex items-center justify-center gap-2"
- >
- <ArrowLeft className="w-4 h-4" />
- Volver atrás
- </button>
- <button 
- onClick={() => navigate('/settings')} 
- className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-all"
- >
- Solicitar acceso
- </button>
- </div>
- </div>
- </TestViewContainer>
- );
-
- case 'emptyState':
- return (
- <TestViewContainer>
- <div className="text-center">
- <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-slate-700 mb-4">
- <FileText className="w-12 h-12 text-slate-500" />
- </div>
- <h2 className="text-3xl font-semibold text-white mb-3">No hay datos disponibles</h2>
- <p className="text-slate-400 text-lg mb-2">
- Aún no has creado ninguna auditoría en el sistema.
- </p>
- <p className="text-slate-500 mb-5">
- Comienza creando tu primera auditoría para ver resultados aquí.
- </p>
- <div className="flex gap-3">
- <button 
- onClick={() => navigate('/audit/new')} 
- className="flex-1 px-6 py-3 bg-brand-500 hover:bg-brand-400 text-black text-white rounded-lg font-medium transition-all flex items-center justify-center gap-2"
- >
- <Plus className="w-5 h-5" />
- Crear primera auditoría
- </button>
- <button 
- onClick={() => setTestView('normal')} 
- className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-all"
- >
- Ver dashboard
- </button>
- </div>
- </div>
- </TestViewContainer>
- );
-
- case 'loading':
- return (
- <TestViewContainer>
- <div className="text-center">
- <Loader2 className="w-16 h-16 text-brand-500 animate-spin mx-auto mb-4" />
- <h2 className="text-2xl font-semibold text-white mb-3">Cargando datos...</h2>
- <p className="text-slate-400 text-lg mb-5">
- Por favor espera mientras recuperamos la información del servidor.
- </p>
- <button 
- onClick={() => setTestView('normal')} 
- className="px-6 py-2 text-slate-400 hover:text-white transition-all"
- >
- Cancelar
- </button>
- </div>
- </TestViewContainer>
- );
-
- default:
- return renderNormalView();
- }
- };
-
  const renderNormalView = () => (
  <>
- {/* Mensaje informativo de permisos */}
- <div className="mb-4 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
- <div className="flex items-start gap-3">
- <Sparkles className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
- <div>
- <h3 className="text-red-300 font-semibold mb-1">Permisos de Administrador</h3>
- <p className="text-slate-400 text-sm">
- Como Administrador, tienes control total del sistema: crear, editar, eliminar auditorías, 
- gestionar usuarios, acceder a costos completos y configurar el sistema.
- </p>
- </div>
- </div>
- </div>
-
  {/* Quick Actions - Ampliado */}
  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
  <button
@@ -1816,23 +1566,6 @@ export default function AdminDashboard() {
  <span className="text-sm font-medium">API GPF</span>
  </button>
 
- {/* Botón de vistas de prueba */}
- <button
- onClick={() => {
- setShowTestPanel(!showTestPanel);
- if (!showTestPanel) setShowGpfPanel(false);
- }}
- className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
- showTestPanel
- ? 'bg-amber-500/20 border border-amber-500/50 text-amber-300'
- : 'bg-slate-800 border border-slate-700 text-slate-400 hover:border-amber-500/50'
- }`}
- title="Vistas de prueba"
- >
- <TestTube2 className="w-4 h-4" />
- <span className="text-sm font-medium">Testing</span>
- </button>
-
  <button
  onClick={() => navigate('/audit/new')}
  className="btn-primary flex items-center gap-2"
@@ -1850,113 +1583,12 @@ export default function AdminDashboard() {
  </button>
  </div>
  </div>
-
- {/* Panel de vistas de prueba - Estilo Microsoft Copilot */}
- {showTestPanel && (
- <div className="mt-4 p-4 bg-slate-800/50 backdrop-blur-sm border border-amber-500/30 rounded-xl">
- <div className="flex items-center gap-2 mb-3">
- <Bug className="w-5 h-5 text-amber-400" />
- <h3 className="text-amber-300 font-semibold">Vistas de Prueba</h3>
- <span className="text-xs text-slate-500 ml-auto">Selecciona una vista para previsualizar</span>
- </div>
- <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
- <button
- onClick={() => setTestView('normal')}
- className={`group px-3 py-3 rounded-lg text-sm font-medium transition-all ${
- testView === 'normal'
- ? 'bg-green-500/20 border-2 border-green-500 text-green-300 shadow-lg shadow-green-500/20'
- : 'bg-slate-700 border border-slate-600 text-slate-300 hover:bg-slate-600 hover:border-slate-500'
- }`}
- >
- <Eye className="w-5 h-5 mx-auto mb-1" />
- <span className="text-xs">Normal</span>
- </button>
- <button
- onClick={() => setTestView('error404')}
- className={`group px-3 py-3 rounded-lg text-sm font-medium transition-all ${
- testView === 'error404'
- ? 'bg-red-500/20 border-2 border-red-500 text-red-300 shadow-lg shadow-red-500/20'
- : 'bg-slate-700 border border-slate-600 text-slate-300 hover:bg-slate-600 hover:border-slate-500'
- }`}
- >
- <XCircle className="w-5 h-5 mx-auto mb-1" />
- <span className="text-xs">404</span>
- </button>
- <button
- onClick={() => setTestView('error500')}
- className={`group px-3 py-3 rounded-lg text-sm font-medium transition-all ${
- testView === 'error500'
- ? 'bg-orange-500/20 border-2 border-orange-500 text-orange-300 shadow-lg shadow-orange-500/20'
- : 'bg-slate-700 border border-slate-600 text-slate-300 hover:bg-slate-600 hover:border-slate-500'
- }`}
- >
- <Server className="w-5 h-5 mx-auto mb-1" />
- <span className="text-xs">500</span>
- </button>
- <button
- onClick={() => setTestView('noConnection')}
- className={`group px-3 py-3 rounded-lg text-sm font-medium transition-all ${
- testView === 'noConnection'
- ? 'bg-yellow-500/20 border-2 border-yellow-500 text-yellow-300 shadow-lg shadow-yellow-500/20'
- : 'bg-slate-700 border border-slate-600 text-slate-300 hover:bg-slate-600 hover:border-slate-500'
- }`}
- >
- <WifiOff className="w-5 h-5 mx-auto mb-1" />
- <span className="text-xs">Sin Red</span>
- </button>
- <button
- onClick={() => setTestView('maintenance')}
- className={`group px-3 py-3 rounded-lg text-sm font-medium transition-all ${
- testView === 'maintenance'
- ? 'bg-brand-500/10 border-2 border-brand-700 text-brand-300 shadow-lg shadow-brand-500/20'
- : 'bg-slate-700 border border-slate-600 text-slate-300 hover:bg-slate-600 hover:border-slate-500'
- }`}
- >
- <Settings className="w-5 h-5 mx-auto mb-1" />
- <span className="text-xs">Manten.</span>
- </button>
- <button
- onClick={() => setTestView('unauthorized')}
- className={`group px-3 py-3 rounded-lg text-sm font-medium transition-all ${
- testView === 'unauthorized'
- ? 'bg-red-500/20 border-2 border-red-500 text-red-300 shadow-lg shadow-red-500/20'
- : 'bg-slate-700 border border-slate-600 text-slate-300 hover:bg-slate-600 hover:border-slate-500'
- }`}
- >
- <Lock className="w-5 h-5 mx-auto mb-1" />
- <span className="text-xs">No Auth</span>
- </button>
- <button
- onClick={() => setTestView('emptyState')}
- className={`group px-3 py-3 rounded-lg text-sm font-medium transition-all ${
- testView === 'emptyState'
- ? 'bg-slate-500/20 border-2 border-slate-400 text-slate-300 shadow-lg shadow-slate-500/20'
- : 'bg-slate-700 border border-slate-600 text-slate-300 hover:bg-slate-600 hover:border-slate-500'
- }`}
- >
- <FileText className="w-5 h-5 mx-auto mb-1" />
- <span className="text-xs">Vacío</span>
- </button>
- <button
- onClick={() => setTestView('loading')}
- className={`group px-3 py-3 rounded-lg text-sm font-medium transition-all ${
- testView === 'loading'
- ? 'bg-cyan-500/20 border-2 border-cyan-500 text-cyan-300 shadow-lg shadow-cyan-500/20'
- : 'bg-slate-700 border border-slate-600 text-slate-300 hover:bg-slate-600 hover:border-slate-500'
- }`}
- >
- <Loader2 className="w-5 h-5 mx-auto mb-1" />
- <span className="text-xs">Cargando</span>
- </button>
- </div>
- </div>
- )}
  </div>
  </header>
 
  {/* Main Content */}
  <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
- {showGpfPanel ? renderGpfPanel() : renderTestView()}
+ {showGpfPanel ? renderGpfPanel() : renderNormalView()}
  </main>
  </div>
  );
