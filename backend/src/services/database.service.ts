@@ -505,6 +505,30 @@ class DatabaseService {
         }
       }
 
+      // Enriquecer detailed_scores con criticidad actual de la BD
+      if (evaluation && Array.isArray(evaluation.detailed_scores) && audit.call_type) {
+        try {
+          const currentCriteria = await this.getCriteriaForCallType(audit.call_type);
+          const topicCriticalityMap = new Map<string, string>();
+          for (const block of currentCriteria) {
+            for (const t of (block.topics || [])) {
+              topicCriticalityMap.set(t.topic, t.criticality || '-');
+            }
+          }
+          if (topicCriticalityMap.size > 0) {
+            evaluation.detailed_scores = evaluation.detailed_scores.map((s: any) => {
+              const topic = (s.criterion ?? '').replace(/^\[.*?\]\s*/, '');
+              const currentCriticality = topicCriticalityMap.get(topic);
+              return currentCriticality !== undefined
+                ? { ...s, criticality: currentCriticality }
+                : s;
+            });
+          }
+        } catch {
+          // Si falla el enriquecimiento, usar los valores guardados
+        }
+      }
+
       return {
         audit: {
           ...audit,
