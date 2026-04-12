@@ -580,7 +580,7 @@ export default function NewAuditPage() {
  setFilterDateFrom(yStr);
  setFilterDateTo(yStr);
  }}
- className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 transition-colors border border-amber-600/40 rounded px-2 py-1 hover:bg-amber-600/10"
+ className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1.5 transition-all border border-brand-700/50 rounded-lg px-3 py-1.5 hover:bg-brand-500/10 hover:border-brand-500/60 font-medium"
  >
  <CalendarRange className="w-3 h-3" /> Día vencido
  </button>
