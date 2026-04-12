@@ -631,7 +631,7 @@ export default function NewAuditPage() {
  value={filterAgent}
  onChange={(e) => setFilterAgent(e.target.value)}
  placeholder="Buscar agente..."
- className="w-full pl-8 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-brand-700"
+ className="w-full pl-10 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-brand-700"
  />
  </div>
  </div>
@@ -647,7 +647,7 @@ export default function NewAuditPage() {
  value={filterClient}
  onChange={(e) => setFilterClient(e.target.value)}
  placeholder="Buscar en cualquier campo..."
- className="w-full pl-8 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-brand-700"
+ className="w-full pl-10 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-brand-700"
  />
  </div>
  </div>
@@ -699,7 +699,7 @@ export default function NewAuditPage() {
  {/* Spinner doble-anillo */}
  <div className="relative w-16 h-16">
  <div className="absolute inset-0 rounded-full border-4 border-slate-700" />
- <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-500 border-r-purple-500 animate-spin" />
+ <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-brand-500 border-r-brand-300 animate-spin" />
  </div>
  {/* Texto descriptivo */}
  <div className="text-center">
@@ -758,7 +758,7 @@ export default function NewAuditPage() {
             <td className="px-4 py-3 text-center">
             <button
             onClick={() => handleSelectAttention(att)}
-            className="px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 text-purple-300 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 mx-auto"
+            className="px-3 py-1.5 bg-brand-500/20 hover:bg-brand-500/40 border border-brand-700/50 text-brand-400 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 mx-auto"
             >
             Ver detalle
             <ChevronRight className="w-3 h-3" />
@@ -803,7 +803,7 @@ export default function NewAuditPage() {
  {/* Spinner doble-anillo */}
  <div className="relative w-16 h-16">
  <div className="absolute inset-0 rounded-full border-4 border-slate-700" />
- <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-purple-500 border-r-blue-500 animate-spin" />
+ <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-brand-500 border-r-brand-300 animate-spin" />
  </div>
  {/* Texto */}
  <div className="text-center">
@@ -863,7 +863,7 @@ export default function NewAuditPage() {
  onClick={() => setDetailTab(tab.key as typeof detailTab)}
  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
  detailTab === tab.key
- ? 'bg-purple-600/80 text-white shadow'
+ ? 'bg-brand-600/80 text-white shadow'
  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'
  }`}
  >
@@ -933,7 +933,7 @@ export default function NewAuditPage() {
  <button
  key={idx}
  onClick={() => { setLightboxIndex(idx); setZoomLevel(1); setLightboxOpen(true); }}
- className="block rounded-lg overflow-hidden border border-slate-700 hover:border-purple-500/60 transition-all group text-left w-full"
+ className="block rounded-lg overflow-hidden border border-slate-700 hover:border-brand-500/60 transition-all group text-left w-full"
  >
  <div className="relative">
  <img
