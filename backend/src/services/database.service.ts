@@ -925,6 +925,12 @@ export const databaseService = {
   createCriteria: (payload: Parameters<DatabaseService['createCriteria']>[0]) => getDatabaseService().createCriteria(payload),
   updateCriteria: (id: string, payload: Parameters<DatabaseService['updateCriteria']>[1]) => getDatabaseService().updateCriteria(id, payload),
   deleteCriteria: (id: string) => getDatabaseService().deleteCriteria(id),
+  // Plantilla GPF
+  getAllPlantillaGPF: () => getDatabaseService().getAllPlantillaGPF(),
+  createPlantillaItem: (payload: Parameters<DatabaseService['createPlantillaItem']>[0]) => getDatabaseService().createPlantillaItem(payload),
+  updatePlantillaItem: (id: string, payload: Parameters<DatabaseService['updatePlantillaItem']>[1]) => getDatabaseService().updatePlantillaItem(id, payload),
+  renamePlantillaCategoria: (oldName: string, newName: string) => getDatabaseService().renamePlantillaCategoria(oldName, newName),
+  deletePlantillaItem: (id: string) => getDatabaseService().deletePlantillaItem(id),
 };
 
 export { DatabaseService };
