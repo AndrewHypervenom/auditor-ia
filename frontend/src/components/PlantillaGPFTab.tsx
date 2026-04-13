@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { plantillaService, type PlantillaGPFItem } from '../services/api';
 import ModeSelector, { type AdminMode } from './ModeSelector';
 import CallTypeSelector from './CallTypeSelector';
+import { useCallTypesConfig } from '../hooks/useCallTypesConfig';
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -26,7 +27,14 @@ export default function PlantillaGPFTab() {
   const [items, setItems] = useState<PlantillaGPFItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<AdminMode>('INBOUND');
-  const [callType, setCallType] = useState('FRAUDE');
+  const [callType, setCallType] = useState('');
+  const { callTypeNames: availableCallTypes } = useCallTypesConfig();
+
+  useEffect(() => {
+    if (availableCallTypes.length > 0 && !callType) {
+      setCallType(availableCallTypes[0]);
+    }
+  }, [availableCallTypes, callType]);
 
   const load = useCallback(async () => {
     setLoading(true);

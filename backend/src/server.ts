@@ -1131,11 +1131,14 @@ app.post('/api/admin/plantilla-gpf', authenticateUser, requireAdmin, async (req:
     if (!categoria || !tipo_cierre) {
       return res.status(400).json({ error: 'categoria y tipo_cierre son requeridos' });
     }
-    if (!call_type || !['FRAUDE', 'TH CONFIRMA'].includes(call_type)) {
-      return res.status(400).json({ error: 'call_type debe ser FRAUDE o TH CONFIRMA' });
+    const callTypesConfig = await databaseService.getCallTypesConfig();
+    const validCallTypes = callTypesConfig.filter((c: any) => c.is_active !== false).map((c: any) => c.name);
+    const validModes = [...new Set(callTypesConfig.flatMap((c: any) => c.modes || []))];
+    if (!call_type || !validCallTypes.includes(call_type)) {
+      return res.status(400).json({ error: `call_type debe ser uno de: ${validCallTypes.join(', ')}` });
     }
-    if (!mode || !['INBOUND', 'MONITOREO'].includes(mode)) {
-      return res.status(400).json({ error: 'mode debe ser INBOUND o MONITOREO' });
+    if (!mode || !validModes.includes(mode)) {
+      return res.status(400).json({ error: `mode debe ser uno de: ${validModes.join(', ')}` });
     }
     const item = await databaseService.createPlantillaItem({
       categoria,
@@ -1159,11 +1162,14 @@ app.put('/api/admin/plantilla-gpf/rename-categoria', authenticateUser, requireAd
     if (!oldName || !newName) {
       return res.status(400).json({ error: 'oldName y newName son requeridos' });
     }
-    if (!call_type || !['FRAUDE', 'TH CONFIRMA'].includes(call_type)) {
-      return res.status(400).json({ error: 'call_type debe ser FRAUDE o TH CONFIRMA' });
+    const callTypesConfig = await databaseService.getCallTypesConfig();
+    const validCallTypes = callTypesConfig.filter((c: any) => c.is_active !== false).map((c: any) => c.name);
+    const validModes = [...new Set(callTypesConfig.flatMap((c: any) => c.modes || []))];
+    if (!call_type || !validCallTypes.includes(call_type)) {
+      return res.status(400).json({ error: `call_type debe ser uno de: ${validCallTypes.join(', ')}` });
     }
-    if (!mode || !['INBOUND', 'MONITOREO'].includes(mode)) {
-      return res.status(400).json({ error: 'mode debe ser INBOUND o MONITOREO' });
+    if (!mode || !validModes.includes(mode)) {
+      return res.status(400).json({ error: `mode debe ser uno de: ${validModes.join(', ')}` });
     }
     await databaseService.renamePlantillaCategoria(oldName, newName, call_type, mode);
     res.json({ success: true });
@@ -1324,6 +1330,20 @@ app.delete('/api/admin/image-systems/:id', authenticateUser, requireAdmin, async
   } catch (error: any) {
     logger.error('Error deleting image_system:', error);
     res.status(500).json({ error: 'Error al eliminar sistema de imagen' });
+  }
+});
+
+// ============================================================
+// CALL TYPES CONFIG — lectura pública (cualquier usuario autenticado)
+// ============================================================
+
+app.get('/api/call-types-config', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const items = await databaseService.getCallTypesConfig();
+    res.json(items);
+  } catch (error: any) {
+    logger.error('Error fetching call_types_config (public):', error);
+    res.status(500).json({ error: 'Error al obtener tipos de llamada' });
   }
 });
 

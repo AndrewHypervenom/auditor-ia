@@ -7,7 +7,7 @@ import { toast } from 'react-hot-toast';
 import ProcessingStatus from '../components/ProcessingStatus';
 import { auditService, gpfService } from '../services/api';
 import type { GpfAttention, GpfAttentionDetail } from '../services/api';
-import { EXCEL_TYPES } from '../types';
+import { useCallTypesConfig } from '../hooks/useCallTypesConfig';
 import {
  Sparkles,
  ArrowLeft,
@@ -86,6 +86,7 @@ const parseDateForCompare = (dateStr: string): string => {
 
 export default function NewAuditPage() {
  const navigate = useNavigate();
+ const { modes: availableModes } = useCallTypesConfig();
 
  const [state, setState] = useState<AppState>('selecting');
  const [env] = useState<'test' | 'prod'>('prod');
@@ -93,7 +94,7 @@ export default function NewAuditPage() {
  const [loadingAttentions, setLoadingAttentions] = useState(false);
  const [selectedAttention, setSelectedAttention] = useState<GpfAttention | null>(null);
  const [attentionDetail, setAttentionDetail] = useState<GpfAttentionDetail | null>(null);
- const [excelType, setExcelType] = useState<'INBOUND' | 'MONITOREO'>('INBOUND');
+ const [excelType, setExcelType] = useState<string>('');
  const [detailTab, setDetailTab] = useState<'info' | 'captures' | 'transactions' | 'comments' | 'otp'>('info');
  const [processing, setProcessing] = useState({
  stage: 'upload' as string,
@@ -103,6 +104,13 @@ export default function NewAuditPage() {
  const [audioUrl, setAudioUrl] = useState<string | null>(null);
  const [audioLoading, setAudioLoading] = useState(false);
  const [exporting, setExporting] = useState(false);
+
+ // Setear el primer modo disponible en cuanto cargue desde BD
+ useEffect(() => {
+ if (availableModes.length > 0 && !excelType) {
+ setExcelType(availableModes[0]);
+ }
+ }, [availableModes, excelType]);
 
  // ── Lightbox ──────────────────────────────────────────────────────────────────
  const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -1122,10 +1130,10 @@ export default function NewAuditPage() {
  <div className="relative max-w-xs">
  <select
  value={excelType}
- onChange={(e) => setExcelType(e.target.value as 'INBOUND' | 'MONITOREO')}
+ onChange={(e) => setExcelType(e.target.value)}
  className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-200 appearance-none focus:ring-2 focus:ring-purple-500 focus:border-transparent pr-10"
  >
- {EXCEL_TYPES.map((t) => (
+ {availableModes.map((t) => (
  <option key={t} value={t}>{t}</option>
  ))}
  </select>

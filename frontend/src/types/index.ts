@@ -4,13 +4,8 @@
 // TIPOS DE AUDITORÍA
 // ============================================
 
-export const CALL_TYPES = ['FRAUDE', 'TH CONFIRMA', 'INBOUND', 'MONITOREO'] as const;
-export type CallType = typeof CALL_TYPES[number];
-
-export const CALL_TYPES_VISIBLE = ['FRAUDE', 'TH CONFIRMA'] as const;
-
-export const EXCEL_TYPES = ['INBOUND', 'MONITOREO'] as const;
-export type ExcelType = typeof EXCEL_TYPES[number];
+export type CallType = string;
+export type ExcelType = string;
 
 export interface AuditFormData {
   executiveName: string;

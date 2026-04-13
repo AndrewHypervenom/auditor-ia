@@ -46,7 +46,8 @@ import {
 } from '../services/api';
 import PlantillaGPFTab from '../components/PlantillaGPFTab';
 import ModeSelector, { type AdminMode } from '../components/ModeSelector';
-import CallTypeSelectorShared, { INBOUND_CALL_TYPES } from '../components/CallTypeSelector';
+import CallTypeSelectorShared from '../components/CallTypeSelector';
+import { useCallTypesConfig } from '../hooks/useCallTypesConfig';
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -213,7 +214,15 @@ function ScriptsTab() {
   const [scripts, setScripts] = useState<ScriptStep[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<AdminMode>('INBOUND');
-  const [selectedCallType, setSelectedCallType] = useState<string>(INBOUND_CALL_TYPES[0]);
+  const [selectedCallType, setSelectedCallType] = useState<string>('');
+  const { callTypeNames: availableCallTypes } = useCallTypesConfig();
+
+  // Setear el primer callType disponible cuando cargue desde BD
+  useEffect(() => {
+    if (availableCallTypes.length > 0 && !selectedCallType) {
+      setSelectedCallType(availableCallTypes[0]);
+    }
+  }, [availableCallTypes, selectedCallType]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -599,7 +608,15 @@ function CriteriaTab() {
   const [blocks, setBlocks] = useState<CriteriaBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<AdminMode>('INBOUND');
-  const [selectedCallType, setSelectedCallType] = useState<string>(INBOUND_CALL_TYPES[0]);
+  const [selectedCallType, setSelectedCallType] = useState<string>('');
+  const { callTypeNames: availableCallTypes } = useCallTypesConfig();
+
+  // Setear el primer callType disponible cuando cargue desde BD
+  useEffect(() => {
+    if (availableCallTypes.length > 0 && !selectedCallType) {
+      setSelectedCallType(availableCallTypes[0]);
+    }
+  }, [availableCallTypes, selectedCallType]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1258,7 +1275,14 @@ function AiPromptsTab() {
   const [prompts, setPrompts] = useState<AiPrompt[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<AdminMode>('INBOUND');
-  const [callType, setCallType] = useState('FRAUDE');
+  const [callType, setCallType] = useState('');
+  const { callTypeNames: availableCallTypes } = useCallTypesConfig();
+
+  useEffect(() => {
+    if (availableCallTypes.length > 0 && !callType) {
+      setCallType(availableCallTypes[0]);
+    }
+  }, [availableCallTypes, callType]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -2325,170 +2349,236 @@ function CallTypesTab() {
     setter(current.includes(mode) ? current.filter(m => m !== mode) : [...current, mode]);
   };
 
+  const MODE_META: Record<string, { label: string; desc: string; color: string }> = {
+    INBOUND:   { label: 'Inbound',   desc: 'Cliente llamó al banco',          color: 'bg-teal-500/10 border-teal-500/30 text-teal-300' },
+    MONITOREO: { label: 'Monitoreo', desc: 'Supervisor escucha una grabación', color: 'bg-violet-500/10 border-violet-500/30 text-violet-300' },
+  };
+
   if (loading) return <SkeletonLoader />;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm text-slate-400 leading-relaxed">
-            Tipos de llamada disponibles en el sistema. Usados para organizar criterios, scripts y plantilla GPF.
-          </p>
-          <div className="mt-2 flex items-center gap-2 text-xs text-amber-400/80 bg-amber-500/5 border border-amber-500/20 rounded-lg px-3 py-2">
-            <AlertTriangle size={12} />
-            Cambiar nombres puede afectar criterios, scripts y plantilla existentes.
+    <div className="space-y-5">
+
+      {/* ── Explicación de conceptos ── */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 flex gap-3 items-start">
+          <div className="mt-0.5 p-1.5 rounded-lg bg-teal-500/10 border border-teal-500/20">
+            <PhoneCall size={14} className="text-teal-400" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-200">Calificación</p>
+            <p className="text-xs text-slate-500 mt-0.5">El tipo de caso según la atención: FRAUDE, TH CONFIRMA, etc. Organiza criterios, scripts y plantilla.</p>
           </div>
         </div>
+        <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 flex gap-3 items-start">
+          <div className="mt-0.5 p-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20">
+            <Monitor size={14} className="text-violet-400" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-200">Modo de atención</p>
+            <p className="text-xs text-slate-500 mt-0.5"><span className="text-teal-400 font-medium">Inbound</span> = cliente llamó al banco. <span className="text-violet-400 font-medium">Monitoreo</span> = supervisor escucha una grabación.</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-slate-500">
+          Cada calificación define en qué modos de atención puede aparecer.
+        </p>
         <button
           onClick={() => setShowAdd(!showAdd)}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
                      bg-teal-500/10 border border-teal-500/30 text-teal-300
                      hover:bg-teal-500/20 transition-all whitespace-nowrap"
         >
-          <Plus size={14} /> Nuevo tipo
+          <Plus size={14} /> Nueva calificación
         </button>
       </div>
 
-      {/* Formulario agregar */}
+      {/* ── Aviso ── */}
+      <div className="flex items-center gap-2 text-xs text-amber-400/80 bg-amber-500/5 border border-amber-500/20 rounded-lg px-3 py-2">
+        <AlertTriangle size={12} />
+        Cambiar el nombre de una calificación afecta los criterios, scripts y plantilla que ya la usan.
+      </div>
+
+      {/* ── Formulario agregar ── */}
       {showAdd && (
-        <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 space-y-3">
-          <p className="text-xs font-semibold text-slate-300">Nuevo tipo de llamada</p>
-          <div className="flex gap-3 items-end flex-wrap">
-            <div className="flex-1 min-w-[180px]">
-              <label className="block text-xs text-slate-400 mb-1">Nombre</label>
-              <input
-                value={newName}
-                onChange={e => setNewName(e.target.value)}
-                placeholder="ej: FRAUDE INTERNACIONAL"
-                className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200
-                           focus:outline-none focus:border-teal-500/50 placeholder:text-slate-600"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Modos disponibles</label>
-              <div className="flex gap-2">
-                {ALL_MODES.map(m => (
+        <div className="bg-slate-800/60 border border-teal-500/20 rounded-xl p-4 space-y-4">
+          <p className="text-xs font-semibold text-slate-300">Nueva calificación</p>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Nombre de la calificación</label>
+            <input
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              placeholder="ej: FRAUDE INTERNACIONAL"
+              className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200
+                         focus:outline-none focus:border-teal-500/50 placeholder:text-slate-600"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-2">¿En qué modos de atención aplica?</label>
+            <div className="flex gap-2">
+              {ALL_MODES.map(m => {
+                const meta = MODE_META[m] ?? { label: m, desc: '', color: 'bg-slate-700/40 border-slate-600/40 text-slate-400' };
+                const active = newModes.includes(m);
+                return (
                   <button
                     key={m}
                     onClick={() => toggleMode(m, newModes, setNewModes)}
-                    className={`px-3 py-2 rounded-lg text-xs font-medium border transition-all
-                      ${newModes.includes(m)
-                        ? 'bg-teal-500/15 border-teal-500/40 text-teal-300'
-                        : 'bg-slate-800/40 border-slate-700/40 text-slate-500'
-                      }`}
+                    className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-medium border transition-all text-left
+                      ${active ? meta.color : 'bg-slate-800/40 border-slate-700/40 text-slate-500'}`}
                   >
-                    {m}
+                    <span className="font-semibold block">{meta.label}</span>
+                    <span className="opacity-70">{meta.desc}</span>
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handleAdd}
-                disabled={saving || !newName.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold
-                           bg-teal-500/15 border border-teal-500/40 text-teal-300
-                           hover:bg-teal-500/25 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-                Crear
-              </button>
-              <button
-                onClick={() => setShowAdd(false)}
-                className="px-3 py-2 rounded-lg text-sm text-slate-400 border border-slate-700/40 hover:text-slate-200 transition-all"
-              >
-                <X size={13} />
-              </button>
-            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => setShowAdd(false)}
+              className="px-3 py-2 rounded-lg text-sm text-slate-400 border border-slate-700/40 hover:text-slate-200 transition-all"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleAdd}
+              disabled={saving || !newName.trim()}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold
+                         bg-teal-500/15 border border-teal-500/40 text-teal-300
+                         hover:bg-teal-500/25 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+              Crear
+            </button>
           </div>
         </div>
       )}
 
-      {/* Lista */}
+      {/* ── Lista de calificaciones ── */}
       {items.length === 0 ? (
         <EmptyState
           icon={<PhoneCall size={28} className="text-slate-600" />}
-          title="Sin tipos configurados"
-          description="Agrega tipos de llamada para organizar el sistema"
+          title="Sin calificaciones configuradas"
+          description="Agrega calificaciones para organizar criterios, scripts y plantilla"
         />
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {items.map(item => (
             <div
               key={item.id}
-              className={`bg-slate-900/50 border rounded-xl px-4 py-3 flex items-center gap-3
+              className={`bg-slate-900/50 border rounded-xl p-4 transition-all
                 ${item.is_active !== false ? 'border-slate-700/40' : 'border-slate-800/40 opacity-50'}`}
             >
               {editingId === item.id ? (
-                <>
-                  <input
-                    value={editName}
-                    onChange={e => setEditName(e.target.value)}
-                    className="flex-1 bg-slate-800 border border-slate-600/40 rounded-lg px-3 py-1.5 text-sm text-slate-200
-                               focus:outline-none focus:border-teal-500/40"
-                  />
-                  <div className="flex gap-1">
-                    {ALL_MODES.map(m => (
-                      <button
-                        key={m}
-                        onClick={() => toggleMode(m, editModes, setEditModes)}
-                        className={`px-2 py-1 rounded-lg text-xs font-medium border transition-all
-                          ${editModes.includes(m)
-                            ? 'bg-teal-500/15 border-teal-500/40 text-teal-300'
-                            : 'bg-slate-800/40 border-slate-700/40 text-slate-500'
-                          }`}
-                      >
-                        {m}
-                      </button>
-                    ))}
+                /* ── Modo edición ── */
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Nombre de la calificación</label>
+                    <input
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-600/40 rounded-lg px-3 py-2 text-sm text-slate-200
+                                 focus:outline-none focus:border-teal-500/40"
+                    />
                   </div>
-                  <button
-                    onClick={() => handleSaveEdit(item.id)}
-                    disabled={saving}
-                    className="p-1.5 rounded-lg bg-brand-500/10 border border-brand-500/30 text-brand-400 hover:bg-brand-500/20 transition-all"
-                  >
-                    {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-                  </button>
-                  <button
-                    onClick={() => setEditingId(null)}
-                    className="p-1.5 rounded-lg bg-slate-700/40 border border-slate-600/30 text-slate-400 hover:text-slate-200 transition-all"
-                  >
-                    <X size={13} />
-                  </button>
-                </>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-2">Modos de atención disponibles</label>
+                    <div className="flex gap-2">
+                      {ALL_MODES.map(m => {
+                        const meta = MODE_META[m] ?? { label: m, desc: '', color: 'bg-slate-700/40 border-slate-600/40 text-slate-400' };
+                        const active = editModes.includes(m);
+                        return (
+                          <button
+                            key={m}
+                            onClick={() => toggleMode(m, editModes, setEditModes)}
+                            className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-medium border transition-all text-left
+                              ${active ? meta.color : 'bg-slate-800/40 border-slate-700/40 text-slate-500'}`}
+                          >
+                            <span className="font-semibold block">{meta.label}</span>
+                            <span className="opacity-70">{meta.desc}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="px-3 py-1.5 rounded-lg text-sm text-slate-400 border border-slate-700/40 hover:text-slate-200 transition-all"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={() => handleSaveEdit(item.id)}
+                      disabled={saving}
+                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold
+                                 bg-brand-500/10 border border-brand-500/30 text-brand-400
+                                 hover:bg-brand-500/20 transition-all disabled:opacity-40"
+                    >
+                      {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                      Guardar
+                    </button>
+                  </div>
+                </div>
               ) : (
-                <>
-                  <span className="font-mono font-bold text-sm text-teal-300 bg-teal-500/10 border border-teal-500/25 px-3 py-1 rounded-lg">
-                    {item.name}
-                  </span>
-                  <div className="flex gap-1.5">
-                    {(item.modes || []).map(m => (
-                      <span key={m} className="text-xs text-slate-400 bg-slate-800/60 border border-slate-700/30 px-2 py-0.5 rounded-md">
-                        {m}
+                /* ── Modo lectura ── */
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className={`font-mono font-bold text-sm px-3 py-1 rounded-lg
+                        ${item.is_active !== false
+                          ? 'text-teal-300 bg-teal-500/10 border border-teal-500/25'
+                          : 'text-slate-500 bg-slate-800/40 border border-slate-700/30'
+                        }`}>
+                        {item.name}
                       </span>
-                    ))}
+                      {item.is_active === false && (
+                        <span className="text-xs text-slate-600 italic">inactivo</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => handleToggleActive(item)} className="transition-opacity hover:opacity-80" title={item.is_active !== false ? 'Desactivar' : 'Activar'}>
+                        {item.is_active !== false
+                          ? <ToggleRight size={20} className="text-brand-400" />
+                          : <ToggleLeft size={20} className="text-slate-600" />
+                        }
+                      </button>
+                      <button
+                        onClick={() => { setEditingId(item.id); setEditName(item.name); setEditModes(item.modes || []); }}
+                        className="p-1.5 rounded-lg bg-slate-700/40 border border-slate-600/30 text-slate-400 hover:text-slate-200 transition-all"
+                        title="Editar"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(item.id)}
+                        className="p-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all"
+                        title="Eliminar"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
-                  <div className="ml-auto flex items-center gap-1">
-                    <button onClick={() => handleToggleActive(item)} className="transition-opacity hover:opacity-80">
-                      {item.is_active !== false
-                        ? <ToggleRight size={20} className="text-brand-400" />
-                        : <ToggleLeft size={20} className="text-slate-600" />
-                      }
-                    </button>
-                    <button
-                      onClick={() => { setEditingId(item.id); setEditName(item.name); setEditModes(item.modes || []); }}
-                      className="p-1.5 rounded-lg bg-slate-700/40 border border-slate-600/30 text-slate-400 hover:text-slate-200 transition-all"
-                    >
-                      <Pencil size={13} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(item.id)}
-                      className="p-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                  <div>
+                    <p className="text-xs text-slate-600 mb-1.5">Modos de atención disponibles</p>
+                    <div className="flex gap-2">
+                      {(item.modes || []).map(m => {
+                        const meta = MODE_META[m] ?? { label: m, desc: '', color: 'bg-slate-700/40 border-slate-600/40 text-slate-400' };
+                        return (
+                          <div key={m} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium ${meta.color}`}>
+                            <span className="font-semibold">{meta.label}</span>
+                            <span className="opacity-60">— {meta.desc}</span>
+                          </div>
+                        );
+                      })}
+                      {(item.modes || []).length === 0 && (
+                        <span className="text-xs text-slate-600 italic">Sin modos asignados</span>
+                      )}
+                    </div>
                   </div>
-                </>
+                </div>
               )}
             </div>
           ))}

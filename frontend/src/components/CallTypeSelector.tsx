@@ -1,7 +1,8 @@
 // frontend/src/components/CallTypeSelector.tsx
 
-export const INBOUND_CALL_TYPES = ['FRAUDE', 'TH CONFIRMA'] as const;
-export type CallType = typeof INBOUND_CALL_TYPES[number];
+import { useCallTypesConfig } from '../hooks/useCallTypesConfig';
+
+export type CallType = string;
 
 interface CallTypeSelectorProps {
   selected: string;
@@ -9,9 +10,15 @@ interface CallTypeSelectorProps {
 }
 
 export default function CallTypeSelector({ selected, onChange }: CallTypeSelectorProps) {
+  const { callTypeNames, loading } = useCallTypesConfig();
+
+  if (loading && callTypeNames.length === 0) {
+    return <div className="h-8 w-40 bg-slate-700/40 rounded-full animate-pulse" />;
+  }
+
   return (
     <div className="flex items-center gap-2">
-      {INBOUND_CALL_TYPES.map((ct) => (
+      {callTypeNames.map((ct) => (
         <button
           key={ct}
           onClick={() => onChange(ct)}

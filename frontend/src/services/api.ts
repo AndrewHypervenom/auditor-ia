@@ -315,7 +315,7 @@ export const auditService = {
  async evaluateFromGpf(params: {
  attentionId: string | number;
  env: 'test' | 'prod';
- excelType: 'INBOUND' | 'MONITOREO';
+ excelType: string;
  sseClientId: string;
  attentionObject?: GpfAttention;
  }): Promise<{ success: boolean; auditId: string; excelFilename: string; costs?: any }> {
@@ -769,6 +769,12 @@ export interface CallTypeConfig {
 }
 
 export const callTypesConfigService = {
+  // Endpoint público (cualquier usuario autenticado) — para uso en componentes de auditoría
+  async getActive(): Promise<CallTypeConfig[]> {
+    const response = await api.get('/call-types-config');
+    return response.data as CallTypeConfig[];
+  },
+  // Endpoint admin — para el panel de administración
   async getAll(): Promise<CallTypeConfig[]> {
     const response = await api.get('/admin/call-types-config');
     return response.data as CallTypeConfig[];
