@@ -76,9 +76,12 @@ const getAttentionEstado = (a: GpfAttention): string =>
 // Parse a date string to a comparable format (yyyy-mm-dd or original)
 const parseDateForCompare = (dateStr: string): string => {
  if (!dateStr) return '';
- // Try dd/mm/yyyy → yyyy-mm-dd
- const dmyMatch = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
- if (dmyMatch) return `${dmyMatch[3]}-${dmyMatch[2]}-${dmyMatch[1]}`;
+ // Try d/m/yyyy or dd/mm/yyyy → yyyy-mm-dd
+ const dmyMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+ if (dmyMatch) {
+  const [, d, m, y] = dmyMatch;
+  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+ }
  return dateStr.slice(0, 10); // take first 10 chars (ISO or similar)
 };
 
@@ -164,8 +167,8 @@ export default function NewAuditPage() {
  return attentions.filter((a) => {
  if (!uniqueCalificaciones.includes(getAttentionCalificacion(a))) return false;
  const dateStr = parseDateForCompare(getAttentionDate(a));
- if (filterDateFrom && dateStr && dateStr < filterDateFrom) return false;
- if (filterDateTo && dateStr && dateStr > filterDateTo) return false;
+ if (filterDateFrom && (!dateStr || dateStr < filterDateFrom)) return false;
+ if (filterDateTo && (!dateStr || dateStr > filterDateTo)) return false;
  if (filterAgent && !getAttentionExecutive(a).toLowerCase().includes(filterAgent.toLowerCase())) return false;
  if (filterClient) {
  const term = filterClient.toLowerCase();
