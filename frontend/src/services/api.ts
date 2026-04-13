@@ -681,10 +681,6 @@ export const promptsService = {
     const response = await api.put(`/admin/ai-prompts/${id}`, payload);
     return response.data as AiPrompt;
   },
-  async seedDefaults(): Promise<{ success: boolean; results: Record<string, string> }> {
-    const response = await api.post('/admin/seed-defaults');
-    return response.data;
-  },
 };
 
 // CRUD de usuarios (admin)

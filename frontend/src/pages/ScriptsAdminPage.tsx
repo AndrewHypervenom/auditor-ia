@@ -21,7 +21,6 @@ import {
   ListChecks,
   Loader2,
   Brain,
-  Database,
 } from 'lucide-react';
 import {
   scriptsService,
@@ -63,8 +62,6 @@ export default function ScriptsAdminPage() {
           Edita los guiones de los agentes y las rúbricas de evaluación sin modificar el código.
         </p>
 
-        {/* ── Seed Button ── */}
-        <SeedButton />
 
         {/* ── Tab Selector ── */}
         <div className="grid grid-cols-4 gap-3 mb-5">
@@ -1250,42 +1247,6 @@ function SkeletonLoader() {
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-// ─── Seed Button ──────────────────────────────────────────────
-
-function SeedButton() {
-  const [loading, setLoading] = useState(false);
-
-  const handleSeed = async () => {
-    if (!confirm('¿Cargar datos predeterminados desde los archivos estáticos?\n\nSolo insertará datos si las tablas están vacías (operación segura e idempotente).')) return;
-    setLoading(true);
-    try {
-      const result = await promptsService.seedDefaults();
-      const lines = Object.entries(result.results).map(([k, v]) => `• ${k}: ${v}`).join('\n');
-      toast.success(`Datos cargados:\n${lines}`, { duration: 6000 });
-    } catch {
-      toast.error('Error al cargar datos predeterminados');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="flex justify-end mb-4">
-      <button
-        onClick={handleSeed}
-        disabled={loading}
-        className="flex items-center gap-2 px-4 py-2 rounded-xl
-                   bg-amber-500/10 border border-amber-700/40 text-amber-300
-                   text-sm font-medium hover:bg-amber-500/20 transition-all duration-200
-                   disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {loading ? <Loader2 size={15} className="animate-spin" /> : <Database size={15} />}
-        Cargar datos predeterminados
-      </button>
     </div>
   );
 }
