@@ -2350,8 +2350,8 @@ function CallTypesTab() {
   };
 
   const MODE_META: Record<string, { label: string; desc: string; color: string }> = {
-    INBOUND:   { label: 'Inbound',   desc: 'Cliente llamó al banco',          color: 'bg-teal-500/10 border-teal-500/30 text-teal-300' },
-    MONITOREO: { label: 'Monitoreo', desc: 'Supervisor escucha una grabación', color: 'bg-violet-500/10 border-violet-500/30 text-violet-300' },
+    INBOUND:   { label: 'Inbound',   desc: 'Cliente llamó al banco (entrante)',                        color: 'bg-teal-500/10 border-teal-500/30 text-teal-300' },
+    MONITOREO: { label: 'Monitoreo', desc: 'Banco llamó al cliente — Outbound (supervisión de calidad)', color: 'bg-violet-500/10 border-violet-500/30 text-violet-300' },
   };
 
   if (loading) return <SkeletonLoader />;
@@ -2376,7 +2376,7 @@ function CallTypesTab() {
           </div>
           <div>
             <p className="text-xs font-semibold text-slate-200">Modo de atención</p>
-            <p className="text-xs text-slate-500 mt-0.5"><span className="text-teal-400 font-medium">Inbound</span> = cliente llamó al banco. <span className="text-violet-400 font-medium">Monitoreo</span> = supervisor escucha una grabación.</p>
+            <p className="text-xs text-slate-500 mt-0.5"><span className="text-teal-400 font-medium">Inbound</span> = cliente llamó al banco (entrante). <span className="text-violet-400 font-medium">Monitoreo</span> = banco llamó al cliente, outbound (supervisión de calidad).</p>
           </div>
         </div>
       </div>
