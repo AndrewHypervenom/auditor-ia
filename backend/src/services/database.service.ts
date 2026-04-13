@@ -1010,7 +1010,7 @@ export const databaseService = {
   getAllPlantillaGPF: () => getDatabaseService().getAllPlantillaGPF(),
   createPlantillaItem: (payload: Parameters<DatabaseService['createPlantillaItem']>[0]) => getDatabaseService().createPlantillaItem(payload),
   updatePlantillaItem: (id: string, payload: Parameters<DatabaseService['updatePlantillaItem']>[1]) => getDatabaseService().updatePlantillaItem(id, payload),
-  renamePlantillaCategoria: (oldName: string, newName: string) => getDatabaseService().renamePlantillaCategoria(oldName, newName),
+  renamePlantillaCategoria: (oldName: string, newName: string, callType: string) => getDatabaseService().renamePlantillaCategoria(oldName, newName, callType),
   deletePlantillaItem: (id: string) => getDatabaseService().deletePlantillaItem(id),
   // AI Prompts
   getPromptByKey: (key: string) => getDatabaseService().getPromptByKey(key),
