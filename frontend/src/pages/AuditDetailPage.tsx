@@ -96,7 +96,8 @@ export default function AuditDetailPage() {
     audioConfidence: auditDetail.transcription?.confidence != null && auditDetail.transcription.confidence > 0
       ? auditDetail.transcription.confidence * 100
       : undefined,
-    excelUrl: auditDetail.evaluation.excel_filename
+    excelUrl: auditDetail.evaluation.excel_filename,
+    dataWarnings: auditDetail.evaluation.openai_response?.dataWarnings || []
   };
 
   return (

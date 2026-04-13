@@ -272,7 +272,7 @@ class DatabaseService {
         observations: evaluation.observations || '',
         recommendations: evaluation.recommendations || [],
         key_moments: evaluation.keyMoments || [],
-        openai_response: {},
+        openai_response: { dataWarnings: (evaluation as any).dataWarnings || [] },
         excel_filename: excelFilename,
         excel_path: excelFilename,
         excel_data: excelBase64              // âœ… NUEVO: Guardar Excel como base64
