@@ -940,6 +940,224 @@ class DatabaseService {
     return data;
   }
 
+  // ============================================================
+  // WORD BOOST TERMS
+  // ============================================================
+
+  private wordBoostCache: Map<string, { data: any; timestamp: number }> = new Map();
+
+  invalidateWordBoostCache(): void {
+    this.wordBoostCache.clear();
+  }
+
+  async getWordBoostTerms(): Promise<any[]> {
+    const cached = this.wordBoostCache.get('all');
+    if (cached && this.isCacheValid(cached)) return cached.data;
+
+    const { data, error } = await supabaseAdmin
+      .from('word_boost_terms')
+      .select('*')
+      .order('category')
+      .order('display_order', { ascending: true });
+
+    if (error) {
+      logger.warn('word_boost_terms: no se pudo cargar desde BD', { error });
+      return [];
+    }
+
+    const result = data || [];
+    this.wordBoostCache.set('all', { data: result, timestamp: Date.now() });
+    return result;
+  }
+
+  async createWordBoostTerm(payload: {
+    term: string;
+    category: string;
+    is_active?: boolean;
+    display_order?: number;
+  }): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('word_boost_terms')
+      .insert({ ...payload, updated_at: new Date().toISOString() })
+      .select()
+      .single();
+    if (error) throw error;
+    this.invalidateWordBoostCache();
+    return data;
+  }
+
+  async updateWordBoostTerm(id: string, payload: Partial<{
+    term: string;
+    category: string;
+    is_active: boolean;
+    display_order: number;
+  }>): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('word_boost_terms')
+      .update({ ...payload, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    this.invalidateWordBoostCache();
+    return data;
+  }
+
+  async deleteWordBoostTerm(id: string): Promise<void> {
+    const { error } = await supabaseAdmin
+      .from('word_boost_terms')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    this.invalidateWordBoostCache();
+  }
+
+  // ============================================================
+  // IMAGE SYSTEMS
+  // ============================================================
+
+  private imageSystemsCache: Map<string, { data: any; timestamp: number }> = new Map();
+
+  invalidateImageSystemsCache(): void {
+    this.imageSystemsCache.clear();
+  }
+
+  async getImageSystems(): Promise<any[]> {
+    const cached = this.imageSystemsCache.get('all');
+    if (cached && this.isCacheValid(cached)) return cached.data;
+
+    const { data, error } = await supabaseAdmin
+      .from('image_systems')
+      .select('*')
+      .order('display_order', { ascending: true });
+
+    if (error) {
+      logger.warn('image_systems: no se pudo cargar desde BD', { error });
+      return [];
+    }
+
+    const result = data || [];
+    this.imageSystemsCache.set('all', { data: result, timestamp: Date.now() });
+    return result;
+  }
+
+  async createImageSystem(payload: {
+    system_name: string;
+    description: string;
+    detection_hints?: string;
+    fields_schema?: any[];
+    is_active?: boolean;
+    display_order?: number;
+  }): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('image_systems')
+      .insert({ ...payload, updated_at: new Date().toISOString() })
+      .select()
+      .single();
+    if (error) throw error;
+    this.invalidateImageSystemsCache();
+    return data;
+  }
+
+  async updateImageSystem(id: string, payload: Partial<{
+    system_name: string;
+    description: string;
+    detection_hints: string;
+    fields_schema: any[];
+    is_active: boolean;
+    display_order: number;
+  }>): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('image_systems')
+      .update({ ...payload, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    this.invalidateImageSystemsCache();
+    return data;
+  }
+
+  async deleteImageSystem(id: string): Promise<void> {
+    const { error } = await supabaseAdmin
+      .from('image_systems')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    this.invalidateImageSystemsCache();
+  }
+
+  // ============================================================
+  // CALL TYPES CONFIG
+  // ============================================================
+
+  private callTypesCache: Map<string, { data: any; timestamp: number }> = new Map();
+
+  invalidateCallTypesCache(): void {
+    this.callTypesCache.clear();
+  }
+
+  async getCallTypesConfig(): Promise<any[]> {
+    const cached = this.callTypesCache.get('all');
+    if (cached && this.isCacheValid(cached)) return cached.data;
+
+    const { data, error } = await supabaseAdmin
+      .from('call_types_config')
+      .select('*')
+      .order('display_order', { ascending: true });
+
+    if (error) {
+      logger.warn('call_types_config: no se pudo cargar desde BD', { error });
+      return [];
+    }
+
+    const result = data || [];
+    this.callTypesCache.set('all', { data: result, timestamp: Date.now() });
+    return result;
+  }
+
+  async createCallTypeConfig(payload: {
+    name: string;
+    modes?: string[];
+    is_active?: boolean;
+    display_order?: number;
+  }): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('call_types_config')
+      .insert(payload)
+      .select()
+      .single();
+    if (error) throw error;
+    this.invalidateCallTypesCache();
+    return data;
+  }
+
+  async updateCallTypeConfig(id: string, payload: Partial<{
+    name: string;
+    modes: string[];
+    is_active: boolean;
+    display_order: number;
+  }>): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('call_types_config')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    this.invalidateCallTypesCache();
+    return data;
+  }
+
+  async deleteCallTypeConfig(id: string): Promise<void> {
+    const { error } = await supabaseAdmin
+      .from('call_types_config')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    this.invalidateCallTypesCache();
+  }
+
   /**
    * Registrar actividad de auditorÃ­a
    */
@@ -995,6 +1213,21 @@ export const databaseService = {
   getExcelData: (filename: string) => getDatabaseService().getExcelData(filename),
   logAuditActivity: (auditId: string, userId: string, action: string, details?: any, ip?: string, ua?: string) =>
     getDatabaseService().logAuditActivity(auditId, userId, action, details, ip, ua),
+  // Word Boost Terms
+  getWordBoostTerms: () => getDatabaseService().getWordBoostTerms(),
+  createWordBoostTerm: (payload: Parameters<DatabaseService['createWordBoostTerm']>[0]) => getDatabaseService().createWordBoostTerm(payload),
+  updateWordBoostTerm: (id: string, payload: Parameters<DatabaseService['updateWordBoostTerm']>[1]) => getDatabaseService().updateWordBoostTerm(id, payload),
+  deleteWordBoostTerm: (id: string) => getDatabaseService().deleteWordBoostTerm(id),
+  // Image Systems
+  getImageSystems: () => getDatabaseService().getImageSystems(),
+  createImageSystem: (payload: Parameters<DatabaseService['createImageSystem']>[0]) => getDatabaseService().createImageSystem(payload),
+  updateImageSystem: (id: string, payload: Parameters<DatabaseService['updateImageSystem']>[1]) => getDatabaseService().updateImageSystem(id, payload),
+  deleteImageSystem: (id: string) => getDatabaseService().deleteImageSystem(id),
+  // Call Types Config
+  getCallTypesConfig: () => getDatabaseService().getCallTypesConfig(),
+  createCallTypeConfig: (payload: Parameters<DatabaseService['createCallTypeConfig']>[0]) => getDatabaseService().createCallTypeConfig(payload),
+  updateCallTypeConfig: (id: string, payload: Parameters<DatabaseService['updateCallTypeConfig']>[1]) => getDatabaseService().updateCallTypeConfig(id, payload),
+  deleteCallTypeConfig: (id: string) => getDatabaseService().deleteCallTypeConfig(id),
   // Scripts dinámicos
   getScriptsForCallType: (callType: string) => getDatabaseService().getScriptsForCallType(callType),
   getAllScripts: () => getDatabaseService().getAllScripts(),

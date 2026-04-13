@@ -1225,6 +1225,159 @@ app.put('/api/admin/ai-prompts/:id', authenticateUser, requireAdmin, async (req:
   }
 });
 
+// ============================================================
+// WORD BOOST TERMS — CRUD (admin only)
+// ============================================================
+
+app.get('/api/admin/word-boost', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const terms = await databaseService.getWordBoostTerms();
+    res.json(terms);
+  } catch (error: any) {
+    logger.error('Error fetching word_boost_terms:', error);
+    res.status(500).json({ error: 'Error al obtener términos de vocabulario' });
+  }
+});
+
+app.post('/api/admin/word-boost', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { term, category, is_active, display_order } = req.body;
+    if (!term || !category) {
+      return res.status(400).json({ error: 'term y category son requeridos' });
+    }
+    const item = await databaseService.createWordBoostTerm({ term, category, is_active, display_order });
+    res.status(201).json(item);
+  } catch (error: any) {
+    logger.error('Error creating word_boost_term:', error);
+    res.status(500).json({ error: 'Error al crear término de vocabulario' });
+  }
+});
+
+app.put('/api/admin/word-boost/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { term, category, is_active, display_order } = req.body;
+    const item = await databaseService.updateWordBoostTerm(id, { term, category, is_active, display_order });
+    res.json(item);
+  } catch (error: any) {
+    logger.error('Error updating word_boost_term:', error);
+    res.status(500).json({ error: 'Error al actualizar término de vocabulario' });
+  }
+});
+
+app.delete('/api/admin/word-boost/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await databaseService.deleteWordBoostTerm(id);
+    res.json({ success: true });
+  } catch (error: any) {
+    logger.error('Error deleting word_boost_term:', error);
+    res.status(500).json({ error: 'Error al eliminar término de vocabulario' });
+  }
+});
+
+// ============================================================
+// IMAGE SYSTEMS — CRUD (admin only)
+// ============================================================
+
+app.get('/api/admin/image-systems', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const systems = await databaseService.getImageSystems();
+    res.json(systems);
+  } catch (error: any) {
+    logger.error('Error fetching image_systems:', error);
+    res.status(500).json({ error: 'Error al obtener sistemas de imagen' });
+  }
+});
+
+app.post('/api/admin/image-systems', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { system_name, description, detection_hints, fields_schema, is_active, display_order } = req.body;
+    if (!system_name || !description) {
+      return res.status(400).json({ error: 'system_name y description son requeridos' });
+    }
+    const item = await databaseService.createImageSystem({ system_name, description, detection_hints, fields_schema, is_active, display_order });
+    res.status(201).json(item);
+  } catch (error: any) {
+    logger.error('Error creating image_system:', error);
+    res.status(500).json({ error: 'Error al crear sistema de imagen' });
+  }
+});
+
+app.put('/api/admin/image-systems/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { system_name, description, detection_hints, fields_schema, is_active, display_order } = req.body;
+    const item = await databaseService.updateImageSystem(id, { system_name, description, detection_hints, fields_schema, is_active, display_order });
+    res.json(item);
+  } catch (error: any) {
+    logger.error('Error updating image_system:', error);
+    res.status(500).json({ error: 'Error al actualizar sistema de imagen' });
+  }
+});
+
+app.delete('/api/admin/image-systems/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await databaseService.deleteImageSystem(id);
+    res.json({ success: true });
+  } catch (error: any) {
+    logger.error('Error deleting image_system:', error);
+    res.status(500).json({ error: 'Error al eliminar sistema de imagen' });
+  }
+});
+
+// ============================================================
+// CALL TYPES CONFIG — CRUD (admin only)
+// ============================================================
+
+app.get('/api/admin/call-types-config', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const items = await databaseService.getCallTypesConfig();
+    res.json(items);
+  } catch (error: any) {
+    logger.error('Error fetching call_types_config:', error);
+    res.status(500).json({ error: 'Error al obtener tipos de llamada' });
+  }
+});
+
+app.post('/api/admin/call-types-config', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { name, modes, is_active, display_order } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'name es requerido' });
+    }
+    const item = await databaseService.createCallTypeConfig({ name, modes, is_active, display_order });
+    res.status(201).json(item);
+  } catch (error: any) {
+    logger.error('Error creating call_type_config:', error);
+    res.status(500).json({ error: 'Error al crear tipo de llamada' });
+  }
+});
+
+app.put('/api/admin/call-types-config/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { name, modes, is_active, display_order } = req.body;
+    const item = await databaseService.updateCallTypeConfig(id, { name, modes, is_active, display_order });
+    res.json(item);
+  } catch (error: any) {
+    logger.error('Error updating call_type_config:', error);
+    res.status(500).json({ error: 'Error al actualizar tipo de llamada' });
+  }
+});
+
+app.delete('/api/admin/call-types-config/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await databaseService.deleteCallTypeConfig(id);
+    res.json({ success: true });
+  } catch (error: any) {
+    logger.error('Error deleting call_type_config:', error);
+    res.status(500).json({ error: 'Error al eliminar tipo de llamada' });
+  }
+});
+
 // ============================================
 // GPF API PROXY
 // ============================================

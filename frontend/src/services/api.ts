@@ -689,6 +689,103 @@ export const promptsService = {
   },
 };
 
+// ── Word Boost Terms (admin) ─────────────────────────────────
+
+export interface WordBoostTerm {
+  id: string;
+  term: string;
+  category: string;
+  is_active: boolean;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export const wordBoostService = {
+  async getAll(): Promise<WordBoostTerm[]> {
+    const response = await api.get('/admin/word-boost');
+    return response.data as WordBoostTerm[];
+  },
+  async create(payload: Pick<WordBoostTerm, 'term' | 'category'> & Partial<Pick<WordBoostTerm, 'is_active' | 'display_order'>>): Promise<WordBoostTerm> {
+    const response = await api.post('/admin/word-boost', payload);
+    return response.data as WordBoostTerm;
+  },
+  async update(id: string, payload: Partial<Pick<WordBoostTerm, 'term' | 'category' | 'is_active' | 'display_order'>>): Promise<WordBoostTerm> {
+    const response = await api.put(`/admin/word-boost/${id}`, payload);
+    return response.data as WordBoostTerm;
+  },
+  async remove(id: string): Promise<void> {
+    await api.delete(`/admin/word-boost/${id}`);
+  },
+};
+
+// ── Image Systems (admin) ────────────────────────────────────
+
+export interface ImageSystemField {
+  field_name: string;
+  description: string;
+  example?: string;
+}
+
+export interface ImageSystem {
+  id: string;
+  system_name: string;
+  description: string;
+  detection_hints: string | null;
+  fields_schema: ImageSystemField[] | null;
+  is_active: boolean;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export const imageSystemsService = {
+  async getAll(): Promise<ImageSystem[]> {
+    const response = await api.get('/admin/image-systems');
+    return response.data as ImageSystem[];
+  },
+  async create(payload: Pick<ImageSystem, 'system_name' | 'description'> & Partial<Pick<ImageSystem, 'detection_hints' | 'fields_schema' | 'is_active' | 'display_order'>>): Promise<ImageSystem> {
+    const response = await api.post('/admin/image-systems', payload);
+    return response.data as ImageSystem;
+  },
+  async update(id: string, payload: Partial<Pick<ImageSystem, 'system_name' | 'description' | 'detection_hints' | 'fields_schema' | 'is_active' | 'display_order'>>): Promise<ImageSystem> {
+    const response = await api.put(`/admin/image-systems/${id}`, payload);
+    return response.data as ImageSystem;
+  },
+  async remove(id: string): Promise<void> {
+    await api.delete(`/admin/image-systems/${id}`);
+  },
+};
+
+// ── Call Types Config (admin) ────────────────────────────────
+
+export interface CallTypeConfig {
+  id: string;
+  name: string;
+  modes: string[];
+  is_active: boolean;
+  display_order: number;
+  created_at: string;
+}
+
+export const callTypesConfigService = {
+  async getAll(): Promise<CallTypeConfig[]> {
+    const response = await api.get('/admin/call-types-config');
+    return response.data as CallTypeConfig[];
+  },
+  async create(payload: Pick<CallTypeConfig, 'name'> & Partial<Pick<CallTypeConfig, 'modes' | 'is_active' | 'display_order'>>): Promise<CallTypeConfig> {
+    const response = await api.post('/admin/call-types-config', payload);
+    return response.data as CallTypeConfig;
+  },
+  async update(id: string, payload: Partial<Pick<CallTypeConfig, 'name' | 'modes' | 'is_active' | 'display_order'>>): Promise<CallTypeConfig> {
+    const response = await api.put(`/admin/call-types-config/${id}`, payload);
+    return response.data as CallTypeConfig;
+  },
+  async remove(id: string): Promise<void> {
+    await api.delete(`/admin/call-types-config/${id}`);
+  },
+};
+
 // CRUD de usuarios (admin)
 export const userService = {
  async getUsers() {

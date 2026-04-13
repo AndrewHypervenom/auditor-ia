@@ -5,6 +5,49 @@ import { logger } from '../utils/logger.js';
 import type { TranscriptResult } from '../types/index.js';
 import * as fs from 'fs';
 import https from 'https';
+import { getDatabaseService } from './database.service.js';
+
+// Fallback hardcodeado — se usa sólo si la tabla word_boost_terms está vacía o falla
+const WORD_BOOST_FALLBACK: string[] = [
+  'Bradescard', 'BradesCard', 'Brascar', 'Prascar', 'Bascar',
+  'VISA', 'Mastercard', 'American Express',
+  'tarjeta', 'crédito', 'débito', 'cuenta',
+  'saldo', 'movimiento', 'cargo', 'compra', 'transacción',
+  'fraude', 'fraudulento', 'bloqueo', 'bloqueada', 'bloqueamos',
+  'reposición', 'plástico', 'sucursal',
+  'bonificación', 'aclaración', 'dictamen',
+  'cliente', 'titular', 'tarjetahabiente',
+  'CVV', 'NIP', 'PIN', 'OTP', 'token',
+  'monto', 'importe', 'cantidad',
+  'comercio', 'establecimiento', 'merchant',
+  'Falcon', 'VCAS', 'Vision', 'VRM', 'Front', 'BI',
+  'CallerID', 'Caller ID', 'ARQE', 'IBI', 'ASHI',
+  'Hotlist', 'Bypass',
+  'folio', 'caso', 'investigación', 'evidencia',
+  'reversa', 'contracargo', 'chargeback',
+  'autenticación', 'verificación', 'validación',
+  'numeración completa',
+  'Microsoft', 'Amazon', 'PayPal', 'Spotify', 'Netflix',
+  'Uber', 'DiDi', 'Rappi',
+  'Winner', 'Promex', 'Sanborns', 'Liverpool',
+  'Costco', 'Walmart', 'Soriana',
+  'García', 'López', 'Martínez', 'Hernández', 'González',
+  'Rodríguez', 'Pérez', 'Sánchez', 'Ramírez', 'Torres',
+  'Flores', 'Rivera', 'Gómez', 'Díaz', 'Cruz',
+  'Morales', 'Reyes', 'Jiménez', 'Álvarez', 'Romero',
+  'México', 'Guadalajara', 'Monterrey', 'Puebla',
+  'Naucalpan', 'Ecatepec', 'Toluca',
+  'monitor', 'ejecutivo', 'agente', 'operador',
+  'línea', 'llamada', 'contacto',
+  'registro', 'sistema', 'pantalla',
+  'muy buenas tardes', 'en qué puedo ayudarle',
+  'un momento por favor', 'de acuerdo',
+  'para su seguridad', 'por seguridad',
+  'no reconozco', 'no reconoce',
+  'satisfacción', 'encuesta de satisfacción', 'servicio brindado',
+  'datos comprometidos', 'recapitulación', 'sondeo', 'SLA', 'CNR',
+  'BLKI', 'BLKT', 'BNFC', 'BPT0',
+];
 
 class AssemblyAIService {
  private client: AssemblyAI;
@@ -64,88 +107,44 @@ class AssemblyAIService {
  
  logger.info('[ASSEMBLYAI] Audio subido exitosamente, iniciando transcripcion...');
 
+ // ============ CARGAR VOCABULARIO DESDE BD (con fallback) ============
+ let wordBoostList: string[] = WORD_BOOST_FALLBACK;
+ try {
+  const dbTerms = await getDatabaseService().getWordBoostTerms();
+  const activeTerms = dbTerms.filter((t: any) => t.is_active !== false).map((t: any) => t.term);
+  if (activeTerms.length > 0) {
+   wordBoostList = activeTerms;
+   logger.info(`[ASSEMBLYAI] Vocabulario cargado desde BD: ${activeTerms.length} términos`);
+  } else {
+   logger.info('[ASSEMBLYAI] BD vacía, usando vocabulario fallback hardcodeado');
+  }
+ } catch (err) {
+  logger.warn('[ASSEMBLYAI] Error al cargar vocabulario desde BD, usando fallback', { err });
+ }
+
  // ===============================================
  // CONFIGURACIÓN MEJORADA DE TRANSCRIPCIÓN
  // ===============================================
  const transcript = await this.client.transcripts.transcribe({
  audio: uploadUrl!,
- 
+
  // ============ IDIOMA Y PRECISIÓN ============
  language_code: 'es', // Español
- 
+
  // ============ MEJORAS DE CALIDAD ============
  speaker_labels: true, // Identificar speakers (A, B, C...)
  speakers_expected: 2, // Llamada típica: agente + cliente
  punctuate: true, // Agregar puntuación automática
  format_text: false, // NO formatear - mantener texto RAW completo
- 
+
  // ============ CAPTURAR TODO EL CONTENIDO ============
  disfluencies: false, // NO capturar "eh", "um" para texto más limpio
- 
+
  // ============ MODELO Y PRECISIÓN ============
  speech_model: 'best', // Usar el mejor modelo disponible (más preciso)
- 
- // ============ VOCABULARIO PERSONALIZADO ============
- word_boost: [
- // Variantes de Bradescard (errores comunes de ASR)
- 'Bradescard', 'BradesCard', 'Brascar', 'Prascar', 'Bascar',
- // Términos bancarios comunes
- 'VISA', 'Mastercard', 'American Express',
- 'tarjeta', 'crédito', 'débito', 'cuenta',
- 'saldo', 'movimiento', 'cargo', 'compra', 'transacción',
- 'fraude', 'fraudulento', 'bloqueo', 'bloqueada', 'bloqueamos',
- 'reposición', 'plástico', 'sucursal',
- 'bonificación', 'aclaración', 'dictamen',
- 'cliente', 'titular', 'tarjetahabiente',
- 'CVV', 'NIP', 'PIN', 'OTP', 'token',
- 'monto', 'importe', 'cantidad',
- 'comercio', 'establecimiento', 'merchant',
- 
- // Sistemas bancarios
- 'Falcon', 'VCAS', 'Vision', 'VRM', 'Front', 'BI',
- 'CallerID', 'Caller ID', 'ARQE', 'IBI', 'ASHI',
- 'Hotlist', 'Bypass',
- 
- // Términos técnicos bancarios
- 'folio', 'caso', 'investigación', 'evidencia',
- 'reversa', 'contracargo', 'chargeback',
- 'autenticación', 'verificación', 'validación',
- 'numeración completa',
- 
- // Comercios comunes
- 'Microsoft', 'Amazon', 'PayPal', 'Spotify', 'Netflix',
- 'Uber', 'DiDi', 'Rappi',
- 'Winner', 'Promex', 'Sanborns', 'Liverpool',
- 'Costco', 'Walmart', 'Soriana',
- 
- // Nombres propios comunes en México
- 'García', 'López', 'Martínez', 'Hernández', 'González',
- 'Rodríguez', 'Pérez', 'Sánchez', 'Ramírez', 'Torres',
- 'Flores', 'Rivera', 'Gómez', 'Díaz', 'Cruz',
- 'Morales', 'Reyes', 'Jiménez', 'Álvarez', 'Romero',
- 
- // Ciudades
- 'México', 'Guadalajara', 'Monterrey', 'Puebla',
- 'Naucalpan', 'Ecatepec', 'Toluca',
- 
- // Palabras de call center
- 'monitor', 'ejecutivo', 'agente', 'operador',
- 'línea', 'llamada', 'contacto',
- 'registro', 'sistema', 'pantalla',
- 
- // Frases comunes
- 'muy buenas tardes', 'en qué puedo ayudarle',
- 'un momento por favor', 'de acuerdo',
- 'para su seguridad', 'por seguridad',
- 'no reconozco', 'no reconoce',
 
- // Script de llamada
- 'satisfacción', 'encuesta de satisfacción', 'servicio brindado',
- 'datos comprometidos', 'recapitulación', 'sondeo', 'SLA', 'CNR',
-
- // Códigos de bloqueo VISION
- 'BLKI', 'BLKT', 'BNFC', 'BPT0'
- ],
+ // ============ VOCABULARIO PERSONALIZADO (cargado desde BD) ============
+ word_boost: wordBoostList,
  boost_param: 'high' // Alta prioridad para las palabras del vocabulario
  });
 

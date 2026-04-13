@@ -202,7 +202,7 @@ class EvaluatorService {
  },
  {
  type: 'text',
- text: this.getEnhancedAnalysisPrompt()
+ text: await this.getEnhancedAnalysisPrompt()
  }
  ]
  }
@@ -284,7 +284,19 @@ class EvaluatorService {
  /**
  * MEJORADO: Prompt con mejor detección de campos críticos
  */
- private getEnhancedAnalysisPrompt(): string {
+ private async getEnhancedAnalysisPrompt(): Promise<string> {
+ // Intentar construir el prompt dinámicamente desde la BD
+ try {
+  const systems = await getDatabaseService().getImageSystems();
+  const activeSystems = systems.filter((s: any) => s.is_active !== false);
+  if (activeSystems.length > 0) {
+   return this.buildPromptFromSystems(activeSystems);
+  }
+ } catch (err) {
+  logger.warn('[EVALUATOR] Error al cargar image_systems desde BD, usando prompt fallback', { err });
+ }
+
+ // ── FALLBACK hardcodeado ──────────────────────────────────────
  return `Analiza esta captura de pantalla de sistema bancario con MÁXIMA PRECISIÓN y EXTRAE TODOS LOS DATOS VISIBLES.
 
 **PASO 1: IDENTIFICA EL SISTEMA**
@@ -429,8 +441,78 @@ EJEMPLO DE RESPUESTA CORRECTA:
  "transactions_marked: 6 transacciones con marca CNF en tabla",
  "comment_text: Comentario del cliente visible en panel derecho"
  ]
-}`;
+}`; // fin fallback
  }
+
+ /**
+  * Construye el prompt de análisis de imágenes dinámicamente desde los sistemas en BD
+  */
+ private buildPromptFromSystems(systems: any[]): string {
+  const systemNames = systems.map((s: any) => s.system_name).join('|');
+
+  // PASO 1: detección
+  const paso1Lines = systems.map((s: any) => {
+   const hints = s.detection_hints || s.description || '';
+   return `- **${s.system_name}**: ${hints}`;
+  }).join('\n');
+
+  // PASO 2: campos por sistema
+  const paso2Sections = systems.map((s: any) => {
+   const fields: any[] = Array.isArray(s.fields_schema) ? s.fields_schema : [];
+   if (fields.length === 0) return `# ${s.system_name}:\n- (sin campos definidos)`;
+   const fieldLines = fields.map((f: any) => {
+    const example = f.example ? ` (ej: "${f.example}")` : '';
+    return `- ${f.field_name}: ${f.description}${example}`;
+   }).join('\n');
+   return `# ${s.system_name}:\n${fieldLines}`;
+  }).join('\n\n');
+
+  return `Analiza esta captura de pantalla de sistema bancario con MÁXIMA PRECISIÓN y EXTRAE TODOS LOS DATOS VISIBLES.
+
+**PASO 1: IDENTIFICA EL SISTEMA**
+
+${paso1Lines}
+
+**PASO 2: EXTRAE TODOS LOS CAMPOS VISIBLES**
+
+Lee CADA LÍNEA de texto visible. Para cada sistema, extrae:
+
+${paso2Sections}
+
+**PASO 3: IDENTIFICA CAMPOS CRÍTICOS**
+
+Para cada hallazgo importante, márcalo en "critical_fields":
+
+{
+ "has_case_number": true/false,
+ "has_blocked_status": true/false,
+ "has_folio_number": true/false,
+ "has_transactions": true/false,
+ "has_fraud_checkboxes": true/false,
+ "has_block_codes": true/false
+}
+
+**FORMATO DE RESPUESTA JSON:**
+
+\`\`\`json
+{
+ "system": "${systemNames}",
+ "confidence": 0.95,
+ "data": { "todos_los_campos": "valores_extraidos" },
+ "critical_fields": { "has_case_number": true },
+ "findings": ["campo1: valor exacto encontrado"]
+}
+\`\`\`
+
+**REGLAS CRÍTICAS:**
+1. Lee TODO el texto visible - no omitas nada
+2. Si ves un número, fecha o monto: EXTRÁELO EXACTAMENTE
+3. Si ves checkboxes marcados: LISTA TODOS
+4. Si ves transacciones: CUENTA CUÁNTAS
+5. NO inventes valores - usa null si no está visible
+6. SÉ ULTRA específico con cada dato`;
+ }
+
 
  /**
  * MEJORADO: Evaluación con matching más preciso y captura de tokens

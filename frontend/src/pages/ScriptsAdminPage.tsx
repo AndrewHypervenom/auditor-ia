@@ -21,15 +21,28 @@ import {
   ListChecks,
   Loader2,
   Brain,
+  Volume2,
+  Monitor,
+  PhoneCall,
+  ToggleLeft,
+  ToggleRight,
+  ChevronRight,
 } from 'lucide-react';
 import {
   scriptsService,
   criteriaService,
   promptsService,
+  wordBoostService,
+  imageSystemsService,
+  callTypesConfigService,
   type ScriptStep,
   type CriteriaBlock,
   type CriteriaItem,
   type AiPrompt,
+  type WordBoostTerm,
+  type ImageSystem,
+  type ImageSystemField,
+  type CallTypeConfig,
 } from '../services/api';
 import PlantillaGPFTab from '../components/PlantillaGPFTab';
 import ModeSelector, { type AdminMode } from '../components/ModeSelector';
@@ -179,12 +192,12 @@ export default function ScriptsAdminPage() {
         {/* ── Tab Content ── */}
         <div key={activeTab} className="animate-fadeIn">
           {activeTab === 'scripts'
-            ? <ScriptsTab />
+            ? <ScriptsTabWrapper />
             : activeTab === 'criteria'
-            ? <CriteriaTab />
+            ? <CriteriaTabWrapper />
             : activeTab === 'ai_prompts'
             ? <AiPromptsTab />
-            : <PlantillaGPFTab />
+            : <PlantillaTabWrapper />
           }
         </div>
 
@@ -1399,6 +1412,1086 @@ function PromptEditor({ prompt, onUpdate }: PromptEditorProps) {
               Guardar
             </button>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WRAPPERS CON SUB-SECCIÓN
+// ═══════════════════════════════════════════════════════════════
+
+// ── Helper: toggle interno de sub-sección ────────────────────
+
+function SubTabToggle({
+  activeSubTab, onChange, options,
+}: {
+  activeSubTab: string;
+  onChange: (v: string) => void;
+  options: { key: string; label: string; icon: React.ReactNode }[];
+}) {
+  return (
+    <div className="flex gap-2 mb-5">
+      {options.map(o => (
+        <button
+          key={o.key}
+          onClick={() => onChange(o.key)}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all
+            ${activeSubTab === o.key
+              ? 'bg-brand-500/15 border border-brand-500/40 text-brand-300'
+              : 'bg-slate-800/50 border border-slate-700/40 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            }`}
+        >
+          {o.icon}
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── Wrapper: Scripts ──────────────────────────────────────────
+
+function ScriptsTabWrapper() {
+  const [subTab, setSubTab] = useState<'guiones' | 'vocabulario'>('guiones');
+  return (
+    <div>
+      <SubTabToggle
+        activeSubTab={subTab}
+        onChange={(v) => setSubTab(v as 'guiones' | 'vocabulario')}
+        options={[
+          { key: 'guiones',     label: 'Guiones',                    icon: <BookOpen size={14} /> },
+          { key: 'vocabulario', label: 'Vocabulario de Transcripción', icon: <Volume2 size={14} /> },
+        ]}
+      />
+      {subTab === 'guiones' ? <ScriptsTab /> : <VocabularioTab />}
+    </div>
+  );
+}
+
+// ── Wrapper: Criterios ────────────────────────────────────────
+
+function CriteriaTabWrapper() {
+  const [subTab, setSubTab] = useState<'criterios' | 'sistemas'>('criterios');
+  return (
+    <div>
+      <SubTabToggle
+        activeSubTab={subTab}
+        onChange={(v) => setSubTab(v as 'criterios' | 'sistemas')}
+        options={[
+          { key: 'criterios', label: 'Criterios de Evaluación', icon: <ClipboardList size={14} /> },
+          { key: 'sistemas',  label: 'Sistemas de Imagen',       icon: <Monitor size={14} /> },
+        ]}
+      />
+      {subTab === 'criterios' ? <CriteriaTab /> : <ImageSystemsTab />}
+    </div>
+  );
+}
+
+// ── Wrapper: Plantilla GPF ────────────────────────────────────
+
+function PlantillaTabWrapper() {
+  const [subTab, setSubTab] = useState<'plantilla' | 'tipos'>('plantilla');
+  return (
+    <div>
+      <SubTabToggle
+        activeSubTab={subTab}
+        onChange={(v) => setSubTab(v as 'plantilla' | 'tipos')}
+        options={[
+          { key: 'plantilla', label: 'Plantilla de Cierre GPF', icon: <Table size={14} /> },
+          { key: 'tipos',     label: 'Tipos de Llamada',         icon: <PhoneCall size={14} /> },
+        ]}
+      />
+      {subTab === 'plantilla' ? <PlantillaGPFTab /> : <CallTypesTab />}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// VOCABULARIO DE TRANSCRIPCIÓN
+// ═══════════════════════════════════════════════════════════════
+
+const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
+  banco:              { label: 'Banco / Tarjetas',       color: 'bg-blue-500/15 text-blue-300 border-blue-500/30' },
+  sistemas:           { label: 'Sistemas Bancarios',      color: 'bg-purple-500/15 text-purple-300 border-purple-500/30' },
+  terminos_bancarios: { label: 'Términos Bancarios',      color: 'bg-brand-500/15 text-brand-300 border-brand-500/30' },
+  comercios:          { label: 'Comercios',               color: 'bg-orange-500/15 text-orange-300 border-orange-500/30' },
+  codigos_bloqueo:    { label: 'Códigos de Bloqueo',      color: 'bg-red-500/15 text-red-300 border-red-500/30' },
+  nombres:            { label: 'Apellidos',               color: 'bg-pink-500/15 text-pink-300 border-pink-500/30' },
+  ciudades:           { label: 'Ciudades',                color: 'bg-teal-500/15 text-teal-300 border-teal-500/30' },
+  call_center:        { label: 'Call Center',             color: 'bg-slate-500/15 text-slate-300 border-slate-500/30' },
+  frases:             { label: 'Frases',                  color: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30' },
+};
+
+function CategoryBadge({ category }: { category: string }) {
+  const meta = CATEGORY_LABELS[category] ?? { label: category, color: 'bg-slate-500/15 text-slate-300 border-slate-500/30' };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${meta.color}`}>
+      {meta.label}
+    </span>
+  );
+}
+
+function VocabularioTab() {
+  const [terms, setTerms] = useState<WordBoostTerm[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newTerm, setNewTerm] = useState('');
+  const [newCategory, setNewCategory] = useState('banco');
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await wordBoostService.getAll();
+      setTerms(data);
+    } catch {
+      toast.error('Error al cargar vocabulario');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleAdd = async () => {
+    if (!newTerm.trim()) return;
+    setSaving(true);
+    try {
+      await wordBoostService.create({ term: newTerm.trim(), category: newCategory });
+      toast.success('Término agregado');
+      setNewTerm('');
+      setShowAdd(false);
+      load();
+    } catch {
+      toast.error('Error al agregar término');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleActive = async (term: WordBoostTerm) => {
+    try {
+      await wordBoostService.update(term.id, { is_active: !term.is_active });
+      load();
+    } catch {
+      toast.error('Error al actualizar término');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await wordBoostService.remove(id);
+      toast.success('Término eliminado');
+      load();
+    } catch {
+      toast.error('Error al eliminar término');
+    }
+  };
+
+  const handleSaveEdit = async (id: string) => {
+    if (!editValue.trim()) return;
+    try {
+      await wordBoostService.update(id, { term: editValue.trim(), category: editCategory });
+      toast.success('Término actualizado');
+      setEditingId(null);
+      load();
+    } catch {
+      toast.error('Error al actualizar término');
+    }
+  };
+
+  const categories = Object.keys(CATEGORY_LABELS);
+  const filtered = filterCategory === 'all' ? terms : terms.filter(t => t.category === filterCategory);
+  const activeCount = terms.filter(t => t.is_active !== false).length;
+
+  if (loading) return <SkeletonLoader />;
+
+  return (
+    <div className="space-y-4">
+      {/* Encabezado */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm text-slate-400 leading-relaxed">
+            Términos que mejoran la precisión de transcripción de audio (AssemblyAI word boost).
+            <span className="ml-2 text-brand-400 font-medium">{activeCount} activos de {terms.length} total</span>
+          </p>
+        </div>
+        <button
+          onClick={() => setShowAdd(!showAdd)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
+                     bg-brand-500/10 border border-brand-500/30 text-brand-300
+                     hover:bg-brand-500/20 transition-all whitespace-nowrap"
+        >
+          <Plus size={14} /> Agregar término
+        </button>
+      </div>
+
+      {/* Formulario agregar */}
+      {showAdd && (
+        <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 flex flex-wrap gap-3 items-end">
+          <div className="flex-1 min-w-[180px]">
+            <label className="block text-xs text-slate-400 mb-1">Término</label>
+            <input
+              value={newTerm}
+              onChange={e => setNewTerm(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAdd()}
+              placeholder="ej: Bradescard"
+              className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200
+                         focus:outline-none focus:border-brand-500/50 placeholder:text-slate-600"
+            />
+          </div>
+          <div className="min-w-[180px]">
+            <label className="block text-xs text-slate-400 mb-1">Categoría</label>
+            <select
+              value={newCategory}
+              onChange={e => setNewCategory(e.target.value)}
+              className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200
+                         focus:outline-none focus:border-brand-500/50"
+            >
+              {categories.map(c => (
+                <option key={c} value={c}>{CATEGORY_LABELS[c].label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleAdd}
+              disabled={saving || !newTerm.trim()}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold
+                         bg-brand-500/15 border border-brand-500/40 text-brand-300
+                         hover:bg-brand-500/25 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+              Guardar
+            </button>
+            <button
+              onClick={() => { setShowAdd(false); setNewTerm(''); }}
+              className="px-3 py-2 rounded-lg text-sm text-slate-400 border border-slate-700/40 hover:text-slate-200 transition-all"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Filtro de categoría */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => setFilterCategory('all')}
+          className={`px-3 py-1 rounded-lg text-xs font-medium border transition-all
+            ${filterCategory === 'all'
+              ? 'bg-slate-600/40 border-slate-500/50 text-slate-200'
+              : 'bg-slate-800/40 border-slate-700/40 text-slate-500 hover:text-slate-300'
+            }`}
+        >
+          Todos ({terms.length})
+        </button>
+        {categories.map(cat => {
+          const count = terms.filter(t => t.category === cat).length;
+          if (count === 0) return null;
+          return (
+            <button
+              key={cat}
+              onClick={() => setFilterCategory(cat)}
+              className={`px-3 py-1 rounded-lg text-xs font-medium border transition-all
+                ${filterCategory === cat
+                  ? 'bg-slate-600/40 border-slate-500/50 text-slate-200'
+                  : 'bg-slate-800/40 border-slate-700/40 text-slate-500 hover:text-slate-300'
+                }`}
+            >
+              {CATEGORY_LABELS[cat]?.label ?? cat} ({count})
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tabla */}
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={<Volume2 size={28} className="text-slate-600" />}
+          title="Sin términos"
+          description="Agrega términos para mejorar la transcripción"
+        />
+      ) : (
+        <div className="bg-slate-900/50 border border-slate-700/40 rounded-xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-700/40 bg-slate-800/40">
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-slate-400">Término</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-slate-400">Categoría</th>
+                <th className="text-center px-4 py-2.5 text-xs font-medium text-slate-400">Activo</th>
+                <th className="text-right px-4 py-2.5 text-xs font-medium text-slate-400">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((term, i) => (
+                <tr
+                  key={term.id}
+                  className={`border-b border-slate-800/40 transition-colors
+                    ${i % 2 === 0 ? 'bg-slate-900/20' : 'bg-slate-800/10'}
+                    ${term.is_active === false ? 'opacity-40' : ''}
+                  `}
+                >
+                  <td className="px-4 py-2.5">
+                    {editingId === term.id ? (
+                      <input
+                        value={editValue}
+                        onChange={e => setEditValue(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(term.id); if (e.key === 'Escape') setEditingId(null); }}
+                        autoFocus
+                        className="bg-slate-800 border border-brand-500/40 rounded-lg px-2 py-1 text-sm text-slate-200
+                                   focus:outline-none focus:border-brand-400/60 w-full max-w-[200px]"
+                      />
+                    ) : (
+                      <span className="text-slate-200 font-mono text-xs">{term.term}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    {editingId === term.id ? (
+                      <select
+                        value={editCategory}
+                        onChange={e => setEditCategory(e.target.value)}
+                        className="bg-slate-800 border border-slate-600/40 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none"
+                      >
+                        {categories.map(c => (
+                          <option key={c} value={c}>{CATEGORY_LABELS[c].label}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <CategoryBadge category={term.category} />
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-center">
+                    <button onClick={() => handleToggleActive(term)} className="transition-opacity hover:opacity-80">
+                      {term.is_active !== false
+                        ? <ToggleRight size={20} className="text-brand-400" />
+                        : <ToggleLeft size={20} className="text-slate-600" />
+                      }
+                    </button>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center justify-end gap-1">
+                      {editingId === term.id ? (
+                        <>
+                          <button
+                            onClick={() => handleSaveEdit(term.id)}
+                            className="p-1.5 rounded-lg bg-brand-500/10 border border-brand-500/30 text-brand-400 hover:bg-brand-500/20 transition-all"
+                          >
+                            <Check size={13} />
+                          </button>
+                          <button
+                            onClick={() => setEditingId(null)}
+                            className="p-1.5 rounded-lg bg-slate-700/40 border border-slate-600/30 text-slate-400 hover:text-slate-200 transition-all"
+                          >
+                            <X size={13} />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => { setEditingId(term.id); setEditValue(term.term); setEditCategory(term.category); }}
+                            className="p-1.5 rounded-lg bg-slate-700/40 border border-slate-600/30 text-slate-400 hover:text-slate-200 transition-all"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(term.id)}
+                            className="p-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SISTEMAS DE IMAGEN
+// ═══════════════════════════════════════════════════════════════
+
+function ImageSystemsTab() {
+  const [systems, setSystems] = useState<ImageSystem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editData, setEditData] = useState<Partial<ImageSystem>>({});
+  const [saving, setSaving] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newSystem, setNewSystem] = useState({ system_name: '', description: '', detection_hints: '' });
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await imageSystemsService.getAll();
+      setSystems(data);
+    } catch {
+      toast.error('Error al cargar sistemas de imagen');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleToggleActive = async (sys: ImageSystem) => {
+    try {
+      await imageSystemsService.update(sys.id, { is_active: !sys.is_active });
+      load();
+    } catch {
+      toast.error('Error al actualizar sistema');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await imageSystemsService.remove(id);
+      toast.success('Sistema eliminado');
+      load();
+    } catch {
+      toast.error('Error al eliminar sistema');
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingId) return;
+    setSaving(true);
+    try {
+      await imageSystemsService.update(editingId, editData);
+      toast.success('Sistema actualizado');
+      setEditingId(null);
+      setEditData({});
+      load();
+    } catch {
+      toast.error('Error al actualizar sistema');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddSystem = async () => {
+    if (!newSystem.system_name.trim() || !newSystem.description.trim()) {
+      toast.error('Nombre y descripción son requeridos');
+      return;
+    }
+    setSaving(true);
+    try {
+      await imageSystemsService.create({
+        system_name: newSystem.system_name.trim().toUpperCase(),
+        description: newSystem.description.trim(),
+        detection_hints: newSystem.detection_hints.trim() || undefined,
+        fields_schema: [],
+        display_order: systems.length + 1,
+      });
+      toast.success('Sistema agregado');
+      setShowAdd(false);
+      setNewSystem({ system_name: '', description: '', detection_hints: '' });
+      load();
+    } catch {
+      toast.error('Error al agregar sistema');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleFieldUpdate = (sysId: string, fields: ImageSystemField[]) => {
+    imageSystemsService.update(sysId, { fields_schema: fields })
+      .then(() => load())
+      .catch(() => toast.error('Error al actualizar campos'));
+  };
+
+  if (loading) return <SkeletonLoader />;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <p className="text-sm text-slate-400 leading-relaxed">
+          Sistemas detectados en capturas de pantalla bancarias. Definen qué campos extrae la IA de cada imagen.
+        </p>
+        <button
+          onClick={() => setShowAdd(!showAdd)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
+                     bg-purple-500/10 border border-purple-500/30 text-purple-300
+                     hover:bg-purple-500/20 transition-all whitespace-nowrap"
+        >
+          <Plus size={14} /> Nuevo sistema
+        </button>
+      </div>
+
+      {/* Formulario nuevo sistema */}
+      {showAdd && (
+        <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 space-y-3">
+          <p className="text-xs font-semibold text-slate-300">Nuevo sistema de imagen</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Nombre del sistema</label>
+              <input
+                value={newSystem.system_name}
+                onChange={e => setNewSystem(p => ({ ...p, system_name: e.target.value }))}
+                placeholder="ej: FALCON"
+                className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200
+                           focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Descripción corta</label>
+              <input
+                value={newSystem.description}
+                onChange={e => setNewSystem(p => ({ ...p, description: e.target.value }))}
+                placeholder="ej: Casos de fraude, números de caso..."
+                className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200
+                           focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Pistas de detección (opcional)</label>
+            <input
+              value={newSystem.detection_hints}
+              onChange={e => setNewSystem(p => ({ ...p, detection_hints: e.target.value }))}
+              placeholder="Texto que aparece en el PASO 1 del prompt de análisis"
+              className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200
+                         focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
+            />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => setShowAdd(false)}
+              className="px-3 py-1.5 rounded-lg text-sm text-slate-400 border border-slate-700/40 hover:text-slate-200 transition-all"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleAddSystem}
+              disabled={saving}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold
+                         bg-purple-500/15 border border-purple-500/40 text-purple-300
+                         hover:bg-purple-500/25 transition-all disabled:opacity-40"
+            >
+              {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+              Crear sistema
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Lista de sistemas */}
+      {systems.length === 0 ? (
+        <EmptyState
+          icon={<Monitor size={28} className="text-slate-600" />}
+          title="Sin sistemas configurados"
+          description="Agrega sistemas para que la IA pueda detectarlos en imágenes"
+        />
+      ) : (
+        <div className="space-y-3">
+          {systems.map(sys => (
+            <ImageSystemCard
+              key={sys.id}
+              system={sys}
+              expanded={expandedId === sys.id}
+              onToggleExpand={() => setExpandedId(expandedId === sys.id ? null : sys.id)}
+              editing={editingId === sys.id}
+              editData={editData}
+              onStartEdit={() => { setEditingId(sys.id); setEditData({ description: sys.description, detection_hints: sys.detection_hints ?? '' }); }}
+              onCancelEdit={() => { setEditingId(null); setEditData({}); }}
+              onSaveEdit={handleSaveEdit}
+              onEditDataChange={setEditData}
+              onToggleActive={() => handleToggleActive(sys)}
+              onDelete={() => handleDelete(sys.id)}
+              onFieldsChange={(fields) => handleFieldUpdate(sys.id, fields)}
+              saving={saving}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ImageSystemCardProps {
+  system: ImageSystem;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  editing: boolean;
+  editData: Partial<ImageSystem>;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onSaveEdit: () => void;
+  onEditDataChange: (d: Partial<ImageSystem>) => void;
+  onToggleActive: () => void;
+  onDelete: () => void;
+  onFieldsChange: (fields: ImageSystemField[]) => void;
+  saving: boolean;
+}
+
+function ImageSystemCard({
+  system, expanded, onToggleExpand, editing, editData, onStartEdit, onCancelEdit,
+  onSaveEdit, onEditDataChange, onToggleActive, onDelete, onFieldsChange, saving,
+}: ImageSystemCardProps) {
+  const [newField, setNewField] = useState<ImageSystemField>({ field_name: '', description: '', example: '' });
+  const [showAddField, setShowAddField] = useState(false);
+
+  const fields: ImageSystemField[] = Array.isArray(system.fields_schema) ? system.fields_schema : [];
+
+  const handleAddField = () => {
+    if (!newField.field_name.trim() || !newField.description.trim()) return;
+    onFieldsChange([...fields, { ...newField, field_name: newField.field_name.trim(), description: newField.description.trim(), example: newField.example?.trim() || undefined }]);
+    setNewField({ field_name: '', description: '', example: '' });
+    setShowAddField(false);
+  };
+
+  const handleRemoveField = (idx: number) => {
+    onFieldsChange(fields.filter((_, i) => i !== idx));
+  };
+
+  return (
+    <div className={`bg-slate-900/50 border rounded-xl overflow-hidden transition-all
+      ${system.is_active !== false ? 'border-slate-700/40' : 'border-slate-800/40 opacity-60'}`}>
+      {/* Cabecera */}
+      <div className="flex items-center gap-3 px-4 py-3">
+        <button onClick={onToggleExpand} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+          <ChevronRight
+            size={16}
+            className={`text-slate-500 transition-transform shrink-0 ${expanded ? 'rotate-90' : ''}`}
+          />
+          <span className="font-mono font-bold text-sm text-purple-300 bg-purple-500/10 border border-purple-500/25 px-2 py-0.5 rounded-md shrink-0">
+            {system.system_name}
+          </span>
+          {!editing && (
+            <span className="text-slate-400 text-sm truncate">{system.description}</span>
+          )}
+          <span className="text-xs text-slate-600 shrink-0">({fields.length} campos)</span>
+        </button>
+        {/* Acciones */}
+        <div className="flex items-center gap-1 shrink-0">
+          <button onClick={onToggleActive} className="transition-opacity hover:opacity-80">
+            {system.is_active !== false
+              ? <ToggleRight size={20} className="text-brand-400" />
+              : <ToggleLeft size={20} className="text-slate-600" />
+            }
+          </button>
+          {!editing && (
+            <button
+              onClick={onStartEdit}
+              className="p-1.5 rounded-lg bg-slate-700/40 border border-slate-600/30 text-slate-400 hover:text-slate-200 transition-all"
+            >
+              <Pencil size={13} />
+            </button>
+          )}
+          <button
+            onClick={onDelete}
+            className="p-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+      </div>
+
+      {/* Edición de metadatos */}
+      {editing && (
+        <div className="px-4 pb-3 pt-1 border-t border-slate-800/60 space-y-2">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Descripción</label>
+            <input
+              value={editData.description ?? ''}
+              onChange={e => onEditDataChange({ ...editData, description: e.target.value })}
+              className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200
+                         focus:outline-none focus:border-purple-500/50"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Pistas de detección (PASO 1 del prompt)</label>
+            <input
+              value={(editData.detection_hints as string) ?? ''}
+              onChange={e => onEditDataChange({ ...editData, detection_hints: e.target.value })}
+              className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200
+                         focus:outline-none focus:border-purple-500/50"
+            />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button onClick={onCancelEdit} className="px-3 py-1.5 rounded-lg text-xs text-slate-400 border border-slate-700/40 hover:text-slate-200 transition-all">
+              Cancelar
+            </button>
+            <button
+              onClick={onSaveEdit}
+              disabled={saving}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold
+                         bg-purple-500/15 border border-purple-500/40 text-purple-300
+                         hover:bg-purple-500/25 transition-all disabled:opacity-40"
+            >
+              {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+              Guardar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Campos expandidos */}
+      {expanded && (
+        <div className="border-t border-slate-800/60 px-4 pb-4 pt-3">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Campos extraídos</p>
+            <button
+              onClick={() => setShowAddField(!showAddField)}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium
+                         bg-purple-500/10 border border-purple-500/25 text-purple-400 hover:bg-purple-500/20 transition-all"
+            >
+              <Plus size={11} /> Agregar campo
+            </button>
+          </div>
+
+          {/* Formulario agregar campo */}
+          {showAddField && (
+            <div className="bg-slate-800/50 border border-slate-700/40 rounded-lg p-3 mb-3 grid grid-cols-3 gap-2">
+              <input
+                value={newField.field_name}
+                onChange={e => setNewField(p => ({ ...p, field_name: e.target.value }))}
+                placeholder="field_name"
+                className="bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1.5 text-xs text-slate-200 font-mono
+                           focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
+              />
+              <input
+                value={newField.description}
+                onChange={e => setNewField(p => ({ ...p, description: e.target.value }))}
+                placeholder="Descripción del campo"
+                className="bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1.5 text-xs text-slate-200
+                           focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
+              />
+              <div className="flex gap-1">
+                <input
+                  value={newField.example ?? ''}
+                  onChange={e => setNewField(p => ({ ...p, example: e.target.value }))}
+                  placeholder="Ejemplo (opcional)"
+                  className="flex-1 bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1.5 text-xs text-slate-200
+                             focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
+                />
+                <button
+                  onClick={handleAddField}
+                  disabled={!newField.field_name.trim() || !newField.description.trim()}
+                  className="px-2 py-1.5 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-400
+                             hover:bg-purple-500/25 transition-all disabled:opacity-40"
+                >
+                  <Check size={12} />
+                </button>
+                <button
+                  onClick={() => setShowAddField(false)}
+                  className="px-2 py-1.5 rounded-lg bg-slate-700/40 text-slate-400 hover:text-slate-200 transition-all"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {fields.length === 0 ? (
+            <p className="text-xs text-slate-600 text-center py-3">Sin campos definidos. Agrega campos para que la IA los extraiga.</p>
+          ) : (
+            <div className="bg-slate-950/40 rounded-lg overflow-hidden border border-slate-800/40">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-800/60 bg-slate-800/30">
+                    <th className="text-left px-3 py-2 text-slate-500 font-medium">Campo</th>
+                    <th className="text-left px-3 py-2 text-slate-500 font-medium">Descripción</th>
+                    <th className="text-left px-3 py-2 text-slate-500 font-medium">Ejemplo</th>
+                    <th className="px-3 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fields.map((f, idx) => (
+                    <tr key={idx} className="border-b border-slate-800/30 hover:bg-slate-800/20 transition-colors">
+                      <td className="px-3 py-2 font-mono text-purple-300/80">{f.field_name}</td>
+                      <td className="px-3 py-2 text-slate-300">{f.description}</td>
+                      <td className="px-3 py-2 text-slate-500 italic">{f.example || '—'}</td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          onClick={() => handleRemoveField(idx)}
+                          className="p-1 rounded text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TIPOS DE LLAMADA
+// ═══════════════════════════════════════════════════════════════
+
+function CallTypesTab() {
+  const [items, setItems] = useState<CallTypeConfig[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newModes, setNewModes] = useState<string[]>(['INBOUND', 'MONITOREO']);
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editModes, setEditModes] = useState<string[]>([]);
+
+  const ALL_MODES = ['INBOUND', 'MONITOREO'];
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await callTypesConfigService.getAll();
+      setItems(data);
+    } catch {
+      toast.error('Error al cargar tipos de llamada');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleAdd = async () => {
+    if (!newName.trim() || newModes.length === 0) {
+      toast.error('Nombre y al menos un modo son requeridos');
+      return;
+    }
+    setSaving(true);
+    try {
+      await callTypesConfigService.create({ name: newName.trim().toUpperCase(), modes: newModes });
+      toast.success('Tipo de llamada creado');
+      setNewName('');
+      setNewModes(['INBOUND', 'MONITOREO']);
+      setShowAdd(false);
+      load();
+    } catch {
+      toast.error('Error al crear tipo de llamada');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleActive = async (item: CallTypeConfig) => {
+    try {
+      await callTypesConfigService.update(item.id, { is_active: !item.is_active });
+      load();
+    } catch {
+      toast.error('Error al actualizar');
+    }
+  };
+
+  const handleSaveEdit = async (id: string) => {
+    if (!editName.trim()) return;
+    setSaving(true);
+    try {
+      await callTypesConfigService.update(id, { name: editName.trim().toUpperCase(), modes: editModes });
+      toast.success('Tipo actualizado');
+      setEditingId(null);
+      load();
+    } catch {
+      toast.error('Error al actualizar tipo');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await callTypesConfigService.remove(id);
+      toast.success('Tipo eliminado');
+      load();
+    } catch {
+      toast.error('Error al eliminar tipo');
+    }
+  };
+
+  const toggleMode = (mode: string, current: string[], setter: (v: string[]) => void) => {
+    setter(current.includes(mode) ? current.filter(m => m !== mode) : [...current, mode]);
+  };
+
+  if (loading) return <SkeletonLoader />;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm text-slate-400 leading-relaxed">
+            Tipos de llamada disponibles en el sistema. Usados para organizar criterios, scripts y plantilla GPF.
+          </p>
+          <div className="mt-2 flex items-center gap-2 text-xs text-amber-400/80 bg-amber-500/5 border border-amber-500/20 rounded-lg px-3 py-2">
+            <AlertTriangle size={12} />
+            Cambiar nombres puede afectar criterios, scripts y plantilla existentes.
+          </div>
+        </div>
+        <button
+          onClick={() => setShowAdd(!showAdd)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
+                     bg-teal-500/10 border border-teal-500/30 text-teal-300
+                     hover:bg-teal-500/20 transition-all whitespace-nowrap"
+        >
+          <Plus size={14} /> Nuevo tipo
+        </button>
+      </div>
+
+      {/* Formulario agregar */}
+      {showAdd && (
+        <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 space-y-3">
+          <p className="text-xs font-semibold text-slate-300">Nuevo tipo de llamada</p>
+          <div className="flex gap-3 items-end flex-wrap">
+            <div className="flex-1 min-w-[180px]">
+              <label className="block text-xs text-slate-400 mb-1">Nombre</label>
+              <input
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                placeholder="ej: FRAUDE INTERNACIONAL"
+                className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200
+                           focus:outline-none focus:border-teal-500/50 placeholder:text-slate-600"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Modos disponibles</label>
+              <div className="flex gap-2">
+                {ALL_MODES.map(m => (
+                  <button
+                    key={m}
+                    onClick={() => toggleMode(m, newModes, setNewModes)}
+                    className={`px-3 py-2 rounded-lg text-xs font-medium border transition-all
+                      ${newModes.includes(m)
+                        ? 'bg-teal-500/15 border-teal-500/40 text-teal-300'
+                        : 'bg-slate-800/40 border-slate-700/40 text-slate-500'
+                      }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleAdd}
+                disabled={saving || !newName.trim()}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold
+                           bg-teal-500/15 border border-teal-500/40 text-teal-300
+                           hover:bg-teal-500/25 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                Crear
+              </button>
+              <button
+                onClick={() => setShowAdd(false)}
+                className="px-3 py-2 rounded-lg text-sm text-slate-400 border border-slate-700/40 hover:text-slate-200 transition-all"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lista */}
+      {items.length === 0 ? (
+        <EmptyState
+          icon={<PhoneCall size={28} className="text-slate-600" />}
+          title="Sin tipos configurados"
+          description="Agrega tipos de llamada para organizar el sistema"
+        />
+      ) : (
+        <div className="space-y-2">
+          {items.map(item => (
+            <div
+              key={item.id}
+              className={`bg-slate-900/50 border rounded-xl px-4 py-3 flex items-center gap-3
+                ${item.is_active !== false ? 'border-slate-700/40' : 'border-slate-800/40 opacity-50'}`}
+            >
+              {editingId === item.id ? (
+                <>
+                  <input
+                    value={editName}
+                    onChange={e => setEditName(e.target.value)}
+                    className="flex-1 bg-slate-800 border border-slate-600/40 rounded-lg px-3 py-1.5 text-sm text-slate-200
+                               focus:outline-none focus:border-teal-500/40"
+                  />
+                  <div className="flex gap-1">
+                    {ALL_MODES.map(m => (
+                      <button
+                        key={m}
+                        onClick={() => toggleMode(m, editModes, setEditModes)}
+                        className={`px-2 py-1 rounded-lg text-xs font-medium border transition-all
+                          ${editModes.includes(m)
+                            ? 'bg-teal-500/15 border-teal-500/40 text-teal-300'
+                            : 'bg-slate-800/40 border-slate-700/40 text-slate-500'
+                          }`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => handleSaveEdit(item.id)}
+                    disabled={saving}
+                    className="p-1.5 rounded-lg bg-brand-500/10 border border-brand-500/30 text-brand-400 hover:bg-brand-500/20 transition-all"
+                  >
+                    {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                  </button>
+                  <button
+                    onClick={() => setEditingId(null)}
+                    className="p-1.5 rounded-lg bg-slate-700/40 border border-slate-600/30 text-slate-400 hover:text-slate-200 transition-all"
+                  >
+                    <X size={13} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="font-mono font-bold text-sm text-teal-300 bg-teal-500/10 border border-teal-500/25 px-3 py-1 rounded-lg">
+                    {item.name}
+                  </span>
+                  <div className="flex gap-1.5">
+                    {(item.modes || []).map(m => (
+                      <span key={m} className="text-xs text-slate-400 bg-slate-800/60 border border-slate-700/30 px-2 py-0.5 rounded-md">
+                        {m}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="ml-auto flex items-center gap-1">
+                    <button onClick={() => handleToggleActive(item)} className="transition-opacity hover:opacity-80">
+                      {item.is_active !== false
+                        ? <ToggleRight size={20} className="text-brand-400" />
+                        : <ToggleLeft size={20} className="text-slate-600" />
+                      }
+                    </button>
+                    <button
+                      onClick={() => { setEditingId(item.id); setEditName(item.name); setEditModes(item.modes || []); }}
+                      className="p-1.5 rounded-lg bg-slate-700/40 border border-slate-600/30 text-slate-400 hover:text-slate-200 transition-all"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(item.id)}
+                      className="p-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
