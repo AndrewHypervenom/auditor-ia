@@ -52,6 +52,7 @@ export interface EvaluationResult {
   audioConfidence?: number;
   criticalFailure?: boolean;
   failedCriticalCriteria?: string[];
+  dataWarnings?: string[];
 }
 
 export interface KeyMoment {

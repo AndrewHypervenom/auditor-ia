@@ -420,6 +420,25 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
         </div>
       )}
 
+      {safeResult.dataWarnings && safeResult.dataWarnings.length > 0 && (
+        <div className="flex items-start gap-3 p-3.5 rounded-xl border border-amber-400/30 bg-amber-950/20">
+          <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-amber-300 mb-1.5">
+              Problemas de calidad en los datos de la atención
+            </p>
+            <ul className="space-y-1">
+              {safeResult.dataWarnings.map((w: string, i: number) => (
+                <li key={i} className="text-xs text-amber-200/80 leading-relaxed flex items-start gap-1.5">
+                  <span className="text-amber-400 mt-0.5 flex-shrink-0">•</span>
+                  {w}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
       {/* ── 2. EVALUACIÓN DETALLADA ──────────────────────────────────────────── */}
       <div className="rounded-xl border border-dark-border overflow-hidden" style={{ background: 'linear-gradient(145deg, rgba(18,18,32,0.97), rgba(10,10,20,1))' }}>
 

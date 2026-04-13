@@ -2007,6 +2007,43 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  ? imageAnalyses.map(img => `${img.system}: ${JSON.stringify(img.data)}`).join('\n\n')
  : 'No se encontraron capturas para analizar';
 
+ // ── Diagnóstico de calidad de datos ─────────────────────────────────────
+ const dataWarnings: string[] = [];
+
+ // Imágenes idénticas (mismo tamaño de archivo)
+ if (localPaths.length > 1) {
+   const sizes = localPaths.map(p => { try { return fs.statSync(p).size; } catch { return 0; } });
+   const uniqueSizes = new Set(sizes.filter(s => s > 0));
+   if (uniqueSizes.size === 1) {
+     dataWarnings.push(
+       `Las ${localPaths.length} capturas son idénticas (${[...uniqueSizes][0].toLocaleString()} bytes c/u). ` +
+       `El agente posiblemente capturó solo la pantalla de inicio de sesión. La evidencia visual no pudo validarse.`
+     );
+   }
+ } else if (localPaths.length === 0) {
+   dataWarnings.push('No se encontraron capturas adjuntas a esta atención. Los criterios de evidencia visual no pueden evaluarse.');
+ }
+
+ // Todas las capturas clasificadas como sistema desconocido
+ if (imageAnalyses.length > 0 && imageAnalyses.every((i: any) => i.system === 'OTRO')) {
+   if (!dataWarnings.some(w => w.includes('capturas son idénticas'))) {
+     dataWarnings.push(
+       'Ninguna captura muestra pantallas operativas reconocibles (Falcon, VCAS, Vision, VRM, BI). ' +
+       'La evidencia visual no pudo asignarse a ningún sistema.'
+     );
+   }
+ }
+
+ // Datos GPF faltantes
+ const ao = attentionObject || {};
+ const missingGpf: string[] = [];
+ if (!ao['Comercio']) missingGpf.push('Comercio');
+ if (!ao['Fecha de la compra']) missingGpf.push('Fecha de la compra');
+ if (!ao['Monto de la compra']) missingGpf.push('Monto de la compra');
+ if (missingGpf.length > 0) {
+   dataWarnings.push(`Datos no registrados en GPF: ${missingGpf.join(', ')}.`);
+ }
+
  // ── 5. Obtener audio y transcribir (o generar transcript sintético) ──────
  progressBroadcaster.progress(sseClientId, 'audio', 57, '[AUDIO] Buscando grabacion de la llamada...');
 
@@ -2240,6 +2277,11 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  evaluation.usage?.inputTokens || 0,
  evaluation.usage?.outputTokens || 0
  );
+
+ // Adjuntar advertencias de calidad de datos al resultado
+ if (dataWarnings.length > 0) {
+   (evaluation as any).dataWarnings = dataWarnings;
+ }
 
  // ── 9. Persist to DB ─────────────────────────────────────────────────────
  const excelBase64 = excelResult.buffer.toString('base64');

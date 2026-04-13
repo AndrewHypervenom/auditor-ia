@@ -76,6 +76,7 @@ export interface EvaluationResult {
  totalTokens?: number; // Tokens totales usados
  criticalFailure?: boolean; // true si algún criterio crítico obtuvo 0
  failedCriticalCriteria?: string[]; // nombres de los criterios críticos que fallaron
+ dataWarnings?: string[]; // advertencias de calidad de datos (imágenes iguales, datos GPF faltantes, etc.)
 }
 
 /**
