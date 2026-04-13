@@ -3,7 +3,8 @@
 import ExcelJS from 'exceljs';
 import { logger } from '../utils/logger.js';
 import type { AuditInput, EvaluationResult } from '../types/index.js';
-import { getCriteriaForCallType, type EvaluationBlock } from '../config/evaluation-criteria.js';
+import type { EvaluationBlock } from '../config/evaluation-criteria.js';
+import { getDatabaseService } from './database.service.js';
 
 class ExcelService {
  // Helper para limpiar nombres de archivos
@@ -31,12 +32,14 @@ class ExcelService {
  const useMonitoreo = auditInput.excelType === 'MONITOREO' ||
  (!auditInput.excelType && (auditInput.callType || '').toUpperCase().includes('MONITOREO'));
 
+ const criteria = await getDatabaseService().getCriteriaForCallType(auditInput.callType) as EvaluationBlock[];
+
  if (useMonitoreo) {
  const sheet = workbook.addWorksheet('Monitoreo');
- this.createMonitoreoSheet(sheet, auditInput, evaluation);
+ this.createMonitoreoSheet(sheet, auditInput, evaluation, criteria);
  } else {
  const sheet = workbook.addWorksheet('Analisis');
- this.createAnalysisSheet(sheet, auditInput, evaluation);
+ this.createAnalysisSheet(sheet, auditInput, evaluation, criteria);
  }
 
  const cleanExecutiveId = this.sanitizeFilename(auditInput.executiveId);
@@ -61,9 +64,9 @@ class ExcelService {
  private createAnalysisSheet(
  sheet: ExcelJS.Worksheet,
  auditInput: AuditInput,
- evaluation: Omit<EvaluationResult, 'excelUrl'>
+ evaluation: Omit<EvaluationResult, 'excelUrl'>,
+ criteria: EvaluationBlock[]
  ) {
- const criteria = getCriteriaForCallType(auditInput.callType);
 
  // MEJORADO: Crear múltiples mapas para buscar coincidencias
  const evaluationMap = new Map<string, any>();
@@ -482,9 +485,9 @@ class ExcelService {
  private createMonitoreoSheet(
  sheet: ExcelJS.Worksheet,
  auditInput: AuditInput,
- evaluation: Omit<EvaluationResult, 'excelUrl'>
+ evaluation: Omit<EvaluationResult, 'excelUrl'>,
+ criteria: EvaluationBlock[]
  ) {
- const criteria = getCriteriaForCallType(auditInput.callType);
 
  // MEJORADO: Crear múltiples mapas para buscar coincidencias
  const evaluationMap = new Map<string, any>();
