@@ -672,9 +672,11 @@ class DatabaseService {
       .eq('is_active', true)
       .order('block_order', { ascending: true });
 
-    if (blocksError || !blocks || blocks.length === 0) {
-      logger.warn('Warning: could not load criteria blocks from DB', { callType, normalized, blocksError });
-      return [];
+    if (blocksError) {
+      throw new Error(`Error al cargar bloques de criterios desde la BD: ${blocksError.message}`);
+    }
+    if (!blocks || blocks.length === 0) {
+      throw new Error(`No hay bloques activos en la BD para call_type: "${normalized}" (original: "${callType}")`);
     }
 
     const blockIds = blocks.map((b: any) => b.id);
@@ -686,8 +688,7 @@ class DatabaseService {
       .order('criteria_order', { ascending: true });
 
     if (criteriaError) {
-      logger.warn('Warning: could not load criteria from DB', { criteriaError });
-      return [];
+      throw new Error(`Error al cargar criterios desde la BD: ${criteriaError.message}`);
     }
 
     // Mapear al formato EvaluationBlock[] que usa el evaluator
