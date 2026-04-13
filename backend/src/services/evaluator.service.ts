@@ -3,8 +3,7 @@
 import OpenAI from 'openai';
 import { logger } from '../utils/logger.js';
 import type { AuditInput, TranscriptResult, ImageAnalysis, EvaluationResult } from '../types/index.js';
-import { getCriteriaForCallType, type EvaluationBlock } from '../config/evaluation-criteria.js';
-import { getScriptForCallType } from '../config/scripts-content.js';
+import type { EvaluationBlock } from '../config/evaluation-criteria.js';
 import { getDatabaseService } from './database.service.js';
 import * as fs from 'fs';
 
@@ -54,14 +53,8 @@ class EvaluatorService {
  totalMentions: verbalEvidence.length
  });
 
- // PASO 3: Obtener criterios (primero desde BD, fallback a archivos estáticos)
- let criteria: EvaluationBlock[];
- try {
-   const dbCriteria = await getDatabaseService().getCriteriaForCallType(auditInput.callType);
-   criteria = dbCriteria.length > 0 ? (dbCriteria as EvaluationBlock[]) : getCriteriaForCallType(auditInput.callType);
- } catch {
-   criteria = getCriteriaForCallType(auditInput.callType);
- }
+ // PASO 3: Obtener criterios desde BD
+ const criteria = await getDatabaseService().getCriteriaForCallType(auditInput.callType) as EvaluationBlock[];
 
  // PASO 4: Evaluación con MATCHING MEJORADO
  const { evaluation, tokensUsed: evalTokens } = await this.evaluateWithEnhancedMatching(
@@ -467,21 +460,12 @@ EJEMPLO DE RESPUESTA CORRECTA:
 
  const maxPossibleScore = topicsToEvaluate.reduce((sum, t) => sum + t.maxScore, 0);
 
- // Cargar script desde BD (fallback a archivos estáticos)
- let scriptSteps: any;
- try {
-   const dbScripts = await getDatabaseService().getScriptsForCallType(auditInput.callType);
-   if (dbScripts.length > 0) {
-     scriptSteps = dbScripts.reduce((acc: any, s: any) => {
-       acc[s.step_key] = s.lines;
-       return acc;
-     }, {});
-   } else {
-     scriptSteps = getScriptForCallType(auditInput.callType);
-   }
- } catch {
-   scriptSteps = getScriptForCallType(auditInput.callType);
- }
+ // Cargar script desde BD
+ const dbScripts = await getDatabaseService().getScriptsForCallType(auditInput.callType);
+ const scriptSteps = dbScripts.reduce((acc: any, s: any) => {
+   acc[s.step_key] = s.lines;
+   return acc;
+ }, {});
 
  // Construir prompt con MATCHING MEJORADO
  const prompt = this.buildEnhancedMatchingPrompt(
@@ -494,14 +478,7 @@ EJEMPLO DE RESPUESTA CORRECTA:
  scriptSteps
  );
 
- let evaluationSystemPrompt: string;
- try {
-   const fromDb = await getDatabaseService().getPromptByKey('evaluation_system');
-   evaluationSystemPrompt = fromDb ?? this.getHardcodedEvaluationSystemPrompt();
- } catch {
-   logger.warn('[EVALUATOR] No se pudo cargar evaluation_system desde BD, usando fallback');
-   evaluationSystemPrompt = this.getHardcodedEvaluationSystemPrompt();
- }
+ const evaluationSystemPrompt = await getDatabaseService().getPromptByKey('evaluation_system') ?? '';
 
  const response = await this.client.chat.completions.create({
  model: 'gpt-5.4-mini',
@@ -623,7 +600,7 @@ SCRIPT OFICIAL DE REFERENCIA (${auditInput.callType})
 ╚═════════════════════════════════════╝
 
 PASOS OBLIGATORIOS DEL SCRIPT:
-${JSON.stringify(scriptSteps ?? getScriptForCallType(auditInput.callType), null, 2)}
+${JSON.stringify(scriptSteps, null, 2)}
 
 El agente debe seguir estos pasos en orden para cumplir el script.
 
@@ -1204,52 +1181,6 @@ CRITERIO:
  Si encuentras evidencia clara → PUNTOS COMPLETOS
  Si evidencia parcial → PUNTOS PARCIALES
  Si no hay evidencia → 0 puntos`;
- }
-
- private getHardcodedEvaluationSystemPrompt(): string {
-   return `Eres un auditor experto que evalúa con MÁXIMA PRECISIÓN basándose en EVIDENCIA CONCRETA.
-
-**FILOSOFÍA DE CALIFICACIÓN:**
-
-Si la evidencia está presente en los datos estructurados → OTORGA PUNTOS COMPLETOS
-Si la evidencia NO está presente → 0 puntos
-Si hay duda → Revisa toda la evidencia disponible antes de decidir
-
-**REGLAS DE MATCHING:**
-
-1. CAMPOS CRÍTICOS tienen prioridad absoluta:
- - has_case_number = true → Hay número de caso
- - has_blocked_status = true → La tarjeta está bloqueada
- - has_folio_number = true → El folio fue creado
- - has_fraud_checkboxes = true → Los checkboxes están marcados
- - has_transactions = true → Hay transacciones calificadas
-
-2. Para cada tópico, BUSCA la evidencia específica:
- - "Cierre correcto del caso" → Busca en transcripción menciones de pasos siguientes
- - "Creación y llenado correcto del caso" → Busca case_number + checkboxes + comentarios
- - "Bloquea tarjeta" → Busca account_status: BLOCKED o block_types_marked
- - "Crea el Folio Correctamente" → Busca folio_number y folio_created: true
-
-3. PENALIZA SOLO si la evidencia contradice el criterio:
- - Si dice "Bloquea tarjeta" pero account_status = "ACTIVE" → 0 puntos
- - Si dice "Crea folio" pero folio_created = false → 0 puntos
-
-4. NO PENALICES por ausencia de evidencia si el sistema no aplica:
- - Si no hay imagen de VRM → No se puede validar VRM
- - Si no hay imagen de BI → No se puede validar folio
-
-5. USA TODA LA EVIDENCIA:
- - Combina visual + verbal
- - Si el agente menciona algo en audio Y se ve en imagen → Puntos completos
- - Si solo está en uno → Evalúa si es suficiente
-
-**CRITERIO DE PUNTUACIÓN:**
-
-- Evidencia CLARA y COMPLETA → Puntos completos (100%)
-- Evidencia PARCIAL pero válida → Puntos parciales (50-80%)
-- SIN evidencia o evidencia contradictoria → 0 puntos
-
-**NO SEAS CONSERVADOR - SI LA EVIDENCIA EXISTE, ÚSALA**`;
  }
 
  private getSystemFromBlock(blockName: string): string {
