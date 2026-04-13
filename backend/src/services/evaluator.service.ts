@@ -56,10 +56,31 @@ class EvaluatorService {
  // PASO 3: Obtener criterios desde BD
  const criteria = await getDatabaseService().getCriteriaForCallType(auditInput.callType) as EvaluationBlock[];
 
+ // PASO 3b: Normalizar claves de evidencia visual — si el análisis de imágenes
+ // devolvió sistemas desconocidos (ej. "CICS"), redistribuir su evidencia entre
+ // los sistemas conocidos para que no quede perdida.
+ const knownSystems = new Set(criteria.map(b => this.getSystemFromBlock(b.blockName)));
+ const normalizedVisualEvidence: Record<string, any[]> = {};
+ const orphanImages: any[] = [];
+ for (const [sys, imgs] of Object.entries(visualEvidence)) {
+   if (knownSystems.has(sys)) {
+     normalizedVisualEvidence[sys] = imgs;
+   } else {
+     logger.warn(`Visual evidence under unknown system "${sys}" will be added to all known systems`);
+     orphanImages.push(...imgs);
+   }
+ }
+ // Añadir imágenes huérfanas a todos los sistemas conocidos para que la IA las vea
+ for (const sys of knownSystems) {
+   if (orphanImages.length > 0) {
+     normalizedVisualEvidence[sys] = [...(normalizedVisualEvidence[sys] || []), ...orphanImages];
+   }
+ }
+
  // PASO 4: Evaluación con MATCHING MEJORADO
  const { evaluation, tokensUsed: evalTokens } = await this.evaluateWithEnhancedMatching(
  criteria,
- visualEvidence,
+ normalizedVisualEvidence,
  verbalEvidence,
  transcript,
  auditInput
@@ -316,11 +337,18 @@ class EvaluatorService {
    return `# ${s.system_name}:\n${fieldLines}`;
   }).join('\n\n');
 
+  const systemNamesFormatted = systems.map((s: any) => `"${s.system_name}"`).join(', ');
+
   return `Analiza esta captura de pantalla de sistema bancario con MÁXIMA PRECISIÓN y EXTRAE TODOS LOS DATOS VISIBLES.
 
 **PASO 1: IDENTIFICA EL SISTEMA**
 
+Los sistemas posibles son: ${systemNamesFormatted}
+
+Pistas de detección por sistema:
 ${paso1Lines}
+
+IMPORTANTE: Si ves una pantalla de "Signon to CICS", "CICS login", o pantalla de inicio de sesión IBM, busca en el APPLID o en el contenido la pista del sistema real. Si no puedes determinar el sistema, elige el que más se acerque según los campos visibles. NUNCA devuelvas "CICS" como system — siempre elige uno de los sistemas listados arriba.
 
 **PASO 2: EXTRAE TODOS LOS CAMPOS VISIBLES**
 
@@ -345,7 +373,7 @@ Para cada hallazgo importante, márcalo en "critical_fields":
 
 \`\`\`json
 {
- "system": "${systemNames}",
+ "system": "<elige UNO de: ${systemNamesFormatted}>",
  "confidence": 0.95,
  "data": { "todos_los_campos": "valores_extraidos" },
  "critical_fields": { "has_case_number": true },
@@ -359,7 +387,8 @@ Para cada hallazgo importante, márcalo en "critical_fields":
 3. Si ves checkboxes marcados: LISTA TODOS
 4. Si ves transacciones: CUENTA CUÁNTAS
 5. NO inventes valores - usa null si no está visible
-6. SÉ ULTRA específico con cada dato`;
+6. SÉ ULTRA específico con cada dato
+7. El campo "system" DEBE ser exactamente uno de los valores listados — ni más ni menos`;
  }
 
 

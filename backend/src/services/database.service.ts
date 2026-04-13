@@ -693,18 +693,34 @@ class DatabaseService {
     }
 
     // Mapear al formato EvaluationBlock[] que usa el evaluator
-    const result = blocks.map((block: any) => ({
-      blockName: block.block_name,
-      topics: (criteria || [])
-        .filter((c: any) => c.block_id === block.id)
-        .map((c: any) => ({
+    // Deduplicar por block_name: si existen bloques con el mismo nombre,
+    // mantener solo el primero (menor block_order) y combinar sus criterios únicos.
+    const seenBlockNames = new Set<string>();
+    const criteriaByBlockId = new Map<string, any[]>();
+    for (const c of (criteria || [])) {
+      if (!criteriaByBlockId.has(c.block_id)) criteriaByBlockId.set(c.block_id, []);
+      criteriaByBlockId.get(c.block_id)!.push(c);
+    }
+
+    const result: any[] = [];
+    for (const block of blocks) {
+      if (seenBlockNames.has(block.block_name)) {
+        logger.warn(`getCriteriaForCallType: bloque duplicado ignorado → "${block.block_name}" (id: ${block.id})`);
+        continue;
+      }
+      seenBlockNames.add(block.block_name);
+      const blockCriteria = criteriaByBlockId.get(block.id) || [];
+      result.push({
+        blockName: block.block_name,
+        topics: blockCriteria.map((c: any) => ({
           topic: c.topic,
           criticality: c.criticality as 'Crítico' | '-',
           points: c.points === null ? 'n/a' : c.points,
           applies: c.applies,
           whatToLookFor: c.what_to_look_for || ''
         }))
-    }));
+      });
+    }
 
     this.criteriaCache.set(key, { data: result, timestamp: Date.now() });
     return result;
