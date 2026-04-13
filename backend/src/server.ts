@@ -1923,6 +1923,21 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  excelType: resolvedExcelType
  };
 
+ // Resolver el callType correcto usando la tabla plantilla_gpf
+ const calificacion = (attentionObject || {})['Calificación'] || '';
+ const subCalificacion = (attentionObject || {})['Sub-calificación'] || '';
+ if (calificacion) {
+   const resolvedCallType =
+     await databaseService.getCallTypeFromPlantilla(calificacion, subCalificacion || undefined)
+     ?? await databaseService.getCallTypeFromPlantilla(calificacion);
+   if (resolvedCallType) {
+     metadata.callType = resolvedCallType;
+     logger.info('[PASO 1] callType resuelto desde plantilla_gpf', { calificacion, subCalificacion, resolvedCallType });
+   } else {
+     logger.warn('[PASO 1] No se encontró callType en plantilla_gpf, se usa valor original', { calificacion, fallback: metadata.callType });
+   }
+ }
+
  logger.info('[PASO 1] Metadata de auditoria', {
  callType: metadata.callType,
  executiveName: metadata.executiveName,

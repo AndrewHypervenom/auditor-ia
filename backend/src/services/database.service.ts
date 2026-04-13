@@ -854,6 +854,26 @@ class DatabaseService {
     return data || [];
   }
 
+  /** Resuelve el call_type de evaluación consultando la tabla plantilla_gpf.
+   *  Busca por categoria (= Calificación) y opcionalmente tipo_cierre (= Sub-calificación).
+   *  Retorna null si no hay ninguna entrada activa que coincida.
+   */
+  async getCallTypeFromPlantilla(categoria: string, tipoCierre?: string): Promise<string | null> {
+    let query = supabaseAdmin
+      .from('plantilla_gpf')
+      .select('call_type')
+      .eq('is_active', true)
+      .ilike('categoria', categoria.trim()) as any;
+
+    if (tipoCierre) {
+      query = query.ilike('tipo_cierre', tipoCierre.trim());
+    }
+
+    const { data, error } = await query.limit(1).maybeSingle();
+    if (error || !data) return null;
+    return data.call_type as string;
+  }
+
   async createPlantillaItem(payload: {
     categoria: string;
     tipo_cierre: string;
