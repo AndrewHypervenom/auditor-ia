@@ -859,19 +859,48 @@ class DatabaseService {
    *  Retorna null si no hay ninguna entrada activa que coincida.
    */
   async getCallTypeFromPlantilla(categoria: string, tipoCierre?: string): Promise<string | null> {
-    let query = supabaseAdmin
-      .from('plantilla_gpf')
-      .select('call_type')
-      .eq('is_active', true)
-      .ilike('categoria', categoria.trim()) as any;
+    // Helper: normaliza texto para comparación flexible
+    const normalize = (s: string) => s.toUpperCase().trim()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-    if (tipoCierre) {
-      query = query.ilike('tipo_cierre', tipoCierre.trim());
+    // Traer todas las entradas activas y comparar en memoria para máxima flexibilidad
+    const { data, error } = await supabaseAdmin
+      .from('plantilla_gpf')
+      .select('categoria, tipo_cierre, call_type')
+      .eq('is_active', true);
+
+    if (error || !data || data.length === 0) return null;
+
+    const normCat = normalize(categoria);
+    const normTipo = tipoCierre ? normalize(tipoCierre) : null;
+
+    // Intento 1: coincidencia exacta en categoria + tipo_cierre
+    if (normTipo) {
+      const exact = data.find(r =>
+        normalize(r.categoria) === normCat && normalize(r.tipo_cierre) === normTipo
+      );
+      if (exact) return exact.call_type as string;
     }
 
-    const { data, error } = await query.limit(1).maybeSingle();
-    if (error || !data) return null;
-    return data.call_type as string;
+    // Intento 2: GPF contiene el texto de la plantilla (o viceversa) + tipo_cierre exacto
+    if (normTipo) {
+      const partial = data.find(r => {
+        const rCat = normalize(r.categoria);
+        const catMatch = normCat.includes(rCat) || rCat.includes(normCat);
+        const tipoMatch = normalize(r.tipo_cierre) === normTipo;
+        return catMatch && tipoMatch;
+      });
+      if (partial) return partial.call_type as string;
+    }
+
+    // Intento 3: solo categoria (exacta o parcial)
+    const catOnly = data.find(r => {
+      const rCat = normalize(r.categoria);
+      return normalize(r.categoria) === normCat || normCat.includes(rCat) || rCat.includes(normCat);
+    });
+    if (catOnly) return catOnly.call_type as string;
+
+    return null;
   }
 
   async createPlantillaItem(payload: {
