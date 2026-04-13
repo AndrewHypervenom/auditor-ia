@@ -77,12 +77,18 @@ const getAttentionEstado = (a: GpfAttention): string =>
 const parseDateForCompare = (dateStr: string): string => {
  if (!dateStr) return '';
  // Try d/m/yyyy or dd/mm/yyyy → yyyy-mm-dd
- const dmyMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
- if (dmyMatch) {
-  const [, d, m, y] = dmyMatch;
+ const slashMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+ if (slashMatch) {
+  const [, d, m, y] = slashMatch;
   return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
  }
- return dateStr.slice(0, 10); // take first 10 chars (ISO or similar)
+ // Try d-m-yyyy or dd-mm-yyyy → yyyy-mm-dd
+ const dashMatch = dateStr.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
+ if (dashMatch) {
+  const [, d, m, y] = dashMatch;
+  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+ }
+ return dateStr.slice(0, 10); // ISO or similar (yyyy-mm-dd or yyyy-mm-ddTHH:MM:SS)
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -167,8 +173,8 @@ export default function NewAuditPage() {
  return attentions.filter((a) => {
  if (!uniqueCalificaciones.includes(getAttentionCalificacion(a))) return false;
  const dateStr = parseDateForCompare(getAttentionDate(a));
- if (filterDateFrom && (!dateStr || dateStr < filterDateFrom)) return false;
- if (filterDateTo && (!dateStr || dateStr > filterDateTo)) return false;
+ if (filterDateFrom && dateStr && dateStr < filterDateFrom) return false;
+ if (filterDateTo && dateStr && dateStr > filterDateTo) return false;
  if (filterAgent && !getAttentionExecutive(a).toLowerCase().includes(filterAgent.toLowerCase())) return false;
  if (filterClient) {
  const term = filterClient.toLowerCase();
