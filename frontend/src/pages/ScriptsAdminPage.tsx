@@ -32,8 +32,9 @@ import {
   type AiPrompt,
 } from '../services/api';
 import PlantillaGPFTab from '../components/PlantillaGPFTab';
+import ModeSelector, { type AdminMode } from '../components/ModeSelector';
 
-const CALL_TYPES = ['FRAUDE', 'MONITOREO', 'TH CONFIRMA'];
+const INBOUND_CALL_TYPES = ['FRAUDE', 'TH CONFIRMA'] as const;
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -198,12 +199,13 @@ export default function ScriptsAdminPage() {
 interface CallTypeSelectorProps {
   selected: string;
   onChange: (ct: string) => void;
+  callTypes: readonly string[];
 }
 
-function CallTypeSelector({ selected, onChange }: CallTypeSelectorProps) {
+function CallTypeSelector({ selected, onChange, callTypes }: CallTypeSelectorProps) {
   return (
     <div className="flex items-center gap-2">
-      {CALL_TYPES.map((ct) => (
+      {callTypes.map((ct) => (
         <button
           key={ct}
           onClick={() => onChange(ct)}
@@ -225,7 +227,8 @@ function CallTypeSelector({ selected, onChange }: CallTypeSelectorProps) {
 function ScriptsTab() {
   const [scripts, setScripts] = useState<ScriptStep[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCallType, setSelectedCallType] = useState<string>(CALL_TYPES[0]);
+  const [mode, setMode] = useState<AdminMode>('INBOUND');
+  const [selectedCallType, setSelectedCallType] = useState<string>(INBOUND_CALL_TYPES[0]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -240,6 +243,11 @@ function ScriptsTab() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleModeChange = (newMode: AdminMode) => {
+    setMode(newMode);
+    setSelectedCallType(newMode === 'INBOUND' ? INBOUND_CALL_TYPES[0] : 'MONITOREO');
+  };
 
   const grouped = groupByCallType(scripts);
   const currentSteps = (grouped[selectedCallType] || []).sort((a, b) => a.step_order - b.step_order);
@@ -267,10 +275,17 @@ function ScriptsTab() {
 
   return (
     <div>
-      {/* Selector */}
+      {/* Selector de modo */}
       <div className="mb-4">
-        <CallTypeSelector selected={selectedCallType} onChange={setSelectedCallType} />
+        <ModeSelector selected={mode} onChange={handleModeChange} />
       </div>
+
+      {/* Selector de call type (solo en modo Inbound) */}
+      {mode === 'INBOUND' && (
+        <div className="mb-4">
+          <CallTypeSelector selected={selectedCallType} onChange={setSelectedCallType} callTypes={INBOUND_CALL_TYPES} />
+        </div>
+      )}
 
       <div className="space-y-3">
         {currentSteps.map((step) => (
@@ -604,7 +619,8 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
 function CriteriaTab() {
   const [blocks, setBlocks] = useState<CriteriaBlock[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCallType, setSelectedCallType] = useState<string>(CALL_TYPES[0]);
+  const [mode, setMode] = useState<AdminMode>('INBOUND');
+  const [selectedCallType, setSelectedCallType] = useState<string>(INBOUND_CALL_TYPES[0]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -619,6 +635,11 @@ function CriteriaTab() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleModeChange = (newMode: AdminMode) => {
+    setMode(newMode);
+    setSelectedCallType(newMode === 'INBOUND' ? INBOUND_CALL_TYPES[0] : 'MONITOREO');
+  };
 
   const grouped = groupByCallType(blocks);
   const currentBlocks = (grouped[selectedCallType] || []).sort((a, b) => a.block_order - b.block_order);
@@ -659,9 +680,18 @@ function CriteriaTab() {
 
   return (
     <div>
-      {/* Selector + Stat Chips */}
+      {/* Selector de modo */}
+      <div className="mb-4">
+        <ModeSelector selected={mode} onChange={handleModeChange} />
+      </div>
+
+      {/* Selector de call type (solo en modo Inbound) + Stat Chips */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <CallTypeSelector selected={selectedCallType} onChange={setSelectedCallType} />
+        {mode === 'INBOUND' ? (
+          <CallTypeSelector selected={selectedCallType} onChange={setSelectedCallType} callTypes={INBOUND_CALL_TYPES} />
+        ) : (
+          <div />
+        )}
 
         <div className="flex items-center gap-2 flex-wrap">
           <StatChip icon={BarChart2} label={`${totalPoints} pts`} color="blue" />
@@ -1256,6 +1286,7 @@ function SkeletonLoader() {
 function AiPromptsTab() {
   const [prompts, setPrompts] = useState<AiPrompt[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mode, setMode] = useState<AdminMode>('INBOUND');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1273,25 +1304,34 @@ function AiPromptsTab() {
 
   if (loading) return <SkeletonLoader />;
 
-  if (prompts.length === 0) {
-    return (
-      <EmptyState
-        icon={<Brain size={28} className="text-slate-600" />}
-        title="Sin prompts configurados"
-        description='Ejecuta "Cargar datos predeterminados" para inicializar los prompts desde los archivos estáticos.'
-      />
-    );
-  }
+  const filteredPrompts = prompts.filter((p) => p.call_type === mode);
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-slate-500 leading-relaxed">
-        Estos son los prompts enviados a la IA en cada etapa del proceso de auditoría.
-        Edítalos con cuidado — afectan directamente cómo la IA analiza imágenes, evalúa llamadas y corrige transcripciones.
-      </p>
-      {prompts.map((prompt) => (
-        <PromptEditor key={prompt.id} prompt={prompt} onUpdate={load} />
-      ))}
+      {/* Selector de modo */}
+      <ModeSelector selected={mode} onChange={setMode} />
+
+      {filteredPrompts.length === 0 ? (
+        <EmptyState
+          icon={<Brain size={28} className="text-slate-600" />}
+          title="Sin prompts configurados"
+          description={
+            mode === 'MONITOREO'
+              ? 'No hay prompts para Monitoreo aún. Crea registros en BD con call_type = MONITOREO.'
+              : 'Ejecuta "Cargar datos predeterminados" para inicializar los prompts desde los archivos estáticos.'
+          }
+        />
+      ) : (
+        <>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Estos son los prompts enviados a la IA en cada etapa del proceso de auditoría.
+            Edítalos con cuidado — afectan directamente cómo la IA analiza imágenes, evalúa llamadas y corrige transcripciones.
+          </p>
+          {filteredPrompts.map((prompt) => (
+            <PromptEditor key={prompt.id} prompt={prompt} onUpdate={load} />
+          ))}
+        </>
+      )}
     </div>
   );
 }

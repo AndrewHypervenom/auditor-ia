@@ -840,6 +840,7 @@ class DatabaseService {
     descripcion: string;
     categoria_orden: number;
     tipo_orden: number;
+    call_type: string;
   }): Promise<any> {
     const { data, error } = await supabaseAdmin
       .from('plantilla_gpf')
@@ -876,11 +877,12 @@ class DatabaseService {
     if (error) throw error;
   }
 
-  async renamePlantillaCategoria(oldName: string, newName: string): Promise<void> {
+  async renamePlantillaCategoria(oldName: string, newName: string, callType: string): Promise<void> {
     const { error } = await supabaseAdmin
       .from('plantilla_gpf')
       .update({ categoria: newName, updated_at: new Date().toISOString() })
-      .eq('categoria', oldName);
+      .eq('categoria', oldName)
+      .eq('call_type', callType);
     if (error) throw error;
   }
 

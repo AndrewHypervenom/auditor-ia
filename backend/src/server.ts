@@ -1125,9 +1125,12 @@ app.get('/api/admin/plantilla-gpf', authenticateUser, requireAdmin, async (req: 
 
 app.post('/api/admin/plantilla-gpf', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { categoria, tipo_cierre, descripcion, categoria_orden, tipo_orden } = req.body;
+    const { categoria, tipo_cierre, descripcion, categoria_orden, tipo_orden, call_type } = req.body;
     if (!categoria || !tipo_cierre) {
       return res.status(400).json({ error: 'categoria y tipo_cierre son requeridos' });
+    }
+    if (!call_type || !['INBOUND', 'MONITOREO'].includes(call_type)) {
+      return res.status(400).json({ error: 'call_type debe ser INBOUND o MONITOREO' });
     }
     const item = await databaseService.createPlantillaItem({
       categoria,
@@ -1135,6 +1138,7 @@ app.post('/api/admin/plantilla-gpf', authenticateUser, requireAdmin, async (req:
       descripcion: descripcion || '',
       categoria_orden: categoria_orden ?? 0,
       tipo_orden: tipo_orden ?? 0,
+      call_type,
     });
     res.status(201).json(item);
   } catch (error: any) {
@@ -1145,11 +1149,14 @@ app.post('/api/admin/plantilla-gpf', authenticateUser, requireAdmin, async (req:
 
 app.put('/api/admin/plantilla-gpf/rename-categoria', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { oldName, newName } = req.body;
+    const { oldName, newName, call_type } = req.body;
     if (!oldName || !newName) {
       return res.status(400).json({ error: 'oldName y newName son requeridos' });
     }
-    await databaseService.renamePlantillaCategoria(oldName, newName);
+    if (!call_type || !['INBOUND', 'MONITOREO'].includes(call_type)) {
+      return res.status(400).json({ error: 'call_type debe ser INBOUND o MONITOREO' });
+    }
+    await databaseService.renamePlantillaCategoria(oldName, newName, call_type);
     res.json({ success: true });
   } catch (error: any) {
     logger.error('Error renaming categoria:', error);

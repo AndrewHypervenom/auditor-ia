@@ -631,6 +631,7 @@ export interface PlantillaGPFItem {
   descripcion: string;
   categoria_orden: number;
   tipo_orden: number;
+  call_type: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -641,7 +642,7 @@ export const plantillaService = {
     const response = await api.get('/admin/plantilla-gpf');
     return response.data as PlantillaGPFItem[];
   },
-  async create(payload: { categoria: string; tipo_cierre: string; descripcion: string; categoria_orden: number; tipo_orden: number }) {
+  async create(payload: { categoria: string; tipo_cierre: string; descripcion: string; categoria_orden: number; tipo_orden: number; call_type: string }) {
     const response = await api.post('/admin/plantilla-gpf', payload);
     return response.data as PlantillaGPFItem;
   },
@@ -649,8 +650,8 @@ export const plantillaService = {
     const response = await api.put(`/admin/plantilla-gpf/${id}`, payload);
     return response.data as PlantillaGPFItem;
   },
-  async renameCategoria(oldName: string, newName: string) {
-    const response = await api.put('/admin/plantilla-gpf/rename-categoria', { oldName, newName });
+  async renameCategoria(oldName: string, newName: string, callType: string) {
+    const response = await api.put('/admin/plantilla-gpf/rename-categoria', { oldName, newName, call_type: callType });
     return response.data;
   },
   async remove(id: string) {
@@ -667,6 +668,7 @@ export interface AiPrompt {
   description: string | null;
   content: string;
   model: string | null;
+  call_type: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;

@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, Trash2, Check, X, ChevronDown, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { plantillaService, type PlantillaGPFItem } from '../services/api';
+import ModeSelector, { type AdminMode } from './ModeSelector';
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -23,6 +24,7 @@ function groupByCategoria(items: PlantillaGPFItem[]): Map<string, PlantillaGPFIt
 export default function PlantillaGPFTab() {
   const [items, setItems] = useState<PlantillaGPFItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mode, setMode] = useState<AdminMode>('INBOUND');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -38,12 +40,13 @@ export default function PlantillaGPFTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  const grouped = groupByCategoria(items);
+  const filteredItems = items.filter((i) => i.call_type === mode);
+  const grouped = groupByCategoria(filteredItems);
 
-  // Calcular el siguiente orden de categoría
+  // Calcular el siguiente orden de categoría dentro del modo actual
   const nextCategoriaOrden = () => {
-    if (items.length === 0) return 1;
-    return Math.max(...items.map((i) => i.categoria_orden)) + 1;
+    if (filteredItems.length === 0) return 1;
+    return Math.max(...filteredItems.map((i) => i.categoria_orden)) + 1;
   };
 
   const handleAddCategoria = async () => {
@@ -57,6 +60,7 @@ export default function PlantillaGPFTab() {
         descripcion: '',
         categoria_orden: catOrden,
         tipo_orden: 1,
+        call_type: mode,
       });
       toast.success('Categoría agregada');
       load();
@@ -76,8 +80,17 @@ export default function PlantillaGPFTab() {
 
   return (
     <div>
+      {/* ── Selector de modo ── */}
+      <div className="mb-5">
+        <ModeSelector selected={mode} onChange={setMode} />
+      </div>
+
       <p className="mb-5 text-sm text-slate-400 leading-relaxed">
-        Tabla editable de Cierre de GPF. La{' '}
+        Tabla editable de Cierre de GPF para{' '}
+        <span className={mode === 'INBOUND' ? 'text-teal-400 font-medium' : 'text-violet-400 font-medium'}>
+          {mode === 'INBOUND' ? 'Inbound' : 'Monitoreo'}
+        </span>
+        . La{' '}
         <span className="text-teal-400 font-medium">Calificación</span> corresponde a la Categoría y la{' '}
         <span className="text-teal-400 font-medium">Sub-calificación</span> al Tipo de Cierre.
         Estos datos se registran en cada auditoría GPF y se pasan al evaluador IA como contexto.
@@ -89,13 +102,14 @@ export default function PlantillaGPFTab() {
             key={categoria}
             categoria={categoria}
             items={catItems}
+            callType={mode}
             onUpdate={load}
           />
         ))}
 
         {grouped.size === 0 && (
           <div className="py-12 flex flex-col items-center gap-2 text-slate-500">
-            <p className="text-sm">Sin categorías definidas</p>
+            <p className="text-sm">Sin categorías definidas para {mode === 'INBOUND' ? 'Inbound' : 'Monitoreo'}</p>
           </div>
         )}
 
@@ -120,10 +134,11 @@ export default function PlantillaGPFTab() {
 interface CategoriaCardProps {
   categoria: string;
   items: PlantillaGPFItem[];
+  callType: string;
   onUpdate: () => void;
 }
 
-function CategoriaCard({ categoria, items, onUpdate }: CategoriaCardProps) {
+function CategoriaCard({ categoria, items, callType, onUpdate }: CategoriaCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(categoria);
@@ -135,7 +150,7 @@ function CategoriaCard({ categoria, items, onUpdate }: CategoriaCardProps) {
     setEditingName(false);
     if (nameValue.trim() === categoria) return;
     try {
-      await plantillaService.renameCategoria(categoria, nameValue.trim());
+      await plantillaService.renameCategoria(categoria, nameValue.trim(), callType);
       toast.success('Categoría renombrada');
       onUpdate();
     } catch {
@@ -164,6 +179,7 @@ function CategoriaCard({ categoria, items, onUpdate }: CategoriaCardProps) {
         descripcion: '',
         categoria_orden: items[0]?.categoria_orden ?? 0,
         tipo_orden: nextOrder,
+        call_type: callType,
       });
       toast.success('Tipo de cierre agregado');
       onUpdate();
