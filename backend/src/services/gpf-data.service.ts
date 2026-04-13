@@ -227,7 +227,7 @@ class GpfDataService {
  a['id_atencion'] || a.executive_id || attentionId
  ),
  callType:
- a['Llamada en curso'] || a['Calificación'] || a['Sub-calificación'] || 'GPF',
+ a['Calificación'] || a['Sub-calificación'] || 'GPF',
  calificacion: a['Calificación'] || undefined,
  subCalificacion: a['Sub-calificación'] || undefined,
  clientId: String(
