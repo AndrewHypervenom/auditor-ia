@@ -51,6 +51,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
     keyMoments: Array.isArray(result?.keyMoments) ? result.keyMoments : [],
     transcript: result?.transcript ?? '',
     audioConfidence: result?.audioConfidence,
+    dataWarnings: Array.isArray(result?.dataWarnings) ? result.dataWarnings : [],
   };
 
   // ── Cálculos en tiempo real ──────────────────────────────────────────────────
