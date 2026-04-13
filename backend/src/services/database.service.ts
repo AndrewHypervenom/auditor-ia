@@ -572,14 +572,15 @@ class DatabaseService {
   }
 
   async getScriptsForCallType(callType: string): Promise<any[]> {
-    const key = callType.toUpperCase();
+    const normalized = this.normalizeCallTypeForDB(callType);
+    const key = normalized.toUpperCase();
     const cached = this.scriptsCache.get(key);
     if (cached && this.isCacheValid(cached)) return cached.data;
 
     const { data, error } = await supabaseAdmin
       .from('call_scripts')
       .select('*')
-      .eq('call_type', callType)
+      .eq('call_type', normalized)
       .eq('is_active', true)
       .order('step_order', { ascending: true });
 

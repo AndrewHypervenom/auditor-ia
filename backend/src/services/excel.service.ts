@@ -32,7 +32,12 @@ class ExcelService {
  const useMonitoreo = auditInput.excelType === 'MONITOREO' ||
  (!auditInput.excelType && (auditInput.callType || '').toUpperCase().includes('MONITOREO'));
 
- const criteria = await getDatabaseService().getCriteriaForCallType(auditInput.callType) as EvaluationBlock[];
+ let criteria: EvaluationBlock[] = [];
+ try {
+ criteria = await getDatabaseService().getCriteriaForCallType(auditInput.callType) as EvaluationBlock[];
+ } catch (err: any) {
+ logger.warn('Excel: no se encontraron criterios en BD para generar el reporte', { callType: auditInput.callType, error: err.message });
+ }
 
  if (useMonitoreo) {
  const sheet = workbook.addWorksheet('Monitoreo');
@@ -98,8 +103,8 @@ class ExcelService {
  mappedKeys: Array.from(evaluationMap.keys())
  });
 
- // Color principal del encabezado
- const HEADER_COLOR = 'FF2563EB';
+ // Color principal del encabezado — verde de marca S+
+ const HEADER_COLOR = 'FF10B981';
  const WHITE_FONT = 'FFFFFFFF';
 
  // Estilos reutilizables
@@ -519,8 +524,8 @@ class ExcelService {
  mappedKeys: Array.from(evaluationMap.keys())
  });
 
- // Color principal del encabezado (rojo rosado como en Monitoreo.xlsx: #B42648)
- const HEADER_COLOR = 'FFB42648';
+ // Color principal del encabezado — verde de marca S+
+ const HEADER_COLOR = 'FF10B981';
  const WHITE_FONT = 'FFFFFFFF';
 
  // Estilos reutilizables

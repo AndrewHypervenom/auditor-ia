@@ -568,14 +568,16 @@ IMPORTANTE: Revisa TODA la evidencia (visual + verbal) antes de calificar.
 FORMATO DE RESPUESTA
 ╚═════════════════════════════════════╝
 
+REGLA CRÍTICA: En el JSON, los campos "block" y "topic" deben ser EXACTAMENTE iguales a los nombres que aparecen en la sección TÓPICOS A EVALUAR (campo "Bloque:" y el título numerado del tópico). No abrevies, no traduzcas, no modifiques mayúsculas/minúsculas.
+
 Responde con JSON válido siguiendo este formato:
 
 \`\`\`json
 {
  "evaluations": [
  {
- "block": "Nombre del bloque",
- "topic": "Nombre del tópico",
+ "block": "<nombre exacto del campo Bloque del tópico>",
+ "topic": "<nombre exacto del tópico numerado>",
  "score": 0 o puntos_completos o puntos_parciales,
  "max_score": puntos_maximos,
  "justification": "EVIDENCIA CONCRETA ENCONTRADA: [cita campos específicos]. Por lo tanto, [conclusión].",
@@ -615,7 +617,8 @@ Responde con JSON válido siguiendo este formato:
 4. Si otorgas 0 puntos, explica QUÉ evidencia faltó
 5. Si otorgas puntos completos, explica QUÉ evidencia lo sustenta
 6. NO seas conservador si la evidencia existe
-7. SÉ preciso y específico en cada evaluación`;
+7. SÉ preciso y específico en cada evaluación
+8. En "block" y "topic" usa el texto EXACTO como aparece en la sección TÓPICOS A EVALUAR. No cambies mayúsculas, tildes ni abrevies.`;
  }
 
  // Matching rules are now driven entirely by the 'whatToLookFor' field in evaluation_criteria (BD).

@@ -234,7 +234,7 @@ class GpfDataService {
  a['Socio'] || a['Caso'] || a.client_id || ''
  ),
  callDate:
- a['Fecha de la compra'] || a.call_date || new Date().toISOString().split('T')[0],
+ a['Fecha de la atención'] || a['Fecha de la llamada'] || a['Fecha'] || a['Fecha de la compra'] || a.call_date || new Date().toISOString().split('T')[0],
  callDuration: null,
  audioPath: 'gpf-sourced',
  imagePaths: []
