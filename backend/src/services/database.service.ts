@@ -843,6 +843,7 @@ class DatabaseService {
     categoria_orden: number;
     tipo_orden: number;
     call_type: string;
+    mode: string;
   }): Promise<any> {
     const { data, error } = await supabaseAdmin
       .from('plantilla_gpf')
@@ -879,12 +880,13 @@ class DatabaseService {
     if (error) throw error;
   }
 
-  async renamePlantillaCategoria(oldName: string, newName: string, callType: string): Promise<void> {
+  async renamePlantillaCategoria(oldName: string, newName: string, callType: string, mode: string): Promise<void> {
     const { error } = await supabaseAdmin
       .from('plantilla_gpf')
       .update({ categoria: newName, updated_at: new Date().toISOString() })
       .eq('categoria', oldName)
-      .eq('call_type', callType);
+      .eq('call_type', callType)
+      .eq('mode', mode);
     if (error) throw error;
   }
 
@@ -1012,7 +1014,7 @@ export const databaseService = {
   getAllPlantillaGPF: () => getDatabaseService().getAllPlantillaGPF(),
   createPlantillaItem: (payload: Parameters<DatabaseService['createPlantillaItem']>[0]) => getDatabaseService().createPlantillaItem(payload),
   updatePlantillaItem: (id: string, payload: Parameters<DatabaseService['updatePlantillaItem']>[1]) => getDatabaseService().updatePlantillaItem(id, payload),
-  renamePlantillaCategoria: (oldName: string, newName: string, callType: string) => getDatabaseService().renamePlantillaCategoria(oldName, newName, callType),
+  renamePlantillaCategoria: (oldName: string, newName: string, callType: string, mode: string) => getDatabaseService().renamePlantillaCategoria(oldName, newName, callType, mode),
   deletePlantillaItem: (id: string) => getDatabaseService().deletePlantillaItem(id),
   // AI Prompts
   getPromptByKey: (key: string) => getDatabaseService().getPromptByKey(key),

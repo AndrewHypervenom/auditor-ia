@@ -1127,12 +1127,15 @@ app.get('/api/admin/plantilla-gpf', authenticateUser, requireAdmin, async (req: 
 
 app.post('/api/admin/plantilla-gpf', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { categoria, tipo_cierre, descripcion, categoria_orden, tipo_orden, call_type } = req.body;
+    const { categoria, tipo_cierre, descripcion, categoria_orden, tipo_orden, call_type, mode } = req.body;
     if (!categoria || !tipo_cierre) {
       return res.status(400).json({ error: 'categoria y tipo_cierre son requeridos' });
     }
-    if (!call_type || !['INBOUND', 'MONITOREO'].includes(call_type)) {
-      return res.status(400).json({ error: 'call_type debe ser INBOUND o MONITOREO' });
+    if (!call_type || !['FRAUDE', 'TH CONFIRMA'].includes(call_type)) {
+      return res.status(400).json({ error: 'call_type debe ser FRAUDE o TH CONFIRMA' });
+    }
+    if (!mode || !['INBOUND', 'MONITOREO'].includes(mode)) {
+      return res.status(400).json({ error: 'mode debe ser INBOUND o MONITOREO' });
     }
     const item = await databaseService.createPlantillaItem({
       categoria,
@@ -1141,6 +1144,7 @@ app.post('/api/admin/plantilla-gpf', authenticateUser, requireAdmin, async (req:
       categoria_orden: categoria_orden ?? 0,
       tipo_orden: tipo_orden ?? 0,
       call_type,
+      mode,
     });
     res.status(201).json(item);
   } catch (error: any) {
@@ -1151,14 +1155,17 @@ app.post('/api/admin/plantilla-gpf', authenticateUser, requireAdmin, async (req:
 
 app.put('/api/admin/plantilla-gpf/rename-categoria', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { oldName, newName, call_type } = req.body;
+    const { oldName, newName, call_type, mode } = req.body;
     if (!oldName || !newName) {
       return res.status(400).json({ error: 'oldName y newName son requeridos' });
     }
-    if (!call_type || !['INBOUND', 'MONITOREO'].includes(call_type)) {
-      return res.status(400).json({ error: 'call_type debe ser INBOUND o MONITOREO' });
+    if (!call_type || !['FRAUDE', 'TH CONFIRMA'].includes(call_type)) {
+      return res.status(400).json({ error: 'call_type debe ser FRAUDE o TH CONFIRMA' });
     }
-    await databaseService.renamePlantillaCategoria(oldName, newName, call_type);
+    if (!mode || !['INBOUND', 'MONITOREO'].includes(mode)) {
+      return res.status(400).json({ error: 'mode debe ser INBOUND o MONITOREO' });
+    }
+    await databaseService.renamePlantillaCategoria(oldName, newName, call_type, mode);
     res.json({ success: true });
   } catch (error: any) {
     logger.error('Error renaming categoria:', error);

@@ -33,8 +33,7 @@ import {
 } from '../services/api';
 import PlantillaGPFTab from '../components/PlantillaGPFTab';
 import ModeSelector, { type AdminMode } from '../components/ModeSelector';
-
-const INBOUND_CALL_TYPES = ['FRAUDE', 'TH CONFIRMA'] as const;
+import CallTypeSelectorShared, { INBOUND_CALL_TYPES } from '../components/CallTypeSelector';
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -194,33 +193,6 @@ export default function ScriptsAdminPage() {
   );
 }
 
-// ─── Pill Selector de Call Type ───────────────────────────────
-
-interface CallTypeSelectorProps {
-  selected: string;
-  onChange: (ct: string) => void;
-  callTypes: readonly string[];
-}
-
-function CallTypeSelector({ selected, onChange, callTypes }: CallTypeSelectorProps) {
-  return (
-    <div className="flex items-center gap-2">
-      {callTypes.map((ct) => (
-        <button
-          key={ct}
-          onClick={() => onChange(ct)}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 ${
-            selected === ct
-              ? 'bg-brand-500/10 border-brand-700/40 text-brand-300 shadow-[0_0_12px_rgba(59,130,246,0.15)]'
-              : 'bg-transparent border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-300'
-          }`}
-        >
-          {ct}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 // ─── Tab: Scripts ────────────────────────────────────────────
 
@@ -278,7 +250,7 @@ function ScriptsTab() {
 
       {/* Selector de call type */}
       <div className="mb-4">
-        <CallTypeSelector selected={selectedCallType} onChange={setSelectedCallType} callTypes={INBOUND_CALL_TYPES} />
+        <CallTypeSelectorShared selected={selectedCallType} onChange={setSelectedCallType} />
       </div>
 
       <div className="space-y-3">
@@ -677,7 +649,7 @@ function CriteriaTab() {
 
       {/* Selector de call type + Stat Chips */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <CallTypeSelector selected={selectedCallType} onChange={setSelectedCallType} callTypes={INBOUND_CALL_TYPES} />
+        <CallTypeSelectorShared selected={selectedCallType} onChange={setSelectedCallType} />
 
         <div className="flex items-center gap-2 flex-wrap">
           <StatChip icon={BarChart2} label={`${totalPoints} pts`} color="blue" />
@@ -1273,6 +1245,7 @@ function AiPromptsTab() {
   const [prompts, setPrompts] = useState<AiPrompt[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<AdminMode>('INBOUND');
+  const [callType, setCallType] = useState('FRAUDE');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1290,12 +1263,15 @@ function AiPromptsTab() {
 
   if (loading) return <SkeletonLoader />;
 
-  const filteredPrompts = prompts.filter((p) => p.call_type === mode);
+  const filteredPrompts = prompts.filter((p) => p.mode === mode && p.call_type === callType);
 
   return (
     <div className="space-y-4">
       {/* Selector de modo */}
       <ModeSelector selected={mode} onChange={setMode} />
+
+      {/* Selector de call type */}
+      <CallTypeSelectorShared selected={callType} onChange={setCallType} />
 
       {filteredPrompts.length === 0 ? (
         <EmptyState

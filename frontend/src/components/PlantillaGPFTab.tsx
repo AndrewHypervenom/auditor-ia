@@ -6,6 +6,7 @@ import { Plus, Pencil, Trash2, Check, X, ChevronDown, Loader2 } from 'lucide-rea
 import toast from 'react-hot-toast';
 import { plantillaService, type PlantillaGPFItem } from '../services/api';
 import ModeSelector, { type AdminMode } from './ModeSelector';
+import CallTypeSelector from './CallTypeSelector';
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -25,6 +26,7 @@ export default function PlantillaGPFTab() {
   const [items, setItems] = useState<PlantillaGPFItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<AdminMode>('INBOUND');
+  const [callType, setCallType] = useState('FRAUDE');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -40,10 +42,9 @@ export default function PlantillaGPFTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  const filteredItems = items.filter((i) => i.call_type === mode);
+  const filteredItems = items.filter((i) => i.mode === mode && i.call_type === callType);
   const grouped = groupByCategoria(filteredItems);
 
-  // Calcular el siguiente orden de categoría dentro del modo actual
   const nextCategoriaOrden = () => {
     if (filteredItems.length === 0) return 1;
     return Math.max(...filteredItems.map((i) => i.categoria_orden)) + 1;
@@ -52,15 +53,15 @@ export default function PlantillaGPFTab() {
   const handleAddCategoria = async () => {
     const nombre = prompt('Nombre de la nueva categoría:');
     if (!nombre?.trim()) return;
-    const catOrden = nextCategoriaOrden();
     try {
       await plantillaService.create({
         categoria: nombre.trim(),
         tipo_cierre: 'Nuevo tipo de cierre',
         descripcion: '',
-        categoria_orden: catOrden,
+        categoria_orden: nextCategoriaOrden(),
         tipo_orden: 1,
-        call_type: mode,
+        call_type: callType,
+        mode,
       });
       toast.success('Categoría agregada');
       load();
@@ -80,9 +81,14 @@ export default function PlantillaGPFTab() {
 
   return (
     <div>
-      {/* ── Selector de modo ── */}
-      <div className="mb-5">
+      {/* Selector de modo */}
+      <div className="mb-4">
         <ModeSelector selected={mode} onChange={setMode} />
+      </div>
+
+      {/* Selector de call type */}
+      <div className="mb-5">
+        <CallTypeSelector selected={callType} onChange={setCallType} />
       </div>
 
       <p className="mb-5 text-sm text-slate-400 leading-relaxed">
@@ -90,10 +96,10 @@ export default function PlantillaGPFTab() {
         <span className={mode === 'INBOUND' ? 'text-teal-400 font-medium' : 'text-violet-400 font-medium'}>
           {mode === 'INBOUND' ? 'Inbound' : 'Monitoreo'}
         </span>
-        . La{' '}
-        <span className="text-teal-400 font-medium">Calificación</span> corresponde a la Categoría y la{' '}
+        {' — '}
+        <span className="text-brand-300 font-medium">{callType}</span>.
+        La <span className="text-teal-400 font-medium">Calificación</span> corresponde a la Categoría y la{' '}
         <span className="text-teal-400 font-medium">Sub-calificación</span> al Tipo de Cierre.
-        Estos datos se registran en cada auditoría GPF y se pasan al evaluador IA como contexto.
       </p>
 
       <div className="space-y-3">
@@ -102,18 +108,18 @@ export default function PlantillaGPFTab() {
             key={categoria}
             categoria={categoria}
             items={catItems}
-            callType={mode}
+            callType={callType}
+            mode={mode}
             onUpdate={load}
           />
         ))}
 
         {grouped.size === 0 && (
           <div className="py-12 flex flex-col items-center gap-2 text-slate-500">
-            <p className="text-sm">Sin categorías definidas para {mode === 'INBOUND' ? 'Inbound' : 'Monitoreo'}</p>
+            <p className="text-sm">Sin categorías para {mode === 'INBOUND' ? 'Inbound' : 'Monitoreo'} — {callType}</p>
           </div>
         )}
 
-        {/* Agregar categoría */}
         <button
           onClick={handleAddCategoria}
           className="flex items-center gap-2 w-full px-4 py-3 rounded-2xl
@@ -135,10 +141,11 @@ interface CategoriaCardProps {
   categoria: string;
   items: PlantillaGPFItem[];
   callType: string;
+  mode: string;
   onUpdate: () => void;
 }
 
-function CategoriaCard({ categoria, items, callType, onUpdate }: CategoriaCardProps) {
+function CategoriaCard({ categoria, items, callType, mode, onUpdate }: CategoriaCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(categoria);
@@ -150,7 +157,7 @@ function CategoriaCard({ categoria, items, callType, onUpdate }: CategoriaCardPr
     setEditingName(false);
     if (nameValue.trim() === categoria) return;
     try {
-      await plantillaService.renameCategoria(categoria, nameValue.trim(), callType);
+      await plantillaService.renameCategoria(categoria, nameValue.trim(), callType, mode);
       toast.success('Categoría renombrada');
       onUpdate();
     } catch {
@@ -180,6 +187,7 @@ function CategoriaCard({ categoria, items, callType, onUpdate }: CategoriaCardPr
         categoria_orden: items[0]?.categoria_orden ?? 0,
         tipo_orden: nextOrder,
         call_type: callType,
+        mode,
       });
       toast.success('Tipo de cierre agregado');
       onUpdate();
@@ -189,16 +197,12 @@ function CategoriaCard({ categoria, items, callType, onUpdate }: CategoriaCardPr
   };
 
   return (
-    <div
-      className="group bg-slate-900/60 border border-slate-800/60 rounded-2xl overflow-hidden
-                 transition-all duration-300 hover:border-slate-700/60 hover:bg-slate-900/80"
-    >
-      {/* ── Header ── */}
+    <div className="group bg-slate-900/60 border border-slate-800/60 rounded-2xl overflow-hidden
+                   transition-all duration-300 hover:border-slate-700/60 hover:bg-slate-900/80">
       <div
         className="flex items-center gap-4 px-5 py-4 cursor-pointer select-none"
         onClick={() => !editingName && setExpanded(!expanded)}
       >
-        {/* Nombre categoría */}
         <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
           {editingName ? (
             <div className="flex items-center gap-2">
@@ -228,28 +232,24 @@ function CategoriaCard({ categoria, items, callType, onUpdate }: CategoriaCardPr
           )}
         </div>
 
-        {/* Badge count */}
         <span className="flex-shrink-0 text-slate-500 text-xs tabular-nums">
           {sorted.length} {sorted.length === 1 ? 'tipo' : 'tipos'}
         </span>
 
-        {/* Acciones */}
         <div
           className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
           onClick={(e) => e.stopPropagation()}
         >
           <button
             onClick={() => setEditingName(true)}
-            className="p-2 rounded-xl text-slate-500 hover:text-teal-400 hover:bg-teal-500/10
-                       transition-all duration-150"
+            className="p-2 rounded-xl text-slate-500 hover:text-teal-400 hover:bg-teal-500/10 transition-all duration-150"
             title="Renombrar categoría"
           >
             <Pencil size={14} />
           </button>
           <button
             onClick={handleDeleteCategoria}
-            className="p-2 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10
-                       transition-all duration-150"
+            className="p-2 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150"
             title="Eliminar categoría"
           >
             <Trash2 size={14} />
@@ -262,10 +262,8 @@ function CategoriaCard({ categoria, items, callType, onUpdate }: CategoriaCardPr
         />
       </div>
 
-      {/* ── Filas expandibles ── */}
       {expanded && (
         <div className="border-t border-slate-800/60">
-          {/* Header de columnas */}
           <div className="grid grid-cols-[2fr_3fr_auto] gap-3 px-5 py-2 bg-slate-800/30">
             <span className="text-xs font-semibold text-teal-400/70 uppercase tracking-wider">Tipo de Cierre</span>
             <span className="text-xs font-semibold text-teal-400/70 uppercase tracking-wider">Descripción</span>
@@ -286,7 +284,6 @@ function CategoriaCard({ categoria, items, callType, onUpdate }: CategoriaCardPr
             ))}
           </div>
 
-          {/* Agregar tipo de cierre */}
           <div className="px-5 py-3">
             <button
               onClick={handleAddItem}
@@ -405,16 +402,14 @@ function ItemRow({ item, isEditing, onStartEdit, onCancelEdit, onSaved, onDelete
       <div className="flex items-center gap-0.5 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150">
         <button
           onClick={onStartEdit}
-          className="p-1.5 rounded-lg text-slate-500 hover:text-teal-400 hover:bg-teal-500/10
-                     transition-all duration-150"
+          className="p-1.5 rounded-lg text-slate-500 hover:text-teal-400 hover:bg-teal-500/10 transition-all duration-150"
           title="Editar"
         >
           <Pencil size={13} />
         </button>
         <button
           onClick={handleDelete}
-          className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10
-                     transition-all duration-150"
+          className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150"
           title="Eliminar"
         >
           <Trash2 size={13} />
