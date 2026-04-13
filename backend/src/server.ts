@@ -960,12 +960,13 @@ app.get('/api/admin/scripts/:callType', authenticateUser, requireAdmin, async (r
 
 app.post('/api/admin/scripts', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { call_type, step_key, step_label, step_order, lines } = req.body;
+    const { call_type, mode, step_key, step_label, step_order, lines } = req.body;
     if (!call_type || !step_key || !step_label) {
       return res.status(400).json({ error: 'call_type, step_key y step_label son requeridos' });
     }
     const script = await databaseService.createScript({
       call_type,
+      mode: mode ?? 'INBOUND',
       step_key,
       step_label,
       step_order: step_order ?? 0,
@@ -1017,12 +1018,13 @@ app.get('/api/admin/criteria', authenticateUser, requireAdmin, async (req: Reque
 
 app.post('/api/admin/blocks', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { call_type, block_name, block_order } = req.body;
+    const { call_type, mode, block_name, block_order } = req.body;
     if (!call_type || !block_name) {
       return res.status(400).json({ error: 'call_type y block_name son requeridos' });
     }
     const block = await databaseService.createBlock({
       call_type,
+      mode: mode ?? 'INBOUND',
       block_name,
       block_order: block_order ?? 0
     });

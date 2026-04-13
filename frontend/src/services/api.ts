@@ -554,7 +554,7 @@ export const criteriaService = {
     return response.data as CriteriaBlock[];
   },
   // Bloques
-  async createBlock(payload: { call_type: string; block_name: string; block_order: number }) {
+  async createBlock(payload: { call_type: string; mode: string; block_name: string; block_order: number }) {
     const response = await api.post('/admin/blocks', payload);
     return response.data as CriteriaBlock;
   },
@@ -587,6 +587,7 @@ export const criteriaService = {
 export interface ScriptStep {
   id: string;
   call_type: string;
+  mode: string;
   step_key: string;
   step_label: string;
   step_order: number;
@@ -599,6 +600,7 @@ export interface ScriptStep {
 export interface CriteriaBlock {
   id: string;
   call_type: string;
+  mode: string;
   block_name: string;
   block_order: number;
   is_active: boolean;

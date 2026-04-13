@@ -244,12 +244,7 @@ function ScriptsTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleModeChange = (newMode: AdminMode) => {
-    setMode(newMode);
-    setSelectedCallType(newMode === 'INBOUND' ? INBOUND_CALL_TYPES[0] : 'MONITOREO');
-  };
-
-  const grouped = groupByCallType(scripts);
+  const grouped = groupByCallType(scripts.filter((s) => s.mode === mode));
   const currentSteps = (grouped[selectedCallType] || []).sort((a, b) => a.step_order - b.step_order);
 
   const handleAddStep = async () => {
@@ -259,6 +254,7 @@ function ScriptsTab() {
     try {
       await scriptsService.create({
         call_type: selectedCallType,
+        mode,
         step_key: `paso_${newOrder}`,
         step_label: 'Nuevo paso',
         step_order: newOrder,
@@ -277,15 +273,13 @@ function ScriptsTab() {
     <div>
       {/* Selector de modo */}
       <div className="mb-4">
-        <ModeSelector selected={mode} onChange={handleModeChange} />
+        <ModeSelector selected={mode} onChange={setMode} />
       </div>
 
-      {/* Selector de call type (solo en modo Inbound) */}
-      {mode === 'INBOUND' && (
-        <div className="mb-4">
-          <CallTypeSelector selected={selectedCallType} onChange={setSelectedCallType} callTypes={INBOUND_CALL_TYPES} />
-        </div>
-      )}
+      {/* Selector de call type */}
+      <div className="mb-4">
+        <CallTypeSelector selected={selectedCallType} onChange={setSelectedCallType} callTypes={INBOUND_CALL_TYPES} />
+      </div>
 
       <div className="space-y-3">
         {currentSteps.map((step) => (
@@ -636,12 +630,7 @@ function CriteriaTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleModeChange = (newMode: AdminMode) => {
-    setMode(newMode);
-    setSelectedCallType(newMode === 'INBOUND' ? INBOUND_CALL_TYPES[0] : 'MONITOREO');
-  };
-
-  const grouped = groupByCallType(blocks);
+  const grouped = groupByCallType(blocks.filter((b) => b.mode === mode));
   const currentBlocks = (grouped[selectedCallType] || []).sort((a, b) => a.block_order - b.block_order);
 
   const totalPoints = currentBlocks.reduce((sum, block) => {
@@ -666,6 +655,7 @@ function CriteriaTab() {
     try {
       await criteriaService.createBlock({
         call_type: selectedCallType,
+        mode,
         block_name: 'Nuevo bloque',
         block_order: newOrder,
       });
@@ -682,16 +672,12 @@ function CriteriaTab() {
     <div>
       {/* Selector de modo */}
       <div className="mb-4">
-        <ModeSelector selected={mode} onChange={handleModeChange} />
+        <ModeSelector selected={mode} onChange={setMode} />
       </div>
 
-      {/* Selector de call type (solo en modo Inbound) + Stat Chips */}
+      {/* Selector de call type + Stat Chips */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        {mode === 'INBOUND' ? (
-          <CallTypeSelector selected={selectedCallType} onChange={setSelectedCallType} callTypes={INBOUND_CALL_TYPES} />
-        ) : (
-          <div />
-        )}
+        <CallTypeSelector selected={selectedCallType} onChange={setSelectedCallType} callTypes={INBOUND_CALL_TYPES} />
 
         <div className="flex items-center gap-2 flex-wrap">
           <StatChip icon={BarChart2} label={`${totalPoints} pts`} color="blue" />

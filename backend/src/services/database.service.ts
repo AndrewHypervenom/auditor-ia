@@ -605,6 +605,7 @@ class DatabaseService {
 
   async createScript(payload: {
     call_type: string;
+    mode: string;
     step_key: string;
     step_label: string;
     step_order: number;
@@ -735,6 +736,7 @@ class DatabaseService {
 
   async createBlock(payload: {
     call_type: string;
+    mode: string;
     block_name: string;
     block_order: number;
   }): Promise<any> {
