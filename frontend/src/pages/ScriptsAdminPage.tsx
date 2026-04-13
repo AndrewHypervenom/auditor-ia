@@ -59,7 +59,7 @@ export default function ScriptsAdminPage() {
 
         {/* ── Description ── */}
         <p className="mb-4 text-sm text-slate-400 leading-relaxed">
-          Edita los guiones de los agentes y las rúbricas de evaluación sin modificar el código.
+          Configura todo lo que define cómo opera el sistema: criterios de calificación, scripts de agentes, plantilla de cierre GPF y el comportamiento de la IA.
         </p>
 
 
