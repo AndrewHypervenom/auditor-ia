@@ -937,7 +937,7 @@ app.get('/api/admin/test/:service', authenticateUser, requireAdmin, async (req: 
 // SCRIPTS DINÁMICOS — CRUD
 // ============================================================
 
-app.get('/api/admin/scripts', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.get('/api/admin/scripts', authenticateUser, async (req: Request, res: Response) => {
   try {
     const scripts = await databaseService.getAllScripts();
     res.json(scripts);
@@ -947,7 +947,7 @@ app.get('/api/admin/scripts', authenticateUser, requireAdmin, async (req: Reques
   }
 });
 
-app.get('/api/admin/scripts/:callType', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.get('/api/admin/scripts/:callType', authenticateUser, async (req: Request, res: Response) => {
   try {
     const callType = decodeURIComponent(req.params.callType);
     const scripts = await databaseService.getScriptsForCallType(callType);
@@ -1006,7 +1006,7 @@ app.delete('/api/admin/scripts/:id', authenticateUser, requireAdmin, async (req:
 // CRITERIOS DINÁMICOS — CRUD
 // ============================================================
 
-app.get('/api/admin/criteria', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.get('/api/admin/criteria', authenticateUser, async (req: Request, res: Response) => {
   try {
     const blocks = await databaseService.getAllCriteriaBlocks();
     res.json(blocks);
@@ -1115,7 +1115,7 @@ app.delete('/api/admin/criteria/:id', authenticateUser, requireAdmin, async (req
 // PLANTILLA GPF — CRUD
 // ============================================================
 
-app.get('/api/admin/plantilla-gpf', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.get('/api/admin/plantilla-gpf', authenticateUser, async (req: Request, res: Response) => {
   try {
     const items = await databaseService.getAllPlantillaGPF();
     res.json(items);

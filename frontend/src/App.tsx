@@ -16,6 +16,7 @@ import ReportsPage from './pages/ReportsPage';
 import AuditsViewPage from './pages/AuditsViewPage';
 import AiAnalysisPage from './pages/AiAnalysisPage';
 import ScriptsAdminPage from './pages/ScriptsAdminPage';
+import ScriptsReferencePage from './pages/ScriptsReferencePage';
 
 function App() {
   return (
@@ -155,6 +156,16 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <ScriptsAdminPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Consulta de Criterios, Scripts y Plantilla GPF - Solo lectura */}
+          <Route
+            path="/referencia"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'analyst', 'supervisor']}>
+                <ScriptsReferencePage />
               </ProtectedRoute>
             }
           />
