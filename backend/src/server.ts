@@ -1924,18 +1924,26 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  excelType: resolvedExcelType
  };
 
- // Resolver el callType correcto usando la tabla plantilla_gpf
+ // Resolver el callType correcto: primero por texto directo, luego por plantilla_gpf
  const calificacion = (attentionObject || {})['Calificación'] || '';
  const subCalificacion = (attentionObject || {})['Sub-calificación'] || '';
  if (calificacion) {
-   const resolvedCallType =
-     await databaseService.getCallTypeFromPlantilla(calificacion, subCalificacion || undefined, resolvedExcelType)
-     ?? await databaseService.getCallTypeFromPlantilla(calificacion, undefined, resolvedExcelType);
-   if (resolvedCallType) {
-     metadata.callType = resolvedCallType;
-     logger.info('[PASO 1] callType resuelto desde plantilla_gpf', { calificacion, subCalificacion, resolvedCallType });
+   // Intento 1: resolver directamente desde el texto (ej. "TH Confirma Movimientos" → "TH CONFIRMA")
+   const directCallType = databaseService.resolveCallTypeFromText(calificacion);
+   if (directCallType) {
+     metadata.callType = directCallType;
+     logger.info('[PASO 1] callType resuelto por texto directo', { calificacion, directCallType });
    } else {
-     logger.warn('[PASO 1] No se encontró callType en plantilla_gpf, se usa valor original', { calificacion, fallback: metadata.callType });
+     // Intento 2: buscar en plantilla_gpf solo para calificaciones no reconocidas por texto
+     const resolvedCallType =
+       await databaseService.getCallTypeFromPlantilla(calificacion, subCalificacion || undefined, resolvedExcelType)
+       ?? await databaseService.getCallTypeFromPlantilla(calificacion, undefined, resolvedExcelType);
+     if (resolvedCallType) {
+       metadata.callType = resolvedCallType;
+       logger.info('[PASO 1] callType resuelto desde plantilla_gpf', { calificacion, subCalificacion, resolvedCallType });
+     } else {
+       logger.warn('[PASO 1] No se encontró callType, se usa valor original', { calificacion, fallback: metadata.callType });
+     }
    }
  }
 

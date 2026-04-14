@@ -660,6 +660,16 @@ class DatabaseService {
     return callType;
   }
 
+  /** Resuelve el call_type directamente desde el texto de la calificación, sin consultar la BD.
+   *  Retorna el tipo normalizado ('FRAUDE', 'TH CONFIRMA', 'MONITOREO') si el texto lo contiene,
+   *  o null si no hay coincidencia con ningún tipo conocido.
+   */
+  resolveCallTypeFromText(text: string): string | null {
+    const normalized = this.normalizeCallTypeForDB(text);
+    const KNOWN_TYPES = ['FRAUDE', 'TH CONFIRMA', 'MONITOREO'];
+    return KNOWN_TYPES.includes(normalized) ? normalized : null;
+  }
+
   async getCriteriaForCallType(callType: string): Promise<any[]> {
     const normalized = this.normalizeCallTypeForDB(callType);
     const key = normalized.toUpperCase();
@@ -1317,6 +1327,7 @@ export const databaseService = {
   updateCriteria: (id: string, payload: Parameters<DatabaseService['updateCriteria']>[1]) => getDatabaseService().updateCriteria(id, payload),
   deleteCriteria: (id: string) => getDatabaseService().deleteCriteria(id),
   // Plantilla GPF
+  resolveCallTypeFromText: (text: string) => getDatabaseService().resolveCallTypeFromText(text),
   getCallTypeFromPlantilla: (categoria: string, tipoCierre?: string, mode?: 'INBOUND' | 'MONITOREO') => getDatabaseService().getCallTypeFromPlantilla(categoria, tipoCierre, mode),
   getAllPlantillaGPF: () => getDatabaseService().getAllPlantillaGPF(),
   createPlantillaItem: (payload: Parameters<DatabaseService['createPlantillaItem']>[0]) => getDatabaseService().createPlantillaItem(payload),
