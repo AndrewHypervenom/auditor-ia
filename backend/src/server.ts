@@ -1574,9 +1574,11 @@ app.post('/api/gpf/download-report', authenticateUser, requireAdmin, async (req:
 
 app.get('/api/gpf/attentions', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
  try {
- const env = (req.query.env as string) || 'test';
+ const env      = (req.query.env as string) || 'test';
+ const dateFrom = req.query.date_from as string | undefined;
+ const dateTo   = req.query.date_to   as string | undefined;
  const token = await gpfTokenService.getTokenWithRetry(env);
- const attentions = await gpfDataService.getAttentions(env, token);
+ const attentions = await gpfDataService.getAttentions(env, token, dateFrom, dateTo);
  res.json({ attentions, count: attentions.length });
  } catch (error: any) {
  logger.error('Error fetching GPF attentions:', error);

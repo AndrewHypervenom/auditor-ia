@@ -76,6 +76,12 @@ const getAttentionEstado = (a: GpfAttention): string =>
 // Parse a date string to a comparable format (yyyy-mm-dd or original)
 const parseDateForCompare = (dateStr: string): string => {
  if (!dateStr) return '';
+ // Try yyyy/mm/dd → yyyy-mm-dd
+ const isoSlashMatch = dateStr.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+ if (isoSlashMatch) {
+  const [, y, m, d] = isoSlashMatch;
+  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+ }
  // Try d/m/yyyy or dd/mm/yyyy → yyyy-mm-dd
  const slashMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
  if (slashMatch) {
@@ -173,8 +179,11 @@ export default function NewAuditPage() {
  return attentions.filter((a) => {
  if (!uniqueCalificaciones.includes(getAttentionCalificacion(a))) return false;
  const dateStr = parseDateForCompare(getAttentionDate(a));
- if (filterDateFrom && dateStr && dateStr < filterDateFrom) return false;
- if (filterDateTo && dateStr && dateStr > filterDateTo) return false;
+ if (filterDateFrom || filterDateTo) {
+  if (!dateStr) return false;
+  if (filterDateFrom && dateStr < filterDateFrom) return false;
+  if (filterDateTo && dateStr > filterDateTo) return false;
+ }
  if (filterAgent && !getAttentionExecutive(a).toLowerCase().includes(filterAgent.toLowerCase())) return false;
  if (filterClient) {
  const term = filterClient.toLowerCase();
@@ -252,7 +261,11 @@ export default function NewAuditPage() {
  const handleLoadAttentions = async () => {
  setLoadingAttentions(true);
  try {
- const result = await gpfService.getAttentions(env);
+ const result = await gpfService.getAttentions(
+  env,
+  filterDateFrom || undefined,
+  filterDateTo   || undefined
+ );
  const attentions = result.attentions || [];
  if (attentions.length > 0) {
   const sample = attentions[0];

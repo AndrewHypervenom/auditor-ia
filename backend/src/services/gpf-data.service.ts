@@ -80,12 +80,17 @@ class GpfDataService {
  }
  }
 
- async getAttentions(env: string, token: string): Promise<any[]> {
+ async getAttentions(env: string, token: string, dateFrom?: string, dateTo?: string): Promise<any[]> {
  const baseUrl = this.getBaseUrl(env);
  if (!baseUrl) throw new Error(`GPF URL not configured for env: ${env}`);
 
+ const qs = new URLSearchParams();
+ if (dateFrom) qs.set('initial_date', dateFrom);
+ if (dateTo)   qs.set('final_date', dateTo);
+ const qsStr = qs.toString();
+
  const response = await gpfFetch(
-  `${baseUrl}/api/quality-control/v1/attentions-quality-control`,
+  `${baseUrl}/api/quality-control/v1/attentions-quality-control${qsStr ? '?' + qsStr : ''}`,
   { headers: this.buildHeaders(token) }
  );
 

@@ -472,9 +472,16 @@ export interface GpfAttentionDetail {
 }
 
 export const gpfService = {
- async getAttentions(env: 'test' | 'prod'): Promise<{ attentions: GpfAttention[]; count: number }> {
- const response = await api.get(`/gpf/attentions?env=${env}`);
- return response.data;
+ async getAttentions(
+  env: 'test' | 'prod',
+  dateFrom?: string,
+  dateTo?: string
+ ): Promise<{ attentions: GpfAttention[]; count: number }> {
+  const params = new URLSearchParams({ env });
+  if (dateFrom) params.set('date_from', dateFrom);
+  if (dateTo)   params.set('date_to', dateTo);
+  const response = await api.get(`/gpf/attentions?${params.toString()}`);
+  return response.data;
  },
 
  async getAttentionDetail(env: 'test' | 'prod', id: string | number): Promise<GpfAttentionDetail> {
