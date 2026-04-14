@@ -6,6 +6,7 @@ import type { TranscriptResult } from '../types/index.js';
 import * as fs from 'fs';
 import https from 'https';
 import { getDatabaseService } from './database.service.js';
+import { preprocessAudio } from './audio-preprocessor.service.js';
 
 
 class AssemblyAIService {
@@ -31,15 +32,20 @@ class AssemblyAIService {
  throw new Error(`Audio file not found: ${audioPath}`);
  }
 
- const stats = fs.statSync(audioPath);
+ // Preprocesar audio si está habilitado (normalización, filtros de ruido)
+ const effectiveAudioPath = await preprocessAudio(audioPath);
+ const didPreprocess = effectiveAudioPath !== audioPath;
+
+ const stats = fs.statSync(effectiveAudioPath);
  const fileSizeMB = (stats.size / 1024 / 1024).toFixed(2);
  logger.info('[ASSEMBLYAI] Archivo de audio en disco', {
  tamano: fileSizeMB + ' MB',
- ruta: audioPath
+ ruta: effectiveAudioPath,
+ preprocesado: didPreprocess,
  });
 
  // Leer archivo de audio
- const audioData = fs.readFileSync(audioPath);
+ const audioData = fs.readFileSync(effectiveAudioPath);
 
  logger.info('[ASSEMBLYAI] Subiendo audio a AssemblyAI...');
 
@@ -94,7 +100,20 @@ class AssemblyAIService {
 
  // ============ VOCABULARIO PERSONALIZADO (cargado desde BD) ============
  word_boost: wordBoostList,
- boost_param: 'high' // Alta prioridad para las palabras del vocabulario
+ boost_param: 'high', // Alta prioridad para las palabras del vocabulario
+
+ // ============ CORRECCIÓN ORTOGRÁFICA DETERMINISTA (es_MX) ============
+ // Corrige errores fonéticos frecuentes en español mexicano a nivel ASR,
+ // antes de que el texto llegue a la post-corrección de OpenAI.
+ custom_spelling: [
+ { from: ['bradescar', 'brascar', 'prascar', 'bascar', 'bradiscard', 'la card'], to: 'Bradescard' },
+ { from: ['folió', 'follo', 'foulio', 'fólio'], to: 'folio' },
+ { from: ['contracaro', 'contra cargo'], to: 'contracargo' },
+ { from: ['aclarasión', 'aclarasion'], to: 'aclaración' },
+ { from: ['o te pe', 'ó te pe'], to: 'OTP' },
+ { from: ['nip'], to: 'NIP' },
+ { from: ['tarjeta de creto', 'tarjeta creto'], to: 'tarjeta de crédito' },
+ ]
  });
 
  logger.info('[ASSEMBLYAI] Job de transcripcion creado, esperando resultado...', {
@@ -146,6 +165,26 @@ class AssemblyAIService {
  const wordCount = result.words?.length || 0;
  const utteranceCount = result.utterances?.length || 0;
  
+ // ===============================================
+ // FALLBACK A WHISPER SI CONFIANZA ES BAJA
+ // ===============================================
+ const confidenceThreshold = parseFloat(process.env.ASR_CONFIDENCE_THRESHOLD ?? '0.75');
+ const enableWhisperFallback = process.env.ENABLE_WHISPER_FALLBACK !== 'false';
+
+ if (
+ enableWhisperFallback &&
+ result.confidence !== null &&
+ result.confidence !== undefined &&
+ result.confidence < confidenceThreshold
+ ) {
+ logger.warn('[ASSEMBLYAI] Confianza baja — activando fallback con Whisper (gpt-4o-transcribe)', {
+ confianza: (result.confidence * 100).toFixed(1) + '%',
+ umbral: (confidenceThreshold * 100).toFixed(0) + '%',
+ });
+ const { getWhisperService } = await import('./whisper.service.js');
+ return getWhisperService().transcribe(audioPath);
+ }
+
  // Advertencia si el texto es muy corto
  if (textLength < 100) {
  logger.warn('[ASSEMBLYAI] Transcripcion completada pero el texto es muy corto', {
@@ -193,6 +232,11 @@ class AssemblyAIService {
  duracionAudio: result.audio_duration + 's',
  sugerencia: 'El audio puede tener muchos silencios o poca actividad de voz'
  });
+ }
+
+ // Limpiar archivo preprocesado temporal si fue generado
+ if (didPreprocess && fs.existsSync(effectiveAudioPath)) {
+ fs.unlinkSync(effectiveAudioPath);
  }
 
  return {

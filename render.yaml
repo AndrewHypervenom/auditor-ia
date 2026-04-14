@@ -3,7 +3,7 @@ services:
     name: auditoria-backend
     runtime: node
     rootDir: backend
-    buildCommand: npm install && npm run build
+    buildCommand: apt-get install -y ffmpeg && npm install && npm run build
     startCommand: node dist/server.js
     healthCheckPath: /health
     envVars:
