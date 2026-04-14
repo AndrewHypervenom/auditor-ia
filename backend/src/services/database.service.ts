@@ -1317,7 +1317,7 @@ export const databaseService = {
   updateCriteria: (id: string, payload: Parameters<DatabaseService['updateCriteria']>[1]) => getDatabaseService().updateCriteria(id, payload),
   deleteCriteria: (id: string) => getDatabaseService().deleteCriteria(id),
   // Plantilla GPF
-  getCallTypeFromPlantilla: (categoria: string, tipoCierre?: string) => getDatabaseService().getCallTypeFromPlantilla(categoria, tipoCierre),
+  getCallTypeFromPlantilla: (categoria: string, tipoCierre?: string, mode?: 'INBOUND' | 'MONITOREO') => getDatabaseService().getCallTypeFromPlantilla(categoria, tipoCierre, mode),
   getAllPlantillaGPF: () => getDatabaseService().getAllPlantillaGPF(),
   createPlantillaItem: (payload: Parameters<DatabaseService['createPlantillaItem']>[0]) => getDatabaseService().createPlantillaItem(payload),
   updatePlantillaItem: (id: string, payload: Parameters<DatabaseService['updatePlantillaItem']>[1]) => getDatabaseService().updatePlantillaItem(id, payload),
