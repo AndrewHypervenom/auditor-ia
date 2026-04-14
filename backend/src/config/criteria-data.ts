@@ -8,6 +8,7 @@ export interface CriteriaTopic {
   topic: string;
   criticality: 'Crítico' | '-';
   points: number | 'n/a';
+  requiresManualReview?: boolean;
 }
 
 export interface CriteriaBlock {
@@ -56,11 +57,11 @@ export const FRAUDE_ROEXT_CRITERIA: CriteriaBlock[] = [
   {
     blockName: 'Vision',
     topics: [
-      { topic: 'Valida pantalla OFAA y CRESP (CVV2 incorrecto, Tarjeta vencida, Fecha de vencimiento incorrecta, TJ Cancelada, etc.)', criticality: '-', points: 'n/a' },
-      { topic: 'Comentarios correctos en ASHI', criticality: '-', points: 5 },
+      { topic: 'Valida pantalla OFAA y CRESP (CVV2 incorrecto, Tarjeta vencida, Fecha de vencimiento incorrecta, TJ Cancelada, etc.)', criticality: '-', points: 'n/a', requiresManualReview: true },
+      { topic: 'Comentarios correctos en ASHI', criticality: '-', points: 5, requiresManualReview: true },
       { topic: 'Desbloquea tarjeta BLKI, BLKT, BPT0, BNFC', criticality: '-', points: 'n/a' },
       { topic: 'Bloqueo correcto', criticality: 'Crítico', points: 7 },
-      { topic: 'Valida compras en ARTD y ARSD', criticality: '-', points: 5 },
+      { topic: 'Valida compras en ARTD y ARSD', criticality: '-', points: 5, requiresManualReview: true },
     ]
   },
   {
@@ -128,11 +129,11 @@ export const TH_CONFIRMA_CRITERIA: CriteriaBlock[] = [
   {
     blockName: 'Vision',
     topics: [
-      { topic: 'Valida pantalla OFAA y CRESP (CVV2 incorrecto, Tarjeta vencida, Fecha de vencimiento incorrecta, TJ Cancelada, etc.)', criticality: '-', points: 'n/a' },
-      { topic: 'Comentarios correctos en ASHI', criticality: '-', points: 5 },
+      { topic: 'Valida pantalla OFAA y CRESP (CVV2 incorrecto, Tarjeta vencida, Fecha de vencimiento incorrecta, TJ Cancelada, etc.)', criticality: '-', points: 'n/a', requiresManualReview: true },
+      { topic: 'Comentarios correctos en ASHI', criticality: '-', points: 5, requiresManualReview: true },
       { topic: 'Desbloquea tarjeta BLKI, BLKT, BPT0, BNFC', criticality: 'Crítico', points: 5 }, // ← DIFERENTE: Crítico 5 pts
       { topic: 'Bloqueo correcto', criticality: '-', points: 'n/a' }, // ← DIFERENTE: n/a
-      { topic: 'Valida compras en ARTD y ARSD', criticality: '-', points: 'n/a' }, // ← DIFERENTE: n/a (en FRAUDE era 5)
+      { topic: 'Valida compras en ARTD y ARSD', criticality: '-', points: 'n/a', requiresManualReview: true }, // ← DIFERENTE: n/a (en FRAUDE era 5)
     ]
   },
   {

@@ -6,6 +6,7 @@ export interface EvaluationTopic {
   points: number | 'n/a';
   applies: boolean;
   whatToLookFor?: string;
+  requiresManualReview?: boolean;
 }
 
 export interface EvaluationBlock {

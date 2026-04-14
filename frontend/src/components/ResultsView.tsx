@@ -4,7 +4,7 @@ import {
   Download, CheckCircle2, AlertCircle, Clock, TrendingUp, FileText, Award,
   Target, ChevronDown, ChevronUp, PhoneIncoming, Monitor, Pencil, Check,
   X, Save, RotateCcw, AlertTriangle, ShieldAlert, Plus, ChevronsUpDown,
-  MinusCircle, XCircle
+  MinusCircle, XCircle, ClipboardList
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
@@ -19,7 +19,7 @@ interface ResultsViewProps {
   onNewAudit: () => void;
 }
 
-type FilterType = 'all' | 'passed' | 'partial' | 'failed' | 'critical';
+type FilterType = 'all' | 'passed' | 'partial' | 'failed' | 'critical' | 'manual';
 
 export default function ResultsView({ result, auditId, callType, onDownload, onNewAudit }: ResultsViewProps) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -67,7 +67,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
 
   const hasEdits = Object.keys(scoreEdits).length > 0;
 
-  const criticalFailed  = currentScores.filter((s: any) => s.criticality === 'Crítico' && (s.score ?? 0) === 0);
+  const criticalFailed  = currentScores.filter((s: any) => !s.requiresManualReview && s.criticality === 'Crítico' && (s.score ?? 0) === 0);
   // hasCriticalFail: detectado en tiempo real (edición activa) O por el percentage=0 guardado en BD (registros sin campo criticality)
   const hasCriticalFail = criticalFailed.length > 0 || (!hasEdits && savedPercentage === 0 && rawPct > 0);
   const currentPct      = hasCriticalFail ? 0 : rawPct;
@@ -93,10 +93,14 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
   };
 
   const filterCounts = useMemo(() => {
-    const counts = { passed: 0, partial: 0, failed: 0, critical: 0 };
+    const counts = { passed: 0, partial: 0, failed: 0, critical: 0, manual: 0 };
     currentScores.forEach((s: any) => {
-      counts[getCriterionStatus(s.score ?? 0, s.maxScore ?? 0)]++;
-      if (s.criticality === 'Crítico') counts.critical++;
+      if (s.requiresManualReview) {
+        counts.manual++;
+      } else {
+        counts[getCriterionStatus(s.score ?? 0, s.maxScore ?? 0)]++;
+        if (s.criticality === 'Crítico') counts.critical++;
+      }
     });
     return counts;
   }, [currentScores]);
@@ -108,9 +112,15 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
       const m = score.criterion.match(/\[(.*?)\]/);
       const block = m ? m[1] : 'General';
       if (!acc[block]) acc[block] = [];
-      const status = getCriterionStatus(score.score ?? 0, score.maxScore ?? 0);
-      const isCrit = score.criticality === 'Crítico';
-      if (filter === 'all' || filter === status || (filter === 'critical' && isCrit)) acc[block].push(score);
+      const isManual = score.requiresManualReview === true;
+      const status = isManual ? 'manual' : getCriterionStatus(score.score ?? 0, score.maxScore ?? 0);
+      const isCrit = !isManual && score.criticality === 'Crítico';
+      if (
+        filter === 'all' ||
+        (filter === 'manual' && isManual) ||
+        (filter === status && !isManual) ||
+        (filter === 'critical' && isCrit)
+      ) acc[block].push(score);
       return acc;
     }, {});
   }, [currentScores, filter]);
@@ -460,6 +470,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
                   { key: 'partial',  label: 'Parciales',   count: filterCounts.partial,             color: 'text-yellow-400' },
                   { key: 'failed',   label: 'Reprobados',  count: filterCounts.failed,              color: 'text-red-400'    },
                   { key: 'critical', label: 'Críticos',    count: filterCounts.critical,            color: 'text-red-400'    },
+                  { key: 'manual',   label: 'Manuales',    count: filterCounts.manual,              color: 'text-amber-400'  },
                 ] as const
               ).map(tab => (
                 <button
@@ -472,6 +483,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
                   }`}
                 >
                   {tab.key === 'critical' && <ShieldAlert className={`w-3 h-3 ${filter === tab.key ? 'text-white' : 'text-red-400'}`} />}
+                  {tab.key === 'manual' && <ClipboardList className={`w-3 h-3 ${filter === tab.key ? 'text-white' : 'text-amber-400'}`} />}
                   <span className={filter === tab.key ? 'text-white' : tab.color}>{tab.count}</span>
                   {tab.label}
                 </button>
@@ -543,20 +555,46 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
                 {/* Criterios */}
                 <div className="divide-y divide-dark-border/40">
                   {scores.map((score: any) => {
-                    const idx         = score._globalIndex;
-                    const isCritical  = score.criticality === 'Crítico';
-                    const isEdited    = scoreEdits[idx] !== undefined;
-                    const isEditing   = editingIndex === idx;
-                    const safeScore   = score.score ?? 0;
-                    const safeMax     = score.maxScore ?? 0;
-                    const pct         = safeMax > 0 ? Math.round((safeScore / safeMax) * 100) : 0;
-                    const isCritZero  = isCritical && safeScore === 0;
-                    const name        = (score.criterion ?? '').replace(/\[.*?\]\s*/, '');
-                    const observations= score.observations ?? score.justification ?? '';
-                    const evidence    = Array.isArray(score.evidence) ? score.evidence : [];
-                    const hasDetail   = observations || evidence.length > 0;
-                    const isExpanded  = isCriterionExpanded(idx, safeScore, safeMax);
-                    const status      = getCriterionStatus(safeScore, safeMax);
+                    const idx           = score._globalIndex;
+                    const isManual      = score.requiresManualReview === true;
+                    const isCritical    = !isManual && score.criticality === 'Crítico';
+                    const isEdited      = scoreEdits[idx] !== undefined;
+                    const isEditing     = editingIndex === idx;
+                    const safeScore     = score.score ?? 0;
+                    const safeMax       = score.maxScore ?? 0;
+                    const pct           = safeMax > 0 ? Math.round((safeScore / safeMax) * 100) : 0;
+                    const isCritZero    = isCritical && safeScore === 0;
+                    const name          = (score.criterion ?? '').replace(/\[.*?\]\s*/, '');
+                    const observations  = score.observations ?? score.justification ?? '';
+                    const evidence      = Array.isArray(score.evidence) ? score.evidence : [];
+                    const hasDetail     = observations || evidence.length > 0;
+                    const isExpanded    = isCriterionExpanded(idx, safeScore, safeMax);
+                    const status        = getCriterionStatus(safeScore, safeMax);
+
+                    // ── Fila de validación manual ────────────────────────
+                    if (isManual) {
+                      return (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-3 px-4 py-2.5 bg-amber-950/10 hover:bg-amber-950/15 border-l-2 border-l-amber-500/50 transition-colors"
+                        >
+                          <div className="flex-shrink-0">
+                            <ClipboardList className="w-4 h-4 text-amber-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm leading-snug text-amber-200 font-medium">{name}</span>
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 flex-shrink-0">
+                                <ClipboardList className="w-3 h-3" /> Validación manual
+                              </span>
+                            </div>
+                          </div>
+                          <span className="text-xs tabular-nums font-semibold text-amber-500/70 flex-shrink-0">
+                            {safeMax > 0 ? `— / ${safeMax} pts` : '—'}
+                          </span>
+                        </div>
+                      );
+                    }
 
                     return (
                       <div

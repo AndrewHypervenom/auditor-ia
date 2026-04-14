@@ -37,6 +37,7 @@ export interface DetailedScore {
   maxScore: number;
   observations: string;
   evidences: string[];
+  requiresManualReview?: boolean;
 }
 
 export interface EvaluationResult {

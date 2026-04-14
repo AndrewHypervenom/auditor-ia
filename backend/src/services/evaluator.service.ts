@@ -78,7 +78,7 @@ class EvaluatorService {
  }
 
  // PASO 4: Evaluación con MATCHING MEJORADO
- const { evaluation, tokensUsed: evalTokens } = await this.evaluateWithEnhancedMatching(
+ const { evaluation, tokensUsed: evalTokens, manualTopics } = await this.evaluateWithEnhancedMatching(
  criteria,
  normalizedVisualEvidence,
  verbalEvidence,
@@ -129,13 +129,16 @@ class EvaluatorService {
  maxScore: number;
  observations: string;
  criticality: string;
- }> = evaluation.evaluations.map((ev: any) => ({
+ }> = [
+ ...evaluation.evaluations.map((ev: any) => ({
  criterion: `[${ev.block}] ${ev.topic}`,
  score: ev.score,
  maxScore: ev.max_score,
  observations: ev.justification,
  criticality: topicCriticalityMap.get(ev.topic) || '-'
- }));
+ })),
+ ...manualTopics
+ ];
 
  const keyMoments: Array<{
  timestamp: string;
@@ -404,11 +407,26 @@ Para cada hallazgo importante, márcalo en "critical_fields":
  ): Promise<{
  evaluation: any;
  tokensUsed: { input: number; output: number };
+ manualTopics: Array<{ criterion: string; score: number; maxScore: number; observations: string; criticality: string; requiresManualReview: boolean }>;
  }> {
+ // Separar tópicos manuales (la IA no los evalúa) de los que sí se evalúan
+ const manualTopics = criteria.flatMap(block =>
+ block.topics
+ .filter((topic: any) => topic.applies && topic.requiresManualReview)
+ .map((topic: any) => ({
+ criterion: `[${block.blockName}] ${topic.topic}`,
+ score: 0,
+ maxScore: topic.points === 'n/a' ? 0 : (topic.points as number),
+ observations: 'Requiere validación manual — este criterio no puede evaluarse automáticamente a partir de las capturas de pantalla.',
+ criticality: topic.criticality,
+ requiresManualReview: true,
+ }))
+ );
+
  const topicsToEvaluate = criteria.flatMap(block =>
  block.topics
- .filter(topic => topic.applies)
- .map(topic => ({
+ .filter((topic: any) => topic.applies && !topic.requiresManualReview)
+ .map((topic: any) => ({
  block: block.blockName,
  topic: topic.topic,
  criticality: topic.criticality,
@@ -422,7 +440,8 @@ Para cada hallazgo importante, márcalo en "critical_fields":
  throw new Error(`Todos los criterios de "${auditInput.callType}" tienen applies=false o no hay criterios activos en la BD.`);
  }
 
- const maxPossibleScore = topicsToEvaluate.reduce((sum, t) => sum + t.maxScore, 0);
+ const maxPossibleScore = topicsToEvaluate.reduce((sum, t) => sum + t.maxScore, 0)
+   + manualTopics.reduce((sum, t) => sum + t.maxScore, 0);
 
  // Cargar script desde BD
  const dbScripts = await getDatabaseService().getScriptsForCallType(auditInput.callType);
@@ -475,10 +494,11 @@ Para cada hallazgo importante, márcalo en "critical_fields":
  throw new Error('No response from OpenAI');
  }
 
- // NUEVO: Retornar evaluación Y tokens
+ // NUEVO: Retornar evaluación, tokens Y tópicos manuales
  return {
  evaluation: JSON.parse(content),
- tokensUsed
+ tokensUsed,
+ manualTopics
  };
  }
 

@@ -717,7 +717,8 @@ class DatabaseService {
           criticality: c.criticality as 'Crítico' | '-',
           points: c.points === null ? 'n/a' : c.points,
           applies: c.applies,
-          whatToLookFor: c.what_to_look_for || ''
+          whatToLookFor: c.what_to_look_for || '',
+          requiresManualReview: c.requires_manual_review ?? false
         }))
       });
     }
@@ -820,6 +821,7 @@ class DatabaseService {
     what_to_look_for: string;
     criteria_order: number;
     is_active: boolean;
+    requires_manual_review: boolean;
   }>): Promise<any> {
     const { data, error } = await supabaseAdmin
       .from('evaluation_criteria')

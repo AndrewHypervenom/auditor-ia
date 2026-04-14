@@ -780,6 +780,7 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
         criticality: '-',
         points: 5,
         applies: true,
+        requires_manual_review: false,
         what_to_look_for: '',
         criteria_order: newOrder,
       });
@@ -895,6 +896,9 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
                   <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-16">
                     Aplica
                   </th>
+                  <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-amber-600/70 w-24">
+                    Val. Manual
+                  </th>
                   <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-20">
                     Acciones
                   </th>
@@ -966,6 +970,15 @@ function CriteriaViewRow({ item, onEdit, onUpdate }: CriteriaRowProps) {
     }
   };
 
+  const handleToggleManualReview = async () => {
+    try {
+      await criteriaService.updateCriteria(item.id, { requires_manual_review: !item.requires_manual_review });
+      onUpdate();
+    } catch {
+      toast.error('Error al actualizar');
+    }
+  };
+
   return (
     <tr className="border-b border-slate-800/40 hover:bg-slate-800/20 group transition-colors duration-150">
       {/* Criterio */}
@@ -1020,6 +1033,24 @@ function CriteriaViewRow({ item, onEdit, onUpdate }: CriteriaRowProps) {
             style={{
               transform: item.applies ? 'translateX(16px)' : 'translateX(2px)',
               backgroundColor: item.applies ? '#fff' : '#64748b',
+            }}
+          />
+        </button>
+      </td>
+
+      {/* Toggle Validación Manual */}
+      <td className="py-3 px-3 text-center">
+        <button
+          onClick={handleToggleManualReview}
+          title={item.requires_manual_review ? 'Quitar validación manual' : 'Marcar como validación manual'}
+          className="toggle-track mx-auto"
+          style={{ backgroundColor: item.requires_manual_review ? 'rgba(245,158,11,0.5)' : '' }}
+        >
+          <span
+            className="toggle-thumb"
+            style={{
+              transform: item.requires_manual_review ? 'translateX(16px)' : 'translateX(2px)',
+              backgroundColor: item.requires_manual_review ? '#fff' : '#64748b',
             }}
           />
         </button>
@@ -1085,7 +1116,7 @@ function CriteriaEditRow({ item, onSave, onCancel }: CriteriaEditRowProps) {
 
   return (
     <tr className="border-b border-brand-700/20 bg-brand-500/10 animate-fadeIn">
-      <td className="py-4 px-4" colSpan={5}>
+      <td className="py-4 px-4" colSpan={6}>
         <div className="space-y-4">
           {/* Criterio */}
           <div>

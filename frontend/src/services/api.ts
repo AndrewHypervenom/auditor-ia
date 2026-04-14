@@ -616,6 +616,7 @@ export interface CriteriaItem {
   criticality: 'Crítico' | '-';
   points: number | null;
   applies: boolean;
+  requires_manual_review: boolean;
   what_to_look_for: string | null;
   criteria_order: number;
   is_active: boolean;

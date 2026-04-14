@@ -256,11 +256,19 @@ class ExcelService {
 
  // MEJORADO: Helper para buscar evaluación con múltiples estrategias
  const getTopicValueWithReason = (blockName: string, topicName: string, topic: any) => {
+ if (topic.requiresManualReview) {
+ return {
+ value: 'Calificar manual',
+ reason: 'Este criterio requiere validación manual y no puede evaluarse automáticamente',
+ shouldHighlight: false
+ };
+ }
+
  if (!topic.applies) {
- return { 
- value: 'n/a', 
- reason: 'No aplica según el contexto de la llamada', 
- shouldHighlight: false 
+ return {
+ value: 'n/a',
+ reason: 'No aplica según el contexto de la llamada',
+ shouldHighlight: false
  };
  }
 
@@ -385,6 +393,9 @@ class ExcelService {
  cellF.font = { bold: true, size: 10, color: { argb: 'FF856404' } };
  }
  }
+ } else if (result.value === 'Calificar manual') {
+ cellF.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } };
+ cellF.font = { size: 9, bold: true, color: { argb: 'FF856404' } };
  } else if (result.value === 'n/a') {
  cellF.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
  cellF.font = { size: 9, color: { argb: 'FF666666' } };
@@ -433,6 +444,9 @@ class ExcelService {
  inset: [0.1, 0.1, 0.1, 0.1]
  }
  };
+ } else if (result.value === 'Calificar manual') {
+ cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } };
+ cell.font = { size: 9, bold: true, color: { argb: 'FF856404' } };
  } else if (result.value === 'n/a') {
  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
  cell.font = { size: 10, color: { argb: 'FF666666' } };
@@ -589,6 +603,10 @@ class ExcelService {
 
  // MEJORADO: Helper para buscar evaluación con múltiples estrategias
  const getTopicResult = (blockName: string, topicName: string, topic: any) => {
+ if (topic.requiresManualReview) {
+ return { value: 'Calificar manual', reason: 'Requiere validación manual', isCritical: false };
+ }
+
  if (!topic.applies) {
  return { value: 'n/a', reason: 'No aplica', isCritical: false };
  }
@@ -704,6 +722,12 @@ class ExcelService {
  cellD.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
  cellD.font = { size: 9, italic: true, color: { argb: 'FF666666' } };
  }
+ } else if (topic.requiresManualReview) {
+ cellD.value = 'Calificar manual';
+ cellD.font = { size: 9, bold: true, color: { argb: 'FF856404' } };
+ cellD.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } };
+ cellD.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+ cellD.border = this.getAllBorders();
  } else if (!topic.applies) {
  cellD.value = 'n/a';
  cellD.font = { size: 10, color: { argb: 'FF666666' } };
