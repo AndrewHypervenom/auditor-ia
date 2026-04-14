@@ -860,16 +860,20 @@ class DatabaseService {
    *  Busca por categoria (= Calificación) y opcionalmente tipo_cierre (= Sub-calificación).
    *  Retorna null si no hay ninguna entrada activa que coincida.
    */
-  async getCallTypeFromPlantilla(categoria: string, tipoCierre?: string): Promise<string | null> {
+  async getCallTypeFromPlantilla(categoria: string, tipoCierre?: string, mode?: 'INBOUND' | 'MONITOREO'): Promise<string | null> {
     // Helper: normaliza texto para comparación flexible
     const normalize = (s: string) => s.toUpperCase().trim()
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-    // Traer todas las entradas activas y comparar en memoria para máxima flexibilidad
-    const { data, error } = await supabaseAdmin
+    // Traer entradas activas filtrando por mode si se proporciona
+    let query = supabaseAdmin
       .from('plantilla_gpf')
       .select('categoria, tipo_cierre, call_type')
       .eq('is_active', true);
+    if (mode) {
+      query = query.eq('mode', mode);
+    }
+    const { data, error } = await query;
 
     if (error || !data || data.length === 0) return null;
 

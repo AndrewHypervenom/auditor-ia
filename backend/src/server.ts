@@ -1929,8 +1929,8 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  const subCalificacion = (attentionObject || {})['Sub-calificación'] || '';
  if (calificacion) {
    const resolvedCallType =
-     await databaseService.getCallTypeFromPlantilla(calificacion, subCalificacion || undefined)
-     ?? await databaseService.getCallTypeFromPlantilla(calificacion);
+     await databaseService.getCallTypeFromPlantilla(calificacion, subCalificacion || undefined, resolvedExcelType)
+     ?? await databaseService.getCallTypeFromPlantilla(calificacion, undefined, resolvedExcelType);
    if (resolvedCallType) {
      metadata.callType = resolvedCallType;
      logger.info('[PASO 1] callType resuelto desde plantilla_gpf', { calificacion, subCalificacion, resolvedCallType });
