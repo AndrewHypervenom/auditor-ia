@@ -1060,7 +1060,7 @@ app.delete('/api/admin/blocks/:id', authenticateUser, requireAdmin, async (req: 
 
 app.post('/api/admin/criteria', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { block_id, topic, criticality, points, applies, what_to_look_for, criteria_order } = req.body;
+    const { block_id, topic, criticality, points, applies, what_to_look_for, validation_source, criteria_order } = req.body;
     if (!block_id || !topic) {
       return res.status(400).json({ error: 'block_id y topic son requeridos' });
     }
@@ -1071,6 +1071,7 @@ app.post('/api/admin/criteria', authenticateUser, requireAdmin, async (req: Requ
       points: points === 'n/a' || points === null ? null : Number(points),
       applies: applies !== false,
       what_to_look_for,
+      validation_source: Array.isArray(validation_source) ? validation_source : [],
       criteria_order: criteria_order ?? 0
     });
     res.status(201).json(criteria);
@@ -1083,13 +1084,14 @@ app.post('/api/admin/criteria', authenticateUser, requireAdmin, async (req: Requ
 app.put('/api/admin/criteria/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { topic, criticality, points, applies, what_to_look_for, criteria_order, is_active, requires_manual_review } = req.body;
+    const { topic, criticality, points, applies, what_to_look_for, validation_source, criteria_order, is_active, requires_manual_review } = req.body;
     const criteria = await databaseService.updateCriteria(id, {
       topic,
       criticality,
       points: points === 'n/a' || points === null ? null : (points !== undefined ? Number(points) : undefined),
       applies,
       what_to_look_for,
+      ...(validation_source !== undefined && { validation_source: Array.isArray(validation_source) ? validation_source : [] }),
       criteria_order,
       is_active,
       ...(requires_manual_review !== undefined && { requires_manual_review })

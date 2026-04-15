@@ -33,8 +33,19 @@ class EvaluatorService {
  let totalInputTokens = 0;
  let totalOutputTokens = 0;
 
+ // PASO 0: Obtener criterios — necesarios para enriquecer el análisis de imágenes
+ const criteriaEarly = await getDatabaseService().getCriteriaForCallType(auditInput.callType) as EvaluationBlock[];
+
+ // Construir hints de rubros que deben validarse en imágenes
+ const imageRubroHints = criteriaEarly
+  .flatMap((block: any) =>
+   block.topics
+    .filter((t: any) => t.applies && Array.isArray(t.validationSource) && t.validationSource.includes('imagenes') && t.whatToLookFor)
+    .map((t: any) => `- [${block.blockName}] ${t.topic}: ${t.whatToLookFor}`)
+  ).join('\n');
+
  // PASO 1: Análisis estructurado de evidencia visual MEJORADO
- const { visualEvidence, tokensUsed: visualTokens } = await this.extractVisualEvidenceEnhanced(auditInput.imagePaths || []);
+ const { visualEvidence, tokensUsed: visualTokens } = await this.extractVisualEvidenceEnhanced(auditInput.imagePaths || [], imageRubroHints || undefined);
 
  // NUEVO: Acumular tokens de análisis visual
  totalInputTokens += visualTokens.input;
@@ -53,8 +64,8 @@ class EvaluatorService {
  totalMentions: verbalEvidence.length
  });
 
- // PASO 3: Obtener criterios desde BD
- const criteria = await getDatabaseService().getCriteriaForCallType(auditInput.callType) as EvaluationBlock[];
+ // PASO 3: Reusar criterios obtenidos en PASO 0
+ const criteria = criteriaEarly;
 
  // PASO 3b: Normalizar claves de evidencia visual — si el análisis de imágenes
  // devolvió sistemas desconocidos (ej. "CICS"), redistribuir su evidencia entre
@@ -184,7 +195,7 @@ class EvaluatorService {
  /**
  * MEJORADO: Extrae evidencia visual con detección más precisa y captura tokens
  */
- private async extractVisualEvidenceEnhanced(imagePaths: string[]): Promise<{
+ private async extractVisualEvidenceEnhanced(imagePaths: string[], rubroHints?: string): Promise<{
  visualEvidence: Record<string, any[]>;
  tokensUsed: { input: number; output: number };
  }> {
@@ -226,7 +237,7 @@ class EvaluatorService {
  },
  {
  type: 'text',
- text: await this.getEnhancedAnalysisPrompt()
+ text: await this.getEnhancedAnalysisPrompt(rubroHints)
  }
  ]
  }
@@ -308,19 +319,19 @@ class EvaluatorService {
  /**
  * MEJORADO: Prompt con mejor detección de campos críticos
  */
- private async getEnhancedAnalysisPrompt(): Promise<string> {
+ private async getEnhancedAnalysisPrompt(rubroHints?: string): Promise<string> {
   const systems = await getDatabaseService().getImageSystems();
   const activeSystems = systems.filter((s: any) => s.is_active !== false);
   if (activeSystems.length === 0) {
    throw new Error('No hay sistemas de imagen configurados en la base de datos. Agrega sistemas en el panel Admin → Criterios → Sistemas de Imagen.');
   }
-  return this.buildPromptFromSystems(activeSystems);
+  return this.buildPromptFromSystems(activeSystems, rubroHints);
  }
 
  /**
   * Construye el prompt de análisis de imágenes dinámicamente desde los sistemas en BD
   */
- private buildPromptFromSystems(systems: any[]): string {
+ private buildPromptFromSystems(systems: any[], rubroHints?: string): string {
   const systemNames = systems.map((s: any) => s.system_name).join('|');
 
   // PASO 1: detección
@@ -391,7 +402,13 @@ Para cada hallazgo importante, márcalo en "critical_fields":
 4. Si ves transacciones: CUENTA CUÁNTAS
 5. NO inventes valores - usa null si no está visible
 6. SÉ ULTRA específico con cada dato
-7. El campo "system" DEBE ser exactamente uno de los valores listados — ni más ni menos`;
+7. El campo "system" DEBE ser exactamente uno de los valores listados — ni más ni menos${rubroHints ? `
+
+**CRITERIOS ACTIVOS A DETECTAR EN ESTA AUDITORÍA:**
+
+Los siguientes rubros requieren validación en imágenes. Presta especial atención a la evidencia relacionada con cada uno:
+
+${rubroHints}` : ''}`;
  }
 
 
@@ -432,6 +449,7 @@ Para cada hallazgo importante, márcalo en "critical_fields":
  criticality: topic.criticality,
  maxScore: topic.points as number,
  whatToLookFor: topic.whatToLookFor || '',
+ validationSource: topic.validationSource || [],
  system: this.getSystemFromBlock(block.blockName)
  }))
  );
@@ -601,6 +619,9 @@ Bloque: ${t.block}
 Sistema: ${t.system}
 Puntos máximos: ${t.maxScore}
 Criticidad: ${t.criticality}
+Validar en: ${Array.isArray(t.validationSource) && t.validationSource.length > 0
+  ? t.validationSource.map((s: string) => s === 'gpf' ? 'GPF' : s === 'imagenes' ? 'Imágenes del sistema' : 'Llamada/Transcripción').join(' + ')
+  : 'Toda la evidencia disponible'}
 
 QUÉ BUSCAR:
 ${t.whatToLookFor || 'Revisar evidencia visual y verbal relacionada con este criterio.'}

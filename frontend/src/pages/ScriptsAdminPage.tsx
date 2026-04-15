@@ -782,6 +782,7 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
         applies: true,
         requires_manual_review: false,
         what_to_look_for: '',
+        validation_source: [],
         criteria_order: newOrder,
       });
       toast.success('Criterio agregado');
@@ -992,6 +993,21 @@ function CriteriaViewRow({ item, onEdit, onUpdate }: CriteriaRowProps) {
               {item.what_to_look_for}
             </span>
           )}
+          {item.validation_source && item.validation_source.length > 0 && (
+            <div className="flex gap-1 mt-1 flex-wrap">
+              {item.validation_source.map(src => (
+                <span key={src} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                  src === 'gpf'
+                    ? 'bg-blue-900/40 text-blue-300 border border-blue-700/40'
+                    : src === 'imagenes'
+                    ? 'bg-brand-900/40 text-brand-300 border border-brand-700/40'
+                    : 'bg-amber-900/40 text-amber-300 border border-amber-700/40'
+                }`}>
+                  {src === 'gpf' ? 'GPF' : src === 'imagenes' ? 'Imágenes' : 'Llamada'}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </td>
 
@@ -1093,6 +1109,7 @@ function CriteriaEditRow({ item, onSave, onCancel }: CriteriaEditRowProps) {
   const [criticality, setCriticality] = useState<'Crítico' | '-'>(item.criticality);
   const [applies, setApplies] = useState(item.applies);
   const [whatToLookFor, setWhatToLookFor] = useState(item.what_to_look_for || '');
+  const [validationSource, setValidationSource] = useState<string[]>(item.validation_source ?? []);
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -1104,6 +1121,7 @@ function CriteriaEditRow({ item, onSave, onCancel }: CriteriaEditRowProps) {
         points: points === 'n/a' ? null : parseInt(points, 10),
         applies,
         what_to_look_for: whatToLookFor,
+        validation_source: validationSource,
       });
       toast.success('Criterio actualizado');
       onSave();
@@ -1201,6 +1219,38 @@ function CriteriaEditRow({ item, onSave, onCancel }: CriteriaEditRowProps) {
                          text-sm text-white resize-none focus:outline-none focus:border-brand-700/60
                          focus:ring-1 focus:ring-brand-500/20"
             />
+          </div>
+
+          {/* Validar en */}
+          <div>
+            <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
+              Validar en
+            </label>
+            <div className="flex gap-4">
+              {(['gpf', 'imagenes', 'llamada'] as const).map(src => (
+                <label key={src} className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={validationSource.includes(src)}
+                    onChange={e =>
+                      setValidationSource(prev =>
+                        e.target.checked ? [...prev, src] : prev.filter(s => s !== src)
+                      )
+                    }
+                    className="accent-brand-500 w-3.5 h-3.5"
+                  />
+                  <span className={`text-sm font-medium ${
+                    src === 'gpf'
+                      ? 'text-blue-300'
+                      : src === 'imagenes'
+                      ? 'text-brand-300'
+                      : 'text-amber-300'
+                  }`}>
+                    {src === 'gpf' ? 'GPF' : src === 'imagenes' ? 'Imágenes' : 'Llamada'}
+                  </span>
+                </label>
+              ))}
+            </div>
           </div>
 
           {/* Botones */}

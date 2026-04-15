@@ -728,6 +728,7 @@ class DatabaseService {
           points: c.points === null ? 'n/a' : c.points,
           applies: c.applies,
           whatToLookFor: c.what_to_look_for || '',
+          validationSource: c.validation_source || [],
           requiresManualReview: c.requires_manual_review ?? false
         }))
       });
@@ -811,6 +812,7 @@ class DatabaseService {
     points: number | null;
     applies: boolean;
     what_to_look_for?: string;
+    validation_source?: string[];
     criteria_order: number;
   }): Promise<any> {
     const { data, error } = await supabaseAdmin
@@ -829,6 +831,7 @@ class DatabaseService {
     points: number | null;
     applies: boolean;
     what_to_look_for: string;
+    validation_source: string[];
     criteria_order: number;
     is_active: boolean;
     requires_manual_review: boolean;

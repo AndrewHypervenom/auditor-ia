@@ -625,6 +625,7 @@ export interface CriteriaItem {
   applies: boolean;
   requires_manual_review: boolean;
   what_to_look_for: string | null;
+  validation_source: string[] | null;
   criteria_order: number;
   is_active: boolean;
   created_at: string;
