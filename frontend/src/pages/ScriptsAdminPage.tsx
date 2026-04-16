@@ -27,6 +27,7 @@ import {
   ToggleLeft,
   ToggleRight,
   ChevronRight,
+  CreditCard,
 } from 'lucide-react';
 import {
   scriptsService,
@@ -35,6 +36,7 @@ import {
   wordBoostService,
   imageSystemsService,
   callTypesConfigService,
+  binesService,
   type ScriptStep,
   type CriteriaBlock,
   type CriteriaItem,
@@ -43,6 +45,7 @@ import {
   type ImageSystem,
   type ImageSystemField,
   type CallTypeConfig,
+  type BinesItem,
 } from '../services/api';
 import PlantillaGPFTab from '../components/PlantillaGPFTab';
 import ModeSelector, { type AdminMode } from '../components/ModeSelector';
@@ -64,7 +67,7 @@ function groupByCallType<T extends { call_type: string }>(items: T[]): Record<st
 
 export default function ScriptsAdminPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'scripts' | 'criteria' | 'plantilla' | 'ai_prompts'>('criteria');
+  const [activeTab, setActiveTab] = useState<'scripts' | 'criteria' | 'plantilla' | 'ai_prompts' | 'bines'>('criteria');
 
   return (
     <div className="min-h-screen text-white">
@@ -78,7 +81,7 @@ export default function ScriptsAdminPage() {
 
 
         {/* ── Tab Selector ── */}
-        <div className="grid grid-cols-4 gap-3 mb-5">
+        <div className="grid grid-cols-5 gap-3 mb-5">
           {([
             {
               key: 'criteria' as const,
@@ -108,6 +111,13 @@ export default function ScriptsAdminPage() {
               description: 'Prompts de análisis y evaluación',
               color: 'amber',
             },
+            {
+              key: 'bines' as const,
+              icon: CreditCard,
+              label: 'Bines',
+              description: 'Referencia BINs bancarios',
+              color: 'rose',
+            },
           ]).map(({ key, icon: Icon, label, description, color }) => {
             const isActive = activeTab === key;
             return (
@@ -123,6 +133,8 @@ export default function ScriptsAdminPage() {
                                 ? 'bg-teal-600/10 border-teal-500/40 shadow-[0_0_24px_rgba(20,184,166,0.12)]'
                                 : color === 'amber'
                                 ? 'bg-amber-600/10 border-amber-500/40 shadow-[0_0_24px_rgba(245,158,11,0.12)]'
+                                : color === 'rose'
+                                ? 'bg-rose-600/10 border-rose-500/40 shadow-[0_0_24px_rgba(244,63,94,0.12)]'
                                 : 'bg-violet-600/10 border-violet-500/40 shadow-[0_0_24px_rgba(139,92,246,0.12)]'
                               : 'bg-slate-900/50 border-slate-800/60 hover:bg-slate-900/80 hover:border-slate-700/60'
                             }`}
@@ -136,6 +148,8 @@ export default function ScriptsAdminPage() {
                       ? 'bg-gradient-to-br from-teal-400 to-teal-600'
                       : color === 'amber'
                       ? 'bg-gradient-to-br from-amber-400 to-amber-600'
+                      : color === 'rose'
+                      ? 'bg-gradient-to-br from-rose-400 to-rose-600'
                       : 'bg-gradient-to-br from-violet-400 to-violet-600'
                     }`}
                   />
@@ -151,6 +165,8 @@ export default function ScriptsAdminPage() {
                                      ? 'bg-teal-500/20 border border-teal-500/30'
                                      : color === 'amber'
                                      ? 'bg-amber-500/20 border border-amber-500/30'
+                                     : color === 'rose'
+                                     ? 'bg-rose-500/20 border border-rose-500/30'
                                      : 'bg-violet-500/20 border border-violet-500/30'
                                    : 'bg-slate-800/60 border border-slate-700/40 group-hover:bg-slate-800'
                                  }`}>
@@ -158,7 +174,7 @@ export default function ScriptsAdminPage() {
                     size={18}
                     className={`transition-colors duration-300
                       ${isActive
-                        ? color === 'blue' ? 'text-brand-400' : color === 'teal' ? 'text-teal-400' : color === 'amber' ? 'text-amber-400' : 'text-violet-400'
+                        ? color === 'blue' ? 'text-brand-400' : color === 'teal' ? 'text-teal-400' : color === 'amber' ? 'text-amber-400' : color === 'rose' ? 'text-rose-400' : 'text-violet-400'
                         : 'text-slate-500 group-hover:text-slate-300'
                       }`}
                   />
@@ -172,7 +188,7 @@ export default function ScriptsAdminPage() {
                   </span>
                   <span className={`text-xs mt-0.5 transition-colors duration-200 truncate
                     ${isActive
-                      ? color === 'blue' ? 'text-brand-400/70' : color === 'teal' ? 'text-teal-400/70' : color === 'amber' ? 'text-amber-400/70' : 'text-violet-400/70'
+                      ? color === 'blue' ? 'text-brand-400/70' : color === 'teal' ? 'text-teal-400/70' : color === 'amber' ? 'text-amber-400/70' : color === 'rose' ? 'text-rose-400/70' : 'text-violet-400/70'
                       : 'text-slate-600 group-hover:text-slate-500'
                     }`}>
                     {description}
@@ -182,7 +198,7 @@ export default function ScriptsAdminPage() {
                 {/* Indicador activo (punto derecho) */}
                 {isActive && (
                   <div className={`absolute right-4 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full
-                    ${color === 'blue' ? 'bg-brand-500/10' : color === 'teal' ? 'bg-teal-400' : color === 'amber' ? 'bg-amber-400' : 'bg-violet-400'}`}
+                    ${color === 'blue' ? 'bg-brand-500/10' : color === 'teal' ? 'bg-teal-400' : color === 'amber' ? 'bg-amber-400' : color === 'rose' ? 'bg-rose-400' : 'bg-violet-400'}`}
                   />
                 )}
               </button>
@@ -198,6 +214,8 @@ export default function ScriptsAdminPage() {
             ? <CriteriaTabWrapper />
             : activeTab === 'ai_prompts'
             ? <AiPromptsTab />
+            : activeTab === 'bines'
+            ? <BinesAdminTab />
             : <PlantillaTabWrapper />
           }
         </div>
@@ -951,6 +969,7 @@ interface CriteriaRowProps {
 }
 
 function CriteriaViewRow({ item, onEdit, onUpdate }: CriteriaRowProps) {
+  const [wtlfExpanded, setWtlfExpanded] = useState(false);
   const handleDelete = async () => {
     if (!confirm(`¿Eliminar el criterio "${item.topic}"?`)) return;
     try {
@@ -989,9 +1008,20 @@ function CriteriaViewRow({ item, onEdit, onUpdate }: CriteriaRowProps) {
             {item.topic}
           </span>
           {item.what_to_look_for && (
-            <span className="text-[12px] text-slate-500 leading-relaxed line-clamp-2" title={item.what_to_look_for}>
-              {item.what_to_look_for}
-            </span>
+            <div className="flex flex-col gap-0.5">
+              <span className={`text-[12px] text-slate-500 leading-relaxed ${wtlfExpanded ? '' : 'line-clamp-2'}`}>
+                {item.what_to_look_for}
+              </span>
+              {item.what_to_look_for.length > 80 && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setWtlfExpanded(v => !v); }}
+                  className="self-start text-[11px] text-slate-600 hover:text-slate-400 transition-colors duration-150 flex items-center gap-0.5"
+                >
+                  <ChevronDown size={11} className={`transition-transform duration-200 ${wtlfExpanded ? 'rotate-180' : ''}`} />
+                  {wtlfExpanded ? 'Ver menos' : 'Ver más'}
+                </button>
+              )}
+            </div>
           )}
           {item.validation_source && item.validation_source.length > 0 && (
             <div className="flex gap-1 mt-1 flex-wrap">
@@ -1213,10 +1243,10 @@ function CriteriaEditRow({ item, onSave, onCancel }: CriteriaEditRowProps) {
             <textarea
               value={whatToLookFor}
               onChange={(e) => setWhatToLookFor(e.target.value)}
-              rows={3}
+              rows={6}
               placeholder="Describe dónde y qué debe buscar la IA para evaluar este criterio..."
               className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2
-                         text-sm text-white resize-none focus:outline-none focus:border-brand-700/60
+                         text-sm text-white resize-y focus:outline-none focus:border-brand-700/60
                          focus:ring-1 focus:ring-brand-500/20"
             />
           </div>
@@ -2665,6 +2695,314 @@ function CallTypesTab() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Tab: Bines (admin — CRUD) ───────────────────────────────
+
+const CATEGORIAS_BINES = [
+  { label: 'Tarjetas de crédito', orden: 1 },
+  { label: 'Tarjetas Departamentales', orden: 2 },
+  { label: 'Tarjetas de Préstamo personal', orden: 3 },
+];
+
+const emptyBinForm = {
+  categoria: 'Tarjetas de crédito',
+  categoria_orden: 1,
+  nombre: '',
+  bin: '',
+  socio: '',
+  producto: '',
+  nombre_comercial: '',
+  marca: '',
+};
+
+function BinesAdminTab() {
+  const [items, setItems] = useState<BinesItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<BinesItem>>({});
+  const [showAdd, setShowAdd] = useState(false);
+  const [newForm, setNewForm] = useState({ ...emptyBinForm });
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setItems(await binesService.getAll());
+    } catch {
+      toast.error('Error al cargar bines');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const grupos = Array.from(
+    items.reduce((map, item) => {
+      const list = map.get(item.categoria) ?? [];
+      list.push(item);
+      return map.set(item.categoria, list);
+    }, new Map<string, BinesItem[]>()).entries()
+  ).sort(([, a], [, b]) => a[0].categoria_orden - b[0].categoria_orden);
+
+  const handleStartEdit = (item: BinesItem) => {
+    setEditingId(item.id);
+    setEditForm({ ...item });
+  };
+
+  const handleCancelEdit = () => { setEditingId(null); setEditForm({}); };
+
+  const handleSaveEdit = async () => {
+    if (!editingId) return;
+    setSaving(true);
+    try {
+      await binesService.update(editingId, editForm);
+      toast.success('BIN actualizado');
+      setEditingId(null);
+      setEditForm({});
+      await load();
+    } catch {
+      toast.error('Error al actualizar BIN');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (item: BinesItem) => {
+    if (!confirm(`¿Eliminar "${item.nombre}" (BIN ${item.bin})?`)) return;
+    try {
+      await binesService.remove(item.id);
+      toast.success('BIN eliminado');
+      await load();
+    } catch {
+      toast.error('Error al eliminar BIN');
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!newForm.nombre || !newForm.bin || !newForm.socio || !newForm.producto) {
+      toast.error('Nombre, BIN, Socio y Producto son requeridos');
+      return;
+    }
+    setSaving(true);
+    try {
+      await binesService.create({
+        categoria: newForm.categoria,
+        categoria_orden: newForm.categoria_orden,
+        nombre: newForm.nombre,
+        bin: newForm.bin,
+        socio: newForm.socio,
+        producto: newForm.producto,
+        nombre_comercial: newForm.nombre_comercial || null,
+        marca: newForm.marca || null,
+      });
+      toast.success('BIN agregado');
+      setShowAdd(false);
+      setNewForm({ ...emptyBinForm });
+      await load();
+    } catch {
+      toast.error('Error al crear BIN');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <SkeletonLoader />;
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between bg-slate-900/60 border border-slate-800/60 rounded-2xl px-5 py-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center flex-shrink-0">
+            <CreditCard size={18} className="text-rose-400" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-white">Tabla de BINs Bancarios</p>
+            <p className="text-xs text-slate-500 mt-0.5">{items.length} registros en total</p>
+          </div>
+        </div>
+        <button
+          onClick={() => setShowAdd(v => !v)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl
+                     bg-rose-500/10 border border-rose-700/40 text-rose-300
+                     text-xs font-medium hover:bg-rose-500/20 transition-all duration-150"
+        >
+          <Plus size={13} />
+          Agregar BIN
+        </button>
+      </div>
+
+      {/* Formulario de nuevo BIN */}
+      {showAdd && (
+        <div className="bg-slate-900/60 border border-rose-700/30 rounded-2xl p-5 space-y-3">
+          <p className="text-sm font-semibold text-rose-300 mb-1">Nuevo BIN</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1">Categoría</label>
+              <select
+                value={newForm.categoria}
+                onChange={e => {
+                  const cat = CATEGORIAS_BINES.find(c => c.label === e.target.value);
+                  setNewForm(f => ({ ...f, categoria: e.target.value, categoria_orden: cat?.orden ?? 0 }));
+                }}
+                className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-700/60"
+              >
+                {CATEGORIAS_BINES.map(c => <option key={c.label} value={c.label}>{c.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1">Nombre</label>
+              <input value={newForm.nombre} onChange={e => setNewForm(f => ({ ...f, nombre: e.target.value }))}
+                placeholder="Ej: Bodega Visa"
+                className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-700/60" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1">BIN</label>
+              <input value={newForm.bin} onChange={e => setNewForm(f => ({ ...f, bin: e.target.value }))}
+                placeholder="Ej: 481283"
+                className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-rose-700/60" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1">Socio</label>
+              <input value={newForm.socio} onChange={e => setNewForm(f => ({ ...f, socio: e.target.value }))}
+                placeholder="Ej: Bodega"
+                className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-700/60" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1">Producto</label>
+              <input value={newForm.producto} onChange={e => setNewForm(f => ({ ...f, producto: e.target.value }))}
+                placeholder="Ej: Visa / PLCC / PL"
+                className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-700/60" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1">Nombre comercial / Marca</label>
+              <input value={newForm.nombre_comercial || newForm.marca}
+                onChange={e => {
+                  if (newForm.categoria === 'Tarjetas de crédito') {
+                    setNewForm(f => ({ ...f, nombre_comercial: e.target.value, marca: '' }));
+                  } else {
+                    setNewForm(f => ({ ...f, marca: e.target.value, nombre_comercial: '' }));
+                  }
+                }}
+                placeholder="Ej: Bradescard Total / Carnet"
+                className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-700/60" />
+            </div>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={handleCreate} disabled={saving}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-500/20 border border-rose-700/40 text-rose-300 text-sm font-medium hover:bg-rose-500/30 transition-all disabled:opacity-50">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+              Guardar
+            </button>
+            <button onClick={() => { setShowAdd(false); setNewForm({ ...emptyBinForm }); }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-400 text-sm font-medium hover:bg-slate-700/60 transition-all">
+              <X size={14} />
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Tabla agrupada por categoría */}
+      {grupos.map(([categoria, rows]) => (
+        <div key={categoria} className="bg-slate-900/60 border border-slate-800/60 rounded-2xl overflow-hidden">
+          <div className="flex items-center gap-3 px-5 py-3 bg-slate-950/40 border-b border-slate-800/60">
+            <CreditCard size={14} className="text-rose-400" />
+            <span className="text-sm font-semibold text-white">{categoria}</span>
+            <span className="ml-auto text-xs text-slate-500">{rows.length} registros</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-800/60 bg-slate-950/30">
+                  <th className="text-left py-2.5 px-4 text-[11px] font-semibold uppercase tracking-widest text-slate-500">Nombre</th>
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-24">BIN</th>
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500">Socio</th>
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-20">Producto</th>
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500">Nombre comercial / Marca</th>
+                  <th className="text-center py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-24">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(item => (
+                  editingId === item.id ? (
+                    // ── Fila en modo edición ──
+                    <tr key={item.id} className="border-b border-rose-800/30 bg-rose-950/10">
+                      <td className="py-2 px-4">
+                        <input value={editForm.nombre ?? ''} onChange={e => setEditForm(f => ({ ...f, nombre: e.target.value }))}
+                          className="w-full bg-slate-900/80 border border-slate-700/60 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-rose-700/60" />
+                      </td>
+                      <td className="py-2 px-3">
+                        <input value={editForm.bin ?? ''} onChange={e => setEditForm(f => ({ ...f, bin: e.target.value }))}
+                          className="w-full bg-slate-900/80 border border-slate-700/60 rounded-lg px-2 py-1 text-sm font-mono text-white focus:outline-none focus:border-rose-700/60" />
+                      </td>
+                      <td className="py-2 px-3">
+                        <input value={editForm.socio ?? ''} onChange={e => setEditForm(f => ({ ...f, socio: e.target.value }))}
+                          className="w-full bg-slate-900/80 border border-slate-700/60 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-rose-700/60" />
+                      </td>
+                      <td className="py-2 px-3">
+                        <input value={editForm.producto ?? ''} onChange={e => setEditForm(f => ({ ...f, producto: e.target.value }))}
+                          className="w-full bg-slate-900/80 border border-slate-700/60 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-rose-700/60" />
+                      </td>
+                      <td className="py-2 px-3">
+                        <input
+                          value={(editForm.nombre_comercial ?? editForm.marca) ?? ''}
+                          onChange={e => {
+                            if (item.categoria === 'Tarjetas de crédito') {
+                              setEditForm(f => ({ ...f, nombre_comercial: e.target.value, marca: null }));
+                            } else {
+                              setEditForm(f => ({ ...f, marca: e.target.value, nombre_comercial: null }));
+                            }
+                          }}
+                          className="w-full bg-slate-900/80 border border-slate-700/60 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-rose-700/60" />
+                      </td>
+                      <td className="py-2 px-3">
+                        <div className="flex items-center justify-center gap-1">
+                          <button onClick={handleSaveEdit} disabled={saving}
+                            className="p-1.5 rounded-lg bg-brand-500/20 border border-brand-700/40 text-brand-300 hover:bg-brand-500/30 transition-all disabled:opacity-50">
+                            {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                          </button>
+                          <button onClick={handleCancelEdit}
+                            className="p-1.5 rounded-lg bg-slate-800 border border-slate-700/60 text-slate-400 hover:bg-slate-700/60 transition-all">
+                            <X size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    // ── Fila en modo vista ──
+                    <tr key={item.id} className="border-b border-slate-800/40 hover:bg-slate-800/20 group transition-colors duration-150">
+                      <td className="py-2.5 px-4 text-sm text-slate-200">{item.nombre}</td>
+                      <td className="py-2.5 px-3">
+                        <span className="font-mono text-xs px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-700/20 text-rose-300">{item.bin}</span>
+                      </td>
+                      <td className="py-2.5 px-3 text-sm text-slate-300">{item.socio}</td>
+                      <td className="py-2.5 px-3 text-sm text-slate-400">{item.producto}</td>
+                      <td className="py-2.5 px-3 text-sm text-slate-400">{item.nombre_comercial ?? item.marca ?? '—'}</td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                          <button onClick={() => handleStartEdit(item)}
+                            className="p-1.5 rounded-lg bg-slate-800 border border-slate-700/60 text-slate-400 hover:text-white hover:bg-slate-700 transition-all">
+                            <Pencil size={13} />
+                          </button>
+                          <button onClick={() => handleDelete(item)}
+                            className="p-1.5 rounded-lg bg-slate-800 border border-slate-700/60 text-slate-400 hover:text-red-400 hover:bg-red-950/30 transition-all">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

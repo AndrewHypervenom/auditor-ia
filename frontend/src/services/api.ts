@@ -801,6 +801,34 @@ export const callTypesConfigService = {
   },
 };
 
+// ─── Bines ──────────────────────────────────────────────────
+
+export interface BinesItem {
+  id: string;
+  categoria: string;
+  categoria_orden: number;
+  nombre: string;
+  bin: string;
+  socio: string;
+  producto: string;
+  nombre_comercial: string | null;
+  marca: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export const binesService = {
+  getAll: (): Promise<BinesItem[]> =>
+    api.get('/admin/bines').then(r => r.data),
+  create: (payload: Omit<BinesItem, 'id' | 'is_active' | 'created_at' | 'updated_at'>): Promise<BinesItem> =>
+    api.post('/admin/bines', payload).then(r => r.data),
+  update: (id: string, payload: Partial<BinesItem>): Promise<BinesItem> =>
+    api.put(`/admin/bines/${id}`, payload).then(r => r.data),
+  remove: (id: string): Promise<void> =>
+    api.delete(`/admin/bines/${id}`).then(r => r.data),
+};
+
 // CRUD de usuarios (admin)
 export const userService = {
  async getUsers() {

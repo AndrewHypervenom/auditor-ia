@@ -2356,6 +2356,68 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
 });
 
 
+// ============================================================
+// BINES — CRUD
+// ============================================================
+
+app.get('/api/admin/bines', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const bines = await databaseService.getAllBines();
+    res.json(bines);
+  } catch (error: any) {
+    logger.error('Error fetching bines:', error);
+    res.status(500).json({ error: 'Error al obtener bines' });
+  }
+});
+
+app.post('/api/admin/bines', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { categoria, categoria_orden, nombre, bin, socio, producto, nombre_comercial, marca } = req.body;
+    if (!categoria || !nombre || !bin || !socio || !producto) {
+      return res.status(400).json({ error: 'categoria, nombre, bin, socio y producto son requeridos' });
+    }
+    const item = await databaseService.createBin({
+      categoria,
+      categoria_orden: categoria_orden ?? 0,
+      nombre,
+      bin,
+      socio,
+      producto,
+      nombre_comercial,
+      marca,
+    });
+    res.status(201).json(item);
+  } catch (error: any) {
+    logger.error('Error creating bin:', error);
+    res.status(500).json({ error: 'Error al crear bin' });
+  }
+});
+
+app.put('/api/admin/bines/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { categoria, categoria_orden, nombre, bin, socio, producto, nombre_comercial, marca, is_active } = req.body;
+    const item = await databaseService.updateBin(id, {
+      categoria, categoria_orden, nombre, bin, socio, producto, nombre_comercial, marca, is_active,
+    });
+    res.json(item);
+  } catch (error: any) {
+    logger.error('Error updating bin:', error);
+    res.status(500).json({ error: 'Error al actualizar bin' });
+  }
+});
+
+app.delete('/api/admin/bines/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await databaseService.deleteBin(id);
+    res.json({ success: true });
+  } catch (error: any) {
+    logger.error('Error deleting bin:', error);
+    res.status(500).json({ error: 'Error al eliminar bin' });
+  }
+});
+
 // Manejador de errores
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
  logger.error('Unhandled error:', err);

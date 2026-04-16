@@ -1273,6 +1273,66 @@ class DatabaseService {
       logger.warn('âš ï¸ Failed to log audit activity', error);
     }
   }
+
+  // ─── Bines ──────────────────────────────────────────────────
+
+  async getAllBines(): Promise<any[]> {
+    const { data, error } = await supabaseAdmin
+      .from('bines')
+      .select('*')
+      .order('categoria_orden', { ascending: true })
+      .order('nombre', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  }
+
+  async createBin(payload: {
+    categoria: string;
+    categoria_orden: number;
+    nombre: string;
+    bin: string;
+    socio: string;
+    producto: string;
+    nombre_comercial?: string;
+    marca?: string;
+  }): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('bines')
+      .insert(payload)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async updateBin(id: string, payload: Partial<{
+    categoria: string;
+    categoria_orden: number;
+    nombre: string;
+    bin: string;
+    socio: string;
+    producto: string;
+    nombre_comercial: string | null;
+    marca: string | null;
+    is_active: boolean;
+  }>): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('bines')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async deleteBin(id: string): Promise<void> {
+    const { error } = await supabaseAdmin
+      .from('bines')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+  }
 }
 
 // Exportar instancia singleton
@@ -1343,6 +1403,11 @@ export const databaseService = {
   getAllPrompts: () => getDatabaseService().getAllPrompts(),
   updatePrompt: (id: string, payload: Parameters<DatabaseService['updatePrompt']>[1]) => getDatabaseService().updatePrompt(id, payload),
   invalidatePromptsCache: () => getDatabaseService().invalidatePromptsCache(),
+  // Bines
+  getAllBines: () => getDatabaseService().getAllBines(),
+  createBin: (payload: Parameters<DatabaseService['createBin']>[0]) => getDatabaseService().createBin(payload),
+  updateBin: (id: string, payload: Parameters<DatabaseService['updateBin']>[1]) => getDatabaseService().updateBin(id, payload),
+  deleteBin: (id: string) => getDatabaseService().deleteBin(id),
 };
 
 export { DatabaseService };

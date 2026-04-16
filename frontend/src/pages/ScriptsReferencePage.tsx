@@ -14,15 +14,19 @@ import {
   ListChecks,
   ChevronDown,
   Loader2,
+  CreditCard,
+  Download,
 } from 'lucide-react';
 import {
   scriptsService,
   criteriaService,
   plantillaService,
+  binesService,
   type ScriptStep,
   type CriteriaBlock,
   type CriteriaItem,
   type PlantillaGPFItem,
+  type BinesItem,
 } from '../services/api';
 import ModeSelector, { type AdminMode } from '../components/ModeSelector';
 import CallTypeSelectorShared from '../components/CallTypeSelector';
@@ -97,7 +101,7 @@ function StatChip({ icon: Icon, label, color }: StatChipProps) {
 
 export default function ScriptsReferencePage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'criteria' | 'scripts' | 'plantilla'>('criteria');
+  const [activeTab, setActiveTab] = useState<'criteria' | 'scripts' | 'plantilla' | 'bines'>('criteria');
 
   return (
     <div className="min-h-screen text-white">
@@ -109,7 +113,7 @@ export default function ScriptsReferencePage() {
         </p>
 
         {/* ── Tab Selector ── */}
-        <div className="grid grid-cols-3 gap-3 mb-5">
+        <div className="grid grid-cols-4 gap-3 mb-5">
           {([
             {
               key: 'criteria' as const,
@@ -132,6 +136,13 @@ export default function ScriptsReferencePage() {
               description: 'Calificación y Sub-calificación',
               color: 'teal',
             },
+            {
+              key: 'bines' as const,
+              icon: CreditCard,
+              label: 'Bines',
+              description: 'Referencia BINs bancarios',
+              color: 'rose',
+            },
           ]).map(({ key, icon: Icon, label, description, color }) => {
             const isActive = activeTab === key;
             return (
@@ -145,6 +156,8 @@ export default function ScriptsReferencePage() {
                                 ? 'bg-brand-500/10 border-brand-700/40 shadow-[0_0_24px_rgba(59,130,246,0.12)]'
                                 : color === 'teal'
                                 ? 'bg-teal-600/10 border-teal-500/40 shadow-[0_0_24px_rgba(20,184,166,0.12)]'
+                                : color === 'rose'
+                                ? 'bg-rose-600/10 border-rose-500/40 shadow-[0_0_24px_rgba(244,63,94,0.12)]'
                                 : 'bg-violet-600/10 border-violet-500/40 shadow-[0_0_24px_rgba(139,92,246,0.12)]'
                               : 'bg-slate-900/50 border-slate-800/60 hover:bg-slate-900/80 hover:border-slate-700/60'
                             }`}
@@ -155,6 +168,8 @@ export default function ScriptsReferencePage() {
                       ? 'bg-gradient-to-br from-brand-900/30 to-brand-800/30'
                       : color === 'teal'
                       ? 'bg-gradient-to-br from-teal-400 to-teal-600'
+                      : color === 'rose'
+                      ? 'bg-gradient-to-br from-rose-400 to-rose-600'
                       : 'bg-gradient-to-br from-violet-400 to-violet-600'
                     }`}
                   />
@@ -167,6 +182,8 @@ export default function ScriptsReferencePage() {
                                      ? 'bg-brand-500/10 border border-brand-700/40'
                                      : color === 'teal'
                                      ? 'bg-teal-500/20 border border-teal-500/30'
+                                     : color === 'rose'
+                                     ? 'bg-rose-500/20 border border-rose-500/30'
                                      : 'bg-violet-500/20 border border-violet-500/30'
                                    : 'bg-slate-800/60 border border-slate-700/40 group-hover:bg-slate-800'
                                  }`}>
@@ -174,7 +191,7 @@ export default function ScriptsReferencePage() {
                     size={18}
                     className={`transition-colors duration-300
                       ${isActive
-                        ? color === 'blue' ? 'text-brand-400' : color === 'teal' ? 'text-teal-400' : 'text-violet-400'
+                        ? color === 'blue' ? 'text-brand-400' : color === 'teal' ? 'text-teal-400' : color === 'rose' ? 'text-rose-400' : 'text-violet-400'
                         : 'text-slate-500 group-hover:text-slate-300'
                       }`}
                   />
@@ -187,7 +204,7 @@ export default function ScriptsReferencePage() {
                   </span>
                   <span className={`text-xs mt-0.5 transition-colors duration-200 truncate
                     ${isActive
-                      ? color === 'blue' ? 'text-brand-400/70' : color === 'teal' ? 'text-teal-400/70' : 'text-violet-400/70'
+                      ? color === 'blue' ? 'text-brand-400/70' : color === 'teal' ? 'text-teal-400/70' : color === 'rose' ? 'text-rose-400/70' : 'text-violet-400/70'
                       : 'text-slate-600 group-hover:text-slate-500'
                     }`}>
                     {description}
@@ -196,7 +213,7 @@ export default function ScriptsReferencePage() {
 
                 {isActive && (
                   <div className={`absolute right-4 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full
-                    ${color === 'blue' ? 'bg-brand-400' : color === 'teal' ? 'bg-teal-400' : 'bg-violet-400'}`}
+                    ${color === 'blue' ? 'bg-brand-400' : color === 'teal' ? 'bg-teal-400' : color === 'rose' ? 'bg-rose-400' : 'bg-violet-400'}`}
                   />
                 )}
               </button>
@@ -210,6 +227,8 @@ export default function ScriptsReferencePage() {
             ? <CriteriaRefTab />
             : activeTab === 'scripts'
             ? <ScriptsRefTab />
+            : activeTab === 'bines'
+            ? <BinesRefTab />
             : <PlantillaRefTab />
           }
         </div>
@@ -359,6 +378,7 @@ function CriteriaBlockReadCard({ block }: { block: CriteriaBlock }) {
 }
 
 function CriteriaReadRow({ item }: { item: CriteriaItem }) {
+  const [expanded, setExpanded] = useState(false);
   return (
     <tr className="border-b border-slate-800/40 hover:bg-slate-800/20 transition-colors duration-150">
       <td className="py-3 px-4 max-w-xs">
@@ -367,9 +387,20 @@ function CriteriaReadRow({ item }: { item: CriteriaItem }) {
             {item.topic}
           </span>
           {item.what_to_look_for && (
-            <span className="text-[12px] text-slate-500 leading-relaxed line-clamp-2" title={item.what_to_look_for}>
-              {item.what_to_look_for}
-            </span>
+            <div className="flex flex-col gap-0.5">
+              <span className={`text-[12px] text-slate-500 leading-relaxed ${expanded ? '' : 'line-clamp-2'}`}>
+                {item.what_to_look_for}
+              </span>
+              {item.what_to_look_for.length > 80 && (
+                <button
+                  onClick={() => setExpanded(e => !e)}
+                  className="self-start text-[11px] text-slate-600 hover:text-slate-400 transition-colors duration-150 flex items-center gap-0.5"
+                >
+                  <ChevronDown size={11} className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+                  {expanded ? 'Ver menos' : 'Ver más'}
+                </button>
+              )}
+            </div>
           )}
         </div>
       </td>
@@ -619,6 +650,70 @@ function CategoriaReadCard({ categoria, items }: { categoria: string; items: Pla
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Tab: Bines (solo lectura) ───────────────────────────────
+
+function BinesRefTab() {
+  const [items, setItems] = useState<BinesItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    binesService.getAll()
+      .then(setItems)
+      .catch(() => toast.error('Error al cargar bines'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <SkeletonLoader />;
+
+  const grupos = Array.from(
+    items.reduce((map, item) => {
+      const list = map.get(item.categoria) ?? [];
+      list.push(item);
+      return map.set(item.categoria, list);
+    }, new Map<string, BinesItem[]>()).entries()
+  ).sort(([, a], [, b]) => a[0].categoria_orden - b[0].categoria_orden);
+
+  return (
+    <div className="space-y-4">
+      {grupos.map(([categoria, rows]) => (
+        <div key={categoria} className="bg-slate-900/60 border border-slate-800/60 rounded-2xl overflow-hidden">
+          <div className="flex items-center gap-3 px-5 py-3 bg-slate-950/40 border-b border-slate-800/60">
+            <CreditCard size={14} className="text-rose-400" />
+            <span className="text-sm font-semibold text-white">{categoria}</span>
+            <span className="ml-auto text-xs text-slate-500">{rows.length} registros</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-800/60 bg-slate-950/30">
+                  <th className="text-left py-2.5 px-4 text-[11px] font-semibold uppercase tracking-widest text-slate-500">Nombre</th>
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-24">BIN</th>
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500">Socio</th>
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-20">Producto</th>
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500">Nombre comercial / Marca</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(item => (
+                  <tr key={item.id} className="border-b border-slate-800/40 hover:bg-slate-800/20 transition-colors duration-150">
+                    <td className="py-2.5 px-4 text-sm text-slate-200">{item.nombre}</td>
+                    <td className="py-2.5 px-3">
+                      <span className="font-mono text-xs px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-700/20 text-rose-300">{item.bin}</span>
+                    </td>
+                    <td className="py-2.5 px-3 text-sm text-slate-300">{item.socio}</td>
+                    <td className="py-2.5 px-3 text-sm text-slate-400">{item.producto}</td>
+                    <td className="py-2.5 px-3 text-sm text-slate-400">{item.nombre_comercial ?? item.marca ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
