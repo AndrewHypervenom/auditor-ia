@@ -654,19 +654,20 @@ class DatabaseService {
 
   private normalizeCallTypeForDB(callType: string): string {
     const upper = callType.toUpperCase().trim();
-    if (upper.includes('MONITOREO')) return 'MONITOREO';
+    // MONITOREO es un modo (INBOUND/OUTBOUND), no una categoría de llamada
     if (upper.includes('TH CONFIRMA') || upper.includes('TH_CONFIRMA')) return 'TH CONFIRMA';
     if (upper.includes('FRAUDE') || upper.includes('ROEXT')) return 'FRAUDE';
     return callType;
   }
 
   /** Resuelve el call_type directamente desde el texto de la calificación, sin consultar la BD.
-   *  Retorna el tipo normalizado ('FRAUDE', 'TH CONFIRMA', 'MONITOREO') si el texto lo contiene,
+   *  Retorna el tipo normalizado ('FRAUDE', 'TH CONFIRMA') si el texto lo contiene,
    *  o null si no hay coincidencia con ningún tipo conocido.
+   *  Nota: MONITOREO es un modo (INBOUND vs OUTBOUND), no un call_type.
    */
   resolveCallTypeFromText(text: string): string | null {
     const normalized = this.normalizeCallTypeForDB(text);
-    const KNOWN_TYPES = ['FRAUDE', 'TH CONFIRMA', 'MONITOREO'];
+    const KNOWN_TYPES = ['FRAUDE', 'TH CONFIRMA'];
     return KNOWN_TYPES.includes(normalized) ? normalized : null;
   }
 
