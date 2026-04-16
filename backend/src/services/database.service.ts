@@ -1308,6 +1308,7 @@ class DatabaseService {
   async updateBin(id: string, payload: Partial<{
     categoria: string;
     categoria_orden: number;
+    item_order: number;
     nombre: string;
     bin: string;
     socio: string;
