@@ -807,6 +807,7 @@ export interface BinesItem {
   id: string;
   categoria: string;
   categoria_orden: number;
+  item_order: number;
   nombre: string;
   bin: string;
   socio: string;

@@ -1281,7 +1281,7 @@ class DatabaseService {
       .from('bines')
       .select('*')
       .order('categoria_orden', { ascending: true })
-      .order('nombre', { ascending: true });
+      .order('item_order', { ascending: true });
     if (error) throw error;
     return data || [];
   }

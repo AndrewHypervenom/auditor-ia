@@ -28,6 +28,8 @@ import {
   ToggleRight,
   ChevronRight,
   CreditCard,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import {
   scriptsService,
@@ -2726,6 +2728,7 @@ function BinesAdminTab() {
   const [showAdd, setShowAdd] = useState(false);
   const [newForm, setNewForm] = useState({ ...emptyBinForm });
   const [saving, setSaving] = useState(false);
+  const [movingId, setMovingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -2782,6 +2785,25 @@ function BinesAdminTab() {
     }
   };
 
+  const handleMove = async (item: BinesItem, direction: 'up' | 'down', rows: BinesItem[]) => {
+    const idx = rows.findIndex(r => r.id === item.id);
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= rows.length) return;
+    const swapItem = rows[swapIdx];
+    setMovingId(item.id);
+    try {
+      await Promise.all([
+        binesService.update(item.id, { item_order: swapItem.item_order }),
+        binesService.update(swapItem.id, { item_order: item.item_order }),
+      ]);
+      await load();
+    } catch {
+      toast.error('Error al reordenar');
+    } finally {
+      setMovingId(null);
+    }
+  };
+
   const handleCreate = async () => {
     if (!newForm.nombre || !newForm.bin || !newForm.socio || !newForm.producto) {
       toast.error('Nombre, BIN, Socio y Producto son requeridos');
@@ -2789,9 +2811,12 @@ function BinesAdminTab() {
     }
     setSaving(true);
     try {
+      const catItems = items.filter(i => i.categoria === newForm.categoria);
+      const maxOrder = catItems.length > 0 ? Math.max(...catItems.map(i => i.item_order)) + 1 : 0;
       await binesService.create({
         categoria: newForm.categoria,
         categoria_orden: newForm.categoria_orden,
+        item_order: maxOrder,
         nombre: newForm.nombre,
         bin: newForm.bin,
         socio: newForm.socio,
@@ -2924,6 +2949,7 @@ function BinesAdminTab() {
                   <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500">Socio</th>
                   <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-20">Producto</th>
                   <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500">Nombre comercial / Marca</th>
+                  <th className="text-center py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-8">Orden</th>
                   <th className="text-center py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-24">Acciones</th>
                 </tr>
               </thead>
@@ -2960,6 +2986,7 @@ function BinesAdminTab() {
                           }}
                           className="w-full bg-slate-900/80 border border-slate-700/60 rounded-lg px-2 py-1 text-sm text-white focus:outline-none focus:border-rose-700/60" />
                       </td>
+                      <td className="py-2 px-3" />
                       <td className="py-2 px-3">
                         <div className="flex items-center justify-center gap-1">
                           <button onClick={handleSaveEdit} disabled={saving}
@@ -2983,6 +3010,24 @@ function BinesAdminTab() {
                       <td className="py-2.5 px-3 text-sm text-slate-300">{item.socio}</td>
                       <td className="py-2.5 px-3 text-sm text-slate-400">{item.producto}</td>
                       <td className="py-2.5 px-3 text-sm text-slate-400">{item.nombre_comercial ?? item.marca ?? '—'}</td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <button
+                            onClick={() => handleMove(item, 'up', rows)}
+                            disabled={rows.indexOf(item) === 0 || movingId === item.id}
+                            className="p-1 rounded-md text-slate-600 hover:text-slate-300 hover:bg-slate-700/50 transition-all disabled:opacity-20 disabled:cursor-not-allowed"
+                          >
+                            <ArrowUp size={12} />
+                          </button>
+                          <button
+                            onClick={() => handleMove(item, 'down', rows)}
+                            disabled={rows.indexOf(item) === rows.length - 1 || movingId === item.id}
+                            className="p-1 rounded-md text-slate-600 hover:text-slate-300 hover:bg-slate-700/50 transition-all disabled:opacity-20 disabled:cursor-not-allowed"
+                          >
+                            <ArrowDown size={12} />
+                          </button>
+                        </div>
+                      </td>
                       <td className="py-2.5 px-3">
                         <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                           <button onClick={() => handleStartEdit(item)}
