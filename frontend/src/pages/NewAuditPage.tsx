@@ -191,8 +191,8 @@ export default function NewAuditPage() {
  );
  if (!matchesAnyField) return false;
  }
- if (filterCalificacion && getAttentionCalificacion(a) !== filterCalificacion) return false;
- if (filterEstado && getAttentionEstado(a) !== filterEstado) return false;
+ if (filterCalificacion && getAttentionCalificacion(a).trim().toLowerCase() !== filterCalificacion.trim().toLowerCase()) return false;
+ if (filterEstado && getAttentionEstado(a).trim().toLowerCase() !== filterEstado.trim().toLowerCase()) return false;
  return true;
  });
  }, [attentions, filterDateFrom, filterDateTo, filterAgent, filterClient, filterCalificacion, filterEstado]);
