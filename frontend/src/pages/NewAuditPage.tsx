@@ -528,7 +528,7 @@ export default function NewAuditPage() {
  {/* Load button */}
  <div className="flex flex-wrap items-end gap-4 mb-4">
  <button
- onClick={handleLoadAttentions}
+ onClick={() => handleLoadAttentions()}
  disabled={loadingAttentions}
  className="px-6 py-3 bg-brand-500 text-black rounded-lg font-semibold  disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg flex items-center gap-2"
  >
