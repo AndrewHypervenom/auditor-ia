@@ -168,7 +168,10 @@ export default function NewAuditPage() {
  };
 
  // Unique values for selects (derived from loaded attentions)
- const uniqueCalificaciones = ['FRAUDE/ROEXT', 'TH CONFIRMA MOVIMIENTOS'];
+ const uniqueCalificaciones = useMemo(
+ () => [...new Set(attentions.map(getAttentionCalificacion).filter(Boolean))].sort(),
+ [attentions]
+ );
  const uniqueEstados = useMemo(
  () => [...new Set(attentions.map(getAttentionEstado).filter(Boolean))].sort(),
  [attentions]
@@ -177,7 +180,6 @@ export default function NewAuditPage() {
  // Filtered list
  const filteredAttentions = useMemo(() => {
  return attentions.filter((a) => {
- if (!uniqueCalificaciones.includes(getAttentionCalificacion(a))) return false;
  const dateStr = parseDateForCompare(getAttentionDate(a));
  if (filterDateFrom || filterDateTo) {
   if (!dateStr) return false;
@@ -258,14 +260,14 @@ export default function NewAuditPage() {
 
  // ── Load attentions ──────────────────────────────────────────────────────────
 
- const handleLoadAttentions = async () => {
+ const handleLoadAttentions = async (overrideDateFrom?: string, overrideDateTo?: string) => {
+ const today = new Date().toLocaleDateString('en-CA');
+ const from = overrideDateFrom ?? (filterDateFrom || today);
+ const to   = overrideDateTo   ?? (filterDateTo   || today);
  setLoadingAttentions(true);
+ setAttentions([]);
  try {
- const result = await gpfService.getAttentions(
-  env,
-  filterDateFrom || undefined,
-  filterDateTo   || undefined
- );
+ const result = await gpfService.getAttentions(env, from, to);
  const attentions = result.attentions || [];
  if (attentions.length > 0) {
   const sample = attentions[0];
@@ -583,12 +585,12 @@ export default function NewAuditPage() {
  <div className="flex items-center gap-2">
  <button
  onClick={() => {
- // Calcula ayer en timezone local (funciona para Colombia UTC-5 y México UTC-6)
  const yesterday = new Date();
  yesterday.setDate(yesterday.getDate() - 1);
- const yStr = yesterday.toLocaleDateString('en-CA'); // formato YYYY-MM-DD
+ const yStr = yesterday.toLocaleDateString('en-CA');
  setFilterDateFrom(yStr);
  setFilterDateTo(yStr);
+ handleLoadAttentions(yStr, yStr);
  }}
  className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1.5 transition-all border border-brand-700/50 rounded-lg px-3 py-1.5 hover:bg-brand-500/10 hover:border-brand-500/60 font-medium"
  >
