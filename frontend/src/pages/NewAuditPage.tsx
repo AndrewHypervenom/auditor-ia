@@ -178,7 +178,7 @@ export default function NewAuditPage() {
  const filteredAttentions = useMemo(() => {
  return attentions.filter((a) => {
  const calNorm = getAttentionCalificacion(a).trim().toLowerCase();
- if (calNorm !== "fraude/roext" && calNorm !== "th confirma movimientos") return false;
+ if (!calNorm.includes("fraude") && !calNorm.includes("th confirma")) return false;
  const dateStr = parseDateForCompare(getAttentionDate(a));
  if (filterDateFrom || filterDateTo) {
   if (!dateStr) return false;
