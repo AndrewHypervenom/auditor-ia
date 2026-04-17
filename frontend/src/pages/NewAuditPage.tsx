@@ -168,10 +168,7 @@ export default function NewAuditPage() {
  };
 
  // Unique values for selects (derived from loaded attentions)
- const uniqueCalificaciones = useMemo(
- () => [...new Set(attentions.map(getAttentionCalificacion).filter(Boolean))].sort(),
- [attentions]
- );
+ const uniqueCalificaciones = ['FRAUDE/ROEXT', 'TH CONFIRMA MOVIMIENTOS'];
  const uniqueEstados = useMemo(
  () => [...new Set(attentions.map(getAttentionEstado).filter(Boolean))].sort(),
  [attentions]
