@@ -179,12 +179,6 @@ export default function NewAuditPage() {
  return attentions.filter((a) => {
  const calNorm = getAttentionCalificacion(a).trim().toLowerCase();
  if (!calNorm.includes("fraude") && !calNorm.includes("th confirma")) return false;
- const dateStr = parseDateForCompare(getAttentionDate(a));
- if (filterDateFrom || filterDateTo) {
-  if (!dateStr) return false;
-  if (filterDateFrom && dateStr < filterDateFrom) return false;
-  if (filterDateTo && dateStr > filterDateTo) return false;
- }
  if (filterAgent && !getAttentionExecutive(a).toLowerCase().includes(filterAgent.toLowerCase())) return false;
  if (filterClient) {
  const term = filterClient.toLowerCase();
@@ -197,7 +191,7 @@ export default function NewAuditPage() {
  if (filterEstado && getAttentionEstado(a).trim().toLowerCase() !== filterEstado.trim().toLowerCase()) return false;
  return true;
  });
- }, [attentions, filterDateFrom, filterDateTo, filterAgent, filterClient, filterCalificacion, filterEstado]);
+ }, [attentions, filterAgent, filterClient, filterCalificacion, filterEstado]);
 
  useEffect(() => {
  if (tableScrollRef.current) {
