@@ -78,6 +78,7 @@ class DatabaseService {
           audio_path: auditInput.audioPath || '',
           image_filenames: imageFilenames,
           image_paths: auditInput.imagePaths || [],
+          gpf_data: auditInput.gpfData ?? null,
           status: 'processing'
         })
         .select('id')

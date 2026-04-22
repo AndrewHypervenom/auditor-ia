@@ -476,7 +476,8 @@ ${rubroHints}` : ''}`;
  topicsToEvaluate,
  maxPossibleScore,
  transcript.text,
- scriptSteps
+ scriptSteps,
+ auditInput.gpfData
  );
 
  const evaluationSystemPrompt = await getDatabaseService().getPromptByKey('evaluation_system') ?? '';
@@ -530,7 +531,8 @@ ${rubroHints}` : ''}`;
  topics: any[],
  maxScore: number,
  transcriptText: string,
- scriptSteps?: any
+ scriptSteps?: any,
+ gpfData?: AuditInput['gpfData']
  ): string {
  // Formatear evidencia estructurada de forma más clara
  const structuredEvidence = Object.entries(visualEvidence)
@@ -571,6 +573,56 @@ ${fieldsSection}`;
  })
  .join('\n\n');
 
+ // Construir sección GPF estructurada
+ const gpfSection = gpfData ? (() => {
+  const fields = gpfData.attentionFields || {};
+  const fieldLines = Object.entries(fields)
+   .filter(([, v]) => v !== undefined && v !== null && v !== '')
+   .map(([k, v]) => `- ${k}: ${v}`)
+   .join('\n');
+
+  const txLines = gpfData.transactions.length > 0
+   ? gpfData.transactions.map((t, i) =>
+    `${i + 1}. Fecha: ${t.date || '-'} | Comercio: ${t.commerce_name || '-'} | Monto: ${t.amount || '-'}`
+   ).join('\n')
+   : '(sin transacciones)';
+
+  const commentLines = gpfData.comments.length > 0
+   ? gpfData.comments.map((c, i) =>
+    `${i + 1}. [${c.date || '-'}] ${c.agent || 'Agente'}: ${c.comment}`
+   ).join('\n')
+   : '(sin comentarios)';
+
+  const otpLines = gpfData.otpValidations.length > 0
+   ? gpfData.otpValidations.map((o, i) =>
+    `${i + 1}. [${o.date || '-'}] ${o.agent || 'Agente'}: ${o.resultado ? 'EXITOSO' : 'FALLIDO'}`
+   ).join('\n')
+   : '(sin validaciones OTP)';
+
+  const rawLines = gpfData.rawComments.length > 0
+   ? gpfData.rawComments.map((c, i) => `${i + 1}. ${c}`).join('\n')
+   : '(sin notas)';
+
+  return `╔═════════════════════════════════════╗
+DATOS ESTRUCTURADOS GPF
+╚═════════════════════════════════════╝
+
+CAMPOS DE LA ATENCIÓN GPF:
+${fieldLines || '(sin campos registrados)'}
+
+TRANSACCIONES GPF (${gpfData.transactions.length}):
+${txLines}
+
+COMENTARIOS DEL AGENTE GPF (${gpfData.comments.length}):
+${commentLines}
+
+VALIDACIONES OTP GPF (${gpfData.otpValidations.length}):
+${otpLines}
+
+NOTAS DE ATENCIÓN GPF (${gpfData.rawComments.length}):
+${rawLines}`;
+ })() : '(Auditoría sin datos GPF — no aplica fuente GPF)';
+
  return `# AUDITORÍA CON EVIDENCIA ESTRUCTURADA MEJORADA
 
 **Información de la Auditoría:**
@@ -580,6 +632,19 @@ ${fieldsSection}`;
 - Ejecutivo: ${auditInput.executiveName} (ID: ${auditInput.executiveId})
 - Cliente: ${auditInput.clientId}
 - Fecha: ${auditInput.callDate}
+
+╔═════════════════════════════════════╗
+REGLA DE FUENTE — OBLIGATORIA
+╚═════════════════════════════════════╝
+
+Cada tópico indica "Validar en". DEBES respetar estrictamente esa fuente:
+- "GPF" → usa SOLO la sección DATOS ESTRUCTURADOS GPF
+- "Imágenes del sistema" → usa SOLO la sección EVIDENCIA VISUAL ESTRUCTURADA
+- "Llamada/Transcripción" → usa SOLO la sección EVIDENCIA VERBAL (Transcripción)
+- Múltiples fuentes → usa TODAS las fuentes indicadas
+- Si la fuente requerida no tiene evidencia → 0 puntos (NO busques en otras fuentes)
+
+${gpfSection}
 
 ╔═════════════════════════════════════╗
 EVIDENCIA VISUAL ESTRUCTURADA
@@ -610,7 +675,14 @@ El agente debe seguir estos pasos en orden para cumplir el script.
 TÓPICOS A EVALUAR
 ╚═════════════════════════════════════╝
 
-${topics.map((t, i) => `
+${topics.map((t, i) => {
+  const sourceLabels: string = Array.isArray(t.validationSource) && t.validationSource.length > 0
+   ? t.validationSource.map((s: string) => s === 'gpf' ? 'GPF' : s === 'imagenes' ? 'Imágenes del sistema' : 'Llamada/Transcripción').join(' + ')
+   : 'Toda la evidencia disponible';
+  const sourceRule: string = Array.isArray(t.validationSource) && t.validationSource.length > 0
+   ? `OBLIGATORIO: evalúa ÚNICAMENTE usando la(s) fuente(s): ${sourceLabels}. Si esa fuente no tiene evidencia → 0 puntos.`
+   : 'Puedes usar cualquier evidencia disponible.';
+  return `
 ┌────────────────────────────────────┐
 ${i + 1}. ${t.topic}
 └────────────────────────────────────┘
@@ -619,20 +691,17 @@ Bloque: ${t.block}
 Sistema: ${t.system}
 Puntos máximos: ${t.maxScore}
 Criticidad: ${t.criticality}
-Validar en: ${Array.isArray(t.validationSource) && t.validationSource.length > 0
-  ? t.validationSource.map((s: string) => s === 'gpf' ? 'GPF' : s === 'imagenes' ? 'Imágenes del sistema' : 'Llamada/Transcripción').join(' + ')
-  : 'Toda la evidencia disponible'}
+Validar en: ${sourceLabels}
+Regla de fuente: ${sourceRule}
 
 QUÉ BUSCAR:
-${t.whatToLookFor || 'Revisar evidencia visual y verbal relacionada con este criterio.'}
+${t.whatToLookFor || 'Revisar evidencia relacionada con este criterio en la fuente indicada.'}
 
 CRITERIO DE CALIFICACIÓN:
-- Si encuentras la evidencia específica → ${t.maxScore} puntos
+- Si encuentras la evidencia específica en la fuente correcta → ${t.maxScore} puntos
 - Si la evidencia es parcial → Otorga puntos parciales proporcionalmente
-- Si NO hay evidencia o contradice → 0 puntos
-
-IMPORTANTE: Revisa TODA la evidencia (visual + verbal) antes de calificar.
-`).join('\n\n')}
+- Si NO hay evidencia en la fuente requerida o contradice → 0 puntos
+`; }).join('\n\n')}
 
 ╔═════════════════════════════════════╗
 FORMATO DE RESPUESTA

@@ -1925,7 +1925,14 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  // Use the full attention object from the list for rich metadata
  const metadata = {
  ...gpfDataService.normalizeMetadata(attentionObject || {}, attentionId),
- excelType: resolvedExcelType
+ excelType: resolvedExcelType,
+ gpfData: {
+  attentionFields: attentionObject || {},
+  transactions: attentionData.transactions,
+  comments: attentionData.comments,
+  otpValidations: attentionData.otpValidations,
+  rawComments: attentionData.rawComments
+ }
  };
 
  // Resolver el callType correcto: primero por texto directo, luego por plantilla_gpf

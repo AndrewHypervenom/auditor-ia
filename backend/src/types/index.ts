@@ -5,6 +5,14 @@
  * Input para crear una nueva auditoría
  * Estos campos coinciden con los del formulario del frontend
  */
+export interface GpfStructuredData {
+ attentionFields: Record<string, any>;
+ transactions: Array<{ date: string; commerce_name: string; amount: string }>;
+ comments: Array<{ date: string; comment: string; agent: string }>;
+ otpValidations: Array<{ date: string; agent: string; resultado: boolean }>;
+ rawComments: string[];
+}
+
 export interface AuditInput {
  executiveName: string; // Nombre del ejecutivo/agente
  executiveId: string; // ID del ejecutivo/agente
@@ -17,6 +25,7 @@ export interface AuditInput {
  callDuration?: string | null; // Duración de la llamada (opcional)
  audioPath?: string; // Ruta del archivo de audio
  imagePaths?: string[]; // Rutas de las imágenes
+ gpfData?: GpfStructuredData; // Datos estructurados GPF (solo auditorías desde GPF)
 }
 
 /**
