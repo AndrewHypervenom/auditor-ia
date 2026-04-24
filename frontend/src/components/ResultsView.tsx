@@ -67,6 +67,11 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
 
   const hasEdits = Object.keys(scoreEdits).length > 0;
 
+  const isManualItem = (s: any): boolean =>
+    s.requiresManualReview === true ||
+    ((s.score ?? 0) === 0 && typeof s.observations === 'string' &&
+      s.observations.includes('Requiere validación manual'));
+
   const criticalFailed  = currentScores.filter((s: any) => !isManualItem(s) && s.criticality === 'Crítico' && (s.score ?? 0) === 0);
   // hasCriticalFail: detectado en tiempo real (edición activa) O por el percentage=0 guardado en BD (registros sin campo criticality)
   const hasCriticalFail = criticalFailed.length > 0 || (!hasEdits && savedPercentage === 0 && rawPct > 0);
@@ -91,11 +96,6 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
     if (pct > 0)   return 'partial';
     return 'failed';
   };
-
-  const isManualItem = (s: any): boolean =>
-    s.requiresManualReview === true ||
-    ((s.score ?? 0) === 0 && typeof s.observations === 'string' &&
-      s.observations.includes('Requiere validación manual'));
 
   const filterCounts = useMemo(() => {
     const counts = { passed: 0, partial: 0, failed: 0, critical: 0, manual: 0 };
