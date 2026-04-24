@@ -593,11 +593,65 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 flex-shrink-0">
                                 <ClipboardList className="w-3 h-3" /> Validación manual
                               </span>
+                              {isEdited && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex-shrink-0">
+                                  <Pencil className="w-3 h-3" /> Editado
+                                </span>
+                              )}
                             </div>
                           </div>
-                          <span className="text-xs tabular-nums font-semibold text-amber-500/70 flex-shrink-0">
-                            {safeMax > 0 ? `— / ${safeMax} pts` : '—'}
-                          </span>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {isEditing ? (
+                              <div className="flex items-center gap-2">
+                                <div className="flex flex-col gap-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <input
+                                      type="number" min={0} max={safeMax}
+                                      value={editInputValue}
+                                      onChange={e => setEditInputValue(e.target.value)}
+                                      onKeyDown={e => {
+                                        if (e.key === 'Enter') confirmEdit(idx, safeMax);
+                                        if (e.key === 'Escape') cancelEdit();
+                                      }}
+                                      autoFocus
+                                      className="w-14 px-2 py-1 text-center text-sm font-bold bg-dark-bg border border-amber-700 rounded-lg text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                    />
+                                    <span className="text-xs text-slate-500">/ {safeMax} pts</span>
+                                  </div>
+                                  <input
+                                    type="range" min={0} max={safeMax}
+                                    value={parseInt(editInputValue) || 0}
+                                    onChange={e => setEditInputValue(e.target.value)}
+                                    className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                                    style={{ accentColor: '#f59e0b' }}
+                                  />
+                                </div>
+                                <button onClick={() => confirmEdit(idx, safeMax)}
+                                  className="p-1.5 rounded-lg bg-amber-500 text-black hover:bg-amber-400 transition-colors" title="Confirmar (Enter)">
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={cancelEdit}
+                                  className="p-1.5 rounded-lg bg-dark-card border border-dark-border text-slate-400 hover:text-white transition-colors" title="Cancelar (Esc)">
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <span className="text-xs tabular-nums font-semibold text-amber-500/70">
+                                  {safeScore > 0 ? `${safeScore}/${safeMax} pts` : `— / ${safeMax > 0 ? safeMax + ' pts' : '—'}`}
+                                </span>
+                                {safeMax > 0 && (
+                                  <button
+                                    onClick={() => startEdit(idx, safeScore)}
+                                    className="p-1.5 rounded-lg text-slate-600 hover:text-amber-400 hover:bg-amber-500/10 border border-transparent hover:border-amber-700/30 transition-all"
+                                    title="Editar puntaje"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </div>
                       );
                     }
