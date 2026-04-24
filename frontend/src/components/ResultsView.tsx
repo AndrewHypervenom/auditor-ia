@@ -67,7 +67,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
 
   const hasEdits = Object.keys(scoreEdits).length > 0;
 
-  const criticalFailed  = currentScores.filter((s: any) => !s.requiresManualReview && s.criticality === 'Crítico' && (s.score ?? 0) === 0);
+  const criticalFailed  = currentScores.filter((s: any) => !isManualItem(s) && s.criticality === 'Crítico' && (s.score ?? 0) === 0);
   // hasCriticalFail: detectado en tiempo real (edición activa) O por el percentage=0 guardado en BD (registros sin campo criticality)
   const hasCriticalFail = criticalFailed.length > 0 || (!hasEdits && savedPercentage === 0 && rawPct > 0);
   const currentPct      = hasCriticalFail ? 0 : rawPct;
@@ -92,10 +92,15 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
     return 'failed';
   };
 
+  const isManualItem = (s: any): boolean =>
+    s.requiresManualReview === true ||
+    ((s.score ?? 0) === 0 && typeof s.observations === 'string' &&
+      s.observations.includes('Requiere validación manual'));
+
   const filterCounts = useMemo(() => {
     const counts = { passed: 0, partial: 0, failed: 0, critical: 0, manual: 0 };
     currentScores.forEach((s: any) => {
-      if (s.requiresManualReview) {
+      if (isManualItem(s)) {
         counts.manual++;
       } else {
         counts[getCriterionStatus(s.score ?? 0, s.maxScore ?? 0)]++;
@@ -112,7 +117,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
       const m = score.criterion.match(/\[(.*?)\]/);
       const block = m ? m[1] : 'General';
       if (!acc[block]) acc[block] = [];
-      const isManual = score.requiresManualReview === true;
+      const isManual = isManualItem(score);
       const status = isManual ? 'manual' : getCriterionStatus(score.score ?? 0, score.maxScore ?? 0);
       const isCrit = !isManual && score.criticality === 'Crítico';
       if (
@@ -166,6 +171,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
         currentScores.map((s: any) => ({
           criterion: s.criterion, score: s.score, maxScore: s.maxScore,
           observations: s.observations, criticality: s.criticality || '-',
+          requiresManualReview: s.requiresManualReview ?? false,
         }))
       );
       setLocalScores(currentScores.map((s: any) => ({ ...s })));
@@ -512,9 +518,9 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
             const blockTotal         = scores.reduce((s: number, x: any) => s + (x.score ?? 0), 0);
             const blockMax           = scores.reduce((s: number, x: any) => s + (x.maxScore ?? 0), 0);
             const blockPct           = blockMax > 0 ? (blockTotal / blockMax) * 100 : 0;
-            const blockFails         = scores.filter((s: any) => getCriterionStatus(s.score ?? 0, s.maxScore ?? 0) === 'failed').length;
-            const blockCritical      = scores.filter((s: any) => s.criticality === 'Crítico').length;
-            const blockCriticalFailed = scores.filter((s: any) => s.criticality === 'Crítico' && (s.score ?? 0) === 0).length;
+            const blockFails         = scores.filter((s: any) => !isManualItem(s) && getCriterionStatus(s.score ?? 0, s.maxScore ?? 0) === 'failed').length;
+            const blockCritical      = scores.filter((s: any) => !isManualItem(s) && s.criticality === 'Crítico').length;
+            const blockCriticalFailed = scores.filter((s: any) => !isManualItem(s) && s.criticality === 'Crítico' && (s.score ?? 0) === 0).length;
 
             return (
               <div key={block} className={blockIdx > 0 ? 'border-t border-dark-border/70' : ''}>
@@ -556,7 +562,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
                 <div className="divide-y divide-dark-border/40">
                   {scores.map((score: any) => {
                     const idx           = score._globalIndex;
-                    const isManual      = score.requiresManualReview === true;
+                    const isManual      = isManualItem(score);
                     const isCritical    = !isManual && score.criticality === 'Crítico';
                     const isEdited      = scoreEdits[idx] !== undefined;
                     const isEditing     = editingIndex === idx;

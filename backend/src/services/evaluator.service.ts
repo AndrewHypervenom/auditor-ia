@@ -133,23 +133,38 @@ class EvaluatorService {
  )
  );
 
- // Transformar a formato de respuesta
- const detailedScores: Array<{
- criterion: string;
- score: number;
- maxScore: number;
- observations: string;
- criticality: string;
- }> = [
- ...evaluation.evaluations.map((ev: any) => ({
- criterion: `[${ev.block}] ${ev.topic}`,
- score: ev.score,
- maxScore: ev.max_score,
- observations: ev.justification,
- criticality: topicCriticalityMap.get(ev.topic) || '-'
- })),
- ...manualTopics
- ];
+ // Transformar a formato de respuesta — en el orden original de criterios de la BD
+ const aiResultMap = new Map<string, any>();
+ for (const ev of evaluation.evaluations as any[]) {
+   aiResultMap.set(`${ev.block}|||${ev.topic}`, ev);
+ }
+ const manualMap = new Map<string, any>();
+ for (const m of manualTopics) {
+   manualMap.set(m.criterion, m);
+ }
+
+ const detailedScores = criteria.flatMap(block =>
+   block.topics
+     .filter((t: any) => t.applies)
+     .map((t: any) => {
+       const manualKey = `[${block.blockName}] ${t.topic}`;
+       if (t.requiresManualReview) {
+         return manualMap.get(manualKey) ?? null;
+       }
+       const ai = aiResultMap.get(`${block.blockName}|||${t.topic}`);
+       if (ai) {
+         return {
+           criterion: `[${ai.block}] ${ai.topic}`,
+           score: ai.score,
+           maxScore: ai.max_score,
+           observations: ai.justification,
+           criticality: topicCriticalityMap.get(ai.topic) || '-',
+         };
+       }
+       return null;
+     })
+     .filter(Boolean)
+ ) as Array<{ criterion: string; score: number; maxScore: number; observations: string; criticality: string }>;
 
  const keyMoments: Array<{
  timestamp: string;

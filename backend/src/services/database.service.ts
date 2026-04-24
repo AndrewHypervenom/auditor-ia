@@ -525,6 +525,16 @@ class DatabaseService {
                 : s;
             });
           }
+          // Re-ordenar para que coincida con el orden actual de bloques/criterios en BD
+          const orderedKeys: string[] = (currentCriteria as any[]).flatMap((block: any) =>
+            (block.topics || []).filter((t: any) => t.applies).map((t: any) => `[${block.blockName}] ${t.topic}`)
+          );
+          if (orderedKeys.length > 0) {
+            const scoreMap = new Map(evaluation.detailed_scores.map((s: any) => [s.criterion, s]));
+            const sorted = orderedKeys.map((k: string) => scoreMap.get(k)).filter(Boolean);
+            const extra = evaluation.detailed_scores.filter((s: any) => !orderedKeys.includes(s.criterion));
+            evaluation.detailed_scores = [...sorted, ...extra];
+          }
         } catch {
           // Si falla el enriquecimiento, usar los valores guardados
         }

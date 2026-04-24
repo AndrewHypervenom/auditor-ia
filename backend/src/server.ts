@@ -561,7 +561,7 @@ app.post('/api/evaluate',
 app.patch('/api/audits/:auditId/scores', authenticateUser, async (req: Request, res: Response) => {
  try {
  const { auditId } = req.params;
- const { detailedScores } = req.body as { detailedScores: Array<{ criterion: string; score: number; maxScore: number; observations: string; criticality?: string }> };
+ const { detailedScores } = req.body as { detailedScores: Array<{ criterion: string; score: number; maxScore: number; observations: string; criticality?: string; requiresManualReview?: boolean }> };
 
  if (!Array.isArray(detailedScores) || detailedScores.length === 0) {
  return res.status(400).json({ error: 'detailedScores es requerido y debe ser un array no vacío' });
@@ -593,6 +593,40 @@ app.patch('/api/audits/:auditId/scores', authenticateUser, async (req: Request, 
  }
 
  logger.success('Scores updated manually', { auditId, totalScore, percentage, criticalFailure });
+
+ // Regenerar Excel con los puntajes actualizados
+ try {
+   const auditData = await databaseService.getAuditById(auditId, req.user!.id, req.user!.role);
+   if (auditData?.audit) {
+     const { audit, evaluation: evalRow } = auditData;
+     const auditInput: AuditInput = {
+       executiveName:   audit.executive_name   || '',
+       executiveId:     audit.executive_id     || '',
+       callType:        audit.call_type        || '',
+       clientId:        audit.client_id        || '',
+       callDate:        audit.call_date        || '',
+       calificacion:    audit.calificacion     || undefined,
+       subCalificacion: audit.sub_calificacion || undefined,
+       excelType:       audit.excel_type       || undefined,
+     };
+     const evalForExcel = {
+       ...(evalRow || {}),
+       detailedScores,
+       totalScore: criticalFailure ? 0 : totalScore,
+       maxPossibleScore,
+       percentage,
+     };
+     const newExcel = await excelService.generateExcelReport(auditInput, evalForExcel as any);
+     const newBase64 = newExcel.buffer.toString('base64');
+     await supabaseAdmin.from('evaluations').update({
+       excel_data:     newBase64,
+       excel_filename: newExcel.filename,
+     }).eq('audit_id', auditId);
+     logger.success('Excel regenerado tras actualización de puntajes', { auditId, filename: newExcel.filename });
+   }
+ } catch (excelErr: any) {
+   logger.warn('No se pudo regenerar el Excel tras actualizar puntajes', { auditId, error: excelErr?.message });
+ }
 
  return res.json({ totalScore, maxPossibleScore, percentage, criticalFailure, failedCriticalCriteria: criticalFailure ? failedCritical : undefined });
  } catch (error: any) {
