@@ -17,8 +17,10 @@ import AuditsViewPage from './pages/AuditsViewPage';
 import AiAnalysisPage from './pages/AiAnalysisPage';
 import ScriptsAdminPage from './pages/ScriptsAdminPage';
 import ScriptsReferencePage from './pages/ScriptsReferencePage';
+import { useVersionCheck } from './hooks/useVersionCheck';
 
 function App() {
+  useVersionCheck();
   return (
     <BrowserRouter>
       <AuthProvider>

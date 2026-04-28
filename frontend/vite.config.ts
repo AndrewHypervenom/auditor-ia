@@ -1,9 +1,21 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
+import { writeFileSync } from 'fs';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'generate-version',
+      buildStart() {
+        writeFileSync(
+          resolve(__dirname, 'public/version.json'),
+          JSON.stringify({ version: Date.now().toString() })
+        );
+      }
+    }
+  ],
   
   resolve: {
     alias: {
