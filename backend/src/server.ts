@@ -600,6 +600,7 @@ app.patch('/api/audits/:auditId/scores', authenticateUser, async (req: Request, 
  logger.success('Scores updated manually', { auditId, totalScore, percentage, criticalFailure });
 
  // Regenerar Excel con los puntajes actualizados
+ let newExcelFilename: string | undefined;
  try {
    const auditData = await databaseService.getAuditById(auditId, req.user!.id, req.user!.role);
    if (auditData?.audit) {
@@ -627,13 +628,14 @@ app.patch('/api/audits/:auditId/scores', authenticateUser, async (req: Request, 
        excel_data:     newBase64,
        excel_filename: newExcel.filename,
      }).eq('audit_id', auditId);
+     newExcelFilename = newExcel.filename;
      logger.success('Excel regenerado tras actualización de puntajes', { auditId, filename: newExcel.filename });
    }
  } catch (excelErr: any) {
    logger.warn('No se pudo regenerar el Excel tras actualizar puntajes', { auditId, error: excelErr?.message });
  }
 
- return res.json({ totalScore, maxPossibleScore, percentage, criticalFailure, failedCriticalCriteria: criticalFailure ? failedCritical : undefined });
+ return res.json({ totalScore, maxPossibleScore, percentage, criticalFailure, failedCriticalCriteria: criticalFailure ? failedCritical : undefined, excel_filename: newExcelFilename });
  } catch (error: any) {
  logger.error('Error in PATCH /api/audits/:auditId/scores', error);
  return res.status(500).json({ error: 'Error interno del servidor' });

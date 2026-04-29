@@ -55,6 +55,13 @@ export default function AuditDetailPage() {
     }
   };
 
+  const handleScoresSaved = (excelFilename: string) => {
+    setAuditDetail(prev => {
+      if (!prev?.evaluation) return prev;
+      return { ...prev, evaluation: { ...prev.evaluation, excel_filename: excelFilename } };
+    });
+  };
+
   const handleNewAudit = () => {
     navigate('/audit/new');
   };
@@ -123,6 +130,7 @@ export default function AuditDetailPage() {
           callType={auditDetail.audit?.call_type}
           onDownload={handleDownload}
           onNewAudit={handleNewAudit}
+          onScoresSaved={handleScoresSaved}
         />
       </main>
     </div>

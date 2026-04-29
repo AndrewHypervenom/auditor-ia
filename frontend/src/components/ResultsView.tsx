@@ -17,11 +17,12 @@ interface ResultsViewProps {
   callType?: string;
   onDownload: () => void;
   onNewAudit: () => void;
+  onScoresSaved?: (excelFilename: string) => void;
 }
 
 type FilterType = 'all' | 'passed' | 'partial' | 'failed' | 'critical' | 'manual';
 
-export default function ResultsView({ result, auditId, callType, onDownload, onNewAudit }: ResultsViewProps) {
+export default function ResultsView({ result, auditId, callType, onDownload, onNewAudit, onScoresSaved }: ResultsViewProps) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     scores: true,
     observations: false,
@@ -180,6 +181,9 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
       setSavedPercentage(saved.percentage);
       setScoreEdits({});
       toast.success('Puntajes guardados');
+      if (saved.excel_filename) {
+        onScoresSaved?.(saved.excel_filename);
+      }
     } catch {
       toast.error('Error al guardar');
     } finally {

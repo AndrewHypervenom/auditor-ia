@@ -224,6 +224,7 @@ export const auditService = {
  percentage: number;
  criticalFailure: boolean;
  failedCriticalCriteria?: string[];
+ excel_filename?: string;
  }> {
  const response = await api.patch(`/audits/${auditId}/scores`, { detailedScores });
  return response.data;
