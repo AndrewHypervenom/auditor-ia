@@ -112,7 +112,6 @@ class AssemblyAIService {
  { from: ['aclarasión', 'aclarasion'], to: 'aclaración' },
  { from: ['o te pe', 'ó te pe'], to: 'OTP' },
  { from: ['nip'], to: 'NIP' },
- { from: ['tarjeta de creto', 'tarjeta creto'], to: 'tarjeta de crédito' },
  ]
  });
 
