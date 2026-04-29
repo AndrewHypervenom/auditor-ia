@@ -572,8 +572,13 @@ app.patch('/api/audits/:auditId/scores', authenticateUser, async (req: Request, 
  const maxPossibleScore = detailedScores.reduce((sum, s) => sum + (s.maxScore ?? 0), 0);
  const rawPercentage = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0;
 
- // Reevaluar fallo crítico
- const failedCritical = detailedScores.filter(s => s.criticality === 'Crítico' && s.score === 0).map(s => s.criterion);
+ // Reevaluar fallo crítico — excluir ítems de validación manual (score 0 es su estado inicial, no una falla)
+ const failedCritical = detailedScores.filter(s =>
+   s.criticality === 'Crítico' &&
+   s.score === 0 &&
+   !s.requiresManualReview &&
+   !(typeof s.observations === 'string' && s.observations.includes('Requiere validación manual'))
+ ).map(s => s.criterion);
  const criticalFailure = failedCritical.length > 0;
  const percentage = criticalFailure ? 0 : rawPercentage;
 

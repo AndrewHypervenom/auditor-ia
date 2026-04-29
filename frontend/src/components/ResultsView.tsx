@@ -73,8 +73,10 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
       s.observations.includes('Requiere validación manual'));
 
   const criticalFailed  = currentScores.filter((s: any) => !isManualItem(s) && s.criticality === 'Crítico' && (s.score ?? 0) === 0);
-  // hasCriticalFail: detectado en tiempo real (edición activa) O por el percentage=0 guardado en BD (registros sin campo criticality)
-  const hasCriticalFail = criticalFailed.length > 0 || (!hasEdits && savedPercentage === 0 && rawPct > 0);
+  // hasCriticalFail: detectado en tiempo real por criterios críticos no-manuales en 0
+  // El fallback de savedPercentage===0 solo aplica si hay criterios críticos en la lista (evita falsos positivos por bugs previos)
+  const hasCriticalItemsInList = currentScores.some((s: any) => !isManualItem(s) && s.criticality === 'Crítico');
+  const hasCriticalFail = criticalFailed.length > 0 || (!hasEdits && savedPercentage === 0 && rawPct > 0 && hasCriticalItemsInList);
   const currentPct      = hasCriticalFail ? 0 : rawPct;
   // displayPct: muestra el porcentaje guardado en BD cuando no hay ediciones activas
   const displayPct      = hasEdits ? currentPct : savedPercentage;
