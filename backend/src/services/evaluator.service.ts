@@ -338,7 +338,7 @@ class EvaluatorService {
   const systems = await getDatabaseService().getImageSystems();
   const activeSystems = systems.filter((s: any) => s.is_active !== false);
   if (activeSystems.length === 0) {
-   throw new Error('No hay sistemas de imagen configurados en la base de datos. Agrega sistemas en el panel Admin → Criterios → Sistemas de Imagen.');
+   return this.buildGenericAnalysisPrompt(rubroHints);
   }
   return this.buildPromptFromSystems(activeSystems, rubroHints);
  }
@@ -426,6 +426,27 @@ Los siguientes rubros requieren validación en imágenes. Presta especial atenci
 ${rubroHints}` : ''}`;
  }
 
+ private buildGenericAnalysisPrompt(rubroHints?: string): string {
+  return `Analiza esta captura de pantalla de sistema bancario y extrae TODOS los datos visibles.
+
+Devuelve SOLO un JSON con esta estructura exacta:
+
+\`\`\`json
+{
+  "system": "OTRO",
+  "confidence": 0.9,
+  "data": { "campo_visible": "valor_exacto" },
+  "critical_fields": {},
+  "findings": ["dato importante: valor encontrado"]
+}
+\`\`\`
+${rubroHints ? `\n**DATOS A DETECTAR (presta especial atención):**\n${rubroHints}\n` : ''}
+REGLAS:
+1. Extrae TODOS los datos visibles: números, fechas, nombres, estados, montos, códigos
+2. No inventes valores — usa null si no está visible
+3. El campo "system" debe ser siempre "OTRO"
+4. Sé ultra específico con cada dato extraído`;
+ }
 
  /**
  * MEJORADO: Evaluación con matching más preciso y captura de tokens
