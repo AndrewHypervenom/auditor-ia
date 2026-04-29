@@ -2127,6 +2127,7 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
 
  let finalTranscript = syntheticTranscript;
  let audioDurationSeconds = 0;
+ let audioOnlyTranscriptText: string | null = null; // solo la transcripción de AssemblyAI, sin datos GPF
 
  try {
  logger.info('[PASO 5] Solicitando URL de audio a GPF...', { attentionId, env });
@@ -2205,6 +2206,7 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  ? { ...transcriptionResultRaw, text: correctedGpfText ?? transcriptionResultRaw.text }
  : transcriptionResultRaw;
  if (transcriptionResult?.text) {
+ audioOnlyTranscriptText = transcriptionResult.text; // guardar solo el audio para mostrar en UI
  // Combinar transcript real de audio + datos estructurados GPF
  // para que el evaluador tenga TODO el contexto disponible
  const combinedText = `${transcriptionResult.text}\n\n--- DATOS ESTRUCTURADOS GPF ---\n${syntheticTranscript.text}`;
@@ -2346,7 +2348,7 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
  const excelBase64 = excelResult.buffer.toString('base64');
 
  await databaseService.completeAudit(auditId, {
- transcription: finalTranscript.text,
+ transcription: audioOnlyTranscriptText ?? '',
  transcriptionWords: finalTranscript.words,
  imageAnalysis: imageAnalysisSummary,
  evaluation,
