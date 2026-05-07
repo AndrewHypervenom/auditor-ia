@@ -104,6 +104,8 @@ export interface AuditDetail {
  recommendations: string[];
  key_moments: any[];
  excel_filename: string;
+ openai_response?: any;
+ supervisor_comments?: Record<string, string>;
  } | null;
  apiCosts: APICostsDB | null;
 }
@@ -216,6 +218,10 @@ export const auditService = {
  responseType: 'blob'
  });
  return response.data;
+ },
+
+ async updateAuditComments(auditId: string, comments: Record<string, string>): Promise<void> {
+ await api.patch(`/audits/${auditId}/comments`, { comments });
  },
 
  async updateAuditScores(auditId: string, detailedScores: any[]): Promise<{

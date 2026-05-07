@@ -642,6 +642,36 @@ app.patch('/api/audits/:auditId/scores', authenticateUser, async (req: Request, 
  }
 });
 
+// ============================================================
+// PATCH /api/audits/:auditId/comments — Guardar comentarios del supervisor por rubro
+// ============================================================
+app.patch('/api/audits/:auditId/comments', authenticateUser, async (req: Request, res: Response) => {
+ try {
+ const { auditId } = req.params;
+ const { comments } = req.body as { comments: Record<string, string> };
+
+ if (!comments || typeof comments !== 'object' || Array.isArray(comments)) {
+ return res.status(400).json({ error: 'comments debe ser un objeto { [criterion]: string }' });
+ }
+
+ const { error } = await supabaseAdmin
+ .from('evaluations')
+ .update({ supervisor_comments: comments })
+ .eq('audit_id', auditId);
+
+ if (error) {
+ logger.error('Error saving supervisor comments', error);
+ return res.status(500).json({ error: 'Error al guardar comentarios en la base de datos' });
+ }
+
+ logger.success('Supervisor comments saved', { auditId, count: Object.keys(comments).length });
+ return res.json({ success: true });
+ } catch (error: any) {
+ logger.error('Error in PATCH /api/audits/:auditId/comments', error);
+ return res.status(500).json({ error: 'Error interno del servidor' });
+ }
+});
+
 app.delete('/api/audits/:auditId', authenticateUser, async (req: Request, res: Response) => {
  try {
  const { auditId } = req.params;

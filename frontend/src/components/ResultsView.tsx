@@ -4,7 +4,7 @@ import {
   Download, CheckCircle2, AlertCircle, Clock, TrendingUp, FileText, Award,
   Target, ChevronDown, ChevronUp, PhoneIncoming, Monitor, Pencil, Check,
   X, Save, RotateCcw, AlertTriangle, ShieldAlert, Plus, ChevronsUpDown,
-  MinusCircle, XCircle, ClipboardList
+  MinusCircle, XCircle, ClipboardList, MessageSquare, Copy, Loader2
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
@@ -22,6 +22,49 @@ interface ResultsViewProps {
 
 type FilterType = 'all' | 'passed' | 'partial' | 'failed' | 'critical' | 'manual';
 
+// ── Textarea de comentario del supervisor ───────────────────────────────────
+function CommentTextarea({
+  criterion, value, saving, onSave, accentClass,
+}: {
+  criterion: string;
+  value: string;
+  saving: boolean;
+  onSave: (criterion: string, text: string) => void;
+  accentClass: string;
+}) {
+  const [localValue, setLocalValue] = useState(value);
+  const isDirty = localValue !== value;
+
+  return (
+    <div className="px-4 pb-3 ml-7">
+      <div className="p-3 rounded-lg border border-sky-900/30 bg-sky-950/10">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold text-sky-400/80 uppercase tracking-wide flex items-center gap-1.5">
+            <MessageSquare className="w-3 h-3" /> Comentario del supervisor
+          </p>
+          {saving && <Loader2 className="w-3.5 h-3.5 text-sky-400 animate-spin" />}
+          {!saving && !isDirty && value && (
+            <span className="text-xs text-sky-600 flex items-center gap-1">
+              <Check className="w-3 h-3" /> Guardado
+            </span>
+          )}
+        </div>
+        <textarea
+          rows={3}
+          value={localValue}
+          onChange={e => setLocalValue(e.target.value)}
+          onBlur={() => { if (isDirty) onSave(criterion, localValue); }}
+          placeholder="Escribe tu observación o retroalimentación para este criterio..."
+          className={`w-full resize-none bg-dark-bg/60 border rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 transition-colors ${accentClass}`}
+        />
+        {isDirty && (
+          <p className="text-xs text-slate-600 mt-1.5">Haz clic fuera del campo para guardar automáticamente</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ResultsView({ result, auditId, callType, onDownload, onNewAudit, onScoresSaved }: ResultsViewProps) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     scores: true,
@@ -29,6 +72,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
     recommendations: false,
     keyMoments: false,
     transcript: false,
+    comments: true,
   });
   const [expandedCriteria, setExpandedCriteria] = useState<Record<number, boolean>>({});
   const [allExpanded, setAllExpanded] = useState<boolean | null>(null);
@@ -40,6 +84,8 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editInputValue, setEditInputValue] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
+  const [comments, setComments] = useState<Record<string, string>>(result.supervisorComments ?? {});
+  const [savingComment, setSavingComment] = useState<string | null>(null);
 
   // ── Datos seguros ────────────────────────────────────────────────────────────
   const safeResult = {
@@ -190,6 +236,36 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
       setIsSaving(false);
     }
   };
+
+  // ── Comentarios del supervisor ───────────────────────────────────────────────
+  const handleSaveComment = async (criterion: string, text: string) => {
+    if (!auditId) return;
+    const updatedComments = { ...comments };
+    if (text.trim()) {
+      updatedComments[criterion] = text.trim();
+    } else {
+      delete updatedComments[criterion];
+    }
+    setSavingComment(criterion);
+    try {
+      await auditService.updateAuditComments(auditId, updatedComments);
+      setComments(updatedComments);
+      if (text.trim()) toast.success('Comentario guardado');
+    } catch {
+      toast.error('Error al guardar comentario');
+    } finally {
+      setSavingComment(null);
+    }
+  };
+
+  const allCommentsText = useMemo(() => {
+    const entries = Object.entries(comments).filter(([, v]) => v.trim());
+    if (!entries.length) return '';
+    return entries.map(([criterion, comment]) => {
+      const name = criterion.replace(/\[.*?\]\s*/, '');
+      return `${name}:\n${comment}`;
+    }).join('\n\n');
+  }, [comments]);
 
   // ── Helpers visuales ─────────────────────────────────────────────────────────
   const getScoreColor = (pct: number) => {
@@ -579,88 +655,109 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
                     const name          = (score.criterion ?? '').replace(/\[.*?\]\s*/, '');
                     const observations  = score.observations ?? score.justification ?? '';
                     const evidence      = Array.isArray(score.evidence) ? score.evidence : [];
-                    const hasDetail     = observations || evidence.length > 0;
+                    const hasComment    = Boolean(comments[score.criterion]);
+                    const hasDetail     = Boolean(observations) || evidence.length > 0 || hasComment || Boolean(auditId);
                     const isExpanded    = isCriterionExpanded(idx, safeScore, safeMax);
                     const status        = getCriterionStatus(safeScore, safeMax);
 
                     // ── Fila de validación manual ────────────────────────
                     if (isManual) {
+                      const editMax = safeMax > 0 ? safeMax : 10;
                       return (
-                        <div
-                          key={idx}
-                          className="flex items-center gap-3 px-4 py-2.5 bg-amber-950/10 hover:bg-amber-950/15 border-l-2 border-l-amber-500/50 transition-colors"
-                        >
-                          <div className="flex-shrink-0">
-                            <ClipboardList className="w-4 h-4 text-amber-500" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm leading-snug text-amber-200 font-medium">{name}</span>
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 flex-shrink-0">
-                                <ClipboardList className="w-3 h-3" /> Validación manual
-                              </span>
-                              {isEdited && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex-shrink-0">
-                                  <Pencil className="w-3 h-3" /> Editado
+                        <div key={idx} className="border-l-2 border-l-amber-500/50 bg-amber-950/10 transition-colors">
+                          {/* Fila principal */}
+                          <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-amber-950/15">
+                            <div className="flex-shrink-0">
+                              <ClipboardList className="w-4 h-4 text-amber-500" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm leading-snug text-amber-200 font-medium">{name}</span>
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 flex-shrink-0">
+                                  <ClipboardList className="w-3 h-3" /> Validación manual
                                 </span>
+                                {isEdited && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex-shrink-0">
+                                    <Pencil className="w-3 h-3" /> Editado
+                                  </span>
+                                )}
+                                {hasComment && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20 flex-shrink-0">
+                                    <MessageSquare className="w-3 h-3" /> Comentado
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {isEditing ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="flex flex-col gap-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <input
+                                        type="number" min={0} max={editMax}
+                                        value={editInputValue}
+                                        onChange={e => setEditInputValue(e.target.value)}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter') confirmEdit(idx, editMax);
+                                          if (e.key === 'Escape') cancelEdit();
+                                        }}
+                                        autoFocus
+                                        className="w-14 px-2 py-1 text-center text-sm font-bold bg-dark-bg border border-amber-700 rounded-lg text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                      />
+                                      <span className="text-xs text-slate-500">/ {editMax} pts</span>
+                                    </div>
+                                    <input
+                                      type="range" min={0} max={editMax}
+                                      value={parseInt(editInputValue) || 0}
+                                      onChange={e => setEditInputValue(e.target.value)}
+                                      className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                                      style={{ accentColor: '#f59e0b' }}
+                                    />
+                                  </div>
+                                  <button onClick={() => confirmEdit(idx, editMax)}
+                                    className="p-1.5 rounded-lg bg-amber-500 text-black hover:bg-amber-400 transition-colors" title="Confirmar (Enter)">
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button onClick={cancelEdit}
+                                    className="p-1.5 rounded-lg bg-dark-card border border-dark-border text-slate-400 hover:text-white transition-colors" title="Cancelar (Esc)">
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <span className="text-xs tabular-nums font-semibold text-amber-500/70">
+                                    {safeScore > 0 ? `${safeScore}/${editMax} pts` : `— / ${editMax} pts`}
+                                  </span>
+                                  <button
+                                    onClick={() => startEdit(idx, safeScore)}
+                                    className="p-1.5 rounded-lg text-slate-600 hover:text-amber-400 hover:bg-amber-500/10 border border-transparent hover:border-amber-700/30 transition-all"
+                                    title="Editar puntaje"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+                              {auditId && (
+                                <button
+                                  onClick={() => toggleCriterion(idx, isExpanded)}
+                                  className="p-1.5 rounded-lg text-slate-600 hover:text-amber-300 transition-colors"
+                                  title={isExpanded ? 'Ocultar comentario' : 'Añadir comentario'}
+                                >
+                                  {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                </button>
                               )}
                             </div>
                           </div>
-                          {(() => {
-                            const editMax = safeMax > 0 ? safeMax : 10;
-                            return (
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                {isEditing ? (
-                                  <div className="flex items-center gap-2">
-                                    <div className="flex flex-col gap-1">
-                                      <div className="flex items-center gap-1.5">
-                                        <input
-                                          type="number" min={0} max={editMax}
-                                          value={editInputValue}
-                                          onChange={e => setEditInputValue(e.target.value)}
-                                          onKeyDown={e => {
-                                            if (e.key === 'Enter') confirmEdit(idx, editMax);
-                                            if (e.key === 'Escape') cancelEdit();
-                                          }}
-                                          autoFocus
-                                          className="w-14 px-2 py-1 text-center text-sm font-bold bg-dark-bg border border-amber-700 rounded-lg text-white focus:outline-none focus:ring-1 focus:ring-amber-500"
-                                        />
-                                        <span className="text-xs text-slate-500">/ {editMax} pts</span>
-                                      </div>
-                                      <input
-                                        type="range" min={0} max={editMax}
-                                        value={parseInt(editInputValue) || 0}
-                                        onChange={e => setEditInputValue(e.target.value)}
-                                        className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
-                                        style={{ accentColor: '#f59e0b' }}
-                                      />
-                                    </div>
-                                    <button onClick={() => confirmEdit(idx, editMax)}
-                                      className="p-1.5 rounded-lg bg-amber-500 text-black hover:bg-amber-400 transition-colors" title="Confirmar (Enter)">
-                                      <Check className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button onClick={cancelEdit}
-                                      className="p-1.5 rounded-lg bg-dark-card border border-dark-border text-slate-400 hover:text-white transition-colors" title="Cancelar (Esc)">
-                                      <X className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <span className="text-xs tabular-nums font-semibold text-amber-500/70">
-                                      {safeScore > 0 ? `${safeScore}/${editMax} pts` : `— / ${editMax} pts`}
-                                    </span>
-                                    <button
-                                      onClick={() => startEdit(idx, safeScore)}
-                                      className="p-1.5 rounded-lg text-slate-600 hover:text-amber-400 hover:bg-amber-500/10 border border-transparent hover:border-amber-700/30 transition-all"
-                                      title="Editar puntaje"
-                                    >
-                                      <Pencil className="w-3.5 h-3.5" />
-                                    </button>
-                                  </>
-                                )}
-                              </div>
-                            );
-                          })()}
+                          {/* Sección expandida con textarea */}
+                          {isExpanded && auditId && (
+                            <CommentTextarea
+                              criterion={score.criterion}
+                              value={comments[score.criterion] ?? ''}
+                              saving={savingComment === score.criterion}
+                              onSave={handleSaveComment}
+                              accentClass="focus:ring-amber-500 border-amber-900/40 focus:border-amber-700"
+                            />
+                          )}
                         </div>
                       );
                     }
@@ -705,6 +802,11 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
                               {isEdited && (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex-shrink-0">
                                   <Pencil className="w-3 h-3" /> Editado
+                                </span>
+                              )}
+                              {hasComment && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20 flex-shrink-0">
+                                  <MessageSquare className="w-3 h-3" /> Comentado
                                 </span>
                               )}
                             </div>
@@ -837,6 +939,16 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
                             )}
                           </div>
                         )}
+                        {/* ── COMENTARIO DEL SUPERVISOR ──────────────────── */}
+                        {isExpanded && !isEditing && auditId && (
+                          <CommentTextarea
+                            criterion={score.criterion}
+                            value={comments[score.criterion] ?? ''}
+                            saving={savingComment === score.criterion}
+                            onSave={handleSaveComment}
+                            accentClass="focus:ring-sky-500 border-sky-900/30 focus:border-sky-700"
+                          />
+                        )}
                       </div>
                     );
                   })}
@@ -957,6 +1069,81 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
           {expandedSections[section.key] && section.content}
         </div>
       ))}
+
+      {/* ── SECCIÓN: COMENTARIOS DEL SUPERVISOR ─────────────────────────────── */}
+      {(() => {
+        const commentEntries = Object.entries(comments).filter(([, v]) => v.trim());
+        if (!commentEntries.length) return null;
+
+        // Agrupar por bloque
+        const byBlock: Record<string, Array<{ criterion: string; comment: string; name: string }>> = {};
+        for (const [criterion, comment] of commentEntries) {
+          const m = criterion.match(/\[(.*?)\]/);
+          const block = m ? m[1] : 'General';
+          const name = criterion.replace(/\[.*?\]\s*/, '');
+          if (!byBlock[block]) byBlock[block] = [];
+          byBlock[block].push({ criterion, comment, name });
+        }
+
+        return (
+          <div
+            className="rounded-xl border border-sky-800/30 overflow-hidden"
+            style={{ background: 'linear-gradient(145deg, rgba(10,18,32,0.99), rgba(5,12,24,1))' }}
+          >
+            {/* Encabezado */}
+            <button
+              onClick={() => toggleSection('comments')}
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-sky-950/20 transition-colors group"
+            >
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-3.5 h-3.5 text-sky-400" />
+                <span className="text-xs font-semibold uppercase tracking-widest text-sky-400/80">Comentarios del Supervisor</span>
+                <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/20">
+                  {commentEntries.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={e => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(allCommentsText);
+                    toast.success('Comentarios copiados');
+                  }}
+                  className="p-1 rounded text-slate-600 hover:text-sky-400 hover:bg-sky-500/10 transition-all"
+                  title="Copiar todos los comentarios"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+                {expandedSections['comments']
+                  ? <ChevronUp   className="w-4 h-4 text-sky-500/50 group-hover:text-sky-300 transition-colors" />
+                  : <ChevronDown className="w-4 h-4 text-sky-500/50 group-hover:text-sky-300 transition-colors" />
+                }
+              </div>
+            </button>
+
+            {/* Contenido */}
+            {expandedSections['comments'] && (
+              <div className="border-t border-sky-800/20 divide-y divide-sky-800/10">
+                {Object.entries(byBlock).map(([block, items]) => (
+                  <div key={block} className="px-4 py-3">
+                    <p className="text-xs font-bold text-sky-600/70 uppercase tracking-widest mb-2">{block}</p>
+                    <div className="space-y-3">
+                      {items.map(({ criterion, comment, name }) => (
+                        <div key={criterion} className="flex flex-col gap-1">
+                          <span className="text-xs font-semibold text-slate-400">{name}</span>
+                          <div className="px-3 py-2 rounded-lg bg-sky-950/30 border border-sky-800/20">
+                            <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">{comment}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
     </div>
   );

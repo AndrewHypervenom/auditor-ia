@@ -48,12 +48,13 @@ export interface EvaluationResult {
   observations: string;
   recommendations: string[];
   keyMoments: KeyMoment[];
-  excelFilename: string;
+  excelFilename?: string;
   transcript?: string;
   audioConfidence?: number;
   criticalFailure?: boolean;
   failedCriticalCriteria?: string[];
   dataWarnings?: string[];
+  supervisorComments?: Record<string, string>;
 }
 
 export interface KeyMoment {

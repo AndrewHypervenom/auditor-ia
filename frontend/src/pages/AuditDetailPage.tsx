@@ -104,7 +104,8 @@ export default function AuditDetailPage() {
       ? auditDetail.transcription.confidence * 100
       : undefined,
     excelUrl: auditDetail.evaluation.excel_filename,
-    dataWarnings: auditDetail.evaluation.openai_response?.dataWarnings || []
+    dataWarnings: auditDetail.evaluation.openai_response?.dataWarnings || [],
+    supervisorComments: auditDetail.evaluation.supervisor_comments ?? {},
   };
 
   return (
