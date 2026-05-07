@@ -22,7 +22,7 @@ interface ResultsViewProps {
 
 type FilterType = 'all' | 'passed' | 'partial' | 'failed' | 'critical' | 'manual';
 
-// ── Textarea de comentario del supervisor ───────────────────────────────────
+// ── Textarea de comentario del auditor ───────────────────────────────────────
 function CommentTextarea({
   criterion, value, saving, onSave, accentClass,
 }: {
@@ -40,7 +40,7 @@ function CommentTextarea({
       <div className="p-3 rounded-lg border border-sky-900/30 bg-sky-950/10">
         <div className="flex items-center justify-between mb-2">
           <p className="text-xs font-semibold text-sky-400/80 uppercase tracking-wide flex items-center gap-1.5">
-            <MessageSquare className="w-3 h-3" /> Comentario del supervisor
+            <MessageSquare className="w-3 h-3" /> Comentario del auditor
           </p>
           {saving && <Loader2 className="w-3.5 h-3.5 text-sky-400 animate-spin" />}
           {!saving && !isDirty && value && (
@@ -237,7 +237,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
     }
   };
 
-  // ── Comentarios del supervisor ───────────────────────────────────────────────
+  // ── Comentarios del auditor ──────────────────────────────────────────────────
   const handleSaveComment = async (criterion: string, text: string) => {
     if (!auditId) return;
     const updatedComments = { ...comments };
@@ -1097,7 +1097,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
             >
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-3.5 h-3.5 text-sky-400" />
-                <span className="text-xs font-semibold uppercase tracking-widest text-sky-400/80">Comentarios del Supervisor</span>
+                <span className="text-xs font-semibold uppercase tracking-widest text-sky-400/80">Comentarios del Auditor</span>
                 <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/20">
                   {commentEntries.length}
                 </span>
