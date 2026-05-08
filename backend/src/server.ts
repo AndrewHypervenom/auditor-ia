@@ -1162,18 +1162,19 @@ app.post('/api/admin/criteria', authenticateUser, requireAdminOrAnalyst, async (
 app.put('/api/admin/criteria/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { topic, criticality, points, applies, what_to_look_for, validation_source, criteria_order, is_active, requires_manual_review } = req.body;
-    const criteria = await databaseService.updateCriteria(id, {
-      topic,
-      criticality,
-      points: points === 'n/a' || points === null ? null : (points !== undefined ? Number(points) : undefined),
-      applies,
-      what_to_look_for,
-      ...(validation_source !== undefined && { validation_source: Array.isArray(validation_source) ? validation_source : [] }),
-      criteria_order,
-      is_active,
-      ...(requires_manual_review !== undefined && { requires_manual_review })
-    });
+    const { topic, criticality, points, applies, what_to_look_for, validation_source, criteria_order, is_active, requires_manual_review, tipo_cierre_overrides } = req.body;
+    const payload: Record<string, any> = {};
+    if (topic !== undefined) payload.topic = topic;
+    if (criticality !== undefined) payload.criticality = criticality;
+    if (points !== undefined) payload.points = points === 'n/a' || points === null ? null : Number(points);
+    if (applies !== undefined) payload.applies = applies;
+    if (what_to_look_for !== undefined) payload.what_to_look_for = what_to_look_for;
+    if (validation_source !== undefined) payload.validation_source = Array.isArray(validation_source) ? validation_source : [];
+    if (criteria_order !== undefined) payload.criteria_order = criteria_order;
+    if (is_active !== undefined) payload.is_active = is_active;
+    if (requires_manual_review !== undefined) payload.requires_manual_review = requires_manual_review;
+    if (tipo_cierre_overrides !== undefined) payload.tipo_cierre_overrides = tipo_cierre_overrides;
+    const criteria = await databaseService.updateCriteria(id, payload);
     res.json(criteria);
   } catch (error: any) {
     logger.error('Error updating criteria:', error);
