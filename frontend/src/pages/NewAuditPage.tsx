@@ -155,7 +155,9 @@ export default function NewAuditPage() {
 
  // ── Filters ──────────────────────────────────────────────────────────────────
 
- const [filterDateFrom, setFilterDateFrom] = useState('');
+ const [filterDateFrom, setFilterDateFrom] = useState(
+   () => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-CA')
+ );
  const [filterDateTo, setFilterDateTo] = useState('');
  const [filterAgent, setFilterAgent] = useState('');
  const [filterClient, setFilterClient] = useState('');
