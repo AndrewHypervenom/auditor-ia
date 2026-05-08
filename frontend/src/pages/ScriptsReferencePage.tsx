@@ -16,6 +16,8 @@ import {
   Loader2,
   CreditCard,
   Download,
+  Check,
+  X,
 } from 'lucide-react';
 import {
   scriptsService,
@@ -25,12 +27,55 @@ import {
   type ScriptStep,
   type CriteriaBlock,
   type CriteriaItem,
+  type CriteriaItemOverride,
   type PlantillaGPFItem,
   type BinesItem,
 } from '../services/api';
 import ModeSelector, { type AdminMode } from '../components/ModeSelector';
 import CallTypeSelectorShared from '../components/CallTypeSelector';
 import { useCallTypesConfig } from '../hooks/useCallTypesConfig';
+
+// ─── Subcalificaciones fijas por tipo de llamada ─────────────
+
+const SUBCALIFICACIONES_POR_CALL_TYPE: Record<string, string[]> = {
+  FRAUDE: [
+    'INTERNET',
+    'PRIMERAS PARTES',
+    'ROBADA/EXTRAVIADA',
+    'ROBO DE IDENTIDAD',
+    'TARJETA NO ENTREGADA (NUEVA REPOSICION)',
+  ],
+  'TH CONFIRMA': [
+    'BLOQUEO BLKI',
+    'BLOQUEO BLKT',
+    'BLOQUEO MATCH',
+    'BLOQUEO PREVENTIVO (P)/SE LIBERA TARJETA',
+    'EXCEDIO LIMITE DE CREDITO',
+    'INGRESO INCORRECTO CVV2',
+    'MSI NO PERMITIDO',
+    'SIN REGISTRO EN FALCON/VCAS/VISION',
+    'VCAS/VRM',
+  ],
+};
+
+function getSubcalificacionesForCallType(callType: string): string[] {
+  const upper = callType.toUpperCase();
+  for (const [key, list] of Object.entries(SUBCALIFICACIONES_POR_CALL_TYPE)) {
+    if (upper.includes(key)) return list;
+  }
+  return [];
+}
+
+function getOverrideValue<K extends keyof CriteriaItemOverride>(
+  item: CriteriaItem,
+  tipoCierre: string | null,
+  field: K,
+  base: CriteriaItemOverride[K]
+): CriteriaItemOverride[K] {
+  if (!tipoCierre) return base;
+  const ov = item.tipo_cierre_overrides?.[tipoCierre];
+  return ov && ov[field] !== undefined ? ov[field] : base;
+}
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -299,7 +344,7 @@ function CriteriaRefTab() {
 
       <div className="space-y-3">
         {currentBlocks.map((block) => (
-          <CriteriaBlockReadCard key={block.id} block={block} />
+          <CriteriaBlockReadCard key={block.id} block={block} onUpdate={load} />
         ))}
         {currentBlocks.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -317,8 +362,13 @@ function CriteriaRefTab() {
   );
 }
 
-function CriteriaBlockReadCard({ block }: { block: CriteriaBlock }) {
+function CriteriaBlockReadCard({ block, onUpdate }: { block: CriteriaBlock; onUpdate: () => void }) {
   const [expanded, setExpanded] = useState(false);
+  const availableTipoCierres = getSubcalificacionesForCallType(block.call_type);
+  const [selectedTipoCierre, setSelectedTipoCierre] = useState<string | null>(
+    availableTipoCierres[0] ?? null
+  );
+
   const criteria = (block.criteria || []).sort((a, b) => a.criteria_order - b.criteria_order);
   const blockPoints = criteria.filter((c) => c.applies && c.points !== null).reduce((s, c) => s + (c.points ?? 0), 0);
   const criticalCount = criteria.filter((c) => c.criticality === 'Crítico' && c.applies).length;
@@ -352,46 +402,124 @@ function CriteriaBlockReadCard({ block }: { block: CriteriaBlock }) {
         />
       </div>
 
-      {expanded && criteria.length > 0 && (
+      {expanded && (
         <div className="border-t border-slate-800/60">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-800/60 bg-slate-950/70">
-                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-widest text-slate-500">Criterio</th>
-                  <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-20">Pts</th>
-                  <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-24">Criticidad</th>
-                  <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-16">Aplica</th>
-                </tr>
-              </thead>
-              <tbody>
-                {criteria.map((c) => (
-                  <CriteriaReadRow key={c.id} item={c} />
+          {/* Selector de subcalificación */}
+          {availableTipoCierres.length > 0 && (
+            <div className="px-5 pt-3 pb-3 border-b border-slate-800/40 flex items-center gap-3 flex-wrap">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                Subcalificación:
+              </span>
+              <select
+                value={selectedTipoCierre || ''}
+                onChange={(e) => setSelectedTipoCierre(e.target.value || null)}
+                className="bg-slate-800/60 border border-slate-700/50 rounded-lg px-2.5 py-1
+                           text-xs text-white focus:outline-none focus:border-teal-600/50 cursor-pointer"
+              >
+                {availableTipoCierres.map(tc => (
+                  <option key={tc} value={tc}>{tc}</option>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </select>
+              {selectedTipoCierre && (
+                <span className="text-[11px] text-teal-400 font-medium">
+                  Criterios para: <strong>{selectedTipoCierre}</strong>
+                </span>
+              )}
+            </div>
+          )}
+
+          {criteria.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-800/60 bg-slate-950/70">
+                    <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-widest text-slate-500">Criterio</th>
+                    <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-20">Pts</th>
+                    <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-24">Criticidad</th>
+                    <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-16">Aplica</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {criteria.map((c) => (
+                    <CriteriaReadRow
+                      key={c.id}
+                      item={c}
+                      selectedTipoCierre={selectedTipoCierre}
+                      onUpdate={onUpdate}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function CriteriaReadRow({ item }: { item: CriteriaItem }) {
+function CriteriaReadRow({
+  item,
+  selectedTipoCierre,
+  onUpdate,
+}: {
+  item: CriteriaItem;
+  selectedTipoCierre: string | null;
+  onUpdate: () => void;
+}) {
   const [expanded, setExpanded] = useState(false);
+  const [toggling, setToggling] = useState(false);
+
+  const effectiveApplies = getOverrideValue(item, selectedTipoCierre, 'applies', item.applies) as boolean;
+  const effectiveWtlf = getOverrideValue(item, selectedTipoCierre, 'what_to_look_for', item.what_to_look_for) as string | null;
+  const hasOverride = selectedTipoCierre && !!item.tipo_cierre_overrides?.[selectedTipoCierre];
+
+  const handleToggleApplies = async () => {
+    if (toggling) return;
+    setToggling(true);
+    try {
+      if (selectedTipoCierre) {
+        const ov = {
+          ...(item.tipo_cierre_overrides || {}),
+          [selectedTipoCierre]: {
+            ...(item.tipo_cierre_overrides?.[selectedTipoCierre] || {}),
+            applies: !effectiveApplies,
+          },
+        };
+        await criteriaService.updateCriteria(item.id, { tipo_cierre_overrides: ov });
+      } else {
+        await criteriaService.updateCriteria(item.id, { applies: !item.applies });
+      }
+      onUpdate();
+    } catch {
+      toast.error('Error al actualizar');
+    } finally {
+      setToggling(false);
+    }
+  };
+
   return (
     <tr className="border-b border-slate-800/40 hover:bg-slate-800/20 transition-colors duration-150">
       <td className="py-3 px-4 max-w-xs">
         <div className="flex flex-col gap-0.5">
-          <span className={`text-[14px] leading-snug ${item.applies ? 'text-slate-200' : 'line-through text-slate-500'}`}>
-            {item.topic}
-          </span>
-          {item.what_to_look_for && (
+          <div className="flex items-center gap-1.5">
+            <span className={`text-[14px] leading-snug ${effectiveApplies ? 'text-slate-200' : 'line-through text-slate-500'}`}>
+              {item.topic}
+            </span>
+            {hasOverride && (
+              <span title={`Configuración específica para: ${selectedTipoCierre}`}
+                className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold
+                           bg-teal-500/15 border border-teal-500/25 text-teal-400 flex-shrink-0">
+                S
+              </span>
+            )}
+          </div>
+          {effectiveWtlf && (
             <div className="flex flex-col gap-0.5">
               <span className={`text-[12px] text-slate-500 leading-relaxed ${expanded ? '' : 'line-clamp-2'}`}>
-                {item.what_to_look_for}
+                {effectiveWtlf}
               </span>
-              {item.what_to_look_for.length > 80 && (
+              {effectiveWtlf.length > 80 && (
                 <button
                   onClick={() => setExpanded(e => !e)}
                   className="self-start text-[11px] text-slate-600 hover:text-slate-400 transition-colors duration-150 flex items-center gap-0.5"
@@ -424,7 +552,18 @@ function CriteriaReadRow({ item }: { item: CriteriaItem }) {
         )}
       </td>
       <td className="py-3 px-3 text-center">
-        <span className={`inline-block w-4 h-4 rounded-full border ${item.applies ? 'bg-brand-500/40 border-brand-500/60' : 'bg-slate-800 border-slate-700'}`} />
+        <button
+          onClick={handleToggleApplies}
+          disabled={toggling}
+          title={effectiveApplies ? 'Clic para desactivar' : 'Clic para activar'}
+          className={`inline-flex items-center justify-center w-6 h-6 rounded-full border transition-all duration-150
+            ${effectiveApplies
+              ? 'bg-teal-500/20 border-teal-500/50 text-teal-400 hover:bg-teal-500/30'
+              : 'bg-slate-800 border-slate-700 text-slate-600 hover:bg-slate-700'
+            } ${toggling ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+        >
+          {effectiveApplies ? <Check size={12} /> : <X size={12} />}
+        </button>
       </td>
     </tr>
   );
