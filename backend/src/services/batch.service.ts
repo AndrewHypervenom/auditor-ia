@@ -274,8 +274,32 @@ class BatchService {
             }
           }
 
-          // La evaluación se hace en tiempo real al procesar resultados (no en batch)
-          // Solo las imágenes van al batch para el 50% de descuento
+          // Agregar request de evaluación al batch (mismo 50% de descuento)
+          const criteria = await databaseService.getCriteriaForCallType(resolvedCallType);
+          const activeTopics = criteria.flatMap((b: any) => (b.topics || []).filter((t: any) => t.applies && !t.requiresManualReview));
+
+          if (activeTopics.length === 0) {
+            throw new Error(`Sin criterios activos para "${resolvedCallType}" — configura los criterios en el panel de administración`);
+          }
+
+          const evaluationSystemPrompt = await databaseService.getPromptByKey('evaluation_system') ?? '';
+          const evalUserContent = this.buildBatchEvalPrompt(item, attentionObject, criteria, syntheticTranscript);
+
+          batchRequests.push({
+            custom_id: `${item.id}__eval`,
+            method: 'POST',
+            url: '/v1/chat/completions',
+            body: {
+              model,
+              temperature: 0,
+              seed: 42,
+              response_format: { type: 'json_object' },
+              messages: [
+                { role: 'system', content: evaluationSystemPrompt },
+                { role: 'user', content: evalUserContent },
+              ],
+            },
+          });
 
           // Marcar item como "processing"
           await supabaseAdmin
@@ -392,12 +416,28 @@ class BatchService {
     const fileResponse = await this.openai.files.content(openAIBatch.output_file_id);
     const resultsText = await fileResponse.text();
 
-    // Parsear JSONL de resultados
+    // Parsear JSONL de resultados exitosos
     const resultMap = new Map<string, any>();
     for (const line of resultsText.split('\n').filter(l => l.trim())) {
       try {
         const result = JSON.parse(line);
         resultMap.set(result.custom_id, result);
+      } catch {}
+    }
+
+    // Parsear JSONL de errores (requests que OpenAI rechazó)
+    const errorMap = new Map<string, string>();
+    if (openAIBatch.error_file_id) {
+      try {
+        const errResponse = await this.openai.files.content(openAIBatch.error_file_id);
+        const errText = await errResponse.text();
+        for (const line of errText.split('\n').filter(l => l.trim())) {
+          try {
+            const r = JSON.parse(line);
+            errorMap.set(r.custom_id, r.error?.message || 'Request rechazada por OpenAI');
+          } catch {}
+        }
+        if (errorMap.size > 0) logger.warn('Batch error file had failed requests', { count: errorMap.size });
       } catch {}
     }
 
@@ -426,21 +466,25 @@ class BatchService {
           imgIdx++;
         }
 
-        // Re-fetchear datos GPF frescos para transcripción y contexto
-        const attentionObject = item.gpf_attention_object || {};
-        let gpfDetailData: any = null;
-        try {
-          const token = await gpfTokenService.getTokenWithRetry(item.gpf_env);
-          gpfDetailData = await gpfDataService.fetchAttentionData(item.gpf_env, item.gpf_attention_id, token);
-        } catch (gpfErr: any) {
-          logger.warn('Could not re-fetch GPF data for batch eval, using cached attention object', { itemId: item.id, error: gpfErr.message });
+        // Resultado de evaluación del batch
+        const evalResult = resultMap.get(`${item.id}__eval`);
+        if (!evalResult?.response?.body?.choices?.[0]?.message?.content) {
+          const openAIError = errorMap.get(`${item.id}__eval`);
+          throw new Error(openAIError
+            ? `OpenAI rechazó la evaluación: ${openAIError}`
+            : 'No se encontró resultado de evaluación en el lote');
         }
 
-        const syntheticTranscript = gpfDetailData
-          ? buildSyntheticTranscript(gpfDetailData.comments, gpfDetailData.transactions, gpfDetailData.otpValidations, gpfDetailData.rawComments)
-          : buildSyntheticTranscript([], [], [], []);
+        const evalContent = evalResult.response.body.choices[0].message.content;
+        let evaluation: any;
+        try {
+          evaluation = JSON.parse(evalContent);
+        } catch {
+          throw new Error('Respuesta de evaluación no es JSON válido');
+        }
 
-        // Resolver call type
+        // Construir metadata del audit
+        const attentionObject = item.gpf_attention_object || {};
         let resolvedCallType = item.call_type ?? '';
         const calificacion = attentionObject['Calificación'] || '';
         const subCalificacion = attentionObject['Sub-calificación'] || '';
@@ -456,25 +500,34 @@ class BatchService {
           }
         }
 
+        const itemCriteria = await databaseService.getCriteriaForCallType(resolvedCallType);
         const metadata = {
           ...gpfDataService.normalizeMetadata(attentionObject, item.gpf_attention_id),
           excelType: item.gpf_excel_type as 'INBOUND' | 'MONITOREO',
           callType: resolvedCallType,
           gpfData: {
             attentionFields: attentionObject,
-            transactions: gpfDetailData?.transactions ?? [],
-            comments: gpfDetailData?.comments ?? [],
-            otpValidations: gpfDetailData?.otpValidations ?? [],
-            rawComments: gpfDetailData?.rawComments ?? [],
+            transactions: [],
+            comments: [],
+            otpValidations: [],
+            rawComments: [],
           },
         };
 
-        // Evaluar usando el evaluador en tiempo real (misma lógica, mismo prompt, mismos criterios de la BD)
-        const normalizedEval = await evaluatorService.evaluateWithPrecomputedImages(
-          metadata,
-          imageResults,
-          syntheticTranscript.text,
-        );
+        // Parsear evaluación con matching block|||topic contra criterios de la BD
+        const normalizedEval = this.parseBatchEvalResult(evaluation, itemCriteria);
+
+        logger.info('Batch eval parsed', {
+          itemId: item.id,
+          rawKeys: Object.keys(evaluation),
+          criteriaCount: normalizedEval.detailedScores?.length ?? 0,
+          totalScore: normalizedEval.totalScore,
+          maxPossibleScore: normalizedEval.maxPossibleScore,
+        });
+
+        if (!Array.isArray(normalizedEval.detailedScores) || normalizedEval.detailedScores.length === 0) {
+          throw new Error(`Evaluación vacía: sin criterios activos para "${resolvedCallType}"`);
+        }
 
         // Crear audit record
         const auditId = await databaseService.createAudit({
@@ -489,7 +542,7 @@ class BatchService {
         const costs = costCalculatorService.calculateTotalCost(0, imageResults.length, 0, 0, 0, 0);
 
         await databaseService.completeAudit(auditId, {
-          transcription: syntheticTranscript.text || '[Procesado en lote nocturno]',
+          transcription: '[Procesado en lote nocturno]',
           imageAnalysis: imageResults.map((r: any, i: number) => `Imagen ${i + 1}: ${JSON.stringify(r)}`).join('\n'),
           evaluation: normalizedEval,
           excelFilename: excelResult.filename,
@@ -713,7 +766,7 @@ REGLA CRÍTICA: Los campos "block" y "topic" deben ser EXACTAMENTE iguales a los
   ],
   "total_score": <suma de todos los scores>,
   "max_possible_score": ${maxPossibleScore},
-  "percentage": <(total_score/max_possible_score)*100>,
+  "percentage": <porcentaje de 0 a 100>,
   "observations": "Observaciones generales.",
   "recommendations": ["recomendación 1"]
 }`;
