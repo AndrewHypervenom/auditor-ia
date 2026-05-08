@@ -184,10 +184,12 @@ export default function NewAuditPage() {
 
  // Unique values for selects (derived from loaded attentions)
  const uniqueCalificaciones = ['FRAUDE/ROEXT', 'TH CONFIRMA MOVIMIENTOS'];
- const uniqueSubcals = useMemo(
- () => [...new Set(attentions.map(getAttentionSubcal).filter(Boolean))].sort(),
- [attentions]
- );
+ const uniqueSubcals = useMemo(() => {
+ const base = filterCalificacion
+ ? attentions.filter((a) => getAttentionCalificacion(a).trim().toLowerCase() === filterCalificacion.trim().toLowerCase())
+ : attentions;
+ return [...new Set(base.map(getAttentionSubcal).filter(Boolean))].sort();
+ }, [attentions, filterCalificacion]);
 
  // Filtered list
  const filteredAttentions = useMemo(() => {
@@ -782,7 +784,7 @@ export default function NewAuditPage() {
  <div className="relative">
  <select
  value={filterCalificacion}
- onChange={(e) => setFilterCalificacion(e.target.value)}
+ onChange={(e) => { setFilterCalificacion(e.target.value); setFilterSubcal(''); }}
  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 appearance-none focus:outline-none focus:border-brand-700 pr-8"
  >
  <option value="">Todas</option>
