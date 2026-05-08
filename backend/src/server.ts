@@ -2625,7 +2625,7 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 });
 
 // ── Auto-submit de lotes programados ─────────────────────────────────────────
-// Cada 2 minutos revisa si algún lote pendiente ya alcanzó su hora programada
+// Cada 2 minutos: envía lotes pending cuya hora programada ya llegó
 setInterval(async () => {
   try {
     const { data: dueJobs } = await supabaseAdmin
@@ -2646,6 +2646,32 @@ setInterval(async () => {
     logger.warn('Batch auto-submit check error', { err: err.message });
   }
 }, 2 * 60 * 1000);
+
+// Cada 10 minutos: verifica lotes enviados a OpenAI para detectar cuando terminan
+setInterval(async () => {
+  try {
+    const { data: submittedJobs } = await supabaseAdmin
+      .from('batch_jobs')
+      .select('id, name')
+      .in('status', ['submitted', 'assembling']);
+
+    if (!submittedJobs?.length) return;
+
+    for (const job of submittedJobs) {
+      batchService.checkAndProcessBatchJob(job.id)
+        .then(result => {
+          if (result.status === 'completed') {
+            logger.success('Batch job auto-completed', { jobId: job.id, name: job.name });
+          }
+        })
+        .catch((err: Error) =>
+          logger.warn('Auto-check failed', { jobId: job.id, err: err.message })
+        );
+    }
+  } catch (err: any) {
+    logger.warn('Batch auto-check error', { err: err.message });
+  }
+}, 10 * 60 * 1000);
 
 // Iniciar servidor
 app.listen(PORT, () => {

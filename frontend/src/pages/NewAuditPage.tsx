@@ -426,9 +426,9 @@ export default function NewAuditPage() {
    if (!selected.length) return;
    setSubmittingBatch(true);
    try {
-     await batchService.createJob({
+     const job = await batchService.createJob({
        name: batchName || `Lote ${new Date().toLocaleDateString('es-MX')}`,
-       scheduled_for: (() => { const t = new Date(Date.now() + 86400000); t.setHours(2, 0, 0, 0); return t.toISOString(); })(),
+       scheduled_for: new Date().toISOString(),
        items: selected.map(att => ({
          gpf_attention_id: String(getAttentionId(att)),
          gpf_env: env,
@@ -439,7 +439,9 @@ export default function NewAuditPage() {
          call_date: getAttentionDate(att) || undefined,
        })),
      });
-     toast.success(`${selected.length} caso${selected.length !== 1 ? 's' : ''} agregado${selected.length !== 1 ? 's' : ''} a la cola nocturna`);
+     // Enviar inmediatamente a OpenAI (fire-and-forget en el backend)
+     batchService.submitJob(job.id).catch(() => {});
+     toast.success(`${selected.length} caso${selected.length !== 1 ? 's' : ''} enviado${selected.length !== 1 ? 's' : ''} a OpenAI — resultados en ~24 h`);
      setShowBatchModal(false);
      setBatchMode(false);
      setSelectedIds(new Set());
