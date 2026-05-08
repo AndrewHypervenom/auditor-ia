@@ -127,7 +127,6 @@ export default function NewAuditPage() {
  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
  const [showBatchModal, setShowBatchModal] = useState(false);
  const [batchName, setBatchName] = useState('');
- const [batchScheduled, setBatchScheduled] = useState('');
  const [submittingBatch, setSubmittingBatch] = useState(false);
  const [validating, setValidating] = useState(false);
  const [validationResult, setValidationResult] = useState<{
@@ -395,10 +394,7 @@ export default function NewAuditPage() {
  };
 
  const openBatchModal = async () => {
-   const tomorrow = new Date(Date.now() + 86400000);
-   tomorrow.setHours(2, 0, 0, 0);
    setBatchName(`Lote ${new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}`);
-   setBatchScheduled(tomorrow.toISOString().slice(0, 16));
    setValidationResult(null);
    setShowBatchModal(true);
 
@@ -432,7 +428,7 @@ export default function NewAuditPage() {
    try {
      await batchService.createJob({
        name: batchName || `Lote ${new Date().toLocaleDateString('es-MX')}`,
-       scheduled_for: batchScheduled ? new Date(batchScheduled).toISOString() : new Date().toISOString(),
+       scheduled_for: (() => { const t = new Date(Date.now() + 86400000); t.setHours(2, 0, 0, 0); return t.toISOString(); })(),
        items: selected.map(att => ({
          gpf_attention_id: String(getAttentionId(att)),
          gpf_env: env,
@@ -1210,16 +1206,7 @@ export default function NewAuditPage() {
              className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-brand-600 placeholder:text-slate-600"
            />
          </div>
-         <div>
-           <label className="block text-xs text-slate-400 mb-1">Enviar automáticamente el</label>
-           <input
-             type="datetime-local"
-             value={batchScheduled}
-             onChange={e => setBatchScheduled(e.target.value)}
-             className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-brand-600"
-           />
-           <p className="text-[11px] text-indigo-400/70 mt-1">El sistema enviará el lote a OpenAI automáticamente en la fecha indicada.</p>
-         </div>
+         <p className="text-[11px] text-indigo-400/70">El sistema enviará el lote automáticamente esta noche.</p>
        </div>
 
        {/* Actions */}
