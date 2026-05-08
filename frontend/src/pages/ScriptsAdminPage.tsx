@@ -801,9 +801,10 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(block.block_name);
   const [editingCriteriaId, setEditingCriteriaId] = useState<string | null>(null);
-  const [selectedTipoCierre, setSelectedTipoCierre] = useState<string | null>(null);
-
   const availableTipoCierres = getSubcalificacionesForCallType(block.call_type);
+  const [selectedTipoCierre, setSelectedTipoCierre] = useState<string | null>(
+    availableTipoCierres[0] ?? null
+  );
 
   const criteria = (block.criteria || []).sort((a, b) => a.criteria_order - b.criteria_order);
   const blockPoints = criteria.filter((c) => c.applies && c.points !== null).reduce((s, c) => s + (c.points ?? 0), 0);
@@ -959,13 +960,12 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
             <select
               value={selectedTipoCierre || ''}
               onChange={(e) => {
-                setSelectedTipoCierre(e.target.value || null);
+                setSelectedTipoCierre(e.target.value);
                 setEditingCriteriaId(null);
               }}
               className="bg-slate-800/60 border border-slate-700/50 rounded-lg px-2.5 py-1
                          text-xs text-white focus:outline-none focus:border-teal-600/50 cursor-pointer"
             >
-              <option value="">Base compartida</option>
               {availableTipoCierres.map(tc => (
                 <option key={tc} value={tc}>{tc}</option>
               ))}
