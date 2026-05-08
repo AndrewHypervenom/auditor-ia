@@ -334,6 +334,13 @@ export default function AnalystDashboard() {
         rightContent={
           <div className="flex items-center gap-2">
             <button
+              onClick={() => navigate('/batch')}
+              className="btn-ghost flex items-center gap-1.5 text-xs py-1 px-3 text-indigo-300 border border-indigo-500/40 bg-indigo-500/10 hover:bg-indigo-500/20"
+            >
+              <Moon className="w-3.5 h-3.5" />
+              Cola Nocturna
+            </button>
+            <button
               onClick={() => loadAudits(true)}
               disabled={refreshing}
               className="btn-ghost p-2 rounded-xl"
