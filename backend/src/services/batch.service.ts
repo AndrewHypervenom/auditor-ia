@@ -394,10 +394,12 @@ class BatchService {
     const completed = openAIBatch.request_counts?.completed ?? 0;
     const total = openAIBatch.request_counts?.total ?? 0;
     const itemCount = job.batch_items?.length ?? job.item_count ?? '?';
-    // total requests = images + eval per case; show case count to user, requests in parentheses
+    const progressMsg = total > 0
+      ? `${completed}/${total} requests listos`
+      : 'OpenAI recibiendo el lote…';
     return {
       status: 'submitted',
-      message: `OpenAI procesando ${itemCount} caso(s) — ${completed}/${total} requests listos`,
+      message: `OpenAI procesando ${itemCount} caso(s) — ${progressMsg}`,
     };
   }
 
