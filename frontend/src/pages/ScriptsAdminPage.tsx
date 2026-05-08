@@ -42,6 +42,7 @@ import {
   type ScriptStep,
   type CriteriaBlock,
   type CriteriaItem,
+  type CriteriaItemOverride,
   type PlantillaGPFItem,
   type AiPrompt,
   type WordBoostTerm,
@@ -777,6 +778,7 @@ function CriteriaBlockCard({ block, onUpdate, plantillaItems }: CriteriaBlockCar
   const [nameValue, setNameValue] = useState(block.block_name);
   const [editingTipoCierres, setEditingTipoCierres] = useState<string[]>(block.applicable_tipo_cierres || []);
   const [editingCriteriaId, setEditingCriteriaId] = useState<string | null>(null);
+  const [selectedTipoCierre, setSelectedTipoCierre] = useState<string | null>(null);
 
   const availableTipoCierres = [...new Set(
     plantillaItems
@@ -980,6 +982,35 @@ function CriteriaBlockCard({ block, onUpdate, plantillaItems }: CriteriaBlockCar
 
       {/* ── Tabla de criterios ── */}
       <div className="expand-content border-t border-slate-800/60">
+
+        {/* Selector de subcalificación */}
+        {(block.applicable_tipo_cierres || []).length > 0 && (
+          <div className="px-5 pt-3 pb-3 border-b border-slate-800/40 flex items-center gap-3 flex-wrap">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+              Subcalificación:
+            </span>
+            <select
+              value={selectedTipoCierre || ''}
+              onChange={(e) => {
+                setSelectedTipoCierre(e.target.value || null);
+                setEditingCriteriaId(null);
+              }}
+              className="bg-slate-800/60 border border-slate-700/50 rounded-lg px-2.5 py-1
+                         text-xs text-white focus:outline-none focus:border-teal-600/50 cursor-pointer"
+            >
+              <option value="">Todas (base compartida)</option>
+              {(block.applicable_tipo_cierres || []).map(tc => (
+                <option key={tc} value={tc}>{tc}</option>
+              ))}
+            </select>
+            {selectedTipoCierre && (
+              <span className="text-[11px] text-teal-400 font-medium">
+                Configurando criterios para: <strong>{selectedTipoCierre}</strong>
+              </span>
+            )}
+          </div>
+        )}
+
         {criteria.length > 0 && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -1011,6 +1042,7 @@ function CriteriaBlockCard({ block, onUpdate, plantillaItems }: CriteriaBlockCar
                     <CriteriaEditRow
                       key={c.id}
                       item={c}
+                      selectedTipoCierre={selectedTipoCierre}
                       onSave={() => { setEditingCriteriaId(null); onUpdate(); }}
                       onCancel={() => setEditingCriteriaId(null)}
                     />
@@ -1018,6 +1050,7 @@ function CriteriaBlockCard({ block, onUpdate, plantillaItems }: CriteriaBlockCar
                     <CriteriaViewRow
                       key={c.id}
                       item={c}
+                      selectedTipoCierre={selectedTipoCierre}
                       onEdit={() => setEditingCriteriaId(c.id)}
                       onUpdate={onUpdate}
                     />
@@ -1048,10 +1081,29 @@ interface CriteriaRowProps {
   item: CriteriaItem;
   onEdit: () => void;
   onUpdate: () => void;
+  selectedTipoCierre: string | null;
 }
 
-function CriteriaViewRow({ item, onEdit, onUpdate }: CriteriaRowProps) {
+function getOverrideValue<K extends keyof CriteriaItemOverride>(
+  item: CriteriaItem,
+  tipoCierre: string | null,
+  field: K,
+  base: CriteriaItemOverride[K]
+): CriteriaItemOverride[K] {
+  if (!tipoCierre) return base;
+  const ov = item.tipo_cierre_overrides?.[tipoCierre];
+  return ov && ov[field] !== undefined ? ov[field] : base;
+}
+
+function CriteriaViewRow({ item, onEdit, onUpdate, selectedTipoCierre }: CriteriaRowProps) {
   const [wtlfExpanded, setWtlfExpanded] = useState(false);
+
+  const effectiveApplies = getOverrideValue(item, selectedTipoCierre, 'applies', item.applies)!;
+  const effectiveWtlf = getOverrideValue(item, selectedTipoCierre, 'what_to_look_for', item.what_to_look_for);
+  const effectiveValidation = getOverrideValue(item, selectedTipoCierre, 'validation_source', item.validation_source);
+  const effectiveManual = getOverrideValue(item, selectedTipoCierre, 'requires_manual_review', item.requires_manual_review)!;
+  const hasOverride = selectedTipoCierre && !!item.tipo_cierre_overrides?.[selectedTipoCierre];
+
   const handleDelete = async () => {
     if (!confirm(`¿Eliminar el criterio "${item.topic}"?`)) return;
     try {
@@ -1065,7 +1117,12 @@ function CriteriaViewRow({ item, onEdit, onUpdate }: CriteriaRowProps) {
 
   const handleToggleApplies = async () => {
     try {
-      await criteriaService.updateCriteria(item.id, { applies: !item.applies });
+      if (selectedTipoCierre) {
+        const ov = { ...(item.tipo_cierre_overrides || {}), [selectedTipoCierre]: { ...(item.tipo_cierre_overrides?.[selectedTipoCierre] || {}), applies: !effectiveApplies } };
+        await criteriaService.updateCriteria(item.id, { tipo_cierre_overrides: ov });
+      } else {
+        await criteriaService.updateCriteria(item.id, { applies: !item.applies });
+      }
       onUpdate();
     } catch {
       toast.error('Error al actualizar');
@@ -1074,7 +1131,12 @@ function CriteriaViewRow({ item, onEdit, onUpdate }: CriteriaRowProps) {
 
   const handleToggleManualReview = async () => {
     try {
-      await criteriaService.updateCriteria(item.id, { requires_manual_review: !item.requires_manual_review });
+      if (selectedTipoCierre) {
+        const ov = { ...(item.tipo_cierre_overrides || {}), [selectedTipoCierre]: { ...(item.tipo_cierre_overrides?.[selectedTipoCierre] || {}), requires_manual_review: !effectiveManual } };
+        await criteriaService.updateCriteria(item.id, { tipo_cierre_overrides: ov });
+      } else {
+        await criteriaService.updateCriteria(item.id, { requires_manual_review: !item.requires_manual_review });
+      }
       onUpdate();
     } catch {
       toast.error('Error al actualizar');
@@ -1086,15 +1148,24 @@ function CriteriaViewRow({ item, onEdit, onUpdate }: CriteriaRowProps) {
       {/* Criterio */}
       <td className="py-3 px-4 max-w-xs">
         <div className="flex flex-col gap-0.5">
-          <span className={`text-[14px] leading-snug ${item.applies ? 'text-slate-200' : 'line-through text-slate-500'}`}>
-            {item.topic}
-          </span>
-          {item.what_to_look_for && (
+          <div className="flex items-center gap-1.5">
+            <span className={`text-[14px] leading-snug ${effectiveApplies ? 'text-slate-200' : 'line-through text-slate-500'}`}>
+              {item.topic}
+            </span>
+            {hasOverride && (
+              <span title={`Configuración específica para: ${selectedTipoCierre}`}
+                className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold
+                           bg-teal-500/15 border border-teal-500/25 text-teal-400 flex-shrink-0">
+                S
+              </span>
+            )}
+          </div>
+          {effectiveWtlf && (
             <div className="flex flex-col gap-0.5">
               <span className={`text-[12px] text-slate-500 leading-relaxed ${wtlfExpanded ? '' : 'line-clamp-2'}`}>
-                {item.what_to_look_for}
+                {effectiveWtlf}
               </span>
-              {item.what_to_look_for.length > 80 && (
+              {effectiveWtlf.length > 80 && (
                 <button
                   onClick={(e) => { e.stopPropagation(); setWtlfExpanded(v => !v); }}
                   className="self-start text-[11px] text-slate-600 hover:text-slate-400 transition-colors duration-150 flex items-center gap-0.5"
@@ -1105,9 +1176,9 @@ function CriteriaViewRow({ item, onEdit, onUpdate }: CriteriaRowProps) {
               )}
             </div>
           )}
-          {item.validation_source && item.validation_source.length > 0 && (
+          {effectiveValidation && effectiveValidation.length > 0 && (
             <div className="flex gap-1 mt-1 flex-wrap">
-              {item.validation_source.map(src => (
+              {effectiveValidation.map(src => (
                 <span key={src} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
                   src === 'gpf'
                     ? 'bg-blue-900/40 text-blue-300 border border-blue-700/40'
@@ -1152,15 +1223,15 @@ function CriteriaViewRow({ item, onEdit, onUpdate }: CriteriaRowProps) {
       <td className="py-3 px-3 text-center">
         <button
           onClick={handleToggleApplies}
-          title={item.applies ? 'Deshabilitar' : 'Habilitar'}
+          title={effectiveApplies ? 'Deshabilitar' : 'Habilitar'}
           className="toggle-track mx-auto"
-          style={{ backgroundColor: item.applies ? 'rgba(59,130,246,0.5)' : '' }}
+          style={{ backgroundColor: effectiveApplies ? 'rgba(59,130,246,0.5)' : '' }}
         >
           <span
             className="toggle-thumb"
             style={{
-              transform: item.applies ? 'translateX(16px)' : 'translateX(2px)',
-              backgroundColor: item.applies ? '#fff' : '#64748b',
+              transform: effectiveApplies ? 'translateX(16px)' : 'translateX(2px)',
+              backgroundColor: effectiveApplies ? '#fff' : '#64748b',
             }}
           />
         </button>
@@ -1170,15 +1241,15 @@ function CriteriaViewRow({ item, onEdit, onUpdate }: CriteriaRowProps) {
       <td className="py-3 px-3 text-center">
         <button
           onClick={handleToggleManualReview}
-          title={item.requires_manual_review ? 'Quitar validación manual' : 'Marcar como validación manual'}
+          title={effectiveManual ? 'Quitar validación manual' : 'Marcar como validación manual'}
           className="toggle-track mx-auto"
-          style={{ backgroundColor: item.requires_manual_review ? 'rgba(245,158,11,0.5)' : '' }}
+          style={{ backgroundColor: effectiveManual ? 'rgba(245,158,11,0.5)' : '' }}
         >
           <span
             className="toggle-thumb"
             style={{
-              transform: item.requires_manual_review ? 'translateX(16px)' : 'translateX(2px)',
-              backgroundColor: item.requires_manual_review ? '#fff' : '#64748b',
+              transform: effectiveManual ? 'translateX(16px)' : 'translateX(2px)',
+              backgroundColor: effectiveManual ? '#fff' : '#64748b',
             }}
           />
         </button>
@@ -1213,28 +1284,46 @@ interface CriteriaEditRowProps {
   item: CriteriaItem;
   onSave: () => void;
   onCancel: () => void;
+  selectedTipoCierre: string | null;
 }
 
-function CriteriaEditRow({ item, onSave, onCancel }: CriteriaEditRowProps) {
+function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: CriteriaEditRowProps) {
+  const existingOverride = selectedTipoCierre ? item.tipo_cierre_overrides?.[selectedTipoCierre] : undefined;
+  const isSubcalMode = !!selectedTipoCierre;
+
   const [topic, setTopic] = useState(item.topic);
   const [points, setPoints] = useState<string>(item.points === null ? 'n/a' : String(item.points));
   const [criticality, setCriticality] = useState<'Crítico' | '-'>(item.criticality);
-  const [applies, setApplies] = useState(item.applies);
-  const [whatToLookFor, setWhatToLookFor] = useState(item.what_to_look_for || '');
-  const [validationSource, setValidationSource] = useState<string[]>(item.validation_source ?? []);
+  const [applies, setApplies] = useState(
+    existingOverride?.applies !== undefined ? existingOverride.applies : item.applies
+  );
+  const [whatToLookFor, setWhatToLookFor] = useState(
+    existingOverride?.what_to_look_for !== undefined ? (existingOverride.what_to_look_for || '') : (item.what_to_look_for || '')
+  );
+  const [validationSource, setValidationSource] = useState<string[]>(
+    existingOverride?.validation_source !== undefined ? (existingOverride.validation_source ?? []) : (item.validation_source ?? [])
+  );
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await criteriaService.updateCriteria(item.id, {
-        topic,
-        criticality,
-        points: points === 'n/a' ? null : parseInt(points, 10),
-        applies,
-        what_to_look_for: whatToLookFor,
-        validation_source: validationSource,
-      });
+      if (isSubcalMode) {
+        const newOverrides = {
+          ...(item.tipo_cierre_overrides || {}),
+          [selectedTipoCierre!]: { applies, what_to_look_for: whatToLookFor, validation_source: validationSource },
+        };
+        await criteriaService.updateCriteria(item.id, { tipo_cierre_overrides: newOverrides });
+      } else {
+        await criteriaService.updateCriteria(item.id, {
+          topic,
+          criticality,
+          points: points === 'n/a' ? null : parseInt(points, 10),
+          applies,
+          what_to_look_for: whatToLookFor,
+          validation_source: validationSource,
+        });
+      }
       toast.success('Criterio actualizado');
       onSave();
     } catch {
@@ -1244,83 +1333,123 @@ function CriteriaEditRow({ item, onSave, onCancel }: CriteriaEditRowProps) {
     }
   };
 
+  const handleResetOverride = async () => {
+    if (!selectedTipoCierre) return;
+    setSaving(true);
+    try {
+      const newOverrides = { ...(item.tipo_cierre_overrides || {}) };
+      delete newOverrides[selectedTipoCierre];
+      await criteriaService.updateCriteria(item.id, { tipo_cierre_overrides: newOverrides });
+      toast.success('Configuración reseteada a base');
+      onSave();
+    } catch {
+      toast.error('Error al resetear');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <tr className="border-b border-brand-700/20 bg-brand-500/10 animate-fadeIn">
       <td className="py-4 px-4" colSpan={6}>
         <div className="space-y-4">
-          {/* Criterio */}
-          <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
-              Criterio (tema)
-            </label>
-            <textarea
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              rows={2}
-              className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2
-                         text-sm text-white resize-none focus:outline-none focus:border-brand-700/60
-                         focus:ring-1 focus:ring-brand-500/20"
-            />
-          </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            {/* Puntos */}
-            <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
-                Puntos (o "n/a")
-              </label>
-              <input
-                value={points}
-                onChange={(e) => setPoints(e.target.value)}
-                placeholder="5 o n/a"
-                className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2
-                           text-sm text-white focus:outline-none focus:border-brand-700/60
-                           focus:ring-1 focus:ring-brand-500/20"
-              />
-            </div>
-
-            {/* Criticidad */}
-            <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
-                Criticidad
-              </label>
-              <select
-                value={criticality}
-                onChange={(e) => setCriticality(e.target.value as 'Crítico' | '-')}
-                className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2
-                           text-sm text-white focus:outline-none focus:border-brand-700/60"
-              >
-                <option value="-">—</option>
-                <option value="Crítico">Crítico</option>
-              </select>
-            </div>
-
-            {/* Aplica */}
-            <div className="flex items-end pb-2">
-              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+          {/* Banner de subcalificación */}
+          {isSubcalMode && (
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl
+                            bg-teal-500/10 border border-teal-500/20">
+              <span className="text-xs text-teal-300 font-medium">
+                Configurando para subcalificación: <strong>{selectedTipoCierre}</strong>
+                {existingOverride
+                  ? ' · Tiene configuración específica'
+                  : ' · Usando configuración base'}
+              </span>
+              {existingOverride && (
                 <button
                   type="button"
-                  onClick={() => setApplies(!applies)}
-                  className="toggle-track"
-                  style={{ backgroundColor: applies ? 'rgba(59,130,246,0.5)' : 'rgba(51,65,85,0.8)' }}
+                  onClick={handleResetOverride}
+                  disabled={saving}
+                  className="text-[11px] text-slate-400 hover:text-rose-400 transition-colors flex items-center gap-1"
                 >
-                  <span
-                    className="toggle-thumb"
-                    style={{
-                      transform: applies ? 'translateX(16px)' : 'translateX(2px)',
-                      backgroundColor: applies ? '#fff' : '#64748b',
-                    }}
-                  />
+                  <RotateCcw size={11} />
+                  Resetear a base
                 </button>
-                <span className="text-sm text-slate-300 font-medium">Aplica</span>
-              </label>
+              )}
             </div>
+          )}
+
+          {/* Campos base (solo cuando no hay subcalificación seleccionada) */}
+          {!isSubcalMode && (
+            <>
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
+                  Criterio (tema)
+                </label>
+                <textarea
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  rows={2}
+                  className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2
+                             text-sm text-white resize-none focus:outline-none focus:border-brand-700/60
+                             focus:ring-1 focus:ring-brand-500/20"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
+                    Puntos (o "n/a")
+                  </label>
+                  <input
+                    value={points}
+                    onChange={(e) => setPoints(e.target.value)}
+                    placeholder="5 o n/a"
+                    className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2
+                               text-sm text-white focus:outline-none focus:border-brand-700/60
+                               focus:ring-1 focus:ring-brand-500/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
+                    Criticidad
+                  </label>
+                  <select
+                    value={criticality}
+                    onChange={(e) => setCriticality(e.target.value as 'Crítico' | '-')}
+                    className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2
+                               text-sm text-white focus:outline-none focus:border-brand-700/60"
+                  >
+                    <option value="-">—</option>
+                    <option value="Crítico">Crítico</option>
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Aplica (siempre visible, editable también por subcalificación) */}
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setApplies(!applies)}
+              className="toggle-track"
+              style={{ backgroundColor: applies ? 'rgba(59,130,246,0.5)' : 'rgba(51,65,85,0.8)' }}
+            >
+              <span
+                className="toggle-thumb"
+                style={{
+                  transform: applies ? 'translateX(16px)' : 'translateX(2px)',
+                  backgroundColor: applies ? '#fff' : '#64748b',
+                }}
+              />
+            </button>
+            <span className="text-sm text-slate-300 font-medium">Aplica{isSubcalMode ? ` para ${selectedTipoCierre}` : ''}</span>
           </div>
 
           {/* Qué buscar */}
           <div>
             <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
-              Qué buscar (instrucciones para la IA)
+              Qué buscar (instrucciones para la IA){isSubcalMode ? ` — ${selectedTipoCierre}` : ''}
             </label>
             <textarea
               value={whatToLookFor}
@@ -1352,11 +1481,7 @@ function CriteriaEditRow({ item, onSave, onCancel }: CriteriaEditRowProps) {
                     className="accent-brand-500 w-3.5 h-3.5"
                   />
                   <span className={`text-sm font-medium ${
-                    src === 'gpf'
-                      ? 'text-blue-300'
-                      : src === 'imagenes'
-                      ? 'text-brand-300'
-                      : 'text-amber-300'
+                    src === 'gpf' ? 'text-blue-300' : src === 'imagenes' ? 'text-brand-300' : 'text-amber-300'
                   }`}>
                     {src === 'gpf' ? 'GPF' : src === 'imagenes' ? 'Imágenes' : 'Llamada'}
                   </span>

@@ -849,6 +849,7 @@ class DatabaseService {
     criteria_order: number;
     is_active: boolean;
     requires_manual_review: boolean;
+    tipo_cierre_overrides: Record<string, unknown>;
   }>): Promise<any> {
     const { data, error } = await supabaseAdmin
       .from('evaluation_criteria')

@@ -625,6 +625,13 @@ export interface CriteriaBlock {
   criteria: CriteriaItem[];
 }
 
+export interface CriteriaItemOverride {
+  applies?: boolean;
+  what_to_look_for?: string | null;
+  validation_source?: string[] | null;
+  requires_manual_review?: boolean;
+}
+
 export interface CriteriaItem {
   id: string;
   block_id: string;
@@ -635,6 +642,7 @@ export interface CriteriaItem {
   requires_manual_review: boolean;
   what_to_look_for: string | null;
   validation_source: string[] | null;
+  tipo_cierre_overrides: Record<string, CriteriaItemOverride>;
   criteria_order: number;
   is_active: boolean;
   created_at: string;
