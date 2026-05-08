@@ -72,8 +72,8 @@ const getAttentionClient = (a: GpfAttention): string =>
 const getAttentionCalificacion = (a: GpfAttention): string =>
  a['Calificación'] ?? '';
 
-const getAttentionEstado = (a: GpfAttention): string =>
- a['Estado llamada'] ?? '';
+const getAttentionSubcal = (a: GpfAttention): string =>
+ a['Sub-calificación'] ?? '';
 
 // Parse a date string to a comparable format (yyyy-mm-dd or original)
 const parseDateForCompare = (dateStr: string): string => {
@@ -162,7 +162,7 @@ export default function NewAuditPage() {
  const [filterAgent, setFilterAgent] = useState('');
  const [filterClient, setFilterClient] = useState('');
  const [filterCalificacion, setFilterCalificacion] = useState('');
- const [filterEstado, setFilterEstado] = useState('');
+ const [filterSubcal, setFilterSubcal] = useState('');
  const [showFilters, setShowFilters] = useState(true);
 
  // ── Dual scroll refs ─────────────────────────────────────────────────────────
@@ -170,7 +170,7 @@ export default function NewAuditPage() {
  const tableScrollRef = useRef<HTMLDivElement>(null);
  const [tableScrollWidth, setTableScrollWidth] = useState(0);
 
- const activeFilterCount = [filterDateFrom, filterDateTo, filterAgent, filterClient, filterCalificacion, filterEstado]
+ const activeFilterCount = [filterDateFrom, filterDateTo, filterAgent, filterClient, filterCalificacion, filterSubcal]
  .filter(Boolean).length;
 
  const clearFilters = () => {
@@ -179,13 +179,13 @@ export default function NewAuditPage() {
  setFilterAgent('');
  setFilterClient('');
  setFilterCalificacion('');
- setFilterEstado('');
+ setFilterSubcal('');
  };
 
  // Unique values for selects (derived from loaded attentions)
  const uniqueCalificaciones = ['FRAUDE/ROEXT', 'TH CONFIRMA MOVIMIENTOS'];
- const uniqueEstados = useMemo(
- () => [...new Set(attentions.map(getAttentionEstado).filter(Boolean))].sort(),
+ const uniqueSubcals = useMemo(
+ () => [...new Set(attentions.map(getAttentionSubcal).filter(Boolean))].sort(),
  [attentions]
  );
 
@@ -203,10 +203,10 @@ export default function NewAuditPage() {
  if (!matchesAnyField) return false;
  }
  if (filterCalificacion && getAttentionCalificacion(a).trim().toLowerCase() !== filterCalificacion.trim().toLowerCase()) return false;
- if (filterEstado && getAttentionEstado(a).trim().toLowerCase() !== filterEstado.trim().toLowerCase()) return false;
+ if (filterSubcal && getAttentionSubcal(a).trim().toLowerCase() !== filterSubcal.trim().toLowerCase()) return false;
  return true;
  });
- }, [attentions, filterAgent, filterClient, filterCalificacion, filterEstado]);
+ }, [attentions, filterAgent, filterClient, filterCalificacion, filterSubcal]);
 
  useEffect(() => {
  if (tableScrollRef.current) {
@@ -793,20 +793,20 @@ export default function NewAuditPage() {
  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
  </div>
  </div>
- {/* Estado */}
+ {/* Subcalificación */}
  <div>
  <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
- <Tag className="w-3 h-3" /> Estado llamada
+ <Tag className="w-3 h-3" /> Subcalificación
  </label>
  <div className="relative">
  <select
- value={filterEstado}
- onChange={(e) => setFilterEstado(e.target.value)}
+ value={filterSubcal}
+ onChange={(e) => setFilterSubcal(e.target.value)}
  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 appearance-none focus:outline-none focus:border-brand-700 pr-8"
  >
- <option value="">Todos</option>
- {uniqueEstados.map((e) => (
- <option key={e} value={e}>{e}</option>
+ <option value="">Todas</option>
+ {uniqueSubcals.map((s) => (
+ <option key={s} value={s}>{s}</option>
  ))}
  </select>
  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
@@ -1323,7 +1323,7 @@ export default function NewAuditPage() {
  ['Ejecutivo / Agente', getAttentionExecutive(selectedAttention)],
  ['Calificación', getAttentionCalificacion(selectedAttention)],
  ['Sub-calificación', selectedAttention['Sub-calificación'] ?? ''],
- ['Estado llamada', getAttentionEstado(selectedAttention)],
+ ['Estado llamada', selectedAttention['Estado llamada'] ?? ''],
  ['Llamada en curso', selectedAttention['Llamada en curso'] ?? ''],
  ['Cliente / Socio', selectedAttention['Socio'] ?? ''],
  ['Correo cliente', selectedAttention['Correo cliente'] ?? ''],
