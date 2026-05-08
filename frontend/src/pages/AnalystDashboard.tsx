@@ -22,6 +22,7 @@ import {
   Search,
   RefreshCw,
   LogOut,
+  ClipboardList,
 } from 'lucide-react';
 import AppHeader from '../components/AppHeader';
 import toast from 'react-hot-toast';
@@ -387,16 +388,14 @@ export default function AnalystDashboard() {
           </button>
 
           <button
-            onClick={() => navigate('/batch')}
-            className="rounded-2xl border border-indigo-500/30 bg-indigo-500/8 hover:bg-indigo-500/15 transition-all p-4 text-left group"
+            onClick={() => navigate('/scripts-admin')}
+            className="rounded-2xl border border-emerald-500/30 bg-emerald-500/8 hover:bg-emerald-500/15 transition-all p-4 text-left group"
           >
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/20 flex items-center justify-center mb-3 group-hover:bg-indigo-500/30 transition-colors">
-              <Moon className="w-5 h-5 text-indigo-400" />
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center mb-3 group-hover:bg-emerald-500/30 transition-colors">
+              <ClipboardList className="w-5 h-5 text-emerald-400" />
             </div>
-            <div className="text-white font-semibold text-sm">Cola Nocturna</div>
-            <div className="text-slate-500 text-xs mt-0.5">
-              {batchAudits.length > 0 ? `${batchAudits.length} procesada${batchAudits.length !== 1 ? 's' : ''}` : 'Lotes programados'}
-            </div>
+            <div className="text-white font-semibold text-sm">Criterios</div>
+            <div className="text-slate-500 text-xs mt-0.5">Rúbricas de evaluación</div>
           </button>
         </div>
 

@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { auditService, gpfService, getAuditTotalCost, type Audit, type GpfProxyResponse } from '../services/api';
 import { FileDown, CalendarRange } from 'lucide-react';
 import AppHeader from '../components/AppHeader';
-import { 
+import {
  Sparkles,
  LogOut,
  FileText,
@@ -17,6 +17,7 @@ import {
  Clock,
  CheckCircle2,
  AlertCircle,
+ AlertTriangle,
  Loader2,
  XCircle,
  TrendingUp,
@@ -39,6 +40,14 @@ import {
  BookOpen,
  Moon,
 } from 'lucide-react';
+
+const isBatchAudit = (audit: Audit) => audit.audio_filename === 'gpf-batch';
+const isEmptyBatchEval = (audit: Audit) => {
+  if (!isBatchAudit(audit) || audit.status !== 'completed') return false;
+  const evals = Array.isArray(audit.evaluations) ? audit.evaluations : [];
+  const score = evals[0];
+  return !score || (score.total_score === 0 && score.max_possible_score > 0);
+};
 import toast from 'react-hot-toast';
 
 
@@ -1402,17 +1411,43 @@ export default function AdminDashboard() {
  return (
  <div
  key={audit.id}
- className="audit-card"
+ className={`audit-card border transition-all ${
+   isEmptyBatchEval(audit)
+     ? 'border-amber-500/25 bg-amber-500/5'
+     : isBatchAudit(audit)
+     ? 'border-indigo-500/20 bg-indigo-500/5'
+     : ''
+ }`}
  onClick={() => navigate(`/audit/${audit.id}`)}
  >
  <div className="flex items-start justify-between">
  <div className="flex-1">
- <div className="flex items-center gap-3 mb-2">
+ <div className="flex items-center gap-2 mb-2 flex-wrap">
  <h3 className="text-sm font-semibold text-white">
  {audit.executive_name}
  </h3>
  {getStatusBadge(audit.status)}
+ {isBatchAudit(audit) && (
+   <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/25">
+     <Moon className="w-2.5 h-2.5" />
+     Nocturna
+   </span>
+ )}
+ {isEmptyBatchEval(audit) && (
+   <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25">
+     <AlertTriangle className="w-2.5 h-2.5" />
+     Sin evaluación
+   </span>
+ )}
  </div>
+
+ {isEmptyBatchEval(audit) && (
+   <div className="mb-3 flex items-start gap-2 text-[11px] text-amber-400/80 bg-amber-500/8 border border-amber-500/20 rounded-lg px-3 py-2">
+     <AlertTriangle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+     <span>Procesado con versión anterior — evaluación sin criterios. Los datos existen pero el score es 0.</span>
+   </div>
+ )}
+
  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
  <div>
  <span className="text-slate-500">ID Ejecutivo:</span>
@@ -1446,7 +1481,7 @@ export default function AdminDashboard() {
 
  {(() => {
  const evaluations = getEvaluations(audit);
- return evaluations.length > 0 && (
+ return evaluations.length > 0 && !isEmptyBatchEval(audit) && (
  <div className="mt-4 flex items-center gap-4">
  <div className="flex items-center gap-2">
  <TrendingUp className="w-4 h-4 text-brand-400" />
@@ -1458,7 +1493,7 @@ export default function AdminDashboard() {
  ({evaluations[0].total_score}/{evaluations[0].max_possible_score} pts)
  </span>
  </div>
- 
+
  <div className="flex items-center gap-2">
  <DollarSign className="w-4 h-4 text-emerald-400" />
  <span className="text-slate-400 text-sm">Costo:</span>
