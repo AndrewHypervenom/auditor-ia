@@ -168,7 +168,7 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
             </span>
             <span className="flex items-center gap-1">
               <Calendar className="w-3 h-3" />
-              Programado: {fmtDate(job.scheduled_for)}
+              {job.status === 'pending' ? 'Auto-envío:' : 'Programado:'} {fmtDate(job.scheduled_for)}
             </span>
             {job.submitted_at && (
               <span className="flex items-center gap-1">
@@ -283,19 +283,20 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
 
         <div className="flex-1" />
 
-        {/* Submit (pending only) */}
+        {/* Submit early (pending only) */}
         {job.status === 'pending' && (
           <button
             onClick={handleSubmit}
             disabled={loading !== null}
-            className="btn-primary text-xs flex items-center gap-1.5 py-1.5 px-3"
+            className="btn-ghost text-xs flex items-center gap-1.5 py-1.5 px-3 text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500"
+            title="Enviar antes de la hora programada"
           >
             {loading === 'submit' ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : (
               <Play className="w-3.5 h-3.5" />
             )}
-            Enviar ahora
+            Enviar antes de hora
           </button>
         )}
 

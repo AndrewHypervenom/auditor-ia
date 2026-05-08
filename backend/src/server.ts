@@ -2624,6 +2624,29 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
  });
 });
 
+// ── Auto-submit de lotes programados ─────────────────────────────────────────
+// Cada 2 minutos revisa si algún lote pendiente ya alcanzó su hora programada
+setInterval(async () => {
+  try {
+    const { data: dueJobs } = await supabaseAdmin
+      .from('batch_jobs')
+      .select('id, name')
+      .eq('status', 'pending')
+      .lte('scheduled_for', new Date().toISOString());
+
+    if (!dueJobs?.length) return;
+
+    for (const job of dueJobs) {
+      logger.info('Auto-submitting scheduled batch job', { jobId: job.id, name: job.name });
+      batchService.submitBatchJob(job.id).catch((err: Error) =>
+        logger.error('Auto-submit failed', { jobId: job.id, err: err.message })
+      );
+    }
+  } catch (err: any) {
+    logger.warn('Batch auto-submit check error', { err: err.message });
+  }
+}, 2 * 60 * 1000);
+
 // Iniciar servidor
 app.listen(PORT, () => {
  logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');

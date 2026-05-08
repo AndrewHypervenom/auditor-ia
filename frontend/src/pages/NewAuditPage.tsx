@@ -1211,14 +1211,14 @@ export default function NewAuditPage() {
            />
          </div>
          <div>
-           <label className="block text-xs text-slate-400 mb-1">Programar para</label>
+           <label className="block text-xs text-slate-400 mb-1">Enviar automáticamente el</label>
            <input
              type="datetime-local"
              value={batchScheduled}
              onChange={e => setBatchScheduled(e.target.value)}
              className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-brand-600"
            />
-           <p className="text-[11px] text-slate-600 mt-1">El lote se enviará a OpenAI cuando hagas clic en "Enviar ahora" en la página de Cola Nocturna.</p>
+           <p className="text-[11px] text-indigo-400/70 mt-1">El sistema enviará el lote a OpenAI automáticamente en la fecha indicada.</p>
          </div>
        </div>
 
