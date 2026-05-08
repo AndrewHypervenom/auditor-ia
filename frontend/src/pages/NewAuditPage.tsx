@@ -37,8 +37,7 @@ import {
  Clock,
  AlertTriangle,
  Moon,
- Square,
- CheckSquare,
+ Check,
 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 
@@ -616,7 +615,7 @@ export default function NewAuditPage() {
 
  {/* ── SELECTING STATE ────────────────────────────────────────────────── */}
  {state === 'selecting' && (
- <div className="bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-800 shadow-2xl p-8">
+ <div className={`bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-slate-800 shadow-2xl p-8 transition-all ${batchMode ? 'pb-24' : ''}`}>
  <h2 className="text-xl font-semibold text-slate-200 mb-4 flex items-center gap-2">
  <Database className="w-5 h-5 text-brand-400" />
  Seleccionar Caso GPF
@@ -669,8 +668,8 @@ export default function NewAuditPage() {
      onClick={toggleBatchMode}
      className={`px-4 py-3 rounded-lg font-medium flex items-center gap-2 border transition-all ${
        batchMode
-         ? 'bg-brand-500/20 border-brand-500/50 text-brand-300'
-         : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-brand-700/50 hover:text-brand-400'
+         ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/30'
+         : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-indigo-700/50 hover:text-indigo-400'
      }`}
    >
      <Moon className="w-4 h-4" />
@@ -856,98 +855,157 @@ export default function NewAuditPage() {
  </button>
  </div>
  ) : (
- <div className="rounded-xl border border-slate-700">
- {/* Scroll superior sincronizado */}
- <div ref={topScrollRef} className="overflow-x-auto" style={{ height: 12 }}>
- <div style={{ width: tableScrollWidth, height: 1 }} />
- </div>
-            <div ref={tableScrollRef} className="overflow-x-auto">
-            <table className="w-full text-sm text-slate-300">
-            <thead>
-            <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider">
-            {batchMode && (
-              <th className="px-3 py-3 text-center whitespace-nowrap">
-                <button
-                  onClick={toggleSelectAll}
-                  className="p-0.5 text-brand-400 hover:text-brand-300 transition-colors"
-                  title="Seleccionar todos"
-                >
-                  {selectedIds.size === filteredAttentions.length && filteredAttentions.length > 0
-                    ? <CheckSquare className="w-4 h-4" />
-                    : <Square className="w-4 h-4 text-slate-500" />
-                  }
-                </button>
-              </th>
-            )}
-            <th className="px-4 py-3 text-center whitespace-nowrap">Acción</th>
-            {Object.keys(filteredAttentions[0]).map((key) => (
-            <th key={key} className="px-4 py-3 text-left whitespace-nowrap">
-            {key}
-            </th>
-            ))}
-            </tr>
-            </thead>
-            <tbody>
-            {filteredAttentions.map((att, idx) => {
-              const attId = String(getAttentionId(att));
-              const isChecked = selectedIds.has(attId);
-              return (
-            <tr
-            key={`${attId}-${idx}`}
-            onClick={batchMode ? () => toggleSelectOne(att) : undefined}
-            className={`border-t border-slate-700/50 transition-colors ${
-              batchMode
-                ? isChecked
-                  ? 'bg-brand-500/10 hover:bg-brand-500/15 cursor-pointer'
-                  : 'hover:bg-slate-800/40 cursor-pointer'
-                : 'hover:bg-slate-800/40'
-            }`}
-            >
-            {batchMode && (
-              <td className="px-3 py-3 text-center" onClick={e => e.stopPropagation()}>
-                <button
-                  onClick={() => toggleSelectOne(att)}
-                  className="p-0.5 transition-colors"
-                >
-                  {isChecked
-                    ? <CheckSquare className="w-4 h-4 text-brand-400" />
-                    : <Square className="w-4 h-4 text-slate-500 hover:text-slate-300" />
-                  }
-                </button>
-              </td>
-            )}
-            <td className="px-4 py-3 text-center">
-            {batchMode ? (
-              <span className="text-xs text-slate-500 italic">selec.</span>
-            ) : (
-            <button
-            onClick={() => handleSelectAttention(att)}
-            className="px-3 py-1.5 bg-brand-500/20 hover:bg-brand-500/40 border border-brand-700/50 text-brand-400 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 mx-auto"
-            >
-            Ver detalle
-            <ChevronRight className="w-3 h-3" />
-            </button>
-            )}
-            </td>
-            {Object.keys(filteredAttentions[0]).map((key) => (
-            <td
-            key={key}
-            className="px-4 py-3 text-xs whitespace-nowrap max-w-[180px] truncate"
-            title={String(att[key] ?? '')}
-            >
-            {att[key] != null && att[key] !== '' ? String(att[key]) : '—'}
-            </td>
-            ))}
-            </tr>
-              );
-            })}
-            </tbody>
-            </table>
-            </div>
- <div className="px-4 py-2 bg-slate-800/40 border-t border-slate-700 text-xs text-slate-500 rounded-b-xl">
- {filteredAttentions.length} caso{filteredAttentions.length !== 1 ? 's' : ''} mostrado{filteredAttentions.length !== 1 ? 's' : ''}
- </div>
- </div>
+ <>
+   {/* ── BATCH MODE BANNER ────────────────────────────────────── */}
+   {batchMode && (
+     <div
+       className="mb-3 rounded-xl border overflow-hidden"
+       style={{
+         background: 'linear-gradient(135deg, rgba(49,46,129,0.4) 0%, rgba(15,23,42,0.75) 100%)',
+         borderColor: 'rgba(99,102,241,0.4)',
+       }}
+     >
+       {/* Progress bar */}
+       <div className="h-0.5 bg-slate-800/80">
+         <div
+           className={`h-full transition-all duration-500 ${isOverHardLimit ? 'bg-red-500' : isOverRecommended ? 'bg-amber-400' : 'bg-gradient-to-r from-indigo-500 to-violet-400'}`}
+           style={{ width: `${Math.min(capacityPct, 100)}%` }}
+         />
+       </div>
+       <div className="px-4 py-3 flex items-center gap-3 flex-wrap">
+         <div className="flex items-center gap-2.5">
+           <div className="w-8 h-8 rounded-xl bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
+             <Moon className="w-4 h-4 text-indigo-300" />
+           </div>
+           <div>
+             <div className="text-white font-semibold text-sm leading-tight">Cola Nocturna</div>
+             <div className="text-indigo-400 text-xs">Haz clic en cualquier fila para seleccionarla</div>
+           </div>
+         </div>
+         <div className="flex items-center gap-1.5 ml-auto">
+           <span className={`text-xl font-bold ${isOverHardLimit ? 'text-red-400' : isOverRecommended ? 'text-amber-300' : 'text-white'}`}>
+             {selectedIds.size}
+           </span>
+           <span className="text-indigo-400/70 text-xs">/ {BATCH_LIMITS_CLIENT.RECOMMENDED_MAX_CASES} rec.</span>
+         </div>
+         <div className="flex items-center gap-2">
+           <button
+             onClick={toggleSelectAll}
+             className="text-xs text-indigo-300 hover:text-indigo-200 px-2.5 py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 transition-all"
+           >
+             {selectedIds.size === filteredAttentions.length && filteredAttentions.length > 0 ? 'Ninguno' : 'Todos'}
+           </button>
+           <button
+             onClick={toggleBatchMode}
+             className="text-xs text-slate-400 hover:text-white px-2.5 py-1.5 rounded-lg bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50 transition-all flex items-center gap-1"
+           >
+             <X className="w-3 h-3" />
+             Salir
+           </button>
+         </div>
+       </div>
+     </div>
+   )}
+
+   {/* ── TABLE ────────────────────────────────────────────────── */}
+   <div
+     className="rounded-xl border overflow-hidden"
+     style={batchMode ? { borderColor: 'rgba(99,102,241,0.25)' } : {}}
+   >
+   {/* Scroll superior sincronizado */}
+   <div ref={topScrollRef} className="overflow-x-auto" style={{ height: 12 }}>
+   <div style={{ width: tableScrollWidth, height: 1 }} />
+   </div>
+               <div ref={tableScrollRef} className="overflow-x-auto">
+               <table className="w-full text-sm text-slate-300">
+               <thead>
+               <tr className={`text-xs uppercase tracking-wider ${batchMode ? 'bg-indigo-950/70 text-indigo-300/70' : 'bg-slate-800/80 text-slate-400'}`}>
+               <th className="px-4 py-3 text-center whitespace-nowrap">
+                 {batchMode ? (
+                   <button
+                     onClick={toggleSelectAll}
+                     className="flex items-center justify-center mx-auto transition-all"
+                     title={selectedIds.size === filteredAttentions.length ? 'Deseleccionar todo' : 'Seleccionar todo'}
+                   >
+                     <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
+                       selectedIds.size === filteredAttentions.length && filteredAttentions.length > 0
+                         ? 'bg-indigo-500 border-indigo-400'
+                         : 'border-indigo-400/50 hover:border-indigo-300'
+                     }`}>
+                       {selectedIds.size === filteredAttentions.length && filteredAttentions.length > 0 && (
+                         <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />
+                       )}
+                     </div>
+                   </button>
+                 ) : 'Acción'}
+               </th>
+               {Object.keys(filteredAttentions[0]).map((key) => (
+               <th key={key} className="px-4 py-3 text-left whitespace-nowrap">
+               {key}
+               </th>
+               ))}
+               </tr>
+               </thead>
+               <tbody>
+               {filteredAttentions.map((att, idx) => {
+                 const attId = String(getAttentionId(att));
+                 const isChecked = selectedIds.has(attId);
+                 return (
+               <tr
+               key={`${attId}-${idx}`}
+               onClick={batchMode ? () => toggleSelectOne(att) : undefined}
+               className={`border-t group transition-all ${
+                 batchMode
+                   ? isChecked
+                     ? 'border-indigo-800/40 bg-indigo-500/10 border-l-2 border-l-indigo-400 hover:bg-indigo-500/15 cursor-pointer'
+                     : 'border-slate-700/50 hover:bg-indigo-900/15 cursor-pointer'
+                   : 'border-slate-700/50 hover:bg-slate-800/40'
+               }`}
+               >
+               <td className="px-4 py-3 text-center" onClick={batchMode ? e => e.stopPropagation() : undefined}>
+               {batchMode ? (
+                 <button
+                   onClick={() => toggleSelectOne(att)}
+                   className="flex items-center justify-center mx-auto w-6 h-6"
+                 >
+                   <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-150 ${
+                     isChecked
+                       ? 'bg-indigo-500 border-indigo-400 shadow-sm shadow-indigo-500/40'
+                       : 'border-slate-600 group-hover:border-indigo-400'
+                   }`}>
+                     {isChecked && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                   </div>
+                 </button>
+               ) : (
+               <button
+               onClick={() => handleSelectAttention(att)}
+               className="px-3 py-1.5 bg-brand-500/20 hover:bg-brand-500/40 border border-brand-700/50 text-brand-400 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 mx-auto"
+               >
+               Ver detalle
+               <ChevronRight className="w-3 h-3" />
+               </button>
+               )}
+               </td>
+               {Object.keys(filteredAttentions[0]).map((key) => (
+               <td
+               key={key}
+               className="px-4 py-3 text-xs whitespace-nowrap max-w-[180px] truncate"
+               title={String(att[key] ?? '')}
+               >
+               {att[key] != null && att[key] !== '' ? String(att[key]) : '—'}
+               </td>
+               ))}
+               </tr>
+                 );
+               })}
+               </tbody>
+               </table>
+               </div>
+   <div className={`px-4 py-2 border-t text-xs rounded-b-xl ${batchMode ? 'bg-indigo-950/40 border-indigo-800/30 text-indigo-400/60' : 'bg-slate-800/40 border-slate-700 text-slate-500'}`}>
+   {filteredAttentions.length} caso{filteredAttentions.length !== 1 ? 's' : ''} mostrado{filteredAttentions.length !== 1 ? 's' : ''}
+   </div>
+   </div>
+ </>
  )}
  </>
  )}
@@ -962,50 +1020,71 @@ export default function NewAuditPage() {
  </div>
  )}
 
- {/* ── BATCH FLOATING TOOLBAR ──────────────────────────────────────── */}
- {batchMode && selectedIds.size > 0 && (
-   <div
-     className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl shadow-2xl border"
-     style={{
-       background: 'rgba(10,10,18,0.95)',
-       backdropFilter: 'blur(20px)',
-       borderColor: 'rgba(0,214,50,0.35)',
-       boxShadow: '0 0 40px rgba(0,214,50,0.15)',
-     }}
-   >
-     <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${isOverHardLimit ? 'bg-red-500/20' : isOverRecommended ? 'bg-amber-500/20' : 'bg-brand-500/20'}`}>
-       {isOverHardLimit
-         ? <AlertTriangle className="w-4 h-4 text-red-400" />
-         : <Moon className={`w-4 h-4 ${isOverRecommended ? 'text-amber-400' : 'text-brand-400'}`} />
-       }
+ {/* ── BATCH BOTTOM ACTION BAR ─────────────────────────────────────── */}
+ {batchMode && (
+   <div className="fixed bottom-0 left-0 right-0 z-50">
+     {/* Barra de progreso superior */}
+     <div className="h-0.5 bg-slate-900">
+       <div
+         className={`h-full transition-all duration-500 ${isOverHardLimit ? 'bg-red-500' : isOverRecommended ? 'bg-amber-400' : 'bg-gradient-to-r from-indigo-500 to-violet-400'}`}
+         style={{ width: `${Math.min(capacityPct, 100)}%` }}
+       />
      </div>
-     <div>
-       <div className="text-white font-semibold text-sm">
-         {selectedIds.size} caso{selectedIds.size !== 1 ? 's' : ''}
-         {isOverHardLimit
-           ? <span className="text-red-400 text-xs ml-2">— supera límite</span>
-           : isOverRecommended
-           ? <span className="text-amber-400 text-xs ml-2">— sobre lo recomendado</span>
-           : null
-         }
-       </div>
-       <div className={`text-xs ${isOverHardLimit ? 'text-red-400' : isOverRecommended ? 'text-amber-400' : 'text-slate-400'}`}>
-         ~{estimatedFileMB} MB · máx. {BATCH_LIMITS_CLIENT.RECOMMENDED_MAX_CASES} rec.
+     <div
+       className="px-4 sm:px-8 py-3.5 flex items-center gap-4 border-t"
+       style={{
+         background: 'rgba(13,11,35,0.97)',
+         backdropFilter: 'blur(20px)',
+         borderColor: selectedIds.size > 0 ? 'rgba(99,102,241,0.4)' : 'rgba(51,65,85,0.5)',
+       }}
+     >
+       {selectedIds.size === 0 ? (
+         <div className="flex items-center gap-2.5 text-indigo-400/50">
+           <Moon className="w-4 h-4" />
+           <span className="text-sm">Selecciona casos para agregar a la cola nocturna</span>
+         </div>
+       ) : (
+         <>
+           <div className="flex items-center gap-3">
+             <span className={`text-2xl font-bold tabular-nums ${isOverHardLimit ? 'text-red-400' : 'text-white'}`}>
+               {selectedIds.size}
+             </span>
+             <div>
+               <div className="text-sm text-indigo-200 font-medium leading-tight">
+                 caso{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}
+                 {isOverHardLimit && <span className="text-red-400 text-xs font-normal ml-2">supera el límite máximo</span>}
+                 {isOverRecommended && !isOverHardLimit && <span className="text-amber-400 text-xs font-normal ml-2">sobre lo recomendado</span>}
+               </div>
+               <div className="text-xs text-indigo-500/70">~{estimatedFileMB} MB estimado</div>
+             </div>
+           </div>
+           <div className="flex-1" />
+           <button
+             onClick={() => setSelectedIds(new Set())}
+             className="text-xs text-indigo-400/70 hover:text-indigo-300 px-3 py-1.5 transition-colors"
+           >
+             Limpiar
+           </button>
+         </>
+       )}
+       <div className={selectedIds.size > 0 ? '' : 'ml-auto'}>
+         <button
+           onClick={openBatchModal}
+           disabled={selectedIds.size === 0 || isOverHardLimit}
+           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
+             selectedIds.size === 0 || isOverHardLimit
+               ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+               : 'bg-indigo-500 hover:bg-indigo-400 active:bg-indigo-600 text-white shadow-lg shadow-indigo-500/25 border border-indigo-400/30'
+           }`}
+         >
+           <Moon className="w-4 h-4" />
+           {selectedIds.size > 0
+             ? `Agregar ${selectedIds.size} a la cola`
+             : 'Agregar a la cola'
+           }
+         </button>
        </div>
      </div>
-     <button
-       onClick={() => setSelectedIds(new Set())}
-       className="btn-ghost text-xs text-slate-400 px-2 py-1.5"
-     >
-       Limpiar
-     </button>
-     <button
-       onClick={openBatchModal}
-       className="btn-primary text-sm px-4 py-2 flex items-center gap-2"
-     >
-       <Moon className="w-3.5 h-3.5" />
-       Agregar a cola nocturna
-     </button>
    </div>
  )}
 
