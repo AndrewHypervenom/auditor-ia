@@ -80,8 +80,9 @@ function AuditCard({ audit, onView, onDownload }: {
   const score = evals[0];
   const colors = score ? scoreColor(score.percentage) : null;
   const batch = isBatchAudit(audit);
-  // score 0/X > 0 en un lote = evaluación vacía (el viejo normalizador ponía max=100 sin criterios)
-  const emptyEval = batch && audit.status === 'completed' && (!score || (score.total_score === 0 && score.max_possible_score > 0));
+  // emptyEval: lote completado pero sin criterios reales (viejo normalizador o fallo de evaluación)
+  const hasRealCriteria = Array.isArray(score?.detailed_scores) && score.detailed_scores.length > 0;
+  const emptyEval = batch && audit.status === 'completed' && (!score || !hasRealCriteria);
   const isMonitoreo = (audit.call_type || '').toUpperCase() === 'MONITOREO';
 
   return (

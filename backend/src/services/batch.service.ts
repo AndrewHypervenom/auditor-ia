@@ -276,9 +276,7 @@ class BatchService {
 
           const criteria = await databaseService.getCriteriaForCallType(resolvedCallType);
           const evaluationSystemPrompt = await databaseService.getPromptByKey('evaluation_system') ?? '';
-
-          const verbEvidence = syntheticTranscript.text.substring(0, 6000);
-          const criteriaJson = JSON.stringify(criteria, null, 2).substring(0, 8000);
+          const evalUserContent = this.buildBatchEvalPrompt(item, attentionObject, criteria, syntheticTranscript);
 
           batchRequests.push({
             custom_id: `${item.id}__eval`,
@@ -291,10 +289,7 @@ class BatchService {
               response_format: { type: 'json_object' },
               messages: [
                 { role: 'system', content: evaluationSystemPrompt },
-                {
-                  role: 'user',
-                  content: `TRANSCRIPCIÓN:\n${verbEvidence}\n\nCRITERIOS:\n${criteriaJson}\n\nEvalúa esta atención y devuelve JSON con scores por criterio.`,
-                },
+                { role: 'user', content: evalUserContent },
               ],
             },
           });
@@ -465,10 +460,29 @@ class BatchService {
 
         // Construir objeto de auditoría completo
         const attentionObject = item.gpf_attention_object || {};
+
+        // Resolver call type (misma lógica que submitBatchJob)
+        let resolvedCallType = item.call_type ?? '';
+        const calificacion = attentionObject['Calificación'] || '';
+        const subCalificacion = attentionObject['Sub-calificación'] || '';
+        if (calificacion && !resolvedCallType) {
+          const direct = databaseService.resolveCallTypeFromText(calificacion);
+          if (direct) {
+            resolvedCallType = direct;
+          } else {
+            const fromPlantilla = await databaseService.getCallTypeFromPlantilla(
+              calificacion, subCalificacion || undefined, item.gpf_excel_type as any
+            );
+            resolvedCallType = fromPlantilla ?? resolvedCallType;
+          }
+        }
+
+        const itemCriteria = await databaseService.getCriteriaForCallType(resolvedCallType);
+
         const metadata = {
           ...gpfDataService.normalizeMetadata(attentionObject, item.gpf_attention_id),
           excelType: item.gpf_excel_type as 'INBOUND' | 'MONITOREO',
-          callType: item.call_type ?? '',
+          callType: resolvedCallType,
           gpfData: {
             attentionFields: attentionObject,
             transactions: [],
@@ -478,11 +492,10 @@ class BatchService {
           },
         };
 
-        // Normalizar la evaluación al formato esperado ANTES de crear el audit
-        const normalizedEval = this.normalizeEvaluation(evaluation, metadata.callType);
+        // Parsear con matching block|||topic contra criterios de la BD
+        const normalizedEval = this.parseBatchEvalResult(evaluation, itemCriteria);
 
-        // Log raw keys for debugging
-        logger.info('Batch eval normalized', {
+        logger.info('Batch eval parsed', {
           itemId: item.id,
           rawKeys: Object.keys(evaluation),
           detailedScoresCount: normalizedEval.detailedScores?.length ?? 0,
@@ -492,9 +505,8 @@ class BatchService {
 
         if (!Array.isArray(normalizedEval.detailedScores) || normalizedEval.detailedScores.length === 0) {
           throw new Error(
-            `Evaluación vacía: OpenAI devolvió 0 criterios. ` +
-            `Claves en respuesta: ${Object.keys(evaluation).join(', ')}. ` +
-            `callType: "${metadata.callType}"`
+            `Evaluación vacía: sin criterios activos para callType "${resolvedCallType}". ` +
+            `Claves en respuesta OpenAI: ${Object.keys(evaluation).join(', ')}.`
           );
         }
 
@@ -664,6 +676,148 @@ class BatchService {
       detailedScores,
       observations: raw.observations ?? raw.observaciones ?? '',
       recommendations: raw.recommendations ?? raw.recomendaciones ?? [],
+      keyMoments,
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+    };
+  }
+
+  // ─── PROMPT Y PARSER PARA EVALUACIÓN DE LOTE ─────────────────────────────
+
+  private buildBatchEvalPrompt(
+    item: any,
+    attentionObject: any,
+    criteria: any[],
+    syntheticTranscript: { text: string }
+  ): string {
+    const topicsToEvaluate = criteria.flatMap((block: any) =>
+      (block.topics || [])
+        .filter((t: any) => t.applies && !t.requiresManualReview)
+        .map((t: any) => ({
+          block: block.blockName,
+          topic: t.topic,
+          criticality: t.criticality ?? '-',
+          maxScore: t.points === 'n/a' ? 0 : (t.points as number ?? 0),
+          whatToLookFor: t.whatToLookFor || '',
+        }))
+    );
+
+    const maxPossibleScore = topicsToEvaluate.reduce((s: number, t: any) => s + t.maxScore, 0);
+
+    const fieldLines = Object.entries(attentionObject)
+      .filter(([, v]) => v !== undefined && v !== null && v !== '')
+      .map(([k, v]) => `- ${k}: ${v}`)
+      .join('\n');
+
+    const topicsSection = topicsToEvaluate.map((t: any, i: number) =>
+      `${i + 1}. ${t.topic}\n   Bloque: ${t.block}\n   Puntos máximos: ${t.maxScore}\n   Criticidad: ${t.criticality}\n   Qué buscar: ${t.whatToLookFor || 'Evaluar según contexto'}`
+    ).join('\n\n');
+
+    return `# AUDITORÍA DE ATENCIÓN
+
+Tipo de llamada: ${item.call_type || 'No especificado'}
+Ejecutivo: ${item.executive_name || attentionObject['Agente'] || item.gpf_attention_id}
+Fecha: ${item.call_date || attentionObject['Fecha de la atención'] || '-'}
+
+═══════════════════════════════════════
+DATOS GPF
+═══════════════════════════════════════
+${fieldLines || '(sin campos registrados)'}
+
+═══════════════════════════════════════
+TRANSCRIPCIÓN / EVIDENCIA VERBAL
+═══════════════════════════════════════
+${syntheticTranscript.text.substring(0, 8000) || 'Sin transcripción disponible'}
+
+═══════════════════════════════════════
+TÓPICOS A EVALUAR (${topicsToEvaluate.length} criterios)
+═══════════════════════════════════════
+${topicsSection}
+
+═══════════════════════════════════════
+FORMATO DE RESPUESTA OBLIGATORIO
+═══════════════════════════════════════
+REGLA CRÍTICA: Los campos "block" y "topic" deben ser EXACTAMENTE iguales a los nombres indicados arriba.
+
+{
+  "evaluations": [
+    {
+      "block": "<nombre exacto del Bloque>",
+      "topic": "<nombre exacto del tópico>",
+      "score": <puntos obtenidos>,
+      "max_score": <puntos máximos del tópico>,
+      "justification": "Evidencia concreta encontrada y conclusión."
+    }
+  ],
+  "total_score": <suma de todos los scores>,
+  "max_possible_score": ${maxPossibleScore},
+  "percentage": <(total_score/max_possible_score)*100>,
+  "observations": "Observaciones generales.",
+  "recommendations": ["recomendación 1"]
+}`;
+  }
+
+  private parseBatchEvalResult(rawEval: any, criteria: any[]): any {
+    const topicCriticalityMap = new Map<string, string>(
+      criteria.flatMap((block: any) =>
+        (block.topics || []).map((t: any) => [t.topic, t.criticality || '-'])
+      )
+    );
+
+    // Map de block|||topic → resultado de OpenAI
+    const aiResultMap = new Map<string, any>();
+    const evaluations = rawEval.evaluations ?? rawEval.evaluacion ?? rawEval.evaluaciones ?? [];
+    if (Array.isArray(evaluations)) {
+      for (const ev of evaluations) {
+        aiResultMap.set(`${ev.block}|||${ev.topic}`, ev);
+      }
+    }
+
+    const detailedScores = criteria.flatMap((block: any) =>
+      (block.topics || [])
+        .filter((t: any) => t.applies)
+        .map((t: any) => {
+          const maxScore = t.points === 'n/a' ? 0 : (t.points as number ?? 0);
+          if (t.requiresManualReview) {
+            return {
+              criterion: `[${block.blockName}] ${t.topic}`,
+              score: 0,
+              maxScore,
+              observations: 'Requiere validación manual',
+              criticality: t.criticality || '-',
+              requiresManualReview: true,
+            };
+          }
+          const ai = aiResultMap.get(`${block.blockName}|||${t.topic}`);
+          return {
+            criterion: `[${block.blockName}] ${t.topic}`,
+            score: ai?.score ?? 0,
+            maxScore: ai?.max_score ?? maxScore,
+            observations: ai?.justification ?? (ai ? '' : 'No evaluado por el modelo'),
+            criticality: topicCriticalityMap.get(t.topic) || '-',
+          };
+        })
+    ).filter(Boolean);
+
+    const totalScore = rawEval.total_score ?? rawEval.totalScore ??
+      detailedScores.reduce((s: number, d: any) => s + (d?.score ?? 0), 0);
+    const maxPossibleScore = rawEval.max_possible_score ?? rawEval.maxPossibleScore ??
+      detailedScores.reduce((s: number, d: any) => s + (d?.maxScore ?? 0), 0);
+    const percentage = rawEval.percentage ??
+      (maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0);
+
+    const keyMoments = (rawEval.key_moments ?? rawEval.keyMoments ?? []).map((m: any) => ({
+      timestamp: m.timestamp ?? '',
+      type: m.event ?? m.type ?? m.tipo ?? '',
+      description: m.description ?? m.descripcion ?? '',
+    }));
+
+    return {
+      totalScore,
+      maxPossibleScore,
+      percentage,
+      detailedScores,
+      observations: rawEval.observations ?? rawEval.observaciones ?? '',
+      recommendations: rawEval.recommendations ?? rawEval.recomendaciones ?? [],
       keyMoments,
       usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
     };
