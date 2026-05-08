@@ -308,6 +308,13 @@ class BatchService {
             .eq('id', item.id);
 
         } catch (itemErr: any) {
+          // Remove any image requests already added for this item (no eval was added, they'd be orphaned)
+          const imgPrefix = `${item.id}__img__`;
+          for (let k = batchRequests.length - 1; k >= 0; k--) {
+            if ((batchRequests[k].custom_id as string).startsWith(imgPrefix)) {
+              batchRequests.splice(k, 1);
+            }
+          }
           logger.error('Error assembling batch item', { itemId: item.id, error: itemErr.message });
           await supabaseAdmin
             .from('batch_items')
@@ -316,8 +323,10 @@ class BatchService {
         }
       }
 
-      if (batchRequests.length === 0) {
-        await this.markJobFailed(jobId, 'No se pudieron preparar solicitudes para el lote');
+      // Check that at least one eval request was assembled (orphan-only requests were removed above)
+      const hasEvalRequests = batchRequests.some(r => (r.custom_id as string).endsWith('__eval'));
+      if (batchRequests.length === 0 || !hasEvalRequests) {
+        await this.markJobFailed(jobId, 'No se pudieron preparar solicitudes de evaluación. Revisa los criterios de cada caso.');
         return;
       }
 

@@ -294,7 +294,7 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
                   {item.call_type ?? '—'} · {item.call_date ?? '—'}
                 </div>
                 {item.error_message && (
-                  <div className="text-[10px] text-red-400 mt-0.5 truncate">{item.error_message}</div>
+                  <div className="text-[10px] text-red-400 mt-0.5 break-words">{item.error_message}</div>
                 )}
               </div>
               {item.audit_id && (
