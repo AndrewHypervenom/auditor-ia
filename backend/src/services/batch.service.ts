@@ -535,22 +535,64 @@ class BatchService {
   }
 
   private normalizeEvaluation(raw: any, callType: string): any {
-    // Adaptar la respuesta de evaluación del batch al formato que espera completeAudit
-    if (raw.totalScore !== undefined) return raw;
+    // Already in the expected format (e.g. already normalized)
+    if (Array.isArray(raw.detailedScores)) return raw;
 
-    // Intentar extraer scores de diferentes formatos
-    const scores = raw.scores || raw.criteria || raw.evaluacion || {};
     const totalScore = raw.total_score ?? raw.totalScore ?? 0;
-    const maxScore = raw.max_score ?? raw.maxPossibleScore ?? 100;
-    const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
+    const maxScore = raw.max_possible_score ?? raw.max_score ?? raw.maxPossibleScore ?? 100;
+    const percentage = raw.percentage ?? (maxScore > 0 ? (totalScore / maxScore) * 100 : 0);
+
+    // Build detailedScores from evaluations array (OpenAI batch response format)
+    const detailedScores: Array<{
+      criterion: string;
+      score: number;
+      maxScore: number;
+      observations: string;
+      criticality?: string;
+    }> = [];
+
+    const evaluations = raw.evaluations ?? raw.criteria ?? raw.evaluacion ?? [];
+    if (Array.isArray(evaluations)) {
+      for (const ev of evaluations) {
+        const block = ev.block ?? ev.bloque ?? '';
+        const topic = ev.topic ?? ev.topico ?? ev.criterio ?? '';
+        detailedScores.push({
+          criterion: block && topic ? `[${block}] ${topic}` : (topic || block || 'Criterio'),
+          score: ev.score ?? ev.puntaje ?? 0,
+          maxScore: ev.max_score ?? ev.puntaje_maximo ?? ev.maxScore ?? 10,
+          observations: ev.justification ?? ev.justificacion ?? ev.observations ?? '',
+          criticality: ev.criticality ?? ev.criticidad ?? '-',
+        });
+      }
+    } else if (typeof evaluations === 'object' && evaluations !== null) {
+      // Fallback: scores as key-value object
+      for (const [key, val] of Object.entries(evaluations)) {
+        const v = val as any;
+        detailedScores.push({
+          criterion: key,
+          score: typeof v === 'number' ? v : (v?.score ?? 0),
+          maxScore: v?.max_score ?? v?.maxScore ?? 10,
+          observations: v?.justification ?? v?.observations ?? '',
+          criticality: v?.criticality ?? '-',
+        });
+      }
+    }
+
+    const keyMoments: Array<{ timestamp: string; type: string; description: string }> =
+      (raw.key_moments ?? raw.keyMoments ?? raw.momentosClave ?? []).map((m: any) => ({
+        timestamp: m.timestamp ?? '',
+        type: m.event ?? m.type ?? m.tipo ?? '',
+        description: m.description ?? m.descripcion ?? '',
+      }));
 
     return {
       totalScore,
       maxPossibleScore: maxScore,
       percentage,
-      scores,
+      detailedScores,
       observations: raw.observations ?? raw.observaciones ?? '',
-      keyMoments: raw.key_moments ?? raw.momentosClave ?? [],
+      recommendations: raw.recommendations ?? raw.recomendaciones ?? [],
+      keyMoments,
       usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
     };
   }
