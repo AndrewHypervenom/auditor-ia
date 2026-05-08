@@ -131,7 +131,7 @@ export default function NewAuditPage() {
  const [submittingBatch, setSubmittingBatch] = useState(false);
  const [validating, setValidating] = useState(false);
  const [validationResult, setValidationResult] = useState<{
-   accessible: number; noImages: number; inaccessible: number; total: number;
+   accessible: number; noImages: number; inaccessible: number; total: number; totalImages: number;
  } | null>(null);
 
  // Setear el primer modo disponible en cuanto cargue desde BD
@@ -415,7 +415,8 @@ export default function NewAuditPage() {
      const accessible = results.filter((r: any) => r.accessible && r.imageCount > 0).length;
      const noImages = results.filter((r: any) => r.accessible && r.imageCount === 0).length;
      const inaccessible = results.filter((r: any) => !r.accessible).length;
-     setValidationResult({ accessible, noImages, inaccessible, total: results.length });
+     const totalImages = results.reduce((s: number, r: any) => s + (r.imageCount ?? 0), 0);
+     setValidationResult({ accessible, noImages, inaccessible, total: results.length, totalImages });
    } catch {
      // Si falla la validación, no bloqueamos el flujo
      setValidationResult(null);
@@ -453,7 +454,6 @@ export default function NewAuditPage() {
    }
  };
 
- const estimatedFileMB = (selectedIds.size * BATCH_LIMITS_CLIENT.ESTIMATED_MB_PER_CASE).toFixed(1);
  const capacityPct = Math.min(100, Math.round((selectedIds.size / BATCH_LIMITS_CLIENT.RECOMMENDED_MAX_CASES) * 100));
  const isOverRecommended = selectedIds.size > BATCH_LIMITS_CLIENT.RECOMMENDED_MAX_CASES;
  const isOverHardLimit = selectedIds.size > BATCH_LIMITS_CLIENT.HARD_MAX_CASES;
@@ -1055,7 +1055,9 @@ export default function NewAuditPage() {
                  {isOverHardLimit && <span className="text-red-400 text-xs font-normal ml-2">supera el límite máximo</span>}
                  {isOverRecommended && !isOverHardLimit && <span className="text-amber-400 text-xs font-normal ml-2">sobre lo recomendado</span>}
                </div>
-               <div className="text-xs text-indigo-500/70">~{estimatedFileMB} MB estimado</div>
+               <div className="text-xs text-indigo-500/70">
+                 {validationResult ? `${validationResult.totalImages} imágenes` : `${selectedIds.size} casos`}
+               </div>
              </div>
            </div>
            <div className="flex-1" />
@@ -1184,9 +1186,12 @@ export default function NewAuditPage() {
            ) : (
              <>
                <span>
-                 Tamaño estimado: ~{estimatedFileMB} MB
-                 · Límite máximo: {BATCH_LIMITS_CLIENT.MAX_FILE_SIZE_MB} MB por lote
-                 · Las imágenes se descargan en el momento del envío
+                 {validationResult
+                   ? `${validationResult.totalImages} imágenes reales · ${(validationResult.totalImages * 0.4).toFixed(1)} MB reales`
+                   : validating
+                   ? 'Calculando tamaño real...'
+                   : 'Verificando casos...'}
+                 {' · '}Límite máximo: {BATCH_LIMITS_CLIENT.MAX_FILE_SIZE_MB} MB por lote
                </span>
              </>
            )}
