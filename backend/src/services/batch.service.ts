@@ -810,7 +810,7 @@ TÓPICOS A EVALUAR (${topicsToEvaluate.length} criterios)
 ${topicsSection}
 
 ═══════════════════════════════════════
-FORMATO DE RESPUESTA OBLIGATORIO
+FORMATO DE RESPUESTA OBLIGATORIO (JSON)
 ═══════════════════════════════════════
 REGLA CRÍTICA: Los campos "block" y "topic" deben ser EXACTAMENTE iguales a los nombres indicados arriba.
 
