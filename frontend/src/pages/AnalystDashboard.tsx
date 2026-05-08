@@ -1,404 +1,464 @@
-﻿// frontend/src/pages/AnalystDashboard.tsx
-// Dashboard para Analista (Operador Principal) Crear, editar, eliminar auditorías. SIN acceso a costos.
+// frontend/src/pages/AnalystDashboard.tsx
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth, useRole } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { auditService, type Audit } from '../services/api';
 import {
- Sparkles,
- LogOut,
- FileText,
- Plus,
- Download,
- Trash2,
- Clock,
- CheckCircle2,
- AlertCircle,
- Loader2,
- TrendingUp,
- Edit3,
- Shield,
- Eye,
- BarChart3,
- PhoneIncoming,
- Monitor,
- UserCheck,
- BookOpen,
- Moon,
+  FileText,
+  Plus,
+  Download,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  TrendingUp,
+  Eye,
+  BarChart3,
+  PhoneIncoming,
+  Monitor,
+  Moon,
+  Search,
+  RefreshCw,
+  LogOut,
 } from 'lucide-react';
 import AppHeader from '../components/AppHeader';
 import toast from 'react-hot-toast';
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const isBatchAudit = (audit: Audit) => audit.audio_filename === 'gpf-batch';
+
+function scoreColor(pct: number) {
+  if (pct >= 90) return { text: 'text-green-400', bar: 'bg-green-500', bg: 'bg-green-500/10 border-green-500/30' };
+  if (pct >= 75) return { text: 'text-brand-400', bar: 'bg-brand-500', bg: 'bg-brand-500/10 border-brand-500/30' };
+  if (pct >= 60) return { text: 'text-amber-400', bar: 'bg-amber-400', bg: 'bg-amber-500/10 border-amber-500/30' };
+  return { text: 'text-red-400', bar: 'bg-red-500', bg: 'bg-red-500/10 border-red-500/30' };
+}
+
+function fmtDate(s: string) {
+  try {
+    return new Date(s).toLocaleDateString('es-MX', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  } catch { return s; }
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function StatCard({ label, value, sub, icon: Icon, accent = false }: {
+  label: string; value: string | number; sub?: string;
+  icon: React.ElementType; accent?: boolean;
+}) {
+  return (
+    <div className={`rounded-2xl border p-4 flex items-center gap-4 ${
+      accent ? 'bg-brand-500/8 border-brand-500/25' : 'bg-slate-800/60 border-slate-700/50'
+    }`}>
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+        accent ? 'bg-brand-500/20' : 'bg-slate-700/60'
+      }`}>
+        <Icon className={`w-5 h-5 ${accent ? 'text-brand-400' : 'text-slate-400'}`} />
+      </div>
+      <div>
+        <div className="text-xs text-slate-500 font-medium">{label}</div>
+        <div className={`text-2xl font-bold leading-tight ${accent ? 'text-brand-300' : 'text-white'}`}>{value}</div>
+        {sub && <div className="text-[11px] text-slate-600">{sub}</div>}
+      </div>
+    </div>
+  );
+}
+
+function AuditCard({ audit, onView, onDownload }: {
+  audit: Audit;
+  onView: () => void;
+  onDownload: (filename: string) => void;
+}) {
+  const evals = Array.isArray(audit.evaluations) ? audit.evaluations : [];
+  const score = evals[0];
+  const colors = score ? scoreColor(score.percentage) : null;
+  const batch = isBatchAudit(audit);
+  const isMonitoreo = (audit.call_type || '').toUpperCase() === 'MONITOREO';
+
+  return (
+    <div
+      className={`rounded-2xl border overflow-hidden transition-all hover:shadow-lg group ${
+        audit.status === 'error'
+          ? 'bg-red-500/5 border-red-500/20'
+          : batch
+          ? 'bg-indigo-500/5 border-indigo-500/20 hover:border-indigo-500/35'
+          : 'bg-slate-800/40 border-slate-700/50 hover:border-slate-600/60'
+      }`}
+    >
+      <div className="p-4">
+        {/* Top row: badges + status */}
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Batch badge */}
+            {batch && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/25">
+                <Moon className="w-2.5 h-2.5" />
+                Nocturna
+              </span>
+            )}
+            {/* Call type */}
+            {isMonitoreo ? (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/25">
+                <Monitor className="w-2.5 h-2.5" />
+                Monitoreo
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20">
+                <PhoneIncoming className="w-2.5 h-2.5" />
+                Inbound
+              </span>
+            )}
+          </div>
+
+          {/* Status */}
+          <div className="flex-shrink-0">
+            {audit.status === 'completed' ? (
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-green-400">
+                <CheckCircle2 className="w-3 h-3" />
+                Completado
+              </span>
+            ) : audit.status === 'processing' ? (
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-400">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Procesando
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-red-400">
+                <AlertCircle className="w-3 h-3" />
+                Error
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Main content */}
+        <div
+          className="cursor-pointer"
+          onClick={onView}
+        >
+          {/* Executive name */}
+          <h3 className="text-white font-semibold text-sm leading-snug group-hover:text-brand-300 transition-colors">
+            {audit.executive_name}
+          </h3>
+
+          {/* Metadata row */}
+          <div className="flex items-center gap-3 mt-1.5 text-[11px] text-slate-500 flex-wrap">
+            <span>ID {audit.executive_id}</span>
+            {audit.client_id && <><span className="text-slate-700">·</span><span>Socio {audit.client_id}</span></>}
+            <span className="text-slate-700">·</span>
+            <span>{fmtDate(audit.created_at)}</span>
+            {audit.created_by_name && (
+              <><span className="text-slate-700">·</span>
+              <span className="text-slate-500">{audit.created_by_name}</span></>
+            )}
+          </div>
+        </div>
+
+        {/* Score bar */}
+        {score && colors && (
+          <div className="mt-3 pt-3 border-t border-slate-700/40">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center gap-2">
+                <TrendingUp className={`w-3.5 h-3.5 ${colors.text}`} />
+                <span className={`text-base font-bold tabular-nums ${colors.text}`}>
+                  {score.percentage.toFixed(1)}%
+                </span>
+                <span className="text-[11px] text-slate-600">
+                  {score.total_score}/{score.max_possible_score} pts
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={(e) => { e.stopPropagation(); onView(); }}
+                  className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-700/50 transition-all"
+                  title="Ver auditoría"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                </button>
+                {score.excel_filename && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDownload(score.excel_filename); }}
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-brand-400 hover:bg-brand-500/10 transition-all"
+                    title="Descargar Excel"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="h-1.5 bg-slate-700/60 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${colors.bar}`}
+                style={{ width: `${Math.min(score.percentage, 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* No score yet: just actions */}
+        {!score && audit.status !== 'processing' && (
+          <div className="mt-3 pt-3 border-t border-slate-700/40 flex justify-end">
+            <button
+              onClick={(e) => { e.stopPropagation(); onView(); }}
+              className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-700/50 transition-all"
+              title="Ver auditoría"
+            >
+              <Eye className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
+type Filter = 'all' | 'normal' | 'batch';
+
 export default function AnalystDashboard() {
- const navigate = useNavigate();
- const { user, profile, signOut } = useAuth();
- const { isAdmin, isAnalyst } = useRole();
- const [audits, setAudits] = useState<Audit[]>([]);
- const [loading, setLoading] = useState(true);
- const [deletingId, setDeletingId] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { signOut } = useAuth();
+  const [audits, setAudits] = useState<Audit[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<Filter>('all');
 
- useEffect(() => {
- loadAudits();
- }, []);
+  useEffect(() => { loadAudits(); }, []);
 
- const loadAudits = async () => {
- try {
- setLoading(true);
- const response = await auditService.getUserAudits();
- 
- // Verificar que response y response.audits existen
- if (!response || !response.audits) {
- console.warn(' Invalid response from getUserAudits:', response);
- setAudits([]);
- return;
- }
- 
- // Asegurar que audits es un array
- const auditsArray = Array.isArray(response.audits) ? response.audits : [];
- setAudits(auditsArray);
- } catch (error: any) {
- toast.error('Error al cargar auditorías');
- console.error(error);
- setAudits([]); // Asegurar array vacío en caso de error
- } finally {
- setLoading(false);
- }
- };
+  const loadAudits = async (silent = false) => {
+    if (!silent) setLoading(true); else setRefreshing(true);
+    try {
+      const response = await auditService.getUserAudits();
+      setAudits(Array.isArray(response?.audits) ? response.audits : []);
+    } catch {
+      toast.error('Error al cargar auditorías');
+      setAudits([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
- const handleLogout = async () => {
- await signOut();
- navigate('/login');
- };
+  const handleDownloadExcel = async (filename: string) => {
+    try {
+      toast.loading('Descargando Excel...', { id: 'dl' });
+      const blob = await auditService.downloadExcel(filename);
+      const url = window.URL.createObjectURL(blob);
+      const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+      toast.success('Excel descargado', { id: 'dl' });
+    } catch {
+      toast.error('Error al descargar Excel', { id: 'dl' });
+    }
+  };
 
- const handleDeleteAudit = async (auditId: string) => {
- if (!confirm('Â¿Estás seguro de eliminar esta auditoría?')) {
- return;
- }
+  // ── Derived ──────────────────────────────────────────────────────────────────
 
- try {
- setDeletingId(auditId);
- await auditService.deleteAudit(auditId);
- toast.success('Auditoría eliminada correctamente');
- await loadAudits();
- } catch (error) {
- toast.error('Error al eliminar auditoría');
- console.error(error);
- } finally {
- setDeletingId(null);
- }
- };
+  const completed = audits.filter(a => a?.status === 'completed');
+  const batchAudits = audits.filter(a => a && isBatchAudit(a));
 
- const handleDownloadExcel = async (filename: string) => {
- try {
- toast.loading('Descargando Excel...', { id: 'download' });
- const blob = await auditService.downloadExcel(filename);
- const url = window.URL.createObjectURL(blob);
- const a = document.createElement('a');
- a.href = url;
- a.download = filename;
- document.body.appendChild(a);
- a.click();
- window.URL.revokeObjectURL(url);
- document.body.removeChild(a);
- toast.success('Excel descargado correctamente', { id: 'download' });
- } catch (error) {
- toast.error('Error al descargar Excel', { id: 'download' });
- }
- };
+  const avgScore = useMemo(() => {
+    const withScore = completed.filter(a => {
+      const e = Array.isArray(a.evaluations) ? a.evaluations : [];
+      return e.length > 0;
+    });
+    if (!withScore.length) return 0;
+    const sum = withScore.reduce((s, a) => {
+      const e = Array.isArray(a.evaluations) ? a.evaluations : [];
+      return s + (e[0]?.percentage ?? 0);
+    }, 0);
+    return Math.round(sum / withScore.length);
+  }, [completed]);
 
- const getStatusBadge = (status: string) => {
- switch (status) {
- case 'completed':
- return (
- <span className="badge badge-success">
- <CheckCircle2 className="w-3 h-3 mr-1" />
- Completado
- </span>
- );
- case 'processing':
- return (
- <span className="badge badge-info">
- <Clock className="w-3 h-3 mr-1" />
- Procesando
- </span>
- );
- case 'error':
- return (
- <span className="badge badge-danger">
- <AlertCircle className="w-3 h-3 mr-1" />
- Error
- </span>
- );
- default:
- return null;
- }
- };
+  const filtered = useMemo(() => {
+    let list = audits.filter(Boolean);
+    if (filter === 'batch') list = list.filter(isBatchAudit);
+    if (filter === 'normal') list = list.filter(a => !isBatchAudit(a));
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(a =>
+        a.executive_name?.toLowerCase().includes(q) ||
+        a.executive_id?.toLowerCase().includes(q) ||
+        a.client_id?.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [audits, filter, search]);
 
- const formatDate = (dateString: string) => {
- try {
- return new Date(dateString).toLocaleDateString('es-MX', {
- year: 'numeric',
- month: 'short',
- day: 'numeric',
- hour: '2-digit',
- minute: '2-digit'
- });
- } catch (error) {
- return dateString;
- }
- };
+  // ── Render ───────────────────────────────────────────────────────────────────
 
- // HELPER para obtener evaluations de forma segura
- const getEvaluations = (audit: Audit | null | undefined) => {
- if (!audit || !audit.evaluations) return [];
- if (Array.isArray(audit.evaluations)) return audit.evaluations;
- return [audit.evaluations];
- };
+  return (
+    <div className="min-h-screen" style={{ background: 'var(--bg-base)' }}>
+      <AppHeader
+        title="Panel de Analista"
+        rightContent={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => loadAudits(true)}
+              disabled={refreshing}
+              className="btn-ghost p-2 rounded-xl"
+              title="Actualizar"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={async () => { await signOut(); navigate('/login'); }}
+              className="btn-ghost p-2 rounded-xl text-slate-400"
+              title="Cerrar sesión"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        }
+      />
 
- // CALCULO SEGURO del promedio de score
- const calculateAverageScore = () => {
- if (!audits || audits.length === 0) return 0;
- 
- const completedWithEval = audits.filter(a => {
- const evals = getEvaluations(a);
- return a && a.status === 'completed' && evals.length > 0;
- });
+      <main className="max-w-4xl mx-auto px-4 py-6 space-y-5">
 
- if (completedWithEval.length === 0) return 0;
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-3">
+          <StatCard icon={FileText} label="Total" value={audits.length} sub="auditorías" />
+          <StatCard icon={CheckCircle2} label="Completadas" value={completed.length}
+            sub={`${batchAudits.length} nocturna${batchAudits.length !== 1 ? 's' : ''}`} />
+          <StatCard icon={TrendingUp} label="Promedio" value={`${avgScore}%`}
+            sub="score global" accent={avgScore >= 75} />
+        </div>
 
- const totalScore = completedWithEval.reduce((acc, a) => {
- const evals = getEvaluations(a);
- return acc + (evals[0]?.percentage || 0);
- }, 0);
+        {/* Action buttons */}
+        <div className="grid grid-cols-3 gap-3">
+          <button
+            onClick={() => navigate('/audit/new')}
+            className="rounded-2xl border border-brand-500/30 bg-brand-500/8 hover:bg-brand-500/15 transition-all p-4 text-left group"
+          >
+            <div className="w-9 h-9 rounded-xl bg-brand-500/20 flex items-center justify-center mb-3 group-hover:bg-brand-500/30 transition-colors">
+              <Plus className="w-5 h-5 text-brand-400" />
+            </div>
+            <div className="text-white font-semibold text-sm">Nueva auditoría</div>
+            <div className="text-slate-500 text-xs mt-0.5">Procesar caso ahora</div>
+          </button>
 
- return Math.round(totalScore / completedWithEval.length);
- };
+          <button
+            onClick={() => navigate('/reports')}
+            className="rounded-2xl border border-slate-700/50 bg-slate-800/40 hover:bg-slate-800/70 transition-all p-4 text-left group"
+          >
+            <div className="w-9 h-9 rounded-xl bg-slate-700/60 flex items-center justify-center mb-3 group-hover:bg-slate-700 transition-colors">
+              <BarChart3 className="w-5 h-5 text-slate-400" />
+            </div>
+            <div className="text-white font-semibold text-sm">Reportes</div>
+            <div className="text-slate-500 text-xs mt-0.5">Exportar datos</div>
+          </button>
 
- return (
- <div className="min-h-screen">
- <AppHeader
-   title="Panel de Analista"
-   rightContent={
-     <button onClick={handleLogout} className="btn-ghost flex items-center gap-1.5 text-xs">
-       <LogOut className="w-3.5 h-3.5" />
-       Salir
-     </button>
-   }
- />
+          <button
+            onClick={() => navigate('/batch')}
+            className="rounded-2xl border border-indigo-500/30 bg-indigo-500/8 hover:bg-indigo-500/15 transition-all p-4 text-left group"
+          >
+            <div className="w-9 h-9 rounded-xl bg-indigo-500/20 flex items-center justify-center mb-3 group-hover:bg-indigo-500/30 transition-colors">
+              <Moon className="w-5 h-5 text-indigo-400" />
+            </div>
+            <div className="text-white font-semibold text-sm">Cola Nocturna</div>
+            <div className="text-slate-500 text-xs mt-0.5">
+              {batchAudits.length > 0 ? `${batchAudits.length} procesada${batchAudits.length !== 1 ? 's' : ''}` : 'Lotes programados'}
+            </div>
+          </button>
+        </div>
 
- <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
- {/* Action Buttons */}
- <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
- <button
- onClick={() => navigate('/audit/new')}
- className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-brand-900/40 to-brand-800/40 border-brand-700/40"
- >
- <div className="flex items-center gap-4">
- <div className="p-2.5 bg-brand-500/10 rounded-lg">
- <Plus className="w-5 h-5 text-brand-400" />
- </div>
- <div className="text-left">
- <h3 className="text-sm font-semibold text-white">Crear Auditoría</h3>
- <p className="text-sm text-slate-400">Nueva evaluación</p>
- </div>
- </div>
- </button>
+        {/* List */}
+        <div className="space-y-3">
+          {/* Toolbar */}
+          <div className="flex items-center gap-3">
+            {/* Search */}
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Buscar por nombre, ID o socio..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-xl text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-brand-600"
+              />
+            </div>
 
- <button
- onClick={() => navigate('/reports')}
- className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-green-900/40 to-green-800/40 border-green-500/30"
- >
- <div className="flex items-center gap-4">
- <div className="p-3 bg-green-600/20 rounded-xl">
- <BarChart3 className="w-5 h-5 text-green-400" />
- </div>
- <div className="text-left">
- <h3 className="text-sm font-semibold text-white">Reportes</h3>
- <p className="text-sm text-slate-400">Exportar datos</p>
- </div>
- </div>
- </button>
+            {/* Filter tabs */}
+            <div className="flex gap-1 p-1 bg-slate-800/60 rounded-xl border border-slate-700/50 flex-shrink-0">
+              {(['all', 'normal', 'batch'] as Filter[]).map(f => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1 ${
+                    filter === f ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  {f === 'batch' && <Moon className="w-3 h-3 text-indigo-400" />}
+                  {f === 'all' ? 'Todas' : f === 'normal' ? 'Normales' : 'Nocturnas'}
+                </button>
+              ))}
+            </div>
+          </div>
 
- <button
- onClick={() => navigate('/batch')}
- className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-brand-900/20 to-slate-800/40 border-brand-700/30"
- >
- <div className="flex items-center gap-4">
- <div className="p-2.5 bg-brand-500/10 rounded-lg">
- <Moon className="w-5 h-5 text-brand-400" />
- </div>
- <div className="text-left">
- <h3 className="text-sm font-semibold text-white">Cola Nocturna</h3>
- <p className="text-sm text-slate-400">50% descuento</p>
- </div>
- </div>
- </button>
- </div>
+          {/* Results count */}
+          {!loading && (
+            <div className="text-xs text-slate-600 px-0.5">
+              {filtered.length} {filtered.length === 1 ? 'auditoría' : 'auditorías'}
+              {filter !== 'all' || search ? ` · ${audits.length} total` : ''}
+            </div>
+          )}
 
- {/* Stats Cards - SIN COSTOS */}
- <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
- <div className="stat-card">
- <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-sm font-medium">Total Auditorías</span>
- <FileText className="w-5 h-5 text-brand-400" />
- </div>
- <div className="text-2xl font-bold text-white">{audits.length}</div>
- </div>
-
- <div className="stat-card">
- <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-sm font-medium">Completadas</span>
- <CheckCircle2 className="w-5 h-5 text-green-400" />
- </div>
- <div className="text-2xl font-bold text-white">
- {audits.filter(a => a && a.status === 'completed').length}
- </div>
- </div>
-
- <div className="stat-card">
- <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-sm font-medium">Promedio Score</span>
- <TrendingUp className="w-5 h-5 text-brand-400" />
- </div>
- <div className="text-2xl font-bold text-white">
- {calculateAverageScore()}%
- </div>
- </div>
- </div>
-
- {/* Audits List */}
- <div className="card">
- <h2 className="section-header">
- <FileText className="w-5 h-5 text-brand-400" />
- Gestión de Auditorías
- </h2>
-
- {loading ? (
- <div className="flex items-center justify-center py-8">
- <Loader2 className="w-5 h-5 text-brand-400 animate-spin" />
- </div>
- ) : !audits || audits.length === 0 ? (
- <div className="text-center py-8">
- <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-800 mb-4">
- <FileText className="w-8 h-8 text-slate-600" />
- </div>
- <p className="text-slate-400 mb-4">
- No tienes auditorías aún
- </p>
- <button
- onClick={() => navigate('/audit/new')}
- className="btn-primary inline-flex items-center gap-2"
- >
- <Plus className="w-5 h-5" />
- Crear primera auditoría
- </button>
- </div>
- ) : (
- <div className="space-y-4">
- {audits.map((audit) => {
- if (!audit) return null; // Proteccion adicional
- 
- const evaluations = getEvaluations(audit);
- 
- return (
- <div
- key={audit.id}
- className="audit-card"
- >
- <div className="flex items-start justify-between">
- <div className="flex-1" onClick={() => navigate(`/audit/${audit.id}`)} style={{ cursor: 'pointer' }}>
- <div className="flex items-center gap-3 mb-2">
- <h3 className="text-sm font-semibold text-white">
- {audit.executive_name}
- </h3>
- {getStatusBadge(audit.status)}
- </div>
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 text-sm">
- <div>
- <span className="text-slate-500">ID Ejecutivo:</span>
- <p className="text-slate-300 font-medium break-all">{audit.executive_id}</p>
- </div>
- <div>
- <span className="text-slate-500">Cliente:</span>
- <p className="text-slate-300 font-medium break-all">{audit.client_id}</p>
- </div>
- <div>
- <span className="text-slate-500">Tipo:</span>
- <div className="mt-1">
- {(audit.call_type || '').toUpperCase() === 'MONITOREO' ? (
- <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
- <Monitor className="w-3 h-3" />
- Monitoreo
- </span>
- ) : (
- <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-500/10 text-brand-400 border border-brand-700/40">
- <PhoneIncoming className="w-3 h-3" />
- Inbound
- </span>
- )}
- </div>
- </div>
- <div>
- <span className="text-slate-500">Fecha:</span>
- <p className="text-slate-300 font-medium">{formatDate(audit.created_at)}</p>
- </div>
- <div>
- <span className="text-slate-500 flex items-center gap-1"><UserCheck className="w-3 h-3" /> Creado por:</span>
- <p className="text-cyan-300 font-medium truncate">{audit.created_by_name || 'Desconocido'}</p>
- </div>
- </div>
-
- {/* RENDERIZADO SEGURO de evaluations */}
- {evaluations.length > 0 && (
- <div className="mt-4 flex items-center gap-4">
- <div className="flex items-center gap-2">
- <TrendingUp className="w-4 h-4 text-brand-400" />
- <span className="text-slate-400 text-sm">Score:</span>
- <span className="text-xl font-bold text-brand-400">
- {evaluations[0].percentage.toFixed(2)}%
- </span>
- <span className="text-sm text-slate-500">
- ({evaluations[0].total_score}/{evaluations[0].max_possible_score} pts)
- </span>
- </div>
- </div>
- )}
- </div>
-
- <div className="flex items-center gap-2 ml-4">
- <button
- onClick={(e) => {
- e.stopPropagation();
- navigate(`/audit/${audit.id}`);
- }}
- className="btn-icon"
- title="Ver detalles"
- >
- <Eye className="w-4 h-4" />
- </button>
-
- {evaluations.length > 0 && evaluations[0].excel_filename && (
- <button
- onClick={(e) => {
- e.stopPropagation();
- handleDownloadExcel(evaluations[0].excel_filename);
- }}
- className="btn-icon"
- title="Descargar Excel"
- >
- <Download className="w-4 h-4" />
- </button>
- )}
- </div>
- </div>
- </div>
- );
- })}
- </div>
- )}
- </div>
- </main>
- </div>
- );
+          {/* Loading */}
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <Loader2 className="w-7 h-7 text-brand-400 animate-spin" />
+              <span className="text-slate-500 text-sm">Cargando auditorías...</span>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-14">
+              {audits.length === 0 ? (
+                <>
+                  <div className="w-14 h-14 rounded-2xl bg-slate-800 flex items-center justify-center mx-auto mb-4">
+                    <FileText className="w-7 h-7 text-slate-600" />
+                  </div>
+                  <p className="text-slate-400 font-medium">No tienes auditorías aún</p>
+                  <p className="text-slate-600 text-sm mt-1">Crea una nueva o agrega casos a la cola nocturna</p>
+                  <button
+                    onClick={() => navigate('/audit/new')}
+                    className="mt-4 btn-primary inline-flex items-center gap-2 px-5 py-2.5 text-sm"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Nueva auditoría
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Search className="w-8 h-8 text-slate-600 mx-auto mb-3" />
+                  <p className="text-slate-400 text-sm">Sin resultados para "{search}"</p>
+                  <button onClick={() => { setSearch(''); setFilter('all'); }} className="mt-2 text-xs text-brand-400 hover:text-brand-300">
+                    Limpiar filtros
+                  </button>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {filtered.map(audit => (
+                <AuditCard
+                  key={audit.id}
+                  audit={audit}
+                  onView={() => navigate(`/audit/${audit.id}`)}
+                  onDownload={handleDownloadExcel}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
 }

@@ -70,6 +70,7 @@ export interface Audit {
  completed_at: string | null;
  processing_time_seconds: number | null;
  excel_filename?: string;
+ audio_filename?: string;
  // Info del creador de la auditoria
  created_by_name?: string;
  created_by_email?: string;
