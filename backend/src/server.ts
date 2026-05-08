@@ -27,6 +27,7 @@ import { supabase, supabaseAdmin } from './config/supabase.js';
 import { progressBroadcaster } from './services/progress-broadcaster.js';
 import type { AuditInput } from './types/index.js';
 import statsRoutes from './routes/stats.routes.js';
+import { batchService } from './services/batch.service.js';
 
 const app = express();
 app.set('trust proxy', 1); // Render.com está detrás de un proxy — necesario para req.protocol y req.ip
@@ -2496,6 +2497,104 @@ app.delete('/api/admin/bines/:id', authenticateUser, requireAdmin, async (req: R
     logger.error('Error deleting bin:', error);
     res.status(500).json({ error: 'Error al eliminar bin' });
   }
+});
+
+// ============================================
+// BATCH PROCESSING (Cola Nocturna - 50% desc.)
+// ============================================
+
+app.post('/api/batch/jobs', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+  try {
+    const { name, scheduled_for, items } = req.body;
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Se requiere al menos un caso en el lote' });
+    }
+    const job = await batchService.createBatchJob({
+      name: name || `Lote ${new Date().toLocaleDateString('es-ES')}`,
+      scheduled_for: scheduled_for || new Date().toISOString(),
+      created_by: req.user!.id,
+      items,
+    });
+    res.status(201).json(job);
+  } catch (error: any) {
+    logger.error('Error creating batch job', error);
+    res.status(500).json({ error: error.message || 'Error al crear el lote' });
+  }
+});
+
+app.get('/api/batch/jobs', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const jobs = await batchService.getBatchJobs(req.user!.id, req.user!.role);
+    res.json(jobs);
+  } catch (error: any) {
+    logger.error('Error listing batch jobs', error);
+    res.status(500).json({ error: 'Error al obtener los lotes' });
+  }
+});
+
+app.get('/api/batch/jobs/:jobId', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const job = await batchService.getBatchJobById(req.params.jobId);
+    if (!job) return res.status(404).json({ error: 'Lote no encontrado' });
+    res.json(job);
+  } catch (error: any) {
+    logger.error('Error fetching batch job', error);
+    res.status(500).json({ error: 'Error al obtener el lote' });
+  }
+});
+
+app.post('/api/batch/jobs/:jobId/submit', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+  try {
+    const { jobId } = req.params;
+    // Fire and forget — la respuesta llega antes de que termine
+    res.json({ success: true, message: 'Enviando lote a OpenAI Batch API...' });
+    batchService.submitBatchJob(jobId).catch(err =>
+      logger.error('Batch submit failed async', { jobId, err: err.message })
+    );
+  } catch (error: any) {
+    logger.error('Error submitting batch job', error);
+    res.status(500).json({ error: error.message || 'Error al enviar el lote' });
+  }
+});
+
+app.post('/api/batch/jobs/:jobId/check', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const result = await batchService.checkAndProcessBatchJob(req.params.jobId);
+    res.json(result);
+  } catch (error: any) {
+    logger.error('Error checking batch job', error);
+    res.status(500).json({ error: error.message || 'Error al verificar el lote' });
+  }
+});
+
+app.delete('/api/batch/jobs/:jobId', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+  try {
+    await batchService.deleteBatchJob(req.params.jobId);
+    res.json({ success: true });
+  } catch (error: any) {
+    logger.error('Error deleting batch job', error);
+    res.status(500).json({ error: 'Error al eliminar el lote' });
+  }
+});
+
+app.get('/api/batch/savings-estimate', authenticateUser, (req: Request, res: Response) => {
+  const count = parseInt(req.query.count as string) || 1;
+  const { BATCH_LIMITS } = batchService;
+  res.json({
+    item_count: count,
+    estimated_savings_usd: batchService.getEstimatedSavings(count),
+    discount_percentage: 50,
+    limits: {
+      model: BATCH_LIMITS.MODEL,
+      context_window_tokens: BATCH_LIMITS.CONTEXT_WINDOW_TOKENS,
+      max_output_tokens: BATCH_LIMITS.MAX_OUTPUT_TOKENS,
+      max_file_size_mb: BATCH_LIMITS.MAX_FILE_SIZE_MB,
+      max_requests_per_batch: BATCH_LIMITS.MAX_REQUESTS_PER_BATCH,
+      recommended_max_cases: BATCH_LIMITS.RECOMMENDED_MAX_CASES,
+      hard_max_cases: BATCH_LIMITS.HARD_MAX_CASES,
+      estimated_mb_per_case: BATCH_LIMITS.ESTIMATED_MB_PER_CASE,
+    },
+  });
 });
 
 // Manejador de errores

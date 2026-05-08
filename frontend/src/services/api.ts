@@ -808,6 +808,120 @@ export const callTypesConfigService = {
   },
 };
 
+// ── Cola Nocturna / Batch Processing ─────────────────────────────────────────
+
+export interface BatchItem {
+  id: string;
+  batch_job_id: string;
+  audit_id: string | null;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  gpf_attention_id: string;
+  gpf_env: string;
+  gpf_excel_type: string;
+  executive_name: string | null;
+  call_type: string | null;
+  call_date: string | null;
+  error_message: string | null;
+  created_at: string;
+}
+
+export interface BatchJob {
+  id: string;
+  name: string;
+  status: 'pending' | 'assembling' | 'submitted' | 'completed' | 'failed' | 'cancelled';
+  openai_batch_id: string | null;
+  scheduled_for: string;
+  submitted_at: string | null;
+  completed_at: string | null;
+  created_by: string;
+  item_count: number;
+  completed_count: number;
+  failed_count: number;
+  error_message: string | null;
+  created_at: string;
+  batch_items?: BatchItem[];
+}
+
+export interface CreateBatchItemInput {
+  gpf_attention_id: string;
+  gpf_env: string;
+  gpf_attention_object: Record<string, any>;
+  gpf_excel_type: string;
+  executive_name?: string;
+  call_type?: string;
+  call_date?: string;
+}
+
+export const batchService = {
+  async createJob(payload: {
+    name: string;
+    scheduled_for: string;
+    items: CreateBatchItemInput[];
+  }): Promise<BatchJob> {
+    const response = await api.post('/batch/jobs', payload);
+    return response.data;
+  },
+
+  async getJobs(): Promise<BatchJob[]> {
+    const response = await api.get('/batch/jobs');
+    return response.data;
+  },
+
+  async getJob(jobId: string): Promise<BatchJob> {
+    const response = await api.get(`/batch/jobs/${jobId}`);
+    return response.data;
+  },
+
+  async submitJob(jobId: string): Promise<{ success: boolean; message: string }> {
+    const response = await api.post(`/batch/jobs/${jobId}/submit`);
+    return response.data;
+  },
+
+  async checkJob(jobId: string): Promise<{ status: string; message: string }> {
+    const response = await api.post(`/batch/jobs/${jobId}/check`);
+    return response.data;
+  },
+
+  async deleteJob(jobId: string): Promise<void> {
+    await api.delete(`/batch/jobs/${jobId}`);
+  },
+
+  async getSavingsEstimate(count: number): Promise<{
+    item_count: number;
+    estimated_savings_usd: number;
+    discount_percentage: number;
+    limits: BatchLimits;
+  }> {
+    const response = await api.get(`/batch/savings-estimate?count=${count}`);
+    return response.data;
+  },
+};
+
+export interface BatchLimits {
+  model: string;
+  context_window_tokens: number;
+  max_output_tokens: number;
+  max_file_size_mb: number;
+  max_requests_per_batch: number;
+  recommended_max_cases: number;
+  hard_max_cases: number;
+  estimated_mb_per_case: number;
+}
+
+// Constantes de límites (mirror del backend) para cálculos client-side sin llamada de red
+export const BATCH_LIMITS_CLIENT = {
+  MODEL: 'gpt-5.4-mini',
+  CONTEXT_WINDOW_TOKENS: 400_000,
+  MAX_OUTPUT_TOKENS: 128_000,
+  MAX_FILE_SIZE_MB: 200,
+  MAX_REQUESTS_PER_BATCH: 50_000,
+  RECOMMENDED_MAX_CASES: 50,
+  HARD_MAX_CASES: 90,
+  ESTIMATED_MB_PER_CASE: 2.0,
+  AVG_IMAGES_PER_CASE: 5,
+  MB_PER_IMAGE_BASE64: 0.4,
+} as const;
+
 // ─── Bines ──────────────────────────────────────────────────
 
 export interface BinesItem {

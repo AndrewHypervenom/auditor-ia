@@ -17,6 +17,7 @@ import AuditsViewPage from './pages/AuditsViewPage';
 import AiAnalysisPage from './pages/AiAnalysisPage';
 import ScriptsAdminPage from './pages/ScriptsAdminPage';
 import ScriptsReferencePage from './pages/ScriptsReferencePage';
+import BatchPage from './pages/BatchPage';
 import { useVersionCheck } from './hooks/useVersionCheck';
 
 function App() {
@@ -168,6 +169,16 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['admin', 'analyst', 'supervisor']}>
                 <ScriptsReferencePage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Cola Nocturna — Admin y Analyst */}
+          <Route
+            path="/batch"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'analyst']}>
+                <BatchPage />
               </ProtectedRoute>
             }
           />

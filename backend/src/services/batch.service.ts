@@ -1,0 +1,577 @@
+// backend/src/services/batch.service.ts
+// Procesa auditorías en lote con OpenAI Batch API (50% de descuento)
+
+import OpenAI, { toFile } from 'openai';
+import { supabaseAdmin } from '../config/supabase.js';
+import { logger } from '../utils/logger.js';
+import { gpfTokenService } from './gpf-token.service.js';
+import { gpfDataService } from './gpf-data.service.js';
+import { downloadImagesToTemp } from '../utils/image-downloader.js';
+import { buildSyntheticTranscript } from '../utils/synthetic-transcript.js';
+import { evaluatorService } from './evaluator.service.js';
+import { excelService } from './excel.service.js';
+import { costCalculatorService } from './cost-calculator.service.js';
+import { getDatabaseService } from './database.service.js';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+
+// ─── Límites documentados de OpenAI Batch API (gpt-5.4-mini) ─────────────────
+export const BATCH_LIMITS = {
+  MODEL: 'gpt-5.4-mini',
+  CONTEXT_WINDOW_TOKENS: 400_000,
+  MAX_OUTPUT_TOKENS: 128_000,
+  MAX_FILE_SIZE_MB: 200,          // Límite duro de OpenAI
+  MAX_REQUESTS_PER_BATCH: 50_000, // Límite de solicitudes por lote
+  // Estimaciones por caso (5 imágenes × 400 KB promedio en base64)
+  ESTIMATED_MB_PER_CASE: 2.0,     // ~5 imgs × 400 KB base64 = ~2 MB/caso
+  RECOMMENDED_MAX_CASES: 50,      // Conservador (~100 MB, margen de seguridad)
+  HARD_MAX_CASES: 90,             // ~180 MB de los 200 permitidos
+  PRICING_INPUT_PER_M: 0.375,     // USD/1M tokens en batch
+  PRICING_OUTPUT_PER_M: 2.25,     // USD/1M tokens en batch
+} as const;
+
+interface BatchItemInput {
+  gpf_attention_id: string;
+  gpf_env: string;
+  gpf_attention_object: Record<string, any>;
+  gpf_excel_type: string;
+  executive_name?: string;
+  call_type?: string;
+  call_date?: string;
+}
+
+interface CreateBatchJobParams {
+  name: string;
+  scheduled_for: string;
+  created_by: string;
+  items: BatchItemInput[];
+}
+
+// Tiempo estimado de ahorro: 50% del costo OpenAI normal
+// Costo aproximado por caso: $0.02 (imágenes) + $0.005 (evaluación) = ~$0.025
+const ESTIMATED_COST_PER_CASE_USD = 0.025;
+
+class BatchService {
+  private openai: OpenAI;
+
+  constructor() {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
+    this.openai = new OpenAI({ apiKey });
+  }
+
+  // ─── CRUD ─────────────────────────────────────────────────────────────────
+
+  async createBatchJob(params: CreateBatchJobParams) {
+    const { name, scheduled_for, created_by, items } = params;
+
+    if (items.length > BATCH_LIMITS.HARD_MAX_CASES) {
+      throw new Error(
+        `El lote supera el límite máximo de ${BATCH_LIMITS.HARD_MAX_CASES} casos. ` +
+        `Divide en lotes más pequeños para evitar superar los 200 MB del archivo OpenAI.`
+      );
+    }
+
+    const { data: job, error: jobErr } = await supabaseAdmin
+      .from('batch_jobs')
+      .insert({
+        name,
+        status: 'pending',
+        scheduled_for,
+        created_by,
+        item_count: items.length,
+      })
+      .select()
+      .single();
+
+    if (jobErr || !job) throw new Error(`Error creando batch job: ${jobErr?.message}`);
+
+    const rows = items.map(item => ({
+      batch_job_id: job.id,
+      gpf_attention_id: item.gpf_attention_id,
+      gpf_env: item.gpf_env,
+      gpf_attention_object: item.gpf_attention_object,
+      gpf_excel_type: item.gpf_excel_type,
+      executive_name: item.executive_name ?? null,
+      call_type: item.call_type ?? null,
+      call_date: item.call_date ?? null,
+    }));
+
+    const { error: itemsErr } = await supabaseAdmin.from('batch_items').insert(rows);
+    if (itemsErr) throw new Error(`Error insertando batch items: ${itemsErr.message}`);
+
+    logger.success('Batch job created', { jobId: job.id, items: items.length });
+    return job;
+  }
+
+  async getBatchJobs(userId: string, role: string) {
+    let query = supabaseAdmin
+      .from('batch_jobs')
+      .select('*, batch_items(id, status, executive_name, call_type, call_date, error_message)')
+      .order('created_at', { ascending: false });
+
+    if (role !== 'admin' && role !== 'supervisor') {
+      query = query.eq('created_by', userId);
+    }
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  async getBatchJobById(jobId: string) {
+    const { data, error } = await supabaseAdmin
+      .from('batch_jobs')
+      .select('*, batch_items(*)')
+      .eq('id', jobId)
+      .single();
+
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async deleteBatchJob(jobId: string) {
+    const { data: job } = await supabaseAdmin
+      .from('batch_jobs')
+      .select('status, openai_batch_id')
+      .eq('id', jobId)
+      .single();
+
+    if (job?.openai_batch_id && job.status === 'submitted') {
+      try {
+        await this.openai.batches.cancel(job.openai_batch_id);
+      } catch (e) {
+        logger.warn('Could not cancel OpenAI batch', { jobId });
+      }
+    }
+
+    await supabaseAdmin.from('batch_jobs').delete().eq('id', jobId);
+  }
+
+  // ─── SUBMIT ───────────────────────────────────────────────────────────────
+
+  async submitBatchJob(jobId: string): Promise<void> {
+    logger.info('Starting batch job submission', { jobId });
+
+    await supabaseAdmin
+      .from('batch_jobs')
+      .update({ status: 'assembling' })
+      .eq('id', jobId);
+
+    const { data: items, error } = await supabaseAdmin
+      .from('batch_items')
+      .select('*')
+      .eq('batch_job_id', jobId)
+      .eq('status', 'pending');
+
+    if (error || !items?.length) {
+      await this.markJobFailed(jobId, 'No hay items pendientes en el lote');
+      return;
+    }
+
+    const databaseService = getDatabaseService();
+    const imageAnalysisPrompt = await databaseService.getPromptByKey('image_analysis') ?? '';
+    const model = BATCH_LIMITS.MODEL;
+
+    const batchRequests: Array<{
+      custom_id: string;
+      method: string;
+      url: string;
+      body: any;
+    }> = [];
+
+    const tempFiles: string[] = [];
+
+    try {
+      for (const item of items) {
+        try {
+          logger.info('Assembling batch item', { itemId: item.id, attentionId: item.gpf_attention_id });
+
+          // Re-autenticar y obtener datos GPF
+          const token = await gpfTokenService.getTokenWithRetry(item.gpf_env);
+          const attentionData = await gpfDataService.fetchAttentionData(
+            item.gpf_env, item.gpf_attention_id, token
+          );
+
+          // Descargar imágenes
+          const { localPaths } = await downloadImagesToTemp(attentionData.imageUrls, token);
+          tempFiles.push(...localPaths);
+
+          // Solicitudes de análisis de imágenes (una por imagen)
+          for (let i = 0; i < localPaths.length; i++) {
+            const imgPath = localPaths[i];
+            try {
+              const imageBuffer = fs.readFileSync(imgPath);
+              const imageBase64 = imageBuffer.toString('base64');
+              const ext = imgPath.split('.').pop()?.toLowerCase();
+              const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+
+              batchRequests.push({
+                custom_id: `${item.id}__img__${i}`,
+                method: 'POST',
+                url: '/v1/chat/completions',
+                body: {
+                  model,
+                  temperature: 0,
+                  seed: 42,
+                  messages: [{
+                    role: 'user',
+                    content: [
+                      {
+                        type: 'image_url',
+                        image_url: {
+                          url: `data:${mimeType};base64,${imageBase64}`,
+                          detail: 'high',
+                        },
+                      },
+                      { type: 'text', text: imageAnalysisPrompt },
+                    ],
+                  }],
+                },
+              });
+            } catch (imgErr) {
+              logger.warn('Could not read image for batch', { imgPath });
+            }
+          }
+
+          // Solicitud de evaluación principal
+          const attentionObject = item.gpf_attention_object || {};
+          const syntheticTranscript = buildSyntheticTranscript(
+            attentionData.comments,
+            attentionData.transactions,
+            attentionData.otpValidations,
+            attentionData.rawComments
+          );
+
+          // Resolver callType
+          let resolvedCallType = item.call_type ?? '';
+          const calificacion = attentionObject['Calificación'] || '';
+          const subCalificacion = attentionObject['Sub-calificación'] || '';
+          if (calificacion && !resolvedCallType) {
+            const direct = databaseService.resolveCallTypeFromText(calificacion);
+            if (direct) {
+              resolvedCallType = direct;
+            } else {
+              const fromPlantilla = await databaseService.getCallTypeFromPlantilla(
+                calificacion, subCalificacion || undefined, item.gpf_excel_type as any
+              );
+              resolvedCallType = fromPlantilla ?? resolvedCallType;
+            }
+          }
+
+          const criteria = await databaseService.getCriteriaForCallType(resolvedCallType);
+          const evaluationSystemPrompt = await databaseService.getPromptByKey('evaluation_system') ?? '';
+
+          const verbEvidence = syntheticTranscript.text.substring(0, 6000);
+          const criteriaJson = JSON.stringify(criteria, null, 2).substring(0, 8000);
+
+          batchRequests.push({
+            custom_id: `${item.id}__eval`,
+            method: 'POST',
+            url: '/v1/chat/completions',
+            body: {
+              model,
+              temperature: 0,
+              seed: 42,
+              response_format: { type: 'json_object' },
+              messages: [
+                { role: 'system', content: evaluationSystemPrompt },
+                {
+                  role: 'user',
+                  content: `TRANSCRIPCIÓN:\n${verbEvidence}\n\nCRITERIOS:\n${criteriaJson}\n\nEvalúa esta atención y devuelve JSON con scores por criterio.`,
+                },
+              ],
+            },
+          });
+
+          // Marcar item como "processing"
+          await supabaseAdmin
+            .from('batch_items')
+            .update({ status: 'processing' })
+            .eq('id', item.id);
+
+        } catch (itemErr: any) {
+          logger.error('Error assembling batch item', { itemId: item.id, error: itemErr.message });
+          await supabaseAdmin
+            .from('batch_items')
+            .update({ status: 'failed', error_message: itemErr.message })
+            .eq('id', item.id);
+        }
+      }
+
+      if (batchRequests.length === 0) {
+        await this.markJobFailed(jobId, 'No se pudieron preparar solicitudes para el lote');
+        return;
+      }
+
+      // Crear archivo JSONL y subir a OpenAI
+      const jsonlContent = batchRequests.map(r => JSON.stringify(r)).join('\n');
+      const jsonlBuffer = Buffer.from(jsonlContent, 'utf-8');
+
+      logger.info('Uploading batch JSONL to OpenAI', {
+        jobId,
+        requests: batchRequests.length,
+        sizeKB: (jsonlBuffer.length / 1024).toFixed(1),
+      });
+
+      const uploadedFile = await this.openai.files.create({
+        file: await toFile(jsonlBuffer, 'batch_input.jsonl', { type: 'application/jsonl' }),
+        purpose: 'batch',
+      });
+
+      logger.info('Batch file uploaded', { fileId: uploadedFile.id });
+
+      // Crear el batch en OpenAI
+      const openAIBatch = await this.openai.batches.create({
+        input_file_id: uploadedFile.id,
+        endpoint: '/v1/chat/completions',
+        completion_window: '24h',
+        metadata: { batch_job_id: jobId },
+      });
+
+      logger.success('OpenAI batch created', { openAIBatchId: openAIBatch.id });
+
+      await supabaseAdmin
+        .from('batch_jobs')
+        .update({
+          status: 'submitted',
+          openai_batch_id: openAIBatch.id,
+          openai_input_file_id: uploadedFile.id,
+          submitted_at: new Date().toISOString(),
+        })
+        .eq('id', jobId);
+
+    } finally {
+      // Limpiar archivos temp
+      for (const f of tempFiles) {
+        try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch {}
+      }
+    }
+  }
+
+  // ─── CHECK & PROCESS ──────────────────────────────────────────────────────
+
+  async checkAndProcessBatchJob(jobId: string): Promise<{ status: string; message: string }> {
+    const job = await this.getBatchJobById(jobId);
+    if (!job) throw new Error('Batch job no encontrado');
+
+    if (!job.openai_batch_id) {
+      return { status: job.status, message: 'El lote aún no ha sido enviado a OpenAI' };
+    }
+
+    if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
+      return { status: job.status, message: 'El lote ya ha sido procesado' };
+    }
+
+    const openAIBatch = await this.openai.batches.retrieve(job.openai_batch_id);
+    logger.info('OpenAI batch status', { jobId, openAIStatus: openAIBatch.status });
+
+    if (openAIBatch.status === 'completed') {
+      await this.processBatchResults(job, openAIBatch);
+      return { status: 'completed', message: 'Lote completado y auditorías procesadas' };
+    }
+
+    if (openAIBatch.status === 'failed' || openAIBatch.status === 'expired' || openAIBatch.status === 'cancelled') {
+      await this.markJobFailed(jobId, `OpenAI batch status: ${openAIBatch.status}`);
+      return { status: 'failed', message: `El lote falló en OpenAI: ${openAIBatch.status}` };
+    }
+
+    const completed = openAIBatch.request_counts?.completed ?? 0;
+    const total = openAIBatch.request_counts?.total ?? 0;
+    return {
+      status: 'submitted',
+      message: `En proceso: ${completed}/${total} solicitudes completadas (${openAIBatch.status})`,
+    };
+  }
+
+  private async processBatchResults(job: any, openAIBatch: any): Promise<void> {
+    if (!openAIBatch.output_file_id) {
+      await this.markJobFailed(job.id, 'OpenAI batch completado sin output_file_id');
+      return;
+    }
+
+    logger.info('Downloading batch results from OpenAI', { jobId: job.id });
+
+    const fileResponse = await this.openai.files.content(openAIBatch.output_file_id);
+    const resultsText = await fileResponse.text();
+
+    // Parsear JSONL de resultados
+    const resultMap = new Map<string, any>();
+    for (const line of resultsText.split('\n').filter(l => l.trim())) {
+      try {
+        const result = JSON.parse(line);
+        resultMap.set(result.custom_id, result);
+      } catch {}
+    }
+
+    const databaseService = getDatabaseService();
+    const items: any[] = job.batch_items ?? [];
+
+    let completedCount = 0;
+    let failedCount = 0;
+
+    for (const item of items) {
+      if (item.status === 'failed') { failedCount++; continue; }
+
+      try {
+        // Recolectar resultados de imágenes
+        const imageResults: any[] = [];
+        let imgIdx = 0;
+        while (resultMap.has(`${item.id}__img__${imgIdx}`)) {
+          const imgResult = resultMap.get(`${item.id}__img__${imgIdx}`);
+          if (imgResult?.response?.body?.choices?.[0]?.message?.content) {
+            try {
+              let content = imgResult.response.body.choices[0].message.content.trim();
+              content = content.replace(/```json\n?/gi, '').replace(/```\n?/g, '');
+              const parsed = JSON.parse(content);
+              imageResults.push(parsed);
+            } catch {}
+          }
+          imgIdx++;
+        }
+
+        // Resultado de evaluación
+        const evalResult = resultMap.get(`${item.id}__eval`);
+        if (!evalResult?.response?.body?.choices?.[0]?.message?.content) {
+          throw new Error('No se encontró resultado de evaluación en el lote');
+        }
+
+        const evalContent = evalResult.response.body.choices[0].message.content;
+        let evaluation: any;
+        try {
+          evaluation = JSON.parse(evalContent);
+        } catch {
+          throw new Error('Respuesta de evaluación no es JSON válido');
+        }
+
+        // Construir objeto de auditoría completo
+        const attentionObject = item.gpf_attention_object || {};
+        const metadata = {
+          ...gpfDataService.normalizeMetadata(attentionObject, item.gpf_attention_id),
+          excelType: item.gpf_excel_type as 'INBOUND' | 'MONITOREO',
+          callType: item.call_type ?? '',
+          gpfData: {
+            attentionFields: attentionObject,
+            transactions: [],
+            comments: [],
+            otpValidations: [],
+            rawComments: [],
+          },
+        };
+
+        // Crear audit record
+        const auditId = await databaseService.createAudit({
+          userId: job.created_by,
+          auditInput: metadata,
+          audioFilename: 'gpf-batch',
+          imageFilenames: imageResults.map((_: any, i: number) => `batch-img-${i}.jpg`),
+        });
+
+        // Normalizar la evaluación al formato esperado
+        const normalizedEval = this.normalizeEvaluation(evaluation, metadata.callType);
+
+        // Generar Excel
+        const excelResult = await excelService.generateExcelReport(metadata, normalizedEval);
+        const excelBase64 = excelResult.buffer.toString('base64');
+
+        // Calcular costos (50% de descuento = marcamos como batch)
+        const costs = costCalculatorService.calculateTotalCost(0, imageResults.length, 0, 0, 0, 0);
+
+        await databaseService.completeAudit(auditId, {
+          transcription: '[Procesado en lote nocturno]',
+          imageAnalysis: imageResults.map((r: any, i: number) => `Imagen ${i + 1}: ${JSON.stringify(r)}`).join('\n'),
+          evaluation: normalizedEval,
+          excelFilename: excelResult.filename,
+          excelBase64,
+          processingTimeMs: 0,
+          costs,
+        });
+
+        // Actualizar batch_item con audit_id
+        await supabaseAdmin
+          .from('batch_items')
+          .update({ status: 'completed', audit_id: auditId })
+          .eq('id', item.id);
+
+        completedCount++;
+        logger.success('Batch item completed', { itemId: item.id, auditId });
+
+      } catch (itemErr: any) {
+        logger.error('Error processing batch item result', { itemId: item.id, error: itemErr.message });
+        await supabaseAdmin
+          .from('batch_items')
+          .update({ status: 'failed', error_message: itemErr.message })
+          .eq('id', item.id);
+        failedCount++;
+      }
+    }
+
+    await supabaseAdmin
+      .from('batch_jobs')
+      .update({
+        status: 'completed',
+        completed_count: completedCount,
+        failed_count: failedCount,
+        completed_at: new Date().toISOString(),
+      })
+      .eq('id', job.id);
+
+    logger.success('Batch job processing complete', { jobId: job.id, completedCount, failedCount });
+  }
+
+  private normalizeEvaluation(raw: any, callType: string): any {
+    // Adaptar la respuesta de evaluación del batch al formato que espera completeAudit
+    if (raw.totalScore !== undefined) return raw;
+
+    // Intentar extraer scores de diferentes formatos
+    const scores = raw.scores || raw.criteria || raw.evaluacion || {};
+    const totalScore = raw.total_score ?? raw.totalScore ?? 0;
+    const maxScore = raw.max_score ?? raw.maxPossibleScore ?? 100;
+    const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
+
+    return {
+      totalScore,
+      maxPossibleScore: maxScore,
+      percentage,
+      scores,
+      observations: raw.observations ?? raw.observaciones ?? '',
+      keyMoments: raw.key_moments ?? raw.momentosClave ?? [],
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+    };
+  }
+
+  private async markJobFailed(jobId: string, message: string) {
+    await supabaseAdmin
+      .from('batch_jobs')
+      .update({ status: 'failed', error_message: message })
+      .eq('id', jobId);
+    logger.error('Batch job failed', { jobId, message });
+  }
+
+  // ─── STATS & LIMITS ───────────────────────────────────────────────────────
+
+  get BATCH_LIMITS() { return BATCH_LIMITS; }
+
+  getEstimatedSavings(itemCount: number): number {
+    return itemCount * ESTIMATED_COST_PER_CASE_USD * 0.5;
+  }
+
+  /**
+   * Estima el tamaño del JSONL en MB para N casos con M imágenes cada uno.
+   * Úsalo para alertar al usuario antes de enviar.
+   */
+  estimateFileSizeMB(caseCount: number, avgImagesPerCase = 5): number {
+    return caseCount * avgImagesPerCase * 0.4; // ~400 KB por imagen en base64
+  }
+
+  /**
+   * Cuántos casos caben en un lote dado el tamaño promedio de imagen.
+   */
+  maxCasesForFileLimit(avgImagesPerCase = 5): number {
+    const mbPerCase = avgImagesPerCase * 0.4;
+    return Math.floor((BATCH_LIMITS.MAX_FILE_SIZE_MB * 0.9) / mbPerCase); // 90% del límite
+  }
+}
+
+export const batchService = new BatchService();

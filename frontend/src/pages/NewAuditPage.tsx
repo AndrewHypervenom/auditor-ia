@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
 import { toast } from 'react-hot-toast';
 import ProcessingStatus from '../components/ProcessingStatus';
-import { auditService, gpfService } from '../services/api';
+import { auditService, gpfService, batchService, BATCH_LIMITS_CLIENT } from '../services/api';
 import type { GpfAttention, GpfAttentionDetail } from '../services/api';
 import { useCallTypesConfig } from '../hooks/useCallTypesConfig';
 import {
@@ -35,7 +35,11 @@ import {
  ZoomOut,
  Maximize2,
  Clock,
- AlertTriangle
+ AlertTriangle,
+ Moon,
+ Square,
+ CheckSquare,
+ TrendingDown,
 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 
@@ -119,6 +123,14 @@ export default function NewAuditPage() {
  const [audioUrl, setAudioUrl] = useState<string | null>(null);
  const [audioLoading, setAudioLoading] = useState(false);
  const [exporting, setExporting] = useState(false);
+
+ // ── Batch selection (cola nocturna) ───────────────────────────────────────────
+ const [batchMode, setBatchMode] = useState(false);
+ const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+ const [showBatchModal, setShowBatchModal] = useState(false);
+ const [batchName, setBatchName] = useState('');
+ const [batchScheduled, setBatchScheduled] = useState('');
+ const [submittingBatch, setSubmittingBatch] = useState(false);
 
  // Setear el primer modo disponible en cuanto cargue desde BD
  useEffect(() => {
@@ -355,6 +367,74 @@ export default function NewAuditPage() {
  }
  };
 
+ // ── Batch helpers ──────────────────────────────────────────────────────────────
+ const toggleBatchMode = () => {
+   setBatchMode(v => !v);
+   setSelectedIds(new Set());
+ };
+
+ const toggleSelectAll = () => {
+   if (selectedIds.size === filteredAttentions.length) {
+     setSelectedIds(new Set());
+   } else {
+     const newSet = new Set<string>();
+     filteredAttentions.forEach(a => newSet.add(String(getAttentionId(a))));
+     setSelectedIds(newSet);
+   }
+ };
+
+ const toggleSelectOne = (att: GpfAttention) => {
+   const id = String(getAttentionId(att));
+   setSelectedIds(prev => {
+     const next = new Set(prev);
+     if (next.has(id)) next.delete(id); else next.add(id);
+     return next;
+   });
+ };
+
+ const openBatchModal = () => {
+   const tomorrow = new Date(Date.now() + 86400000);
+   tomorrow.setHours(2, 0, 0, 0);
+   setBatchName(`Lote ${new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}`);
+   setBatchScheduled(tomorrow.toISOString().slice(0, 16));
+   setShowBatchModal(true);
+ };
+
+ const handleSubmitBatch = async () => {
+   const selected = filteredAttentions.filter(a => selectedIds.has(String(getAttentionId(a))));
+   if (!selected.length) return;
+   setSubmittingBatch(true);
+   try {
+     await batchService.createJob({
+       name: batchName || `Lote ${new Date().toLocaleDateString('es-MX')}`,
+       scheduled_for: batchScheduled ? new Date(batchScheduled).toISOString() : new Date().toISOString(),
+       items: selected.map(att => ({
+         gpf_attention_id: String(getAttentionId(att)),
+         gpf_env: env,
+         gpf_attention_object: att as Record<string, any>,
+         gpf_excel_type: excelType || 'INBOUND',
+         executive_name: getAttentionExecutive(att) || undefined,
+         call_type: getAttentionCalificacion(att) || undefined,
+         call_date: getAttentionDate(att) || undefined,
+       })),
+     });
+     toast.success(`${selected.length} caso${selected.length !== 1 ? 's' : ''} agregado${selected.length !== 1 ? 's' : ''} a la cola nocturna`);
+     setShowBatchModal(false);
+     setBatchMode(false);
+     setSelectedIds(new Set());
+   } catch (e: any) {
+     toast.error(e.response?.data?.error || 'Error al crear el lote');
+   } finally {
+     setSubmittingBatch(false);
+   }
+ };
+
+ const estimatedSavings = (selectedIds.size * 0.025 * 0.5).toFixed(2);
+ const estimatedFileMB = (selectedIds.size * BATCH_LIMITS_CLIENT.ESTIMATED_MB_PER_CASE).toFixed(1);
+ const capacityPct = Math.min(100, Math.round((selectedIds.size / BATCH_LIMITS_CLIENT.RECOMMENDED_MAX_CASES) * 100));
+ const isOverRecommended = selectedIds.size > BATCH_LIMITS_CLIENT.RECOMMENDED_MAX_CASES;
+ const isOverHardLimit = selectedIds.size > BATCH_LIMITS_CLIENT.HARD_MAX_CASES;
+
  // ── Select attention → load full detail ─────────────────────────────────────
 
  const handleSelectAttention = async (attention: GpfAttention) => {
@@ -559,6 +639,21 @@ export default function NewAuditPage() {
  </button>
  )}
 
+ {/* Toggle batch mode */}
+ {attentions.length > 0 && (
+   <button
+     onClick={toggleBatchMode}
+     className={`px-4 py-3 rounded-lg font-medium flex items-center gap-2 border transition-all ${
+       batchMode
+         ? 'bg-brand-500/20 border-brand-500/50 text-brand-300'
+         : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-brand-700/50 hover:text-brand-400'
+     }`}
+   >
+     <Moon className="w-4 h-4" />
+     Cola nocturna
+   </button>
+ )}
+
  {attentions.length > 0 && (
  <span className="text-sm text-slate-500 ml-auto self-center">
  {filteredAttentions.length === attentions.length
@@ -746,6 +841,20 @@ export default function NewAuditPage() {
             <table className="w-full text-sm text-slate-300">
             <thead>
             <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider">
+            {batchMode && (
+              <th className="px-3 py-3 text-center whitespace-nowrap">
+                <button
+                  onClick={toggleSelectAll}
+                  className="p-0.5 text-brand-400 hover:text-brand-300 transition-colors"
+                  title="Seleccionar todos"
+                >
+                  {selectedIds.size === filteredAttentions.length && filteredAttentions.length > 0
+                    ? <CheckSquare className="w-4 h-4" />
+                    : <Square className="w-4 h-4 text-slate-500" />
+                  }
+                </button>
+              </th>
+            )}
             <th className="px-4 py-3 text-center whitespace-nowrap">Acción</th>
             {Object.keys(filteredAttentions[0]).map((key) => (
             <th key={key} className="px-4 py-3 text-left whitespace-nowrap">
@@ -755,12 +864,38 @@ export default function NewAuditPage() {
             </tr>
             </thead>
             <tbody>
-            {filteredAttentions.map((att, idx) => (
+            {filteredAttentions.map((att, idx) => {
+              const attId = String(getAttentionId(att));
+              const isChecked = selectedIds.has(attId);
+              return (
             <tr
-            key={`${getAttentionId(att)}-${idx}`}
-            className="border-t border-slate-700/50 hover:bg-slate-800/40 transition-colors"
+            key={`${attId}-${idx}`}
+            onClick={batchMode ? () => toggleSelectOne(att) : undefined}
+            className={`border-t border-slate-700/50 transition-colors ${
+              batchMode
+                ? isChecked
+                  ? 'bg-brand-500/10 hover:bg-brand-500/15 cursor-pointer'
+                  : 'hover:bg-slate-800/40 cursor-pointer'
+                : 'hover:bg-slate-800/40'
+            }`}
             >
+            {batchMode && (
+              <td className="px-3 py-3 text-center" onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={() => toggleSelectOne(att)}
+                  className="p-0.5 transition-colors"
+                >
+                  {isChecked
+                    ? <CheckSquare className="w-4 h-4 text-brand-400" />
+                    : <Square className="w-4 h-4 text-slate-500 hover:text-slate-300" />
+                  }
+                </button>
+              </td>
+            )}
             <td className="px-4 py-3 text-center">
+            {batchMode ? (
+              <span className="text-xs text-slate-500 italic">selec.</span>
+            ) : (
             <button
             onClick={() => handleSelectAttention(att)}
             className="px-3 py-1.5 bg-brand-500/20 hover:bg-brand-500/40 border border-brand-700/50 text-brand-400 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 mx-auto"
@@ -768,6 +903,7 @@ export default function NewAuditPage() {
             Ver detalle
             <ChevronRight className="w-3 h-3" />
             </button>
+            )}
             </td>
             {Object.keys(filteredAttentions[0]).map((key) => (
             <td
@@ -779,7 +915,8 @@ export default function NewAuditPage() {
             </td>
             ))}
             </tr>
-            ))}
+              );
+            })}
             </tbody>
             </table>
             </div>
@@ -799,6 +936,184 @@ export default function NewAuditPage() {
  </div>
  )}
  </div>
+ )}
+
+ {/* ── BATCH FLOATING TOOLBAR ──────────────────────────────────────── */}
+ {batchMode && selectedIds.size > 0 && (
+   <div
+     className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl shadow-2xl border"
+     style={{
+       background: 'rgba(10,10,18,0.95)',
+       backdropFilter: 'blur(20px)',
+       borderColor: 'rgba(0,214,50,0.35)',
+       boxShadow: '0 0 40px rgba(0,214,50,0.15)',
+     }}
+   >
+     <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${isOverHardLimit ? 'bg-red-500/20' : isOverRecommended ? 'bg-amber-500/20' : 'bg-brand-500/20'}`}>
+       {isOverHardLimit
+         ? <AlertTriangle className="w-4 h-4 text-red-400" />
+         : <Moon className={`w-4 h-4 ${isOverRecommended ? 'text-amber-400' : 'text-brand-400'}`} />
+       }
+     </div>
+     <div>
+       <div className="text-white font-semibold text-sm">
+         {selectedIds.size} caso{selectedIds.size !== 1 ? 's' : ''}
+         {isOverHardLimit
+           ? <span className="text-red-400 text-xs ml-2">— supera límite</span>
+           : isOverRecommended
+           ? <span className="text-amber-400 text-xs ml-2">— sobre lo recomendado</span>
+           : null
+         }
+       </div>
+       <div className={`text-xs flex items-center gap-1 ${isOverHardLimit ? 'text-red-400' : isOverRecommended ? 'text-amber-400' : 'text-brand-400'}`}>
+         <TrendingDown className="w-3 h-3" />
+         Ahorro: ${estimatedSavings} · ~{estimatedFileMB} MB · máx. {BATCH_LIMITS_CLIENT.RECOMMENDED_MAX_CASES} rec.
+       </div>
+     </div>
+     <button
+       onClick={() => setSelectedIds(new Set())}
+       className="btn-ghost text-xs text-slate-400 px-2 py-1.5"
+     >
+       Limpiar
+     </button>
+     <button
+       onClick={openBatchModal}
+       className="btn-primary text-sm px-4 py-2 flex items-center gap-2"
+     >
+       <Moon className="w-3.5 h-3.5" />
+       Agregar a cola nocturna
+     </button>
+   </div>
+ )}
+
+ {/* ── BATCH CONFIRMATION MODAL ─────────────────────────────────────── */}
+ {showBatchModal && (
+   <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowBatchModal(false)} />
+     <div
+       className="relative w-full max-w-md rounded-3xl border p-6 space-y-5 shadow-2xl"
+       style={{ background: 'rgba(10,10,18,0.97)', borderColor: 'rgba(0,214,50,0.25)' }}
+     >
+       {/* Header */}
+       <div className="flex items-center gap-3">
+         <div className="w-10 h-10 rounded-2xl bg-brand-500/20 flex items-center justify-center">
+           <Moon className="w-5 h-5 text-brand-400" />
+         </div>
+         <div>
+           <h3 className="text-white font-semibold">Agregar a cola nocturna</h3>
+           <p className="text-slate-400 text-xs">{selectedIds.size} caso{selectedIds.size !== 1 ? 's' : ''} · 50% de descuento</p>
+         </div>
+       </div>
+
+       {/* Savings callout */}
+       <div className="rounded-2xl bg-brand-500/8 border border-brand-500/20 p-3 flex items-center gap-3">
+         <TrendingDown className="w-4 h-4 text-brand-400 flex-shrink-0" />
+         <div className="text-sm">
+           <span className="text-slate-300">Ahorro estimado: </span>
+           <span className="text-brand-300 font-semibold">${estimatedSavings} USD</span>
+           <span className="text-slate-500 text-xs ml-1">(50% menos que tiempo real)</span>
+         </div>
+       </div>
+
+       {/* Capacity indicator */}
+       <div className={`rounded-2xl border p-3 space-y-2 ${
+         isOverHardLimit
+           ? 'bg-red-500/10 border-red-500/30'
+           : isOverRecommended
+           ? 'bg-amber-500/10 border-amber-500/30'
+           : 'bg-slate-800/60 border-slate-700/50'
+       }`}>
+         <div className="flex items-center justify-between text-xs">
+           <span className="text-slate-400 font-medium">Capacidad del lote</span>
+           <span className={`font-semibold ${
+             isOverHardLimit ? 'text-red-400' : isOverRecommended ? 'text-amber-400' : 'text-slate-300'
+           }`}>
+             {selectedIds.size} / {BATCH_LIMITS_CLIENT.RECOMMENDED_MAX_CASES} recomendado
+           </span>
+         </div>
+         <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+           <div
+             className={`h-full rounded-full transition-all ${
+               isOverHardLimit ? 'bg-red-500' : isOverRecommended ? 'bg-amber-400' : 'bg-brand-500'
+             }`}
+             style={{ width: `${Math.min(capacityPct, 100)}%` }}
+           />
+         </div>
+         <div className="flex items-start gap-1.5 text-[11px] text-slate-500">
+           {isOverHardLimit ? (
+             <>
+               <AlertTriangle className="w-3 h-3 text-red-400 flex-shrink-0 mt-0.5" />
+               <span className="text-red-400">
+                 Superas el límite máximo de {BATCH_LIMITS_CLIENT.HARD_MAX_CASES} casos (~{(BATCH_LIMITS_CLIENT.HARD_MAX_CASES * BATCH_LIMITS_CLIENT.ESTIMATED_MB_PER_CASE).toFixed(0)} MB).
+                 OpenAI rechazará el archivo (límite 200 MB). Divide en lotes.
+               </span>
+             </>
+           ) : isOverRecommended ? (
+             <>
+               <AlertTriangle className="w-3 h-3 text-amber-400 flex-shrink-0 mt-0.5" />
+               <span className="text-amber-400">
+                 Superas el máximo recomendado de {BATCH_LIMITS_CLIENT.RECOMMENDED_MAX_CASES}. El lote puede acercarse al límite de 200 MB si las imágenes son grandes.
+               </span>
+             </>
+           ) : (
+             <>
+               <span>
+                 Tamaño estimado: ~{estimatedFileMB} MB
+                 · Modelo: {BATCH_LIMITS_CLIENT.MODEL} (contexto 400K tokens)
+                 · Máximo OpenAI: 200 MB · {BATCH_LIMITS_CLIENT.MAX_REQUESTS_PER_BATCH.toLocaleString()} solicitudes
+               </span>
+             </>
+           )}
+         </div>
+       </div>
+
+       {/* Form */}
+       <div className="space-y-3">
+         <div>
+           <label className="block text-xs text-slate-400 mb-1">Nombre del lote</label>
+           <input
+             type="text"
+             value={batchName}
+             onChange={e => setBatchName(e.target.value)}
+             placeholder="Ej: Lote noche 7 Mayo"
+             className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-brand-600 placeholder:text-slate-600"
+           />
+         </div>
+         <div>
+           <label className="block text-xs text-slate-400 mb-1">Programar para</label>
+           <input
+             type="datetime-local"
+             value={batchScheduled}
+             onChange={e => setBatchScheduled(e.target.value)}
+             className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-brand-600"
+           />
+           <p className="text-[11px] text-slate-600 mt-1">El lote se enviará a OpenAI cuando hagas clic en "Enviar ahora" en la página de Cola Nocturna.</p>
+         </div>
+       </div>
+
+       {/* Actions */}
+       <div className="flex gap-2 pt-1">
+         <button
+           onClick={() => setShowBatchModal(false)}
+           className="flex-1 btn-secondary py-2.5 text-sm"
+         >
+           Cancelar
+         </button>
+         <button
+           onClick={handleSubmitBatch}
+           disabled={submittingBatch || isOverHardLimit}
+           title={isOverHardLimit ? `Máximo ${BATCH_LIMITS_CLIENT.HARD_MAX_CASES} casos por lote` : undefined}
+           className="flex-1 btn-primary py-2.5 text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+         >
+           {submittingBatch
+             ? <Loader2 className="w-4 h-4 animate-spin" />
+             : <Moon className="w-4 h-4" />
+           }
+           {submittingBatch ? 'Agregando...' : 'Agregar a cola'}
+         </button>
+       </div>
+     </div>
+   </div>
  )}
 
  {/* ── LOADING DETAIL STATE ──────────────────────────────────────────── */}

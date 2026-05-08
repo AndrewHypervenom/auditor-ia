@@ -36,7 +36,8 @@ import {
  Activity,
  Copy,
  ChevronDown,
- BookOpen
+ BookOpen,
+ Moon,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -1526,6 +1527,10 @@ export default function AdminDashboard() {
        >
          <Globe className="w-3.5 h-3.5" />
          API GPF
+       </button>
+       <button onClick={() => navigate('/batch')} className="btn-ghost flex items-center gap-1.5 text-xs py-1 px-3 text-brand-400 border border-brand-700/40 bg-brand-500/10 hover:bg-brand-500/20">
+         <Moon className="w-3.5 h-3.5" />
+         Cola Nocturna
        </button>
        <button onClick={() => navigate('/audit/new')} className="btn-primary flex items-center gap-1.5 text-xs py-1 px-3">
          <Plus className="w-3.5 h-3.5" />

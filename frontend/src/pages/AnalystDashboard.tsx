@@ -24,7 +24,8 @@ import {
  PhoneIncoming,
  Monitor,
  UserCheck,
- BookOpen
+ BookOpen,
+ Moon,
 } from 'lucide-react';
 import AppHeader from '../components/AppHeader';
 import toast from 'react-hot-toast';
@@ -220,16 +221,16 @@ export default function AnalystDashboard() {
  </button>
 
  <button
- onClick={() => navigate('/referencia')}
- className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-violet-900/40 to-violet-800/40 border-violet-700/40"
+ onClick={() => navigate('/batch')}
+ className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-brand-900/20 to-slate-800/40 border-brand-700/30"
  >
  <div className="flex items-center gap-4">
- <div className="p-3 bg-violet-600/20 rounded-xl">
- <BookOpen className="w-5 h-5 text-violet-400" />
+ <div className="p-2.5 bg-brand-500/10 rounded-lg">
+ <Moon className="w-5 h-5 text-brand-400" />
  </div>
  <div className="text-left">
- <h3 className="text-sm font-semibold text-white">Criterios y Scripts</h3>
- <p className="text-sm text-slate-400">Consulta de referencia</p>
+ <h3 className="text-sm font-semibold text-white">Cola Nocturna</h3>
+ <p className="text-sm text-slate-400">50% descuento</p>
  </div>
  </div>
  </button>
