@@ -776,7 +776,6 @@ function CriteriaBlockCard({ block, onUpdate, plantillaItems }: CriteriaBlockCar
   const [expanded, setExpanded] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(block.block_name);
-  const [editingTipoCierres, setEditingTipoCierres] = useState<string[]>(block.applicable_tipo_cierres || []);
   const [editingCriteriaId, setEditingCriteriaId] = useState<string | null>(null);
   const [selectedTipoCierre, setSelectedTipoCierre] = useState<string | null>(null);
 
@@ -794,23 +793,18 @@ function CriteriaBlockCard({ block, onUpdate, plantillaItems }: CriteriaBlockCar
   const handleSaveBlock = async () => {
     setEditingName(false);
     try {
-      await criteriaService.updateBlock(block.id, {
-        block_name: nameValue,
-        applicable_tipo_cierres: editingTipoCierres,
-      });
+      await criteriaService.updateBlock(block.id, { block_name: nameValue });
       toast.success('Bloque actualizado');
       onUpdate();
     } catch {
       toast.error('Error al actualizar bloque');
       setNameValue(block.block_name);
-      setEditingTipoCierres(block.applicable_tipo_cierres || []);
     }
   };
 
   const handleCancelEdit = () => {
     setEditingName(false);
     setNameValue(block.block_name);
-    setEditingTipoCierres(block.applicable_tipo_cierres || []);
   };
 
   const handleDeleteBlock = async () => {
@@ -880,54 +874,10 @@ function CriteriaBlockCard({ block, onUpdate, plantillaItems }: CriteriaBlockCar
                   <X size={15} />
                 </button>
               </div>
-              {/* Checkboxes de subcalificaciones */}
-              {availableTipoCierres.length > 0 ? (
-                <div>
-                  <p className="text-[10px] text-slate-500 mb-2 uppercase tracking-widest font-semibold">
-                    Subcalificaciones GPF aplicables
-                  </p>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                    {availableTipoCierres.map(tc => (
-                      <label key={tc} className="flex items-center gap-1.5 cursor-pointer group/tc">
-                        <input
-                          type="checkbox"
-                          checked={editingTipoCierres.includes(tc)}
-                          onChange={(e) => {
-                            setEditingTipoCierres(prev =>
-                              e.target.checked ? [...prev, tc] : prev.filter(x => x !== tc)
-                            );
-                          }}
-                          className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 accent-teal-500 cursor-pointer"
-                        />
-                        <span className="text-xs text-slate-400 group-hover/tc:text-slate-200 transition-colors select-none">
-                          {tc}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-[11px] text-slate-600 italic">
-                  No hay subcalificaciones en la Plantilla GPF para este tipo de llamada.
-                </p>
-              )}
             </div>
           ) : (
             <div>
               <span className="font-semibold text-white text-[15px] truncate block">{block.block_name}</span>
-              {(block.applicable_tipo_cierres || []).length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  {(block.applicable_tipo_cierres || []).map(tc => (
-                    <span
-                      key={tc}
-                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium
-                                 bg-teal-500/10 border border-teal-500/20 text-teal-400"
-                    >
-                      {tc}
-                    </span>
-                  ))}
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -955,10 +905,7 @@ function CriteriaBlockCard({ block, onUpdate, plantillaItems }: CriteriaBlockCar
           onClick={(e) => e.stopPropagation()}
         >
           <button
-            onClick={() => {
-              setEditingTipoCierres(block.applicable_tipo_cierres || []);
-              setEditingName(true);
-            }}
+            onClick={() => setEditingName(true)}
             className="p-2 rounded-xl text-slate-500 hover:text-brand-400 hover:bg-brand-500/10
                        transition-all duration-150"
           >
@@ -984,7 +931,7 @@ function CriteriaBlockCard({ block, onUpdate, plantillaItems }: CriteriaBlockCar
       <div className="expand-content border-t border-slate-800/60">
 
         {/* Selector de subcalificación */}
-        {(block.applicable_tipo_cierres || []).length > 0 && (
+        {availableTipoCierres.length > 0 && (
           <div className="px-5 pt-3 pb-3 border-b border-slate-800/40 flex items-center gap-3 flex-wrap">
             <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
               Subcalificación:
@@ -998,14 +945,14 @@ function CriteriaBlockCard({ block, onUpdate, plantillaItems }: CriteriaBlockCar
               className="bg-slate-800/60 border border-slate-700/50 rounded-lg px-2.5 py-1
                          text-xs text-white focus:outline-none focus:border-teal-600/50 cursor-pointer"
             >
-              <option value="">Todas (base compartida)</option>
-              {(block.applicable_tipo_cierres || []).map(tc => (
+              <option value="">Base compartida</option>
+              {availableTipoCierres.map(tc => (
                 <option key={tc} value={tc}>{tc}</option>
               ))}
             </select>
             {selectedTipoCierre && (
               <span className="text-[11px] text-teal-400 font-medium">
-                Configurando criterios para: <strong>{selectedTipoCierre}</strong>
+                Criterios para: <strong>{selectedTipoCierre}</strong>
               </span>
             )}
           </div>
