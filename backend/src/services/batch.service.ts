@@ -527,6 +527,18 @@ class BatchService {
           .update({ status: 'completed', audit_id: auditId })
           .eq('id', item.id);
 
+        // Limpiar audits previos atascados en "processing" para el mismo caso GPF
+        await supabaseAdmin
+          .from('audits')
+          .update({
+            status: 'error',
+            error_message: 'Reemplazado por procesamiento nocturno',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('executive_id', String(item.gpf_attention_id))
+          .eq('status', 'processing')
+          .neq('id', auditId);
+
         completedCount++;
         logger.success('Batch item completed', { itemId: item.id, auditId });
 

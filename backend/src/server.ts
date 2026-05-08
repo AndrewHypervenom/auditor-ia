@@ -2673,10 +2673,10 @@ setInterval(async () => {
   }
 }, 10 * 60 * 1000);
 
-// Cada hora: marcar como error las auditorías atascadas en "processing" por más de 2 horas
+// Cada 30 min: marcar como error las auditorías atascadas en "processing" por más de 45 minutos
 setInterval(async () => {
   try {
-    const staleThreshold = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const staleThreshold = new Date(Date.now() - 45 * 60 * 1000).toISOString();
     const { data: staleAudits } = await supabaseAdmin
       .from('audits')
       .select('id')
@@ -2695,7 +2695,7 @@ setInterval(async () => {
   } catch (err: any) {
     logger.warn('Stale audit cleanup error', { err: err.message });
   }
-}, 60 * 60 * 1000);
+}, 30 * 60 * 1000);
 
 // Iniciar servidor
 app.listen(PORT, () => {
