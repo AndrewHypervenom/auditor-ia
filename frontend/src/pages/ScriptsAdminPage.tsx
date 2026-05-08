@@ -1120,10 +1120,19 @@ function CriteriaViewRow({ item, onEdit, onUpdate, selectedTipoCierre }: Criteri
               {item.topic}
             </span>
             {hasOverride && (
-              <span title={`Configuración específica para: ${selectedTipoCierre}`}
-                className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold
-                           bg-teal-500/15 border border-teal-500/25 text-teal-400 flex-shrink-0">
-                S
+              <span className="relative group/sbadge flex-shrink-0">
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold
+                                 bg-teal-500/15 border border-teal-500/25 text-teal-400 cursor-default">
+                  S
+                </span>
+                <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5
+                                 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] font-medium
+                                 bg-slate-800 border border-slate-700/60 text-slate-200 shadow-lg
+                                 opacity-0 group-hover/sbadge:opacity-100 transition-opacity duration-150 z-50">
+                  Config. específica para <strong className="text-teal-400">{selectedTipoCierre}</strong>
+                  <span className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0
+                                   border-x-4 border-x-transparent border-t-4 border-t-slate-700/60" />
+                </span>
               </span>
             )}
           </div>
