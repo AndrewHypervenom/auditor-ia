@@ -43,7 +43,6 @@ import {
   type CriteriaBlock,
   type CriteriaItem,
   type CriteriaItemOverride,
-  type PlantillaGPFItem,
   type AiPrompt,
   type WordBoostTerm,
   type ImageSystem,
@@ -55,6 +54,37 @@ import PlantillaGPFTab from '../components/PlantillaGPFTab';
 import ModeSelector, { type AdminMode } from '../components/ModeSelector';
 import CallTypeSelectorShared from '../components/CallTypeSelector';
 import { useCallTypesConfig } from '../hooks/useCallTypesConfig';
+
+// ─── Subcalificaciones fijas por tipo de llamada ────────────────────────────
+
+const SUBCALIFICACIONES_POR_CALL_TYPE: Record<string, string[]> = {
+  FRAUDE: [
+    'INTERNET',
+    'PRIMERAS PARTES',
+    'ROBADA/EXTRAVIADA',
+    'ROBO DE IDENTIDAD',
+    'TARJETA NO ENTREGADA (NUEVA REPOSICION)',
+  ],
+  'TH CONFIRMA': [
+    'BLOQUEO BLKI',
+    'BLOQUEO BLKT',
+    'BLOQUEO MATCH',
+    'BLOQUEO PREVENTIVO (P)/SE LIBERA TARJETA',
+    'EXCEDIO LIMITE DE CREDITO',
+    'INGRESO INCORRECTO CVV2',
+    'MSI NO PERMITIDO',
+    'SIN REGISTRO EN FALCON/VCAS/VISION',
+    'VCAS/VRM',
+  ],
+};
+
+function getSubcalificacionesForCallType(callType: string): string[] {
+  const upper = callType.toUpperCase();
+  for (const [key, list] of Object.entries(SUBCALIFICACIONES_POR_CALL_TYPE)) {
+    if (upper.includes(key)) return list;
+  }
+  return [];
+}
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -635,7 +665,6 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
 
 function CriteriaTab() {
   const [blocks, setBlocks] = useState<CriteriaBlock[]>([]);
-  const [plantillaItems, setPlantillaItems] = useState<PlantillaGPFItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<AdminMode>('INBOUND');
   const [selectedCallType, setSelectedCallType] = useState<string>('');
@@ -651,12 +680,8 @@ function CriteriaTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [data, plantilla] = await Promise.all([
-        criteriaService.getAll(),
-        plantillaService.getAll(),
-      ]);
+      const data = await criteriaService.getAll();
       setBlocks(data);
-      setPlantillaItems(plantilla);
     } catch {
       toast.error('Error al cargar criterios');
     } finally {
@@ -724,7 +749,7 @@ function CriteriaTab() {
 
       <div className="space-y-3">
         {currentBlocks.map((block) => (
-          <CriteriaBlockCard key={block.id} block={block} onUpdate={load} plantillaItems={plantillaItems} />
+          <CriteriaBlockCard key={block.id} block={block} onUpdate={load} />
         ))}
 
         {currentBlocks.length === 0 && (
@@ -769,21 +794,16 @@ function StatChip({ icon: Icon, label, color }: StatChipProps) {
 interface CriteriaBlockCardProps {
   block: CriteriaBlock;
   onUpdate: () => void;
-  plantillaItems: PlantillaGPFItem[];
 }
 
-function CriteriaBlockCard({ block, onUpdate, plantillaItems }: CriteriaBlockCardProps) {
+function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(block.block_name);
   const [editingCriteriaId, setEditingCriteriaId] = useState<string | null>(null);
   const [selectedTipoCierre, setSelectedTipoCierre] = useState<string | null>(null);
 
-  const availableTipoCierres = [...new Set(
-    plantillaItems
-      .filter(p => p.call_type === block.call_type && p.mode === block.mode)
-      .map(p => p.tipo_cierre)
-  )].sort();
+  const availableTipoCierres = getSubcalificacionesForCallType(block.call_type);
 
   const criteria = (block.criteria || []).sort((a, b) => a.criteria_order - b.criteria_order);
   const blockPoints = criteria.filter((c) => c.applies && c.points !== null).reduce((s, c) => s + (c.points ?? 0), 0);
