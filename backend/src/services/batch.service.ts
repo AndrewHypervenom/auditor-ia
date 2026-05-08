@@ -6,12 +6,14 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { gpfTokenService } from './gpf-token.service.js';
 import { gpfDataService } from './gpf-data.service.js';
+import { assemblyAIService } from './assemblyai.service.js';
+import { openAIService } from './openai.service.js';
 import { downloadImagesToTemp } from '../utils/image-downloader.js';
 import { buildSyntheticTranscript } from '../utils/synthetic-transcript.js';
-import { evaluatorService } from './evaluator.service.js';
 import { excelService } from './excel.service.js';
 import { costCalculatorService } from './cost-calculator.service.js';
 import { getDatabaseService } from './database.service.js';
+import { gpfFetch } from '../utils/gpf-fetch.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -258,6 +260,55 @@ class BatchService {
             attentionData.rawComments
           );
 
+          // ── Audio: descargar + transcribir con AssemblyAI (igual que tiempo real) ──
+          let finalTranscriptText = syntheticTranscript.text;
+          try {
+            const audioToken = await gpfTokenService.getTokenWithRetry(item.gpf_env);
+            const audioSecureUrl = await gpfDataService.fetchAudioUrl(item.gpf_env, item.gpf_attention_id, audioToken);
+            if (audioSecureUrl) {
+              const appToken = process.env.GPF_APP_TOKEN || '';
+              const sessionCookie = gpfTokenService.getSessionCookie(item.gpf_env);
+              let audioResponse = await gpfFetch(audioSecureUrl, {
+                headers: {
+                  'X-App-Token': appToken,
+                  'Authorization': `Bearer ${audioToken}`,
+                  'Accept': '*/*',
+                  'ngrok-skip-browser-warning': 'true',
+                  ...(sessionCookie ? { 'Cookie': sessionCookie } : {}),
+                },
+              });
+              if (audioResponse.status >= 300 && audioResponse.status < 400) {
+                const redirectUrl = audioResponse.headers.get('location');
+                if (redirectUrl) audioResponse = await gpfFetch(redirectUrl, {});
+              }
+              if (!audioResponse.ok && sessionCookie) {
+                audioResponse = await gpfFetch(audioSecureUrl, { headers: { 'Cookie': sessionCookie, 'Accept': '*/*' } });
+              }
+              if (!audioResponse.ok) {
+                audioResponse = await gpfFetch(audioSecureUrl, {});
+              }
+              if (audioResponse.ok) {
+                const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
+                const audioExt = audioSecureUrl.toLowerCase().includes('.mp3') ? 'mp3' : 'wav';
+                const localAudioPath = path.join(os.tmpdir(), `batch_audio_${item.id}_${Date.now()}.${audioExt}`);
+                fs.writeFileSync(localAudioPath, audioBuffer);
+                tempFiles.push(localAudioPath);
+                logger.info('Batch: transcribing audio with AssemblyAI', { itemId: item.id, sizeMB: (audioBuffer.length / 1024 / 1024).toFixed(2) });
+                const rawTranscript = await assemblyAIService.transcribe(localAudioPath);
+                if (rawTranscript?.text) {
+                  const corrected = await openAIService.correctTranscription(rawTranscript.text);
+                  const audioText = corrected || rawTranscript.text;
+                  finalTranscriptText = `${audioText}\n\n--- DATOS ESTRUCTURADOS GPF ---\n${syntheticTranscript.text}`;
+                  logger.success('Batch: audio transcribed', { itemId: item.id, length: finalTranscriptText.length });
+                }
+              } else {
+                logger.warn('Batch: audio download failed', { itemId: item.id, status: audioResponse.status });
+              }
+            }
+          } catch (audioErr: any) {
+            logger.warn('Batch: audio unavailable, using synthetic transcript', { itemId: item.id, error: audioErr.message });
+          }
+
           // Resolver callType
           let resolvedCallType = item.call_type ?? '';
           const calificacion = attentionObject['Calificación'] || '';
@@ -283,7 +334,7 @@ class BatchService {
           }
 
           const evaluationSystemPrompt = await databaseService.getPromptByKey('evaluation_system') ?? '';
-          const evalUserContent = this.buildBatchEvalPrompt(item, attentionObject, criteria, syntheticTranscript);
+          const evalUserContent = this.buildBatchEvalPrompt(item, attentionObject, criteria, { text: finalTranscriptText });
 
           batchRequests.push({
             custom_id: `${item.id}__eval`,
@@ -301,10 +352,10 @@ class BatchService {
             },
           });
 
-          // Marcar item como "processing"
+          // Persistir transcript para processBatchResults (llega horas después con los resultados de OpenAI)
           await supabaseAdmin
             .from('batch_items')
-            .update({ status: 'processing' })
+            .update({ status: 'processing', transcript_text: finalTranscriptText.substring(0, 100_000) })
             .eq('id', item.id);
 
         } catch (itemErr: any) {
@@ -551,7 +602,7 @@ class BatchService {
         const costs = costCalculatorService.calculateTotalCost(0, imageResults.length, 0, 0, 0, 0);
 
         await databaseService.completeAudit(auditId, {
-          transcription: '[Procesado en lote nocturno]',
+          transcription: item.transcript_text || '[Procesado en lote nocturno]',
           imageAnalysis: imageResults.map((r: any, i: number) => `Imagen ${i + 1}: ${JSON.stringify(r)}`).join('\n'),
           evaluation: normalizedEval,
           excelFilename: excelResult.filename,
