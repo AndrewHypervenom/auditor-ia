@@ -11,6 +11,7 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Loader2,
   TrendingUp,
   Eye,
@@ -78,6 +79,7 @@ function AuditCard({ audit, onView, onDownload }: {
   const score = evals[0];
   const colors = score ? scoreColor(score.percentage) : null;
   const batch = isBatchAudit(audit);
+  const emptyEval = batch && audit.status === 'completed' && (!score || (score.total_score === 0 && score.max_possible_score === 0));
   const isMonitoreo = (audit.call_type || '').toUpperCase() === 'MONITOREO';
 
   return (
@@ -99,6 +101,13 @@ function AuditCard({ audit, onView, onDownload }: {
               <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/25">
                 <Moon className="w-2.5 h-2.5" />
                 Nocturna
+              </span>
+            )}
+            {/* Empty eval warning badge */}
+            {emptyEval && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                <AlertTriangle className="w-2.5 h-2.5" />
+                Sin evaluación
               </span>
             )}
             {/* Call type */}
@@ -200,8 +209,27 @@ function AuditCard({ audit, onView, onDownload }: {
           </div>
         )}
 
+        {/* Empty batch eval: explain + action */}
+        {emptyEval && (
+          <div className="mt-3 pt-3 border-t border-amber-500/20">
+            <div className="flex items-start gap-2 text-[11px] text-amber-400/80 mb-2">
+              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+              <span>La evaluación no generó criterios. El lote se procesó con una versión anterior del sistema. Puedes ver el detalle de la auditoría.</span>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={(e) => { e.stopPropagation(); onView(); }}
+                className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-700/50 transition-all"
+                title="Ver auditoría"
+              >
+                <Eye className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* No score yet: just actions */}
-        {!score && audit.status !== 'processing' && (
+        {!score && !emptyEval && audit.status !== 'processing' && (
           <div className="mt-3 pt-3 border-t border-slate-700/40 flex justify-end">
             <button
               onClick={(e) => { e.stopPropagation(); onView(); }}

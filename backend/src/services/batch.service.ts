@@ -476,6 +476,26 @@ class BatchService {
           },
         };
 
+        // Normalizar la evaluación al formato esperado ANTES de crear el audit
+        const normalizedEval = this.normalizeEvaluation(evaluation, metadata.callType);
+
+        // Log raw keys for debugging
+        logger.info('Batch eval normalized', {
+          itemId: item.id,
+          rawKeys: Object.keys(evaluation),
+          detailedScoresCount: normalizedEval.detailedScores?.length ?? 0,
+          totalScore: normalizedEval.totalScore,
+          maxPossibleScore: normalizedEval.maxPossibleScore,
+        });
+
+        if (!Array.isArray(normalizedEval.detailedScores) || normalizedEval.detailedScores.length === 0) {
+          throw new Error(
+            `Evaluación vacía: OpenAI devolvió 0 criterios. ` +
+            `Claves en respuesta: ${Object.keys(evaluation).join(', ')}. ` +
+            `callType: "${metadata.callType}"`
+          );
+        }
+
         // Crear audit record
         const auditId = await databaseService.createAudit({
           userId: job.created_by,
@@ -483,9 +503,6 @@ class BatchService {
           audioFilename: 'gpf-batch',
           imageFilenames: imageResults.map((_: any, i: number) => `batch-img-${i}.jpg`),
         });
-
-        // Normalizar la evaluación al formato esperado
-        const normalizedEval = this.normalizeEvaluation(evaluation, metadata.callType);
 
         // Generar Excel
         const excelResult = await excelService.generateExcelReport(metadata, normalizedEval);

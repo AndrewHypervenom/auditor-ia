@@ -43,6 +43,17 @@ const STATUS_META: Record<BatchJob['status'], { label: string; color: string; ic
   cancelled:  { label: 'Cancelado',   color: 'text-slate-400',  icon: XCircle },
 };
 
+function jobStatusMeta(job: BatchJob) {
+  const base = STATUS_META[job.status] ?? STATUS_META.pending;
+  if (job.status === 'completed' && job.failed_count > 0 && job.completed_count === 0) {
+    return { label: 'Sin resultados', color: 'text-amber-400', icon: AlertTriangle };
+  }
+  if (job.status === 'completed' && job.failed_count > 0) {
+    return { label: 'Parcialmente completado', color: 'text-amber-400', icon: AlertTriangle };
+  }
+  return base;
+}
+
 function fmtDate(iso: string | null): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleString('es-MX', {
@@ -83,10 +94,11 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState<'submit' | 'check' | 'delete' | null>(null);
-  const meta = STATUS_META[job.status] ?? STATUS_META.pending;
+  const meta = jobStatusMeta(job);
   const StatusIcon = meta.icon;
   const pct = progressPct(job);
   const isActive = job.status === 'pending' || job.status === 'assembling' || job.status === 'submitted';
+  const hasWarning = job.status === 'completed' && job.failed_count > 0;
 
   const handleSubmit = async () => {
     setLoading('submit');
@@ -130,7 +142,9 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
 
   return (
     <div className={`rounded-2xl border overflow-hidden transition-all ${
-      job.status === 'completed'
+      hasWarning
+        ? 'bg-amber-500/5 border-amber-500/25'
+        : job.status === 'completed'
         ? 'bg-brand-500/5 border-brand-500/20'
         : job.status === 'failed'
         ? 'bg-red-500/5 border-red-500/20'
@@ -139,6 +153,7 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
       {/* Header */}
       <div className="p-4 flex items-start gap-3">
         <div className={`mt-0.5 w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
+          hasWarning ? 'bg-amber-500/20' :
           job.status === 'completed' ? 'bg-brand-500/20' :
           job.status === 'failed' ? 'bg-red-500/20' :
           isActive ? 'bg-blue-500/20' : 'bg-slate-700'
@@ -152,6 +167,7 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-white font-semibold text-sm truncate">{job.name}</span>
             <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
+              hasWarning ? 'text-amber-400 border-amber-500/30 bg-amber-500/10' :
               job.status === 'completed' ? 'text-brand-400 border-brand-500/30 bg-brand-500/10' :
               job.status === 'failed' ? 'text-red-400 border-red-500/30 bg-red-500/10' :
               isActive ? 'text-blue-400 border-blue-500/30 bg-blue-500/10' :
@@ -222,6 +238,33 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
         <div className="mx-4 mb-3 p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-start gap-2">
           <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
           {job.error_message}
+        </div>
+      )}
+
+      {/* Warning: completed but with failed items */}
+      {hasWarning && (
+        <div className="mx-4 mb-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 space-y-1">
+          <div className="flex items-center gap-2 font-semibold">
+            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+            {job.completed_count === 0
+              ? 'Ningún caso generó resultados de evaluación'
+              : `${job.failed_count} caso(s) no generaron resultados`}
+          </div>
+          <p className="text-amber-400/80 leading-relaxed">
+            Esto ocurre cuando el tipo de llamada no tiene criterios configurados o cuando OpenAI
+            devolvió una evaluación vacía. Revisa el detalle de cada caso para ver el error exacto.
+          </p>
+        </div>
+      )}
+
+      {/* Info: what "requests" means when submitted */}
+      {job.status === 'submitted' && (
+        <div className="mx-4 mb-3 p-2.5 rounded-xl bg-slate-700/30 border border-slate-700/40 text-[11px] text-slate-500 flex items-start gap-2">
+          <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-slate-400" />
+          <span>
+            OpenAI procesa <strong className="text-slate-400">múltiples requests por caso</strong>: una por cada imagen y una de evaluación.
+            El conteo de requests es mayor que el de casos — esto es normal.
+          </span>
         </div>
       )}
 
