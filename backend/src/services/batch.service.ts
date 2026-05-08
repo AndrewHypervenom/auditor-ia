@@ -611,6 +611,45 @@ class BatchService {
       }
     }
 
+    // Fallback final: claves raíz desconocidas como bloques/criterios
+    // Cubre formatos tipo { Falcon: {...}, Front: {...}, Vcas: {...} }
+    if (detailedScores.length === 0) {
+      const META_KEYS = new Set([
+        'total_score','totalScore','max_possible_score','max_score','maxPossibleScore',
+        'percentage','observations','observaciones','recommendations','recomendaciones',
+        'key_moments','keyMoments','momentosClave','evaluations','criteria','evaluacion',
+        'detailedScores','usage',
+      ]);
+      for (const [blockKey, blockVal] of Object.entries(raw)) {
+        if (META_KEYS.has(blockKey) || blockVal === null || blockVal === undefined) continue;
+        const v = blockVal as any;
+        if (typeof v === 'number') {
+          detailedScores.push({ criterion: blockKey, score: v, maxScore: 10, observations: '', criticality: '-' });
+        } else if (typeof v === 'object' && ('score' in v || 'puntaje' in v)) {
+          // Bloque es directamente un criterio con score
+          detailedScores.push({
+            criterion: blockKey,
+            score: v.score ?? v.puntaje ?? 0,
+            maxScore: v.max_score ?? v.puntaje_maximo ?? v.maxScore ?? 10,
+            observations: v.justification ?? v.justificacion ?? v.observations ?? v.observaciones ?? '',
+            criticality: v.criticality ?? v.criticidad ?? '-',
+          });
+        } else if (typeof v === 'object') {
+          // Bloque contiene sub-criterios como claves
+          for (const [subKey, subVal] of Object.entries(v)) {
+            const sv = subVal as any;
+            detailedScores.push({
+              criterion: `[${blockKey}] ${subKey}`,
+              score: typeof sv === 'number' ? sv : (sv?.score ?? sv?.puntaje ?? 0),
+              maxScore: sv?.max_score ?? sv?.puntaje_maximo ?? sv?.maxScore ?? 10,
+              observations: sv?.justification ?? sv?.justificacion ?? sv?.observations ?? sv?.observaciones ?? '',
+              criticality: sv?.criticality ?? sv?.criticidad ?? '-',
+            });
+          }
+        }
+      }
+    }
+
     const keyMoments: Array<{ timestamp: string; type: string; description: string }> =
       (raw.key_moments ?? raw.keyMoments ?? raw.momentosClave ?? []).map((m: any) => ({
         timestamp: m.timestamp ?? '',
