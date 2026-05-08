@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppHeader from '../components/AppHeader';
+import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import {
   BookOpen,
@@ -67,7 +68,50 @@ function groupByCallType<T extends { call_type: string }>(items: T[]): Record<st
 
 export default function ScriptsAdminPage() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
   const [activeTab, setActiveTab] = useState<'scripts' | 'criteria' | 'plantilla' | 'ai_prompts' | 'bines'>('criteria');
+
+  const allTabs = [
+    {
+      key: 'criteria' as const,
+      icon: ClipboardList,
+      label: 'Criterios de Evaluación',
+      description: 'Rúbricas y ponderaciones',
+      color: 'purple',
+    },
+    {
+      key: 'scripts' as const,
+      icon: BookOpen,
+      label: 'Scripts de Agentes',
+      description: 'Guiones y frases por paso',
+      color: 'blue',
+    },
+    {
+      key: 'plantilla' as const,
+      icon: Table,
+      label: 'Plantilla Cierre de GPF',
+      description: 'Calificación y Sub-calificación',
+      color: 'teal',
+    },
+    {
+      key: 'ai_prompts' as const,
+      icon: Brain,
+      label: 'Comportamiento IA',
+      description: 'Prompts de análisis y evaluación',
+      color: 'amber',
+      adminOnly: true,
+    },
+    {
+      key: 'bines' as const,
+      icon: CreditCard,
+      label: 'Bines',
+      description: 'Referencia BINs bancarios',
+      color: 'rose',
+    },
+  ];
+
+  const visibleTabs = allTabs.filter(t => !t.adminOnly || isAdmin);
 
   return (
     <div className="min-h-screen text-white">
@@ -76,49 +120,13 @@ export default function ScriptsAdminPage() {
 
         {/* ── Description ── */}
         <p className="mb-4 text-sm text-slate-400 leading-relaxed">
-          Configura todo lo que define cómo opera el sistema: criterios de calificación, scripts de agentes, plantilla de cierre GPF y el comportamiento de la IA.
+          Configura todo lo que define cómo opera el sistema: criterios de calificación, scripts de agentes, plantilla de cierre GPF{isAdmin ? ' y el comportamiento de la IA' : ''}.
         </p>
 
 
         {/* ── Tab Selector ── */}
-        <div className="grid grid-cols-5 gap-3 mb-5">
-          {([
-            {
-              key: 'criteria' as const,
-              icon: ClipboardList,
-              label: 'Criterios de Evaluación',
-              description: 'Rúbricas y ponderaciones',
-              color: 'purple',
-            },
-            {
-              key: 'scripts' as const,
-              icon: BookOpen,
-              label: 'Scripts de Agentes',
-              description: 'Guiones y frases por paso',
-              color: 'blue',
-            },
-            {
-              key: 'plantilla' as const,
-              icon: Table,
-              label: 'Plantilla Cierre de GPF',
-              description: 'Calificación y Sub-calificación',
-              color: 'teal',
-            },
-            {
-              key: 'ai_prompts' as const,
-              icon: Brain,
-              label: 'Comportamiento IA',
-              description: 'Prompts de análisis y evaluación',
-              color: 'amber',
-            },
-            {
-              key: 'bines' as const,
-              icon: CreditCard,
-              label: 'Bines',
-              description: 'Referencia BINs bancarios',
-              color: 'rose',
-            },
-          ]).map(({ key, icon: Icon, label, description, color }) => {
+        <div className={`grid gap-3 mb-5 ${visibleTabs.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
+          {visibleTabs.map(({ key, icon: Icon, label, description, color }) => {
             const isActive = activeTab === key;
             return (
               <button

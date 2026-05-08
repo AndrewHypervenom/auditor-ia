@@ -153,11 +153,11 @@ function App() {
             }
           />
 
-          {/* Administración de Scripts y Criterios - Solo Admin */}
+          {/* Administración de Scripts y Criterios - Admin y Analyst */}
           <Route
             path="/scripts-admin"
             element={
-              <ProtectedRoute allowedRoles={['admin']}>
+              <ProtectedRoute allowedRoles={['admin', 'analyst']}>
                 <ScriptsAdminPage />
               </ProtectedRoute>
             }

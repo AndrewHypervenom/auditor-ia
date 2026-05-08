@@ -1030,7 +1030,7 @@ app.get('/api/admin/scripts/:callType', authenticateUser, async (req: Request, r
   }
 });
 
-app.post('/api/admin/scripts', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.post('/api/admin/scripts', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { call_type, mode, step_key, step_label, step_order, lines } = req.body;
     if (!call_type || !step_key || !step_label) {
@@ -1051,7 +1051,7 @@ app.post('/api/admin/scripts', authenticateUser, requireAdmin, async (req: Reque
   }
 });
 
-app.put('/api/admin/scripts/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.put('/api/admin/scripts/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { step_label, step_order, lines, is_active } = req.body;
@@ -1063,7 +1063,7 @@ app.put('/api/admin/scripts/:id', authenticateUser, requireAdmin, async (req: Re
   }
 });
 
-app.delete('/api/admin/scripts/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.delete('/api/admin/scripts/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     await databaseService.deleteScript(id);
@@ -1088,7 +1088,7 @@ app.get('/api/admin/criteria', authenticateUser, async (req: Request, res: Respo
   }
 });
 
-app.post('/api/admin/blocks', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.post('/api/admin/blocks', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { call_type, mode, block_name, block_order } = req.body;
     if (!call_type || !block_name) {
@@ -1107,7 +1107,7 @@ app.post('/api/admin/blocks', authenticateUser, requireAdmin, async (req: Reques
   }
 });
 
-app.put('/api/admin/blocks/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.put('/api/admin/blocks/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { block_name, block_order, is_active } = req.body;
@@ -1119,7 +1119,7 @@ app.put('/api/admin/blocks/:id', authenticateUser, requireAdmin, async (req: Req
   }
 });
 
-app.delete('/api/admin/blocks/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.delete('/api/admin/blocks/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     await databaseService.deleteBlock(id);
@@ -1130,7 +1130,7 @@ app.delete('/api/admin/blocks/:id', authenticateUser, requireAdmin, async (req: 
   }
 });
 
-app.post('/api/admin/criteria', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.post('/api/admin/criteria', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { block_id, topic, criticality, points, applies, what_to_look_for, validation_source, criteria_order } = req.body;
     if (!block_id || !topic) {
@@ -1153,7 +1153,7 @@ app.post('/api/admin/criteria', authenticateUser, requireAdmin, async (req: Requ
   }
 });
 
-app.put('/api/admin/criteria/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.put('/api/admin/criteria/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { topic, criticality, points, applies, what_to_look_for, validation_source, criteria_order, is_active, requires_manual_review } = req.body;
@@ -1175,7 +1175,7 @@ app.put('/api/admin/criteria/:id', authenticateUser, requireAdmin, async (req: R
   }
 });
 
-app.delete('/api/admin/criteria/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.delete('/api/admin/criteria/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     await databaseService.deleteCriteria(id);
@@ -1200,7 +1200,7 @@ app.get('/api/admin/plantilla-gpf', authenticateUser, async (req: Request, res: 
   }
 });
 
-app.post('/api/admin/plantilla-gpf', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.post('/api/admin/plantilla-gpf', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { categoria, tipo_cierre, descripcion, categoria_orden, tipo_orden, call_type, mode } = req.body;
     if (!categoria || !tipo_cierre) {
@@ -1231,7 +1231,7 @@ app.post('/api/admin/plantilla-gpf', authenticateUser, requireAdmin, async (req:
   }
 });
 
-app.put('/api/admin/plantilla-gpf/rename-categoria', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.put('/api/admin/plantilla-gpf/rename-categoria', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { oldName, newName, call_type, mode } = req.body;
     if (!oldName || !newName) {
@@ -1254,7 +1254,7 @@ app.put('/api/admin/plantilla-gpf/rename-categoria', authenticateUser, requireAd
   }
 });
 
-app.put('/api/admin/plantilla-gpf/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.put('/api/admin/plantilla-gpf/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { categoria, tipo_cierre, descripcion, categoria_orden, tipo_orden } = req.body;
@@ -1266,7 +1266,7 @@ app.put('/api/admin/plantilla-gpf/:id', authenticateUser, requireAdmin, async (r
   }
 });
 
-app.delete('/api/admin/plantilla-gpf/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.delete('/api/admin/plantilla-gpf/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     await databaseService.deletePlantillaItem(id);
@@ -1310,7 +1310,7 @@ app.put('/api/admin/ai-prompts/:id', authenticateUser, requireAdmin, async (req:
 // WORD BOOST TERMS — CRUD (admin only)
 // ============================================================
 
-app.get('/api/admin/word-boost', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.get('/api/admin/word-boost', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const terms = await databaseService.getWordBoostTerms();
     res.json(terms);
@@ -1320,7 +1320,7 @@ app.get('/api/admin/word-boost', authenticateUser, requireAdmin, async (req: Req
   }
 });
 
-app.post('/api/admin/word-boost', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.post('/api/admin/word-boost', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { term, category, is_active, display_order } = req.body;
     if (!term || !category) {
@@ -1334,7 +1334,7 @@ app.post('/api/admin/word-boost', authenticateUser, requireAdmin, async (req: Re
   }
 });
 
-app.put('/api/admin/word-boost/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.put('/api/admin/word-boost/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { term, category, is_active, display_order } = req.body;
@@ -1346,7 +1346,7 @@ app.put('/api/admin/word-boost/:id', authenticateUser, requireAdmin, async (req:
   }
 });
 
-app.delete('/api/admin/word-boost/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.delete('/api/admin/word-boost/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     await databaseService.deleteWordBoostTerm(id);
@@ -1361,7 +1361,7 @@ app.delete('/api/admin/word-boost/:id', authenticateUser, requireAdmin, async (r
 // IMAGE SYSTEMS — CRUD (admin only)
 // ============================================================
 
-app.get('/api/admin/image-systems', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.get('/api/admin/image-systems', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const systems = await databaseService.getImageSystems();
     res.json(systems);
@@ -1371,7 +1371,7 @@ app.get('/api/admin/image-systems', authenticateUser, requireAdmin, async (req: 
   }
 });
 
-app.post('/api/admin/image-systems', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.post('/api/admin/image-systems', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { system_name, description, detection_hints, fields_schema, is_active, display_order } = req.body;
     if (!system_name || !description) {
@@ -1385,7 +1385,7 @@ app.post('/api/admin/image-systems', authenticateUser, requireAdmin, async (req:
   }
 });
 
-app.put('/api/admin/image-systems/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.put('/api/admin/image-systems/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { system_name, description, detection_hints, fields_schema, is_active, display_order } = req.body;
@@ -1397,7 +1397,7 @@ app.put('/api/admin/image-systems/:id', authenticateUser, requireAdmin, async (r
   }
 });
 
-app.delete('/api/admin/image-systems/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.delete('/api/admin/image-systems/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     await databaseService.deleteImageSystem(id);
@@ -1426,7 +1426,7 @@ app.get('/api/call-types-config', authenticateUser, async (req: Request, res: Re
 // CALL TYPES CONFIG — CRUD (admin only)
 // ============================================================
 
-app.get('/api/admin/call-types-config', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.get('/api/admin/call-types-config', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const items = await databaseService.getCallTypesConfig();
     res.json(items);
@@ -1436,7 +1436,7 @@ app.get('/api/admin/call-types-config', authenticateUser, requireAdmin, async (r
   }
 });
 
-app.post('/api/admin/call-types-config', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.post('/api/admin/call-types-config', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { name, modes, is_active, display_order } = req.body;
     if (!name) {
@@ -1450,7 +1450,7 @@ app.post('/api/admin/call-types-config', authenticateUser, requireAdmin, async (
   }
 });
 
-app.put('/api/admin/call-types-config/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.put('/api/admin/call-types-config/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { name, modes, is_active, display_order } = req.body;
@@ -1462,7 +1462,7 @@ app.put('/api/admin/call-types-config/:id', authenticateUser, requireAdmin, asyn
   }
 });
 
-app.delete('/api/admin/call-types-config/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.delete('/api/admin/call-types-config/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     await databaseService.deleteCallTypeConfig(id);
@@ -2451,7 +2451,7 @@ app.get('/api/admin/bines', authenticateUser, async (req: Request, res: Response
   }
 });
 
-app.post('/api/admin/bines', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.post('/api/admin/bines', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { categoria, categoria_orden, nombre, bin, socio, producto, nombre_comercial, marca } = req.body;
     if (!categoria || !nombre || !bin || !socio || !producto) {
@@ -2474,7 +2474,7 @@ app.post('/api/admin/bines', authenticateUser, requireAdmin, async (req: Request
   }
 });
 
-app.put('/api/admin/bines/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.put('/api/admin/bines/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { categoria, categoria_orden, nombre, bin, socio, producto, nombre_comercial, marca, is_active } = req.body;
@@ -2488,7 +2488,7 @@ app.put('/api/admin/bines/:id', authenticateUser, requireAdmin, async (req: Requ
   }
 });
 
-app.delete('/api/admin/bines/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.delete('/api/admin/bines/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     await databaseService.deleteBin(id);

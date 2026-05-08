@@ -22,7 +22,7 @@ import {
   Search,
   RefreshCw,
   LogOut,
-  ClipboardList,
+  BookOpen,
 } from 'lucide-react';
 import AppHeader from '../components/AppHeader';
 import toast from 'react-hot-toast';
@@ -400,10 +400,10 @@ export default function AnalystDashboard() {
             className="rounded-2xl border border-emerald-500/30 bg-emerald-500/8 hover:bg-emerald-500/15 transition-all p-4 text-left group"
           >
             <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center mb-3 group-hover:bg-emerald-500/30 transition-colors">
-              <ClipboardList className="w-5 h-5 text-emerald-400" />
+              <BookOpen className="w-5 h-5 text-emerald-400" />
             </div>
-            <div className="text-white font-semibold text-sm">Criterios</div>
-            <div className="text-slate-500 text-xs mt-0.5">Rúbricas de evaluación</div>
+            <div className="text-white font-semibold text-sm">Scripts y Criterios</div>
+            <div className="text-slate-500 text-xs mt-0.5">Guiones y rúbricas</div>
           </button>
         </div>
 
