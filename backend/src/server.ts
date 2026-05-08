@@ -1090,7 +1090,7 @@ app.get('/api/admin/criteria', authenticateUser, async (req: Request, res: Respo
 
 app.post('/api/admin/blocks', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
-    const { call_type, mode, block_name, block_order } = req.body;
+    const { call_type, mode, block_name, block_order, applicable_tipo_cierres } = req.body;
     if (!call_type || !block_name) {
       return res.status(400).json({ error: 'call_type y block_name son requeridos' });
     }
@@ -1098,7 +1098,8 @@ app.post('/api/admin/blocks', authenticateUser, requireAdminOrAnalyst, async (re
       call_type,
       mode: mode ?? 'INBOUND',
       block_name,
-      block_order: block_order ?? 0
+      block_order: block_order ?? 0,
+      ...(applicable_tipo_cierres !== undefined && { applicable_tipo_cierres })
     });
     res.status(201).json(block);
   } catch (error: any) {
@@ -1110,8 +1111,13 @@ app.post('/api/admin/blocks', authenticateUser, requireAdminOrAnalyst, async (re
 app.put('/api/admin/blocks/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { block_name, block_order, is_active } = req.body;
-    const block = await databaseService.updateBlock(id, { block_name, block_order, is_active });
+    const { block_name, block_order, is_active, applicable_tipo_cierres } = req.body;
+    const block = await databaseService.updateBlock(id, {
+      block_name,
+      block_order,
+      is_active,
+      ...(applicable_tipo_cierres !== undefined && { applicable_tipo_cierres })
+    });
     res.json(block);
   } catch (error: any) {
     logger.error('Error updating block:', error);

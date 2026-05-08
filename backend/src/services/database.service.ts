@@ -781,6 +781,7 @@ class DatabaseService {
     mode: string;
     block_name: string;
     block_order: number;
+    applicable_tipo_cierres?: string[];
   }): Promise<any> {
     const { data, error } = await supabaseAdmin
       .from('evaluation_blocks')
@@ -796,6 +797,7 @@ class DatabaseService {
     block_name: string;
     block_order: number;
     is_active: boolean;
+    applicable_tipo_cierres: string[];
   }>): Promise<any> {
     const { data, error } = await supabaseAdmin
       .from('evaluation_blocks')

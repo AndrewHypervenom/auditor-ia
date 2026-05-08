@@ -33,6 +33,7 @@ import {
 import {
   scriptsService,
   criteriaService,
+  plantillaService,
   promptsService,
   wordBoostService,
   imageSystemsService,
@@ -41,6 +42,7 @@ import {
   type ScriptStep,
   type CriteriaBlock,
   type CriteriaItem,
+  type PlantillaGPFItem,
   type AiPrompt,
   type WordBoostTerm,
   type ImageSystem,
@@ -632,6 +634,7 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
 
 function CriteriaTab() {
   const [blocks, setBlocks] = useState<CriteriaBlock[]>([]);
+  const [plantillaItems, setPlantillaItems] = useState<PlantillaGPFItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<AdminMode>('INBOUND');
   const [selectedCallType, setSelectedCallType] = useState<string>('');
@@ -647,8 +650,12 @@ function CriteriaTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await criteriaService.getAll();
+      const [data, plantilla] = await Promise.all([
+        criteriaService.getAll(),
+        plantillaService.getAll(),
+      ]);
       setBlocks(data);
+      setPlantillaItems(plantilla);
     } catch {
       toast.error('Error al cargar criterios');
     } finally {
@@ -716,7 +723,7 @@ function CriteriaTab() {
 
       <div className="space-y-3">
         {currentBlocks.map((block) => (
-          <CriteriaBlockCard key={block.id} block={block} onUpdate={load} />
+          <CriteriaBlockCard key={block.id} block={block} onUpdate={load} plantillaItems={plantillaItems} />
         ))}
 
         {currentBlocks.length === 0 && (
@@ -761,29 +768,47 @@ function StatChip({ icon: Icon, label, color }: StatChipProps) {
 interface CriteriaBlockCardProps {
   block: CriteriaBlock;
   onUpdate: () => void;
+  plantillaItems: PlantillaGPFItem[];
 }
 
-function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
+function CriteriaBlockCard({ block, onUpdate, plantillaItems }: CriteriaBlockCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(block.block_name);
+  const [editingTipoCierres, setEditingTipoCierres] = useState<string[]>(block.applicable_tipo_cierres || []);
   const [editingCriteriaId, setEditingCriteriaId] = useState<string | null>(null);
+
+  const availableTipoCierres = [...new Set(
+    plantillaItems
+      .filter(p => p.call_type === block.call_type && p.mode === block.mode)
+      .map(p => p.tipo_cierre)
+  )].sort();
 
   const criteria = (block.criteria || []).sort((a, b) => a.criteria_order - b.criteria_order);
   const blockPoints = criteria.filter((c) => c.applies && c.points !== null).reduce((s, c) => s + (c.points ?? 0), 0);
   const criticalCount = criteria.filter((c) => c.criticality === 'Crítico' && c.applies).length;
   const appliedCount = criteria.filter((c) => c.applies).length;
 
-  const handleSaveName = async () => {
+  const handleSaveBlock = async () => {
     setEditingName(false);
     try {
-      await criteriaService.updateBlock(block.id, { block_name: nameValue });
+      await criteriaService.updateBlock(block.id, {
+        block_name: nameValue,
+        applicable_tipo_cierres: editingTipoCierres,
+      });
       toast.success('Bloque actualizado');
       onUpdate();
     } catch {
       toast.error('Error al actualizar bloque');
       setNameValue(block.block_name);
+      setEditingTipoCierres(block.applicable_tipo_cierres || []);
     }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingName(false);
+    setNameValue(block.block_name);
+    setEditingTipoCierres(block.applicable_tipo_cierres || []);
   };
 
   const handleDeleteBlock = async () => {
@@ -829,33 +854,79 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
         className="flex items-center gap-4 px-5 py-4 cursor-pointer select-none"
         onClick={() => !editingName && setExpanded(!expanded)}
       >
-        {/* Nombre */}
+        {/* Nombre + subcalificaciones */}
         <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
           {editingName ? (
-            <div className="flex items-center gap-2">
-              <input
-                autoFocus
-                value={nameValue}
-                onChange={(e) => setNameValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveName();
-                  if (e.key === 'Escape') { setEditingName(false); setNameValue(block.block_name); }
-                }}
-                className="flex-1 bg-slate-800/80 border border-slate-600/60 rounded-xl px-3 py-1.5
-                           text-sm text-white focus:outline-none focus:border-brand-700/60"
-              />
-              <button onClick={handleSaveName} className="p-1.5 text-green-400 hover:text-green-300 transition-colors">
-                <Check size={15} />
-              </button>
-              <button
-                onClick={() => { setEditingName(false); setNameValue(block.block_name); }}
-                className="p-1.5 text-slate-500 hover:text-slate-300 transition-colors"
-              >
-                <X size={15} />
-              </button>
+            <div className="space-y-3 py-0.5">
+              {/* Fila nombre */}
+              <div className="flex items-center gap-2">
+                <input
+                  autoFocus
+                  value={nameValue}
+                  onChange={(e) => setNameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveBlock();
+                    if (e.key === 'Escape') handleCancelEdit();
+                  }}
+                  className="flex-1 bg-slate-800/80 border border-slate-600/60 rounded-xl px-3 py-1.5
+                             text-sm text-white focus:outline-none focus:border-brand-700/60"
+                />
+                <button onClick={handleSaveBlock} className="p-1.5 text-green-400 hover:text-green-300 transition-colors">
+                  <Check size={15} />
+                </button>
+                <button onClick={handleCancelEdit} className="p-1.5 text-slate-500 hover:text-slate-300 transition-colors">
+                  <X size={15} />
+                </button>
+              </div>
+              {/* Checkboxes de subcalificaciones */}
+              {availableTipoCierres.length > 0 ? (
+                <div>
+                  <p className="text-[10px] text-slate-500 mb-2 uppercase tracking-widest font-semibold">
+                    Subcalificaciones GPF aplicables
+                  </p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                    {availableTipoCierres.map(tc => (
+                      <label key={tc} className="flex items-center gap-1.5 cursor-pointer group/tc">
+                        <input
+                          type="checkbox"
+                          checked={editingTipoCierres.includes(tc)}
+                          onChange={(e) => {
+                            setEditingTipoCierres(prev =>
+                              e.target.checked ? [...prev, tc] : prev.filter(x => x !== tc)
+                            );
+                          }}
+                          className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 accent-teal-500 cursor-pointer"
+                        />
+                        <span className="text-xs text-slate-400 group-hover/tc:text-slate-200 transition-colors select-none">
+                          {tc}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-600 italic">
+                  No hay subcalificaciones en la Plantilla GPF para este tipo de llamada.
+                </p>
+              )}
             </div>
           ) : (
-            <span className="font-semibold text-white text-[15px] truncate block">{block.block_name}</span>
+            <div>
+              <span className="font-semibold text-white text-[15px] truncate block">{block.block_name}</span>
+              {(block.applicable_tipo_cierres || []).length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {(block.applicable_tipo_cierres || []).map(tc => (
+                    <span
+                      key={tc}
+                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium
+                                 bg-teal-500/10 border border-teal-500/20 text-teal-400"
+                    >
+                      {tc}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -882,7 +953,10 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
           onClick={(e) => e.stopPropagation()}
         >
           <button
-            onClick={() => setEditingName(true)}
+            onClick={() => {
+              setEditingTipoCierres(block.applicable_tipo_cierres || []);
+              setEditingName(true);
+            }}
             className="p-2 rounded-xl text-slate-500 hover:text-brand-400 hover:bg-brand-500/10
                        transition-all duration-150"
           >

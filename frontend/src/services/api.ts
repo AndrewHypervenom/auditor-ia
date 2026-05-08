@@ -569,11 +569,11 @@ export const criteriaService = {
     return response.data as CriteriaBlock[];
   },
   // Bloques
-  async createBlock(payload: { call_type: string; mode: string; block_name: string; block_order: number }) {
+  async createBlock(payload: { call_type: string; mode: string; block_name: string; block_order: number; applicable_tipo_cierres?: string[] }) {
     const response = await api.post('/admin/blocks', payload);
     return response.data as CriteriaBlock;
   },
-  async updateBlock(id: string, payload: Partial<{ block_name: string; block_order: number; is_active: boolean }>) {
+  async updateBlock(id: string, payload: Partial<{ block_name: string; block_order: number; is_active: boolean; applicable_tipo_cierres: string[] }>) {
     const response = await api.put(`/admin/blocks/${id}`, payload);
     return response.data as CriteriaBlock;
   },
@@ -618,6 +618,7 @@ export interface CriteriaBlock {
   mode: string;
   block_name: string;
   block_order: number;
+  applicable_tipo_cierres: string[];
   is_active: boolean;
   created_at: string;
   updated_at: string;
