@@ -274,25 +274,8 @@ class BatchService {
             }
           }
 
-          const criteria = await databaseService.getCriteriaForCallType(resolvedCallType);
-          const evaluationSystemPrompt = await databaseService.getPromptByKey('evaluation_system') ?? '';
-          const evalUserContent = this.buildBatchEvalPrompt(item, attentionObject, criteria, syntheticTranscript);
-
-          batchRequests.push({
-            custom_id: `${item.id}__eval`,
-            method: 'POST',
-            url: '/v1/chat/completions',
-            body: {
-              model,
-              temperature: 0,
-              seed: 42,
-              response_format: { type: 'json_object' },
-              messages: [
-                { role: 'system', content: evaluationSystemPrompt },
-                { role: 'user', content: evalUserContent },
-              ],
-            },
-          });
+          // La evaluación se hace en tiempo real al procesar resultados (no en batch)
+          // Solo las imágenes van al batch para el 50% de descuento
 
           // Marcar item como "processing"
           await supabaseAdmin
@@ -428,7 +411,7 @@ class BatchService {
       if (item.status === 'failed') { failedCount++; continue; }
 
       try {
-        // Recolectar resultados de imágenes
+        // Recolectar resultados de imágenes del batch
         const imageResults: any[] = [];
         let imgIdx = 0;
         while (resultMap.has(`${item.id}__img__${imgIdx}`)) {
@@ -437,31 +420,27 @@ class BatchService {
             try {
               let content = imgResult.response.body.choices[0].message.content.trim();
               content = content.replace(/```json\n?/gi, '').replace(/```\n?/g, '');
-              const parsed = JSON.parse(content);
-              imageResults.push(parsed);
+              imageResults.push(JSON.parse(content));
             } catch {}
           }
           imgIdx++;
         }
 
-        // Resultado de evaluación
-        const evalResult = resultMap.get(`${item.id}__eval`);
-        if (!evalResult?.response?.body?.choices?.[0]?.message?.content) {
-          throw new Error('No se encontró resultado de evaluación en el lote');
-        }
-
-        const evalContent = evalResult.response.body.choices[0].message.content;
-        let evaluation: any;
-        try {
-          evaluation = JSON.parse(evalContent);
-        } catch {
-          throw new Error('Respuesta de evaluación no es JSON válido');
-        }
-
-        // Construir objeto de auditoría completo
+        // Re-fetchear datos GPF frescos para transcripción y contexto
         const attentionObject = item.gpf_attention_object || {};
+        let gpfDetailData: any = null;
+        try {
+          const token = await gpfTokenService.getTokenWithRetry(item.gpf_env);
+          gpfDetailData = await gpfDataService.fetchAttentionData(item.gpf_env, item.gpf_attention_id, token);
+        } catch (gpfErr: any) {
+          logger.warn('Could not re-fetch GPF data for batch eval, using cached attention object', { itemId: item.id, error: gpfErr.message });
+        }
 
-        // Resolver call type (misma lógica que submitBatchJob)
+        const syntheticTranscript = gpfDetailData
+          ? buildSyntheticTranscript(gpfDetailData.comments, gpfDetailData.transactions, gpfDetailData.otpValidations, gpfDetailData.rawComments)
+          : buildSyntheticTranscript([], [], [], []);
+
+        // Resolver call type
         let resolvedCallType = item.call_type ?? '';
         const calificacion = attentionObject['Calificación'] || '';
         const subCalificacion = attentionObject['Sub-calificación'] || '';
@@ -477,38 +456,25 @@ class BatchService {
           }
         }
 
-        const itemCriteria = await databaseService.getCriteriaForCallType(resolvedCallType);
-
         const metadata = {
           ...gpfDataService.normalizeMetadata(attentionObject, item.gpf_attention_id),
           excelType: item.gpf_excel_type as 'INBOUND' | 'MONITOREO',
           callType: resolvedCallType,
           gpfData: {
             attentionFields: attentionObject,
-            transactions: [],
-            comments: [],
-            otpValidations: [],
-            rawComments: [],
+            transactions: gpfDetailData?.transactions ?? [],
+            comments: gpfDetailData?.comments ?? [],
+            otpValidations: gpfDetailData?.otpValidations ?? [],
+            rawComments: gpfDetailData?.rawComments ?? [],
           },
         };
 
-        // Parsear con matching block|||topic contra criterios de la BD
-        const normalizedEval = this.parseBatchEvalResult(evaluation, itemCriteria);
-
-        logger.info('Batch eval parsed', {
-          itemId: item.id,
-          rawKeys: Object.keys(evaluation),
-          detailedScoresCount: normalizedEval.detailedScores?.length ?? 0,
-          totalScore: normalizedEval.totalScore,
-          maxPossibleScore: normalizedEval.maxPossibleScore,
-        });
-
-        if (!Array.isArray(normalizedEval.detailedScores) || normalizedEval.detailedScores.length === 0) {
-          throw new Error(
-            `Evaluación vacía: sin criterios activos para callType "${resolvedCallType}". ` +
-            `Claves en respuesta OpenAI: ${Object.keys(evaluation).join(', ')}.`
-          );
-        }
+        // Evaluar usando el evaluador en tiempo real (misma lógica, mismo prompt, mismos criterios de la BD)
+        const normalizedEval = await evaluatorService.evaluateWithPrecomputedImages(
+          metadata,
+          imageResults,
+          syntheticTranscript.text,
+        );
 
         // Crear audit record
         const auditId = await databaseService.createAudit({
@@ -518,15 +484,12 @@ class BatchService {
           imageFilenames: imageResults.map((_: any, i: number) => `batch-img-${i}.jpg`),
         });
 
-        // Generar Excel
         const excelResult = await excelService.generateExcelReport(metadata, normalizedEval);
         const excelBase64 = excelResult.buffer.toString('base64');
-
-        // Calcular costos (50% de descuento = marcamos como batch)
         const costs = costCalculatorService.calculateTotalCost(0, imageResults.length, 0, 0, 0, 0);
 
         await databaseService.completeAudit(auditId, {
-          transcription: '[Procesado en lote nocturno]',
+          transcription: syntheticTranscript.text || '[Procesado en lote nocturno]',
           imageAnalysis: imageResults.map((r: any, i: number) => `Imagen ${i + 1}: ${JSON.stringify(r)}`).join('\n'),
           evaluation: normalizedEval,
           excelFilename: excelResult.filename,

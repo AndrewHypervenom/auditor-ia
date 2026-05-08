@@ -208,6 +208,113 @@ class EvaluatorService {
  }
 
  /**
+  * Evalúa usando imágenes ya analizadas (resultado del batch de OpenAI).
+  * Usa exactamente la misma lógica que evaluate() pero sin re-descargar imágenes.
+  */
+ async evaluateWithPrecomputedImages(
+   auditInput: AuditInput,
+   batchImageResults: any[],
+   transcriptText: string,
+ ): Promise<Omit<EvaluationResult, 'excelUrl'> & { usage: { inputTokens: number; outputTokens: number; totalTokens: number } }> {
+   // Mapear resultados de imágenes del batch al formato visualEvidence
+   const rawVisualEvidence: Record<string, any[]> = {};
+   for (let i = 0; i < batchImageResults.length; i++) {
+     const r = batchImageResults[i] || {};
+     const system: string = r.system || r.sistema || 'Sistema';
+     if (!rawVisualEvidence[system]) rawVisualEvidence[system] = [];
+     rawVisualEvidence[system].push({
+       imagePath: `batch-img-${i}.jpg`,
+       data: r.data || r,
+       findings: r.findings || [],
+       confidence: r.confidence || 0.9,
+       critical_fields: r.critical_fields || {},
+     });
+   }
+
+   const criteria = await getDatabaseService().getCriteriaForCallType(auditInput.callType) as EvaluationBlock[];
+
+   // Normalizar evidencia visual contra sistemas conocidos (igual que evaluate())
+   const knownSystems = new Set(criteria.map(b => this.getSystemFromBlock(b.blockName)));
+   const visualEvidence: Record<string, any[]> = {};
+   const orphanImages: any[] = [];
+   for (const [sys, imgs] of Object.entries(rawVisualEvidence)) {
+     if (knownSystems.has(sys)) {
+       visualEvidence[sys] = imgs;
+     } else {
+       orphanImages.push(...imgs);
+     }
+   }
+   for (const sys of knownSystems) {
+     if (orphanImages.length > 0) {
+       visualEvidence[sys] = [...(visualEvidence[sys] || []), ...orphanImages];
+     }
+   }
+
+   const transcript: TranscriptResult = { text: transcriptText, utterances: [] };
+   const verbalEvidence = this.extractVerbalEvidence(transcript);
+
+   const { evaluation, tokensUsed, manualTopics } = await this.evaluateWithEnhancedMatching(
+     criteria,
+     visualEvidence,
+     verbalEvidence,
+     transcript,
+     auditInput,
+   );
+
+   const criticalTopics = criteria.flatMap(block =>
+     block.topics
+       .filter(t => t.applies && t.criticality === 'Crítico' && typeof t.points === 'number')
+       .map(t => t.topic)
+   );
+   const failedCriticalCriteria = (evaluation.evaluations as any[])
+     .filter(ev => criticalTopics.includes(ev.topic) && ev.score === 0)
+     .map(ev => ev.topic);
+   const criticalFailure = failedCriticalCriteria.length > 0;
+   if (criticalFailure) { evaluation.percentage = 0; evaluation.total_score = 0; }
+
+   const topicCriticalityMap = new Map<string, string>(
+     criteria.flatMap(block => block.topics.map(t => [t.topic, t.criticality || '-']))
+   );
+   const aiResultMap = new Map<string, any>();
+   for (const ev of evaluation.evaluations as any[]) {
+     aiResultMap.set(`${ev.block}|||${ev.topic}`, ev);
+   }
+   const manualMap = new Map<string, any>();
+   for (const m of manualTopics) manualMap.set(m.criterion, m);
+
+   const detailedScores = criteria.flatMap(block =>
+     block.topics.filter((t: any) => t.applies).map((t: any) => {
+       const manualKey = `[${block.blockName}] ${t.topic}`;
+       if (t.requiresManualReview) return manualMap.get(manualKey) ?? null;
+       const ai = aiResultMap.get(`${block.blockName}|||${t.topic}`);
+       if (ai) return { criterion: `[${ai.block}] ${ai.topic}`, score: ai.score, maxScore: ai.max_score, observations: ai.justification, criticality: topicCriticalityMap.get(ai.topic) || '-' };
+       return null;
+     }).filter(Boolean)
+   ) as Array<{ criterion: string; score: number; maxScore: number; observations: string; criticality: string }>;
+
+   const keyMoments = (evaluation.key_moments || []).map((m: any) => ({ timestamp: m.timestamp, type: m.event, description: m.description }));
+
+   logger.success('Batch evaluation completed via real-time evaluator', {
+     callType: auditInput.callType,
+     totalScore: evaluation.total_score,
+     criteriaCount: detailedScores.length,
+   });
+
+   return {
+     totalScore: evaluation.total_score,
+     maxPossibleScore: evaluation.max_possible_score,
+     percentage: evaluation.percentage,
+     detailedScores,
+     observations: evaluation.observations,
+     recommendations: evaluation.recommendations || [],
+     keyMoments,
+     criticalFailure,
+     failedCriticalCriteria: criticalFailure ? failedCriticalCriteria : undefined,
+     usage: { inputTokens: tokensUsed.input, outputTokens: tokensUsed.output, totalTokens: tokensUsed.input + tokensUsed.output },
+   };
+ }
+
+ /**
  * MEJORADO: Extrae evidencia visual con detección más precisa y captura tokens
  */
  private async extractVisualEvidenceEnhanced(imagePaths: string[], rubroHints?: string): Promise<{
