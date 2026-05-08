@@ -39,7 +39,6 @@ import {
  Moon,
  Square,
  CheckSquare,
- TrendingDown,
 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 
@@ -131,6 +130,10 @@ export default function NewAuditPage() {
  const [batchName, setBatchName] = useState('');
  const [batchScheduled, setBatchScheduled] = useState('');
  const [submittingBatch, setSubmittingBatch] = useState(false);
+ const [validating, setValidating] = useState(false);
+ const [validationResult, setValidationResult] = useState<{
+   accessible: number; noImages: number; inaccessible: number; total: number;
+ } | null>(null);
 
  // Setear el primer modo disponible en cuanto cargue desde BD
  useEffect(() => {
@@ -392,12 +395,34 @@ export default function NewAuditPage() {
    });
  };
 
- const openBatchModal = () => {
+ const openBatchModal = async () => {
    const tomorrow = new Date(Date.now() + 86400000);
    tomorrow.setHours(2, 0, 0, 0);
    setBatchName(`Lote ${new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}`);
    setBatchScheduled(tomorrow.toISOString().slice(0, 16));
+   setValidationResult(null);
    setShowBatchModal(true);
+
+   // Validar accesibilidad real en GPF
+   const selected = filteredAttentions.filter(a => selectedIds.has(String(getAttentionId(a))));
+   if (selected.length === 0) return;
+   setValidating(true);
+   try {
+     const items = selected.map(att => ({
+       gpf_attention_id: String(getAttentionId(att)),
+       gpf_env: env,
+     }));
+     const results = await batchService.validateItems(items);
+     const accessible = results.filter((r: any) => r.accessible && r.imageCount > 0).length;
+     const noImages = results.filter((r: any) => r.accessible && r.imageCount === 0).length;
+     const inaccessible = results.filter((r: any) => !r.accessible).length;
+     setValidationResult({ accessible, noImages, inaccessible, total: results.length });
+   } catch {
+     // Si falla la validación, no bloqueamos el flujo
+     setValidationResult(null);
+   } finally {
+     setValidating(false);
+   }
  };
 
  const handleSubmitBatch = async () => {
@@ -429,7 +454,6 @@ export default function NewAuditPage() {
    }
  };
 
- const estimatedSavings = (selectedIds.size * 0.025 * 0.5).toFixed(2);
  const estimatedFileMB = (selectedIds.size * BATCH_LIMITS_CLIENT.ESTIMATED_MB_PER_CASE).toFixed(1);
  const capacityPct = Math.min(100, Math.round((selectedIds.size / BATCH_LIMITS_CLIENT.RECOMMENDED_MAX_CASES) * 100));
  const isOverRecommended = selectedIds.size > BATCH_LIMITS_CLIENT.RECOMMENDED_MAX_CASES;
@@ -965,9 +989,8 @@ export default function NewAuditPage() {
            : null
          }
        </div>
-       <div className={`text-xs flex items-center gap-1 ${isOverHardLimit ? 'text-red-400' : isOverRecommended ? 'text-amber-400' : 'text-brand-400'}`}>
-         <TrendingDown className="w-3 h-3" />
-         Ahorro: ${estimatedSavings} · ~{estimatedFileMB} MB · máx. {BATCH_LIMITS_CLIENT.RECOMMENDED_MAX_CASES} rec.
+       <div className={`text-xs ${isOverHardLimit ? 'text-red-400' : isOverRecommended ? 'text-amber-400' : 'text-slate-400'}`}>
+         ~{estimatedFileMB} MB · máx. {BATCH_LIMITS_CLIENT.RECOMMENDED_MAX_CASES} rec.
        </div>
      </div>
      <button
@@ -1001,19 +1024,43 @@ export default function NewAuditPage() {
          </div>
          <div>
            <h3 className="text-white font-semibold">Agregar a cola nocturna</h3>
-           <p className="text-slate-400 text-xs">{selectedIds.size} caso{selectedIds.size !== 1 ? 's' : ''} · 50% de descuento</p>
+           <p className="text-slate-400 text-xs">{selectedIds.size} caso{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}</p>
          </div>
        </div>
 
-       {/* Savings callout */}
-       <div className="rounded-2xl bg-brand-500/8 border border-brand-500/20 p-3 flex items-center gap-3">
-         <TrendingDown className="w-4 h-4 text-brand-400 flex-shrink-0" />
-         <div className="text-sm">
-           <span className="text-slate-300">Ahorro estimado: </span>
-           <span className="text-brand-300 font-semibold">${estimatedSavings} USD</span>
-           <span className="text-slate-500 text-xs ml-1">(50% menos que tiempo real)</span>
+       {/* Validation result */}
+       {(validating || validationResult) && (
+         <div className={`rounded-2xl border p-3 flex items-start gap-2.5 ${
+           validating ? 'bg-slate-800/60 border-slate-700/50' :
+           validationResult && validationResult.inaccessible > 0 ? 'bg-amber-500/10 border-amber-500/30' :
+           'bg-brand-500/8 border-brand-500/20'
+         }`}>
+           {validating ? (
+             <>
+               <Loader2 className="w-4 h-4 text-slate-400 animate-spin flex-shrink-0 mt-0.5" />
+               <span className="text-slate-400 text-sm">Verificando acceso a casos en GPF...</span>
+             </>
+           ) : validationResult ? (
+             <>
+               {validationResult.inaccessible > 0
+                 ? <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                 : <CheckCircle2 className="w-4 h-4 text-brand-400 flex-shrink-0 mt-0.5" />
+               }
+               <div className="text-sm space-y-0.5">
+                 <div className="text-white font-medium">
+                   {validationResult.accessible} de {validationResult.total} casos listos para procesar
+                 </div>
+                 {validationResult.noImages > 0 && (
+                   <div className="text-amber-400 text-xs">{validationResult.noImages} sin imágenes</div>
+                 )}
+                 {validationResult.inaccessible > 0 && (
+                   <div className="text-red-400 text-xs">{validationResult.inaccessible} no accesibles en GPF (se omitirán)</div>
+                 )}
+               </div>
+             </>
+           ) : null}
          </div>
-       </div>
+       )}
 
        {/* Capacity indicator */}
        <div className={`rounded-2xl border p-3 space-y-2 ${
@@ -1059,8 +1106,8 @@ export default function NewAuditPage() {
              <>
                <span>
                  Tamaño estimado: ~{estimatedFileMB} MB
-                 · Modelo: {BATCH_LIMITS_CLIENT.MODEL} (contexto 400K tokens)
-                 · Máximo OpenAI: 200 MB · {BATCH_LIMITS_CLIENT.MAX_REQUESTS_PER_BATCH.toLocaleString()} solicitudes
+                 · Límite máximo: {BATCH_LIMITS_CLIENT.MAX_FILE_SIZE_MB} MB por lote
+                 · Las imágenes se descargan en el momento del envío
                </span>
              </>
            )}

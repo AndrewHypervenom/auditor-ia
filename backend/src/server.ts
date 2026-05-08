@@ -2597,6 +2597,23 @@ app.get('/api/batch/savings-estimate', authenticateUser, (req: Request, res: Res
   });
 });
 
+app.post('/api/batch/validate', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const { items } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Se requiere un array de items' });
+    }
+    if (items.length > 100) {
+      return res.status(400).json({ error: 'Máximo 100 items por validación' });
+    }
+    const results = await batchService.validateBatchItems(items);
+    res.json({ results });
+  } catch (error: any) {
+    logger.error('Error validating batch items', error);
+    res.status(500).json({ error: error.message || 'Error al validar los casos' });
+  }
+});
+
 // Manejador de errores
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
  logger.error('Unhandled error:', err);

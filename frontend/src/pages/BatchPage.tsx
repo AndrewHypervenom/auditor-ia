@@ -20,8 +20,6 @@ import {
   Trash2,
   ChevronDown,
   ChevronUp,
-  DollarSign,
-  TrendingDown,
   Package,
   Eye,
   Calendar,
@@ -30,6 +28,7 @@ import {
   Cpu,
   HardDrive,
   Hash,
+  Timer,
 } from 'lucide-react';
 import { BATCH_LIMITS_CLIENT } from '../services/api';
 
@@ -50,11 +49,6 @@ function fmtDate(iso: string | null): string {
     day: '2-digit', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
-}
-
-function fmtSavings(count: number): string {
-  const usd = count * 0.025 * 0.5;
-  return `$${usd.toFixed(2)} USD`;
 }
 
 function progressPct(job: BatchJob): number {
@@ -191,11 +185,11 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
           </div>
         </div>
 
-        {/* Savings badge */}
+        {/* Item count badge */}
         <div className="flex-shrink-0 text-right hidden sm:block">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wide">Ahorro est.</div>
-          <div className="text-brand-300 font-bold text-sm">{fmtSavings(job.item_count)}</div>
-          <div className="text-[10px] text-slate-500">50% desc.</div>
+          <div className="text-[10px] text-slate-500 uppercase tracking-wide">Casos</div>
+          <div className="text-white font-bold text-sm">{job.item_count}</div>
+          <div className="text-[10px] text-slate-500">en lote</div>
         </div>
       </div>
 
@@ -370,12 +364,12 @@ export default function BatchPage() {
   const historyJobs = jobs.filter(j => j.status === 'completed' || j.status === 'failed' || j.status === 'cancelled');
 
   const totalItemsQueued = activeJobs.reduce((s, j) => s + j.item_count, 0);
-  const totalSaved = historyJobs
-    .filter(j => j.status === 'completed')
-    .reduce((s, j) => s + j.completed_count * 0.025 * 0.5, 0);
   const totalCompleted = historyJobs
     .filter(j => j.status === 'completed')
     .reduce((s, j) => s + j.completed_count, 0);
+  const totalFailed = historyJobs
+    .filter(j => j.status === 'completed')
+    .reduce((s, j) => s + j.failed_count, 0);
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-base)' }}>
@@ -383,7 +377,7 @@ export default function BatchPage() {
         showBack
         onBack={() => navigate('/dashboard')}
         title="Cola Nocturna"
-        subtitle="OpenAI Batch API · 50% descuento"
+        subtitle="Procesamiento nocturno por lotes"
         rightContent={
           <button
             onClick={() => load(true)}
@@ -414,35 +408,29 @@ export default function BatchPage() {
               <Moon className="w-5 h-5 text-brand-400" />
             </div>
             <div>
-              <h2 className="text-white font-semibold">Procesa casos con 50% de ahorro</h2>
+              <h2 className="text-white font-semibold">Procesa casos en lote durante la noche</h2>
               <p className="text-slate-400 text-sm mt-0.5 leading-relaxed">
                 Selecciona casos GPF en "Nueva Auditoría" → agrega a la cola nocturna →
-                OpenAI los procesa en lote durante la noche a la mitad del costo.
+                el sistema los procesa en lote y entrega los resultados listos al día siguiente.
               </p>
             </div>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <StatCard
             icon={Package}
             label="En cola"
             value={String(totalItemsQueued)}
-            sub={`${activeJobs.length} lote${activeJobs.length !== 1 ? 's' : ''}`}
-          />
-          <StatCard
-            icon={TrendingDown}
-            label="Ahorrado"
-            value={`$${totalSaved.toFixed(2)}`}
-            sub="USD total"
-            accent
+            sub={`${activeJobs.length} lote${activeJobs.length !== 1 ? 's' : ''} activo${activeJobs.length !== 1 ? 's' : ''}`}
           />
           <StatCard
             icon={BarChart3}
             label="Procesados"
             value={String(totalCompleted)}
-            sub="casos totales"
+            sub={totalFailed > 0 ? `${totalFailed} fallidos` : 'casos totales'}
+            accent={totalCompleted > 0}
           />
         </div>
 
@@ -538,10 +526,6 @@ export default function BatchPage() {
                 · Max output: {(BATCH_LIMITS_CLIENT.MAX_OUTPUT_TOKENS / 1000).toFixed(0)}K tokens
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-brand-300 font-bold text-sm">50% OFF</div>
-              <div className="text-[10px] text-slate-500">batch API</div>
-            </div>
           </div>
 
           {/* Limits grid */}
@@ -579,12 +563,12 @@ export default function BatchPage() {
               <span>El límite real depende del tamaño de las imágenes. Estimado: ~{BATCH_LIMITS_CLIENT.ESTIMATED_MB_PER_CASE} MB/caso ({BATCH_LIMITS_CLIENT.AVG_IMAGES_PER_CASE} imgs × 400 KB base64).</span>
             </div>
             <div className="flex items-start gap-1.5">
-              <DollarSign className="w-3 h-3 text-brand-400 flex-shrink-0 mt-0.5" />
-              <span>Precio con batch: $0.375 / $2.25 por millón de tokens (input/output). OpenAI procesa en hasta 24 h.</span>
+              <Timer className="w-3 h-3 text-amber-400 flex-shrink-0 mt-0.5" />
+              <span>Las imágenes y audios GPF expiran en ~5 min. El sistema se re-autentica automáticamente en el momento del envío — no guardes URLs, solo los IDs.</span>
             </div>
             <div className="flex items-start gap-1.5">
               <Zap className="w-3 h-3 text-blue-400 flex-shrink-0 mt-0.5" />
-              <span>Los tokens de batch usan una cuota separada — no afectan tu límite de solicitudes en tiempo real.</span>
+              <span>OpenAI procesa en hasta 24 h. Los resultados aparecen en "Historial" una vez completados.</span>
             </div>
           </div>
         </div>

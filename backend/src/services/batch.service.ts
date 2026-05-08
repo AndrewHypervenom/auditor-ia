@@ -188,14 +188,28 @@ class BatchService {
         try {
           logger.info('Assembling batch item', { itemId: item.id, attentionId: item.gpf_attention_id });
 
-          // Re-autenticar y obtener datos GPF
+          // Re-autenticar y obtener datos GPF (URLs de imágenes caducan en ~5 min)
           const token = await gpfTokenService.getTokenWithRetry(item.gpf_env);
           const attentionData = await gpfDataService.fetchAttentionData(
             item.gpf_env, item.gpf_attention_id, token
           );
 
-          // Descargar imágenes
-          const { localPaths } = await downloadImagesToTemp(attentionData.imageUrls, token);
+          // Descargar imágenes. Si falla (URL caducada), re-autenticar y reintentar una vez.
+          let downloadResult: Awaited<ReturnType<typeof downloadImagesToTemp>>;
+          try {
+            downloadResult = await downloadImagesToTemp(attentionData.imageUrls, token);
+          } catch (downloadErr: any) {
+            logger.warn('Image download failed, retrying with fresh token', {
+              itemId: item.id,
+              error: downloadErr.message,
+            });
+            const freshToken = await gpfTokenService.getTokenWithRetry(item.gpf_env);
+            const freshData = await gpfDataService.fetchAttentionData(
+              item.gpf_env, item.gpf_attention_id, freshToken
+            );
+            downloadResult = await downloadImagesToTemp(freshData.imageUrls, freshToken);
+          }
+          const { localPaths } = downloadResult;
           tempFiles.push(...localPaths);
 
           // Solicitudes de análisis de imágenes (una por imagen)
@@ -555,6 +569,40 @@ class BatchService {
 
   getEstimatedSavings(itemCount: number): number {
     return itemCount * ESTIMATED_COST_PER_CASE_USD * 0.5;
+  }
+
+  /**
+   * Verifica en paralelo si cada caso es accesible en GPF y cuántas imágenes tiene.
+   * Concurrencia limitada a 10 peticiones simultáneas para no saturar GPF.
+   */
+  async validateBatchItems(items: { gpf_attention_id: string; gpf_env: string }[]) {
+    const CONCURRENCY = 10;
+    const results: { gpf_attention_id: string; accessible: boolean; imageCount: number; error?: string }[] = [];
+
+    for (let i = 0; i < items.length; i += CONCURRENCY) {
+      const chunk = items.slice(i, i + CONCURRENCY);
+      const settled = await Promise.allSettled(
+        chunk.map(async item => {
+          const token = await gpfTokenService.getTokenWithRetry(item.gpf_env);
+          const r = await gpfDataService.validateCaptures(item.gpf_env, item.gpf_attention_id, token);
+          return { gpf_attention_id: item.gpf_attention_id, ...r };
+        })
+      );
+      for (let j = 0; j < settled.length; j++) {
+        const s = settled[j];
+        if (s.status === 'fulfilled') {
+          results.push(s.value);
+        } else {
+          results.push({
+            gpf_attention_id: chunk[j].gpf_attention_id,
+            accessible: false,
+            imageCount: 0,
+            error: s.reason?.message ?? 'Error desconocido',
+          });
+        }
+      }
+    }
+    return results;
   }
 
   /**

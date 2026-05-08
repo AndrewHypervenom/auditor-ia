@@ -246,6 +246,25 @@ class GpfDataService {
  };
  }
 
+ /**
+  * Verifica si un caso es accesible en GPF y cuántas imágenes tiene.
+  * Solo llama al endpoint de captures (ligero). Las URLs de imágenes caducan en ~5 min,
+  * pero aquí solo contamos — no descargamos.
+  */
+ async validateCaptures(env: string, attentionId: string | number, token: string): Promise<{
+   accessible: boolean;
+   imageCount: number;
+   error?: string;
+ }> {
+   const baseUrl = this.getBaseUrl(env);
+   if (!baseUrl) return { accessible: false, imageCount: 0, error: 'GPF URL no configurada' };
+   const url = `${baseUrl}/api/quality-control/v1/captures-comments/${attentionId}`;
+   const data = await this.fetchJson(url, this.buildHeaders(token));
+   if (data === null) return { accessible: false, imageCount: 0, error: 'No se pudo acceder al caso' };
+   const imageCount = Array.isArray(data.captures) ? data.captures.length : 0;
+   return { accessible: true, imageCount };
+ }
+
  /** Obtiene la URL segura de descarga del audio de una atención (caduca en 5 minutos). */
  async fetchAudioUrl(env: string, attentionId: string | number, token: string): Promise<string | null> {
  const baseUrl = this.getBaseUrl(env);

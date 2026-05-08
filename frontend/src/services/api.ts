@@ -895,6 +895,16 @@ export const batchService = {
     const response = await api.get(`/batch/savings-estimate?count=${count}`);
     return response.data;
   },
+
+  async validateItems(items: { gpf_attention_id: string; gpf_env: string }[]): Promise<Array<{
+    gpf_attention_id: string;
+    accessible: boolean;
+    imageCount: number;
+    error?: string;
+  }>> {
+    const response = await api.post('/batch/validate', { items });
+    return response.data.results;
+  },
 };
 
 export interface BatchLimits {
