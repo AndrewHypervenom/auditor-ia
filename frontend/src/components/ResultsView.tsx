@@ -182,10 +182,10 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
   const visibleBlocks = Object.entries(scoresByBlock).filter(([, scores]) => scores.length > 0);
 
   // ── Estado de expansión por criterio ────────────────────────────────────────
-  const isCriterionExpanded = (idx: number, score: number, maxScore: number) => {
+  const isCriterionExpanded = (idx: number, score: number, maxScore: number, isManual = false) => {
     if (allExpanded !== null) return allExpanded;
     if (expandedCriteria[idx] !== undefined) return expandedCriteria[idx];
-    // Auto-expand si tiene falla o puntuación baja
+    if (isManual) return false;
     const pct = maxScore > 0 ? (score / maxScore) * 100 : 100;
     return pct < 80;
   };
@@ -657,7 +657,7 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
                     const evidence      = Array.isArray(score.evidence) ? score.evidence : [];
                     const hasComment    = Boolean(comments[score.criterion]);
                     const hasDetail     = Boolean(observations) || evidence.length > 0 || hasComment || Boolean(auditId);
-                    const isExpanded    = isCriterionExpanded(idx, safeScore, safeMax);
+                    const isExpanded    = isCriterionExpanded(idx, safeScore, safeMax, isManual);
                     const status        = getCriterionStatus(safeScore, safeMax);
 
                     // ── Fila de validación manual ────────────────────────
