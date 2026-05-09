@@ -14,6 +14,7 @@ import type { EvaluationResult } from '../types';
 interface ResultsViewProps {
   result: EvaluationResult;
   auditId?: string;
+  caseId?: string;
   callType?: string;
   onDownload: () => void;
   onNewAudit: () => void;
@@ -65,7 +66,7 @@ function CommentTextarea({
   );
 }
 
-export default function ResultsView({ result, auditId, callType, onDownload, onNewAudit, onScoresSaved }: ResultsViewProps) {
+export default function ResultsView({ result, auditId, caseId, callType, onDownload, onNewAudit, onScoresSaved }: ResultsViewProps) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     scores: true,
     observations: false,
@@ -360,8 +361,15 @@ export default function ResultsView({ result, auditId, callType, onDownload, onN
               </div>
               <div>
                 <p className="text-sm font-semibold text-white">Resultados de Evaluación</p>
-                <div className="flex items-center gap-1.5 mt-0.5">
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                   <span className="text-xs text-slate-500">Análisis completado</span>
+                  {caseId && (
+                    <>
+                      <span className="text-slate-700">·</span>
+                      <span className="text-xs text-slate-400">Caso</span>
+                      <span className="text-xs font-mono font-semibold text-brand-400">{caseId}</span>
+                    </>
+                  )}
                   {callType && (
                     callType.toUpperCase() === 'MONITOREO' ? (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
