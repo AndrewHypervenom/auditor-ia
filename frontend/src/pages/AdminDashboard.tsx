@@ -1448,7 +1448,7 @@ export default function AdminDashboard() {
    </div>
  )}
 
- <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+ <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
  <div>
  <span className="text-slate-500">ID Ejecutivo:</span>
  <p className="text-slate-300 font-medium">{audit.executive_id}</p>
@@ -1476,6 +1476,12 @@ export default function AdminDashboard() {
  <div>
  <span className="text-slate-500">Fecha:</span>
  <p className="text-slate-300 font-medium">{formatDate(audit.created_at)}</p>
+ </div>
+ <div>
+ <span className="text-slate-500">Auditor:</span>
+ <p className="text-slate-300 font-medium truncate" title={audit.created_by_email || ''}>
+ {audit.created_by_name || 'Desconocido'}
+ </p>
  </div>
  </div>
 
