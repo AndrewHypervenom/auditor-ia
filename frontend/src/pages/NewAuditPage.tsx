@@ -57,6 +57,9 @@ interface SSEMessage {
 const getAttentionId = (a: GpfAttention): string | number =>
  a['id_atencion'] ?? a.id ?? '';
 
+const getCaseNumber = (a: GpfAttention): string | number =>
+ a['Llamada en curso'] ?? getAttentionId(a);
+
 const getAttentionDate = (a: GpfAttention): string =>
  a['Fecha de la compra'] ?? a.call_date ?? a.created_at?.split('T')[0] ?? '';
 
@@ -1253,7 +1256,7 @@ export default function NewAuditPage() {
  <div className="text-center">
  <p className="text-slate-300 font-medium text-lg">Cargando detalle del caso</p>
  <p className="text-slate-500 text-sm mt-1">
- ID: <span className="font-mono text-brand-400">{String(getAttentionId(selectedAttention))}</span>
+ Caso: <span className="font-mono text-brand-400">{String(getCaseNumber(selectedAttention))}</span>
  </p>
  <p className="text-slate-500 text-sm animate-pulse mt-0.5">Obteniendo capturas, transacciones y comentarios...</p>
  </div>
@@ -1280,7 +1283,7 @@ export default function NewAuditPage() {
  <div>
  <h2 className="text-xl font-semibold text-slate-200">Confirmar Auditoría</h2>
  <p className="text-slate-500 text-sm">
- Caso <span className="font-mono text-brand-400">{String(getAttentionId(selectedAttention))}</span>
+ Caso <span className="font-mono text-brand-400">{String(getCaseNumber(selectedAttention))}</span>
  {' · '}{env.toUpperCase()}
  </p>
  </div>

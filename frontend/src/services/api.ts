@@ -71,6 +71,7 @@ export interface Audit {
  processing_time_seconds: number | null;
  excel_filename?: string;
  audio_filename?: string;
+ gpf_data?: { attentionFields?: Record<string, any>; [key: string]: any } | null;
  // Info del creador de la auditoria
  created_by_name?: string;
  created_by_email?: string;

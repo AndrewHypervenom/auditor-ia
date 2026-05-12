@@ -120,6 +120,7 @@ export default function AiAnalysisPage() {
   const detail = data?.attentionDetail;
 
   const attentionId = att['id_atencion'] ?? att.id ?? '—';
+  const caseNumber  = att['Llamada en curso'] ?? attentionId;
   const executive   = att['Agente'] ?? att.executive_name ?? '—';
   const callType    = data?.callType ?? '—';
   const excelType   = data?.excelType ?? '—';
@@ -168,7 +169,7 @@ export default function AiAnalysisPage() {
           </div>
           <div>
             <p className="text-sm font-semibold text-slate-200">
-              Vista de referencia · Caso <span className="font-mono text-brand-400">{String(attentionId)}</span>
+              Vista de referencia · Caso <span className="font-mono text-brand-400">{String(caseNumber)}</span>
             </p>
             <p className="text-xs text-slate-500">
               {executive} · {callType} · {excelType}

@@ -160,7 +160,7 @@ function AuditCard({ audit, onView, onDownload }: {
 
           {/* Metadata row */}
           <div className="flex items-center gap-3 mt-1.5 text-[11px] text-slate-500 flex-wrap">
-            <span>ID {audit.executive_id}</span>
+            <span>Caso {audit.gpf_data?.attentionFields?.['Llamada en curso'] ?? audit.executive_id}</span>
             {audit.client_id && <><span className="text-slate-700">·</span><span>Socio {audit.client_id}</span></>}
             <span className="text-slate-700">·</span>
             <span>{fmtDate(audit.created_at)}</span>

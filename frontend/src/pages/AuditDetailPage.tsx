@@ -128,7 +128,7 @@ export default function AuditDetailPage() {
         <ResultsView
           result={evaluationResult}
           auditId={auditId}
-          caseId={auditDetail.audit?.executive_id}
+          caseId={auditDetail.audit?.gpf_data?.attentionFields?.['Llamada en curso'] ?? auditDetail.audit?.executive_id}
           callType={auditDetail.audit?.call_type}
           onDownload={handleDownload}
           onNewAudit={handleNewAudit}
