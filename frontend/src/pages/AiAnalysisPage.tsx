@@ -120,7 +120,7 @@ export default function AiAnalysisPage() {
   const detail = data?.attentionDetail;
 
   const attentionId = att['id_atencion'] ?? att.id ?? '—';
-  const caseNumber  = att['Llamada en curso'] ?? attentionId;
+  const caseNumber  = att['Caso'] ?? attentionId;
   const executive   = att['Agente'] ?? att.executive_name ?? '—';
   const callType    = data?.callType ?? '—';
   const excelType   = data?.excelType ?? '—';

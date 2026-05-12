@@ -58,7 +58,7 @@ const getAttentionId = (a: GpfAttention): string | number =>
  a['id_atencion'] ?? a.id ?? '';
 
 const getCaseNumber = (a: GpfAttention): string | number =>
- a['Llamada en curso'] ?? getAttentionId(a);
+ a['Caso'] ?? getAttentionId(a);
 
 const getAttentionDate = (a: GpfAttention): string =>
  a['Fecha de la compra'] ?? a.call_date ?? a.created_at?.split('T')[0] ?? '';
