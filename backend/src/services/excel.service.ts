@@ -34,7 +34,7 @@ class ExcelService {
 
  let criteria: EvaluationBlock[] = [];
  try {
- criteria = await getDatabaseService().getCriteriaForCallType(auditInput.callType) as EvaluationBlock[];
+ criteria = await getDatabaseService().getCriteriaForCallType(auditInput.callType, auditInput.subCalificacion) as EvaluationBlock[];
  } catch (err: any) {
  logger.warn('Excel: no se encontraron criterios en BD para generar el reporte', { callType: auditInput.callType, error: err.message });
  }

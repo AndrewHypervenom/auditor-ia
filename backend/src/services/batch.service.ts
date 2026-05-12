@@ -326,7 +326,7 @@ class BatchService {
           }
 
           // Agregar request de evaluación al batch (mismo 50% de descuento)
-          const criteria = await databaseService.getCriteriaForCallType(resolvedCallType);
+          const criteria = await databaseService.getCriteriaForCallType(resolvedCallType, subCalificacion || undefined);
           const activeTopics = criteria.flatMap((b: any) => (b.topics || []).filter((t: any) => t.applies && !t.requiresManualReview));
 
           if (activeTopics.length === 0) {
@@ -560,7 +560,7 @@ class BatchService {
           }
         }
 
-        const itemCriteria = await databaseService.getCriteriaForCallType(resolvedCallType);
+        const itemCriteria = await databaseService.getCriteriaForCallType(resolvedCallType, subCalificacion || undefined);
         const metadata = {
           ...gpfDataService.normalizeMetadata(attentionObject, item.gpf_attention_id),
           excelType: item.gpf_excel_type as 'INBOUND' | 'MONITOREO',

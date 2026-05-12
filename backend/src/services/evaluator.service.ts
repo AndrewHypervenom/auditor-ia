@@ -34,7 +34,7 @@ class EvaluatorService {
  let totalOutputTokens = 0;
 
  // PASO 0: Obtener criterios — necesarios para enriquecer el análisis de imágenes
- const criteriaEarly = await getDatabaseService().getCriteriaForCallType(auditInput.callType) as EvaluationBlock[];
+ const criteriaEarly = await getDatabaseService().getCriteriaForCallType(auditInput.callType, auditInput.subCalificacion) as EvaluationBlock[];
 
  // Construir hints de rubros que deben validarse en imágenes
  const imageRubroHints = criteriaEarly
@@ -231,7 +231,7 @@ class EvaluatorService {
      });
    }
 
-   const criteria = await getDatabaseService().getCriteriaForCallType(auditInput.callType) as EvaluationBlock[];
+   const criteria = await getDatabaseService().getCriteriaForCallType(auditInput.callType, auditInput.subCalificacion) as EvaluationBlock[];
 
    // Normalizar evidencia visual contra sistemas conocidos (igual que evaluate())
    const knownSystems = new Set(criteria.map(b => this.getSystemFromBlock(b.blockName)));

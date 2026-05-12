@@ -509,7 +509,7 @@ class DatabaseService {
       // Enriquecer detailed_scores con criticidad actual de la BD
       if (evaluation && Array.isArray(evaluation.detailed_scores) && audit.call_type) {
         try {
-          const currentCriteria = await this.getCriteriaForCallType(audit.call_type);
+          const currentCriteria = await this.getCriteriaForCallType(audit.call_type, audit.sub_calificacion || undefined);
           const topicCriticalityMap = new Map<string, string>();
           for (const block of currentCriteria) {
             for (const t of (block.topics || [])) {
@@ -682,9 +682,9 @@ class DatabaseService {
     return KNOWN_TYPES.includes(normalized) ? normalized : null;
   }
 
-  async getCriteriaForCallType(callType: string): Promise<any[]> {
+  async getCriteriaForCallType(callType: string, subCalificacion?: string): Promise<any[]> {
     const normalized = this.normalizeCallTypeForDB(callType);
-    const key = normalized.toUpperCase();
+    const key = normalized.toUpperCase() + (subCalificacion ? `__${subCalificacion.toUpperCase()}` : '');
     const cached = this.criteriaCache.get(key);
     if (cached && this.isCacheValid(cached)) return cached.data;
 
@@ -734,15 +734,30 @@ class DatabaseService {
       const blockCriteria = criteriaByBlockId.get(block.id) || [];
       result.push({
         blockName: block.block_name,
-        topics: blockCriteria.map((c: any) => ({
-          topic: c.topic,
-          criticality: c.criticality as 'Crítico' | '-',
-          points: c.points === null ? 'n/a' : c.points,
-          applies: c.applies,
-          whatToLookFor: c.what_to_look_for || '',
-          validationSource: c.validation_source || [],
-          requiresManualReview: c.requires_manual_review ?? false
-        }))
+        topics: blockCriteria.map((c: any) => {
+          let applies: boolean = c.applies;
+          let whatToLookFor: string = c.what_to_look_for || '';
+          let validationSource: string[] = c.validation_source || [];
+          let requiresManualReview: boolean = c.requires_manual_review ?? false;
+          if (subCalificacion && c.tipo_cierre_overrides) {
+            const ov = c.tipo_cierre_overrides[subCalificacion];
+            if (ov) {
+              if (ov.applies !== undefined) applies = ov.applies;
+              if (ov.what_to_look_for !== undefined) whatToLookFor = ov.what_to_look_for || '';
+              if (ov.validation_source !== undefined) validationSource = ov.validation_source || [];
+              if (ov.requires_manual_review !== undefined) requiresManualReview = ov.requires_manual_review;
+            }
+          }
+          return {
+            topic: c.topic,
+            criticality: c.criticality as 'Crítico' | '-',
+            points: c.points === null ? 'n/a' : c.points,
+            applies,
+            whatToLookFor,
+            validationSource,
+            requiresManualReview
+          };
+        })
       });
     }
 
@@ -1397,7 +1412,7 @@ export const databaseService = {
   updateScript: (id: string, payload: Parameters<DatabaseService['updateScript']>[1]) => getDatabaseService().updateScript(id, payload),
   deleteScript: (id: string) => getDatabaseService().deleteScript(id),
   // Criterios dinámicos
-  getCriteriaForCallType: (callType: string) => getDatabaseService().getCriteriaForCallType(callType),
+  getCriteriaForCallType: (callType: string, subCalificacion?: string) => getDatabaseService().getCriteriaForCallType(callType, subCalificacion),
   getAllCriteriaBlocks: () => getDatabaseService().getAllCriteriaBlocks(),
   createBlock: (payload: Parameters<DatabaseService['createBlock']>[0]) => getDatabaseService().createBlock(payload),
   updateBlock: (id: string, payload: Parameters<DatabaseService['updateBlock']>[1]) => getDatabaseService().updateBlock(id, payload),
