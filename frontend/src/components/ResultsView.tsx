@@ -490,25 +490,25 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
             <span className="text-xs text-slate-600 tabular-nums flex-shrink-0">{displayPct.toFixed(0)}%</span>
           </div>
 
-          {/* ── Advertencias de calidad de datos ── */}
-          {safeResult.dataWarnings && safeResult.dataWarnings.length > 0 && (
+          {/* ── Advertencias de calidad de datos (excluye avisos de GPF) ── */}
+          {safeResult.dataWarnings && safeResult.dataWarnings.filter((w: string) => !w.startsWith('Datos no registrados en GPF')).length > 0 && (
             <div className="mt-4 rounded-lg border border-amber-400/40 bg-amber-500/8 overflow-hidden">
-              {/* Header */}
               <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-amber-400/20 bg-amber-400/8">
                 <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
                 <span className="text-sm font-bold text-amber-300">Advertencias de calidad de datos</span>
                 <span className="ml-auto text-xs font-semibold px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300">
-                  {safeResult.dataWarnings.length}
+                  {safeResult.dataWarnings.filter((w: string) => !w.startsWith('Datos no registrados en GPF')).length}
                 </span>
               </div>
-              {/* Lista */}
               <ul className="divide-y divide-amber-400/10">
-                {safeResult.dataWarnings.map((w: string, i: number) => (
-                  <li key={i} className="flex items-start gap-2.5 px-3.5 py-2.5">
-                    <AlertCircle className="w-3.5 h-3.5 text-amber-400/80 flex-shrink-0 mt-0.5" />
-                    <span className="text-xs text-amber-200/90 leading-relaxed">{w}</span>
-                  </li>
-                ))}
+                {safeResult.dataWarnings
+                  .filter((w: string) => !w.startsWith('Datos no registrados en GPF'))
+                  .map((w: string, i: number) => (
+                    <li key={i} className="flex items-start gap-2.5 px-3.5 py-2.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-400/80 flex-shrink-0 mt-0.5" />
+                      <span className="text-xs text-amber-200/90 leading-relaxed">{w}</span>
+                    </li>
+                  ))}
               </ul>
             </div>
           )}
