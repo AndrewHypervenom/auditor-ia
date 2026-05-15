@@ -145,7 +145,7 @@ class EvaluatorService {
 
  const detailedScores = criteria.flatMap(block =>
    block.topics
-     .filter((t: any) => t.applies)
+     .filter((t: any) => t.applies || t.requiresManualReview)
      .map((t: any) => {
        const manualKey = `[${block.blockName}] ${t.topic}`;
        if (t.requiresManualReview) {
@@ -572,7 +572,7 @@ REGLAS:
  // Separar tópicos manuales (la IA no los evalúa) de los que sí se evalúan
  const manualTopics = criteria.flatMap(block =>
  block.topics
- .filter((topic: any) => topic.applies && topic.requiresManualReview)
+ .filter((topic: any) => topic.requiresManualReview)
  .map((topic: any) => ({
  criterion: `[${block.blockName}] ${topic.topic}`,
  score: 0,

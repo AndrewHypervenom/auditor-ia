@@ -525,13 +525,37 @@ class DatabaseService {
                 : s;
             });
           }
-          // Re-ordenar para que coincida con el orden actual de bloques/criterios en BD
+          // Re-ordenar para que coincida con el orden actual de bloques/criterios en BD.
+          // Incluir criterios manuales aunque applies=false, para que siempre aparezcan al auditor.
           const orderedKeys: string[] = (currentCriteria as any[]).flatMap((block: any) =>
-            (block.topics || []).filter((t: any) => t.applies).map((t: any) => `[${block.blockName}] ${t.topic}`)
+            (block.topics || [])
+              .filter((t: any) => t.applies || t.requiresManualReview)
+              .map((t: any) => `[${block.blockName}] ${t.topic}`)
           );
+          const topicMetaMap = new Map<string, any>();
+          for (const block of currentCriteria as any[]) {
+            for (const t of (block.topics || [])) {
+              topicMetaMap.set(`[${block.blockName}] ${t.topic}`, t);
+            }
+          }
           if (orderedKeys.length > 0) {
             const scoreMap = new Map(evaluation.detailed_scores.map((s: any) => [s.criterion, s]));
-            const sorted = orderedKeys.map((k: string) => scoreMap.get(k)).filter(Boolean);
+            const sorted = orderedKeys.map((k: string) => {
+              if (scoreMap.has(k)) return scoreMap.get(k);
+              // Inyectar criterio manual faltante (evaluaciones ya guardadas sin ese rubro)
+              const meta = topicMetaMap.get(k);
+              if (meta?.requiresManualReview) {
+                return {
+                  criterion: k,
+                  score: 0,
+                  maxScore: meta.points === null ? 0 : meta.points,
+                  observations: 'Requiere validación manual — este criterio no puede evaluarse automáticamente a partir de las capturas de pantalla.',
+                  criticality: meta.criticality || '-',
+                  requiresManualReview: true,
+                };
+              }
+              return null;
+            }).filter(Boolean);
             const extra = evaluation.detailed_scores.filter((s: any) => !orderedKeys.includes(s.criterion));
             evaluation.detailed_scores = [...sorted, ...extra];
           }
