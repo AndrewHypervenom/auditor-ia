@@ -4047,26 +4047,47 @@ function ImageSystemCard({
               )}
             </div>
           </div>
-          {/* Analizar imagen de ejemplo con IA */}
-          <div className="border-t border-slate-700/40 pt-3">
+          <div className="flex gap-2 justify-end">
+            <button onClick={onCancelEdit} className="px-3 py-1.5 rounded-lg text-xs text-slate-400 border border-slate-700/40 hover:text-slate-200 transition-all">
+              Cancelar
+            </button>
+            <button
+              onClick={onSaveEdit}
+              disabled={saving}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold
+                         bg-purple-500/15 border border-purple-500/40 text-purple-300
+                         hover:bg-purple-500/25 transition-all disabled:opacity-40"
+            >
+              {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+              Guardar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Campos expandidos */}
+      {expanded && (
+        <div className="border-t border-slate-800/60 px-4 pb-4 pt-3">
+          {/* ── Asistente IA con imagen ──────────────────────────── */}
+          <div className="mb-4">
             <button
               type="button"
               onClick={() => setImgOpen(!imgOpen)}
               className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl
-                         bg-brand-500/8 border border-brand-700/20 hover:bg-brand-500/12
+                         bg-brand-500/10 border border-brand-700/25 hover:bg-brand-500/15
                          transition-all duration-150"
             >
               <div className="flex items-center gap-2">
-                <Sparkles size={13} className="text-brand-400" />
-                <span className="text-sm font-semibold text-brand-300">Analizar imagen de ejemplo con IA</span>
+                <Sparkles size={14} className="text-brand-400" />
+                <span className="text-sm font-semibold text-brand-300">Generar campos con una imagen de ejemplo (IA)</span>
               </div>
               <ChevronDown size={13} className={`text-brand-500 transition-transform duration-200 ${imgOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {imgOpen && (
-              <div className="mt-3 space-y-3 animate-fadeIn">
+              <div className="mt-3 p-4 rounded-xl bg-slate-900/60 border border-brand-700/20 space-y-3 animate-fadeIn">
                 <p className="text-[11px] text-slate-400">
-                  Sube una captura de pantalla de este sistema y describe qué necesitas que la IA extraiga. Generamos los campos y las pistas de detección automáticamente.
+                  Sube una captura de pantalla de este sistema y describe qué necesitas. La IA genera los campos y las pistas de detección automáticamente.
                 </p>
 
                 {/* Upload */}
@@ -4078,7 +4099,7 @@ function ImageSystemCard({
                     imgFile ? 'border-brand-700/40 bg-brand-500/5' : 'border-slate-700/50 bg-slate-800/30 hover:border-brand-700/30 hover:bg-brand-500/5'
                   }`}>
                     {imgPreview ? (
-                      <img src={imgPreview} alt="preview" className="max-h-40 rounded-lg object-contain" />
+                      <img src={imgPreview} alt="preview" className="max-h-48 rounded-lg object-contain" />
                     ) : (
                       <>
                         <ImageIcon size={24} className="text-slate-600" />
@@ -4091,7 +4112,7 @@ function ImageSystemCard({
                     <button
                       type="button"
                       onClick={() => { setImgFile(null); setImgPreview(''); setImgResult(null); }}
-                      className="mt-1 text-[11px] text-slate-600 hover:text-red-400 transition-colors"
+                      className="mt-1.5 text-[11px] text-slate-600 hover:text-red-400 transition-colors"
                     >
                       × Quitar imagen
                     </button>
@@ -4101,13 +4122,13 @@ function ImageSystemCard({
                 {/* Descripción */}
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                    ¿Qué debe extraer la IA de esta imagen?
+                    ¿Qué debe extraer la IA?
                   </label>
                   <textarea
                     value={imgDesc}
                     onChange={e => setImgDesc(e.target.value)}
-                    rows={2}
-                    placeholder={`Ej: En la parte izquierda aparece el BLOCK CODE, en la derecha el estado de la cuenta y los comentarios del agente...`}
+                    rows={3}
+                    placeholder={`Ej: En la parte derecha aparece el BLOCK CODE y el estado de la cuenta. Necesito que verifique si está bloqueada y los comentarios del agente...`}
                     className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-xs text-slate-200 resize-none
                                focus:outline-none focus:border-brand-600/50 placeholder:text-slate-600"
                   />
@@ -4117,15 +4138,14 @@ function ImageSystemCard({
                   type="button"
                   onClick={handleImgAnalyze}
                   disabled={imgAnalyzing || !imgFile}
-                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl
-                             bg-brand-500/15 border border-brand-700/30 text-brand-300 text-xs font-semibold
+                  className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl
+                             bg-brand-500/15 border border-brand-700/30 text-brand-300 text-sm font-semibold
                              hover:bg-brand-500/25 disabled:opacity-50 transition-all"
                 >
-                  {imgAnalyzing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                  {imgAnalyzing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
                   {imgAnalyzing ? 'Analizando imagen con IA...' : 'Analizar y generar campos'}
                 </button>
 
-                {/* Resultados */}
                 {imgResult && (
                   <div className="space-y-3 animate-fadeIn">
                     {imgResult.detection_hints && (
@@ -4144,9 +4164,9 @@ function ImageSystemCard({
                         <div className="space-y-1.5">
                           {imgResult.fields.map((f, i) => (
                             <div key={i} className="bg-slate-800/50 border border-slate-700/40 rounded-xl px-3 py-2">
-                              <div className="flex items-center gap-2 mb-0.5">
+                              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                                 <span className="font-mono text-xs text-purple-300 font-bold">{f.field_name}</span>
-                                {f.example && <span className="text-[10px] text-slate-500 italic">ej: {f.example}</span>}
+                                {f.example && <span className="text-[10px] text-slate-500 italic truncate">ej: {f.example}</span>}
                               </div>
                               <p className="text-[11px] text-slate-300 leading-relaxed">{f.description}</p>
                               {f.how_to_evaluate && (
@@ -4173,27 +4193,6 @@ function ImageSystemCard({
             )}
           </div>
 
-          <div className="flex gap-2 justify-end">
-            <button onClick={onCancelEdit} className="px-3 py-1.5 rounded-lg text-xs text-slate-400 border border-slate-700/40 hover:text-slate-200 transition-all">
-              Cancelar
-            </button>
-            <button
-              onClick={onSaveEdit}
-              disabled={saving}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold
-                         bg-purple-500/15 border border-purple-500/40 text-purple-300
-                         hover:bg-purple-500/25 transition-all disabled:opacity-40"
-            >
-              {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-              Guardar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Campos expandidos */}
-      {expanded && (
-        <div className="border-t border-slate-800/60 px-4 pb-4 pt-3">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Campos extraídos</p>
             <button
