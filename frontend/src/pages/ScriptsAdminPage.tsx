@@ -3233,49 +3233,77 @@ const SYSTEM_DESCRIPTIONS: Record<string, string> = {
 };
 
 function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: DiscoveredSystemsImporterProps) {
-  // Filtros
+  const existingNames = new Set(existingSystems.map(s => s.system_name.toUpperCase()));
+
+  // Entorno GPF
+  const [gpfEnv, setGpfEnv] = useState<'test' | 'prod'>('prod');
+
+  // Filtros — cargados desde GPF
   const [calificaciones, setCalificaciones] = useState<Array<{ calificacion: string; subcalificaciones: string[] }>>([]);
   const [selectedCal, setSelectedCal] = useState('');
   const [selectedSub, setSelectedSub] = useState('');
-  const [loadingFilters, setLoadingFilters] = useState(true);
+  const [loadingFilters, setLoadingFilters] = useState(false);
+  const [filtersLoaded, setFiltersLoaded] = useState(false);
+  const [filtersError, setFiltersError] = useState('');
 
   // Resultados
   const [searching, setSearching] = useState(false);
-  const [searched, setSearched] = useState(false);
+  const [searchInfo, setSearchInfo] = useState<{ total: number; analyzed: number; message?: string } | null>(null);
   const [candidates, setCandidates] = useState<Array<{ name: string; count: number; selected: boolean; description: string }>>([]);
   const [importing, setImporting] = useState(false);
 
-  useEffect(() => {
-    imageSystemsService.getCalificaciones()
-      .then(data => setCalificaciones(data))
-      .catch(() => {})
-      .finally(() => setLoadingFilters(false));
-  }, []);
+  // Cargar calificaciones desde GPF
+  const loadFilters = async () => {
+    setLoadingFilters(true);
+    setFiltersError('');
+    try {
+      const { categories } = await gpfService.getCategories(gpfEnv);
+      // Agrupar: calificacion → Set<subcalificacion>
+      const map: Record<string, Set<string>> = {};
+      for (const c of categories) {
+        if (!map[c.calificacion]) map[c.calificacion] = new Set();
+        if (c.subcalificacion) map[c.calificacion].add(c.subcalificacion);
+      }
+      const grouped = Object.entries(map)
+        .map(([cal, subs]) => ({ calificacion: cal, subcalificaciones: Array.from(subs).sort() }))
+        .sort((a, b) => a.calificacion.localeCompare(b.calificacion));
+      setCalificaciones(grouped);
+      setFiltersLoaded(true);
+    } catch (e: any) {
+      setFiltersError(e?.response?.data?.error || 'Error al conectar con GPF');
+    } finally {
+      setLoadingFilters(false);
+    }
+  };
 
   const subcalificaciones = calificaciones.find(c => c.calificacion === selectedCal)?.subcalificaciones ?? [];
 
   const handleSearch = async () => {
+    if (!selectedCal) { toast.error('Selecciona una Calificación'); return; }
     setSearching(true);
-    setSearched(false);
     setCandidates([]);
+    setSearchInfo(null);
     try {
-      const data = await imageSystemsService.getByCallType(
-        selectedCal || undefined,
-        selectedSub || undefined
-      );
-      const existingNames = new Set(existingSystems.map(s => s.system_name.toUpperCase()));
-      const valid = data
-        .filter(d => !NOISE_SYSTEM_NAMES.has(d.system_name?.toLowerCase?.() ?? ''))
-        .map(d => ({
-          name: d.system_name.toUpperCase(),
-          count: d.count,
-          selected: !existingNames.has(d.system_name.toUpperCase()), // pre-check only new ones
-          description: SYSTEM_DESCRIPTIONS[d.system_name.toUpperCase()] || `Sistema ${d.system_name}`,
+      const result = await gpfService.discoverSystems({
+        env: gpfEnv,
+        calificacion: selectedCal || undefined,
+        subcalificacion: selectedSub || undefined,
+        max_images: 8,
+      });
+
+      setSearchInfo({ total: result.total_attentions, analyzed: result.images_analyzed, message: result.message });
+
+      const valid = result.systems
+        .filter(s => !NOISE_SYSTEM_NAMES.has(s.name.toLowerCase()))
+        .map(s => ({
+          name: s.name,
+          count: s.count,
+          selected: !existingNames.has(s.name),
+          description: SYSTEM_DESCRIPTIONS[s.name] || `Sistema ${s.name}`,
         }));
       setCandidates(valid);
-      setSearched(true);
-    } catch {
-      toast.error('Error al buscar sistemas');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'Error al analizar imágenes de GPF');
     } finally {
       setSearching(false);
     }
@@ -3283,23 +3311,16 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
 
   const toggle = (i: number) => setCandidates(prev => prev.map((c, idx) => idx === i ? { ...c, selected: !c.selected } : c));
   const updateDesc = (i: number, desc: string) => setCandidates(prev => prev.map((c, idx) => idx === i ? { ...c, description: desc } : c));
-
-  const newCandidates = candidates.filter(c => {
-    const existingNames = new Set(existingSystems.map(s => s.system_name.toUpperCase()));
-    return !existingNames.has(c.name);
-  });
-  const selectedCount = candidates.filter(c => c.selected).length;
-  const existingNames = new Set(existingSystems.map(s => s.system_name.toUpperCase()));
+  const selectedCount = candidates.filter(c => c.selected && !existingNames.has(c.name)).length;
 
   const handleImport = async () => {
     setImporting(true);
     try {
       const toCreate = candidates.filter(c => c.selected && !existingNames.has(c.name));
       for (let i = 0; i < toCreate.length; i++) {
-        const c = toCreate[i];
         await imageSystemsService.create({
-          system_name: c.name,
-          description: c.description,
+          system_name: toCreate[i].name,
+          description: toCreate[i].description,
           fields_schema: [],
           display_order: existingSystems.length + i + 1,
         });
@@ -3319,9 +3340,10 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-teal-500/15 bg-teal-500/5">
         <div className="flex items-center gap-2.5">
           <div className="w-6 h-6 rounded-lg bg-teal-500/15 border border-teal-500/20 flex items-center justify-center">
-            <RefreshCw size={12} className="text-teal-400" />
+            <Eye size={12} className="text-teal-400" />
           </div>
-          <span className="text-sm font-semibold text-teal-300">Descubrir sistemas por tipo de llamada</span>
+          <span className="text-sm font-semibold text-teal-300">Descubrir sistemas desde GPF</span>
+          <span className="text-[11px] text-teal-600">Analiza imágenes reales de casos GPF</span>
         </div>
         <button onClick={onClose} className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800/60 transition-all">
           <X size={14} />
@@ -3329,120 +3351,157 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
       </div>
 
       <div className="px-5 py-4 space-y-4">
-        {/* Filtros */}
+        {/* Paso 1: Entorno y cargar calificaciones */}
         <div>
-          <p className="text-xs text-slate-400 mb-3">
-            Filtra por tipo de llamada para ver qué sistemas de imagen aparecen en esas auditorías.
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                Calificación
-              </label>
-              <select
-                value={selectedCal}
-                onChange={e => { setSelectedCal(e.target.value); setSelectedSub(''); setSearched(false); }}
-                disabled={loadingFilters}
-                className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-sm text-white
-                           focus:outline-none focus:border-teal-500/50 cursor-pointer disabled:opacity-50"
-              >
-                <option value="">Todas</option>
-                {calificaciones.map(c => (
-                  <option key={c.calificacion} value={c.calificacion}>{c.calificacion}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                Subcalificación
-              </label>
-              <select
-                value={selectedSub}
-                onChange={e => { setSelectedSub(e.target.value); setSearched(false); }}
-                disabled={!selectedCal || subcalificaciones.length === 0}
-                className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-sm text-white
-                           focus:outline-none focus:border-teal-500/50 cursor-pointer disabled:opacity-40"
-              >
-                <option value="">Todas</option>
-                {subcalificaciones.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Paso 1</span>
+            <span className="text-xs text-slate-400">Selecciona el entorno y carga las categorías de GPF</span>
           </div>
-          <button
-            onClick={handleSearch}
-            disabled={searching || loadingFilters}
-            className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl
-                       bg-teal-500/15 border border-teal-500/30 text-teal-300 text-sm font-semibold
-                       hover:bg-teal-500/25 disabled:opacity-50 transition-all"
-          >
-            {searching
-              ? <><Loader2 size={13} className="animate-spin" /> Buscando sistemas...</>
-              : <><Eye size={13} /> Buscar sistemas detectados</>}
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-xl border border-slate-700/60 overflow-hidden text-xs">
+              {(['prod', 'test'] as const).map(env => (
+                <button
+                  key={env}
+                  type="button"
+                  onClick={() => { setGpfEnv(env); setFiltersLoaded(false); setCalificaciones([]); setCandidates([]); }}
+                  className={`px-3.5 py-2 font-semibold transition-colors duration-100 ${
+                    gpfEnv === env ? 'bg-teal-500/20 text-teal-300' : 'text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  {env === 'prod' ? 'Producción' : 'Pruebas'}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={loadFilters}
+              disabled={loadingFilters}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-500/15
+                         border border-teal-500/30 text-teal-300 text-xs font-semibold
+                         hover:bg-teal-500/25 disabled:opacity-50 transition-all"
+            >
+              {loadingFilters ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              {loadingFilters ? 'Cargando...' : 'Cargar categorías de GPF'}
+            </button>
+          </div>
+          {filtersError && (
+            <p className="mt-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{filtersError}</p>
+          )}
         </div>
 
+        {/* Paso 2: Filtros */}
+        {filtersLoaded && (
+          <div className="animate-fadeIn">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Paso 2</span>
+              <span className="text-xs text-slate-400">Filtra por tipo de llamada y busca los sistemas</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Calificación</label>
+                <select
+                  value={selectedCal}
+                  onChange={e => { setSelectedCal(e.target.value); setSelectedSub(''); setCandidates([]); setSearchInfo(null); }}
+                  className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2.5 text-sm text-white
+                             focus:outline-none focus:border-teal-500/50 cursor-pointer"
+                >
+                  <option value="">— Selecciona —</option>
+                  {calificaciones.map(c => (
+                    <option key={c.calificacion} value={c.calificacion}>{c.calificacion}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Subcalificación</label>
+                <select
+                  value={selectedSub}
+                  onChange={e => { setSelectedSub(e.target.value); setCandidates([]); setSearchInfo(null); }}
+                  disabled={!selectedCal || subcalificaciones.length === 0}
+                  className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2.5 text-sm text-white
+                             focus:outline-none focus:border-teal-500/50 cursor-pointer disabled:opacity-40"
+                >
+                  <option value="">Todas</option>
+                  {subcalificaciones.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <button
+              onClick={handleSearch}
+              disabled={searching || !selectedCal}
+              className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl
+                         bg-teal-500/20 border border-teal-500/35 text-teal-200 text-sm font-semibold
+                         hover:bg-teal-500/30 disabled:opacity-50 transition-all"
+            >
+              {searching
+                ? <><Loader2 size={13} className="animate-spin" /> Descargando y analizando imágenes de GPF...</>
+                : <><Eye size={13} /> Analizar imágenes de GPF</>}
+            </button>
+            {searching && (
+              <p className="text-[11px] text-teal-500/70 text-center mt-1.5 animate-pulse">
+                Descargando capturas de GPF y analizando con IA · Puede tomar 15–30 segundos
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Info del análisis */}
+        {searchInfo && (
+          <div className="flex items-center gap-2 flex-wrap animate-fadeIn">
+            <span className="text-[11px] text-slate-500">
+              {searchInfo.total} atencion{searchInfo.total !== 1 ? 'es' : ''} en GPF
+            </span>
+            {searchInfo.analyzed > 0 && (
+              <span className="text-[11px] text-teal-500">· {searchInfo.analyzed} imagen{searchInfo.analyzed !== 1 ? 'es' : ''} analizadas</span>
+            )}
+            {searchInfo.message && (
+              <span className="text-[11px] text-amber-500/80">· {searchInfo.message}</span>
+            )}
+          </div>
+        )}
+
         {/* Resultados */}
-        {searched && candidates.length === 0 && (
+        {candidates.length === 0 && searchInfo && !searching && (
           <div className="text-center py-4">
-            <p className="text-slate-400 text-sm font-medium">Sin sistemas detectados</p>
+            <p className="text-slate-400 text-sm font-medium">No se detectaron sistemas de imagen</p>
             <p className="text-slate-600 text-xs mt-1">
-              No hay auditorías completadas con {selectedCal ? `Calificación "${selectedCal}"` : 'estos filtros'} en el sistema
+              {searchInfo.analyzed === 0
+                ? 'Las atenciones de este tipo no tienen capturas de pantalla registradas'
+                : 'Las capturas analizadas no tienen sistemas reconocibles'}
             </p>
           </div>
         )}
 
-        {searched && candidates.length > 0 && (
-          <div className="space-y-2.5">
+        {candidates.length > 0 && (
+          <div className="space-y-2.5 animate-fadeIn">
             <div className="flex items-center justify-between">
-              <p className="text-xs text-slate-400">
-                {candidates.length} sistema{candidates.length !== 1 ? 's' : ''} detectado{candidates.length !== 1 ? 's' : ''}
-                {newCandidates.length > 0 && (
-                  <span className="ml-1 text-teal-400">· {newCandidates.length} nuevo{newCandidates.length !== 1 ? 's' : ''}</span>
+              <p className="text-xs font-semibold text-slate-300">
+                Sistemas detectados ({candidates.length})
+                {candidates.filter(c => !existingNames.has(c.name)).length > 0 && (
+                  <span className="ml-1.5 text-teal-400 font-normal">
+                    · {candidates.filter(c => !existingNames.has(c.name)).length} nuevo{candidates.filter(c => !existingNames.has(c.name)).length !== 1 ? 's' : ''}
+                  </span>
                 )}
               </p>
-              <button
-                onClick={() => {
-                  const allNewSelected = newCandidates.every(c => c.selected);
-                  setCandidates(prev => prev.map(c => ({
-                    ...c,
-                    selected: existingNames.has(c.name) ? false : !allNewSelected,
-                  })));
-                }}
-                className="text-[11px] text-slate-500 hover:text-teal-400 transition-colors"
-              >
-                {newCandidates.every(c => c.selected) ? 'Deseleccionar nuevos' : 'Seleccionar nuevos'}
-              </button>
             </div>
-
             {candidates.map((c, i) => {
               const alreadyExists = existingNames.has(c.name);
               return (
-                <div
-                  key={c.name}
-                  className={`rounded-xl border p-3.5 transition-all duration-150 ${
-                    alreadyExists
-                      ? 'bg-slate-800/20 border-slate-800/50 opacity-50'
-                      : c.selected
-                      ? 'bg-teal-500/8 border-teal-500/25'
-                      : 'bg-slate-800/30 border-slate-700/40'
-                  }`}
-                >
+                <div key={c.name} className={`rounded-xl border p-3.5 transition-all duration-150 ${
+                  alreadyExists ? 'bg-slate-800/20 border-slate-800/40 opacity-50'
+                  : c.selected ? 'bg-teal-500/8 border-teal-500/25'
+                  : 'bg-slate-800/30 border-slate-700/40'
+                }`}>
                   <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={c.selected && !alreadyExists}
-                      disabled={alreadyExists}
+                    <input type="checkbox" checked={c.selected && !alreadyExists} disabled={alreadyExists}
                       onChange={() => !alreadyExists && toggle(i)}
-                      className="w-4 h-4 accent-teal-500 cursor-pointer mt-0.5 flex-shrink-0"
-                    />
+                      className="w-4 h-4 accent-teal-500 cursor-pointer mt-0.5 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1.5">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                         <span className="font-mono font-bold text-sm text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-lg">
                           {c.name}
                         </span>
-                        <span className="text-[11px] text-slate-500">{c.count} vez{c.count !== 1 ? '' : ''}</span>
+                        <span className="text-[11px] text-slate-500">{c.count} imagen{c.count !== 1 ? 'es' : ''}</span>
                         {alreadyExists && (
                           <span className="text-[10px] text-slate-600 bg-slate-800/60 border border-slate-700/40 px-1.5 py-0.5 rounded-full">
                             Ya configurado
@@ -3450,28 +3509,21 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
                         )}
                       </div>
                       {c.selected && !alreadyExists && (
-                        <input
-                          value={c.description}
-                          onChange={e => updateDesc(i, e.target.value)}
+                        <input value={c.description} onChange={e => updateDesc(i, e.target.value)}
                           placeholder="Descripción del sistema..."
                           className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-slate-200
-                                     focus:outline-none focus:border-teal-500/50 placeholder:text-slate-600"
-                        />
+                                     focus:outline-none focus:border-teal-500/50 placeholder:text-slate-600" />
                       )}
                     </div>
                   </div>
                 </div>
               );
             })}
-
             {selectedCount > 0 && (
-              <button
-                onClick={handleImport}
-                disabled={importing}
+              <button onClick={handleImport} disabled={importing}
                 className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold
                            bg-teal-500/20 border border-teal-500/35 text-teal-200
-                           hover:bg-teal-500/30 disabled:opacity-50 transition-all"
-              >
+                           hover:bg-teal-500/30 disabled:opacity-50 transition-all">
                 {importing ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
                 {importing ? 'Importando...' : `Importar ${selectedCount} sistema${selectedCount !== 1 ? 's' : ''}`}
               </button>

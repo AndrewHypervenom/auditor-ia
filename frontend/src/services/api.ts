@@ -501,6 +501,21 @@ export const gpfService = {
   return response.data;
  },
 
+ async discoverSystems(payload: {
+   env: 'test' | 'prod';
+   calificacion?: string;
+   subcalificacion?: string;
+   max_images?: number;
+ }): Promise<{
+   systems: Array<{ name: string; count: number }>;
+   total_attentions: number;
+   images_analyzed: number;
+   message?: string;
+ }> {
+  const response = await api.post('/gpf/discover-systems', payload);
+  return response.data;
+ },
+
  async getAttentionDetail(env: 'test' | 'prod', id: string | number): Promise<GpfAttentionDetail> {
  const response = await api.get(`/gpf/attention-detail?env=${env}&id=${encodeURIComponent(String(id))}`);
  return response.data;

@@ -1736,6 +1736,105 @@ app.post('/api/gpf/download-report', authenticateUser, requireAdmin, async (req:
 // GPF ATTENTIONS (auto-auth)
 // ============================================
 
+// Analiza imágenes reales de GPF para descubrir sistemas de pantalla
+app.post('/api/gpf/discover-systems', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+ const { env = 'prod', calificacion, subcalificacion, max_images = 6 } = req.body;
+ const tempPaths: string[] = [];
+ try {
+  const token = await gpfTokenService.getTokenWithRetry(env);
+  const baseUrl = getGpfBaseUrl(env);
+  const appToken = process.env.GPF_APP_TOKEN || '';
+  const authHeaders = {
+   'Authorization': `Bearer ${token}`,
+   'X-App-Token': appToken,
+   'ngrok-skip-browser-warning': 'true',
+   'Accept': 'application/json',
+  };
+
+  // 1. Traer atenciones y filtrar por calificación / subcalificación
+  const allAttentions = await gpfDataService.getAttentions(env, token);
+  const filtered = allAttentions.filter((a: any) => {
+   if (calificacion && (a['Calificación'] || '').trim() !== calificacion) return false;
+   if (subcalificacion && (a['Sub-calificación'] || '').trim() !== subcalificacion) return false;
+   return true;
+  });
+
+  logger.info(`[DISCOVER-SYS] ${filtered.length} atenciones encontradas para "${calificacion}/${subcalificacion}"`);
+  if (!filtered.length) {
+   return res.json({ systems: [], total_attentions: 0, images_analyzed: 0 });
+  }
+
+  // 2. Buscar capturas en las primeras atenciones (hasta obtener max_images)
+  for (const att of filtered.slice(0, 25)) {
+   if (tempPaths.length >= max_images) break;
+   const id = att['id_atencion'] || att.id;
+   try {
+    const resp = await gpfFetch(
+     `${baseUrl}/api/quality-control/v1/captures-comments/${id}`,
+     { headers: authHeaders }
+    );
+    if (!resp.ok) continue;
+    const body: any = await resp.json();
+    if (!body?.is_success || !Array.isArray(body?.data?.captures)) continue;
+
+    const urls: string[] = body.data.captures
+     .filter((u: any) => typeof u === 'string' && u.length > 0)
+     .map((u: string) => {
+      if (u.includes('127.0.0.1') || u.match(/^https?:\/\/localhost/i)) {
+       const parsed = new URL(u);
+       return `${baseUrl}${parsed.pathname}${parsed.search}`;
+      }
+      if (u.startsWith('/')) return `${baseUrl}${u}`;
+      return u;
+     })
+     .slice(0, max_images - tempPaths.length);
+
+    if (!urls.length) continue;
+    const { localPaths } = await downloadImagesToTemp(urls, token);
+    tempPaths.push(...localPaths);
+    logger.info(`[DISCOVER-SYS] Descargadas ${localPaths.length} imágenes de atención ${id}`);
+   } catch (e: any) {
+    logger.warn(`[DISCOVER-SYS] Error capturando atención ${id}: ${e.message}`);
+   }
+  }
+
+  if (!tempPaths.length) {
+   return res.json({
+    systems: [], total_attentions: filtered.length, images_analyzed: 0,
+    message: 'Las atenciones de este tipo no tienen capturas de imagen registradas en GPF'
+   });
+  }
+
+  // 3. Analizar imágenes con IA
+  logger.info(`[DISCOVER-SYS] Analizando ${tempPaths.length} imágenes con OpenAI...`);
+  const analyses = await openAIService.analyzeMultipleImages(tempPaths);
+
+  // 4. Agregar sistemas detectados
+  const tally: Record<string, number> = {};
+  for (const a of analyses) {
+   const sys = (a.system || '').trim().toUpperCase();
+   if (sys && sys !== 'DESCONOCIDO' && sys !== 'MULTIPLE' && sys !== 'UNKNOWN' && sys !== 'NONE') {
+    tally[sys] = (tally[sys] || 0) + 1;
+   }
+  }
+
+  const systems = Object.entries(tally)
+   .map(([name, count]) => ({ name, count }))
+   .sort((a, b) => b.count - a.count);
+
+  logger.info(`[DISCOVER-SYS] Sistemas detectados: ${systems.map(s => s.name).join(', ')}`);
+  return res.json({ systems, total_attentions: filtered.length, images_analyzed: analyses.length });
+
+ } catch (error: any) {
+  logger.error('Error en discover-systems:', error);
+  if (error.message?.includes('401')) gpfTokenService.invalidate(env);
+  return res.status(502).json({ error: `Error conectando con GPF: ${error.message}` });
+ } finally {
+  // Limpiar archivos temporales
+  for (const p of tempPaths) { try { fs.unlinkSync(p); } catch {} }
+ }
+});
+
 app.get('/api/gpf/categories', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
  try {
  const env = (req.query.env as string) || 'test';
