@@ -3249,24 +3249,33 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
   const [filterCal, setFilterCal] = useState('');
   const [filterSub, setFilterSub] = useState('');
 
-  const uniqueCalificaciones = useMemo(() =>
-    [...new Set(attentions.map(a => (a['Calificación'] ?? '').trim()).filter(Boolean))].sort(),
+  // Mismo filtro base que NewAuditPage: solo FRAUDE y TH CONFIRMA
+  const validAttentions = useMemo(() =>
+    attentions.filter(a => {
+      const cal = (a['Calificación'] ?? '').trim().toLowerCase();
+      return cal.includes('fraude') || cal.includes('th confirma');
+    }),
     [attentions]
+  );
+
+  const uniqueCalificaciones = useMemo(() =>
+    [...new Set(validAttentions.map(a => (a['Calificación'] ?? '').trim()).filter(Boolean))].sort(),
+    [validAttentions]
   );
   const uniqueSubcals = useMemo(() => {
     const base = filterCal
-      ? attentions.filter(a => (a['Calificación'] ?? '').trim() === filterCal)
-      : attentions;
+      ? validAttentions.filter(a => (a['Calificación'] ?? '').trim() === filterCal)
+      : validAttentions;
     return [...new Set(base.map(a => (a['Sub-calificación'] ?? '').trim()).filter(Boolean))].sort();
-  }, [attentions, filterCal]);
+  }, [validAttentions, filterCal]);
 
   const matchingAttentions = useMemo(() =>
-    attentions.filter(a => {
+    validAttentions.filter(a => {
       if (filterCal && (a['Calificación'] ?? '').trim() !== filterCal) return false;
       if (filterSub && (a['Sub-calificación'] ?? '').trim() !== filterSub) return false;
       return true;
     }),
-    [attentions, filterCal, filterSub]
+    [validAttentions, filterCal, filterSub]
   );
 
   // Análisis de imágenes
@@ -3398,7 +3407,7 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
           {loadError && <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{loadError}</p>}
           {attentionsLoaded && (
             <p className="text-[11px] text-slate-500 text-center">
-              {attentions.length} caso{attentions.length !== 1 ? 's' : ''} cargado{attentions.length !== 1 ? 's' : ''} de GPF (producción)
+              {validAttentions.length} caso{validAttentions.length !== 1 ? 's' : ''} de {attentions.length} cargados (FRAUDE / TH CONFIRMA)
             </p>
           )}
         </div>
