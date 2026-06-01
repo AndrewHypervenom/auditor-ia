@@ -3844,7 +3844,7 @@ function ImageSystemCard({
     const file = e.target.files?.[0];
     if (!file) return;
     setImgFile(file);
-    setImgResult(null);
+    setHasResult(false);
     const reader = new FileReader();
     reader.onload = (ev) => setImgPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
@@ -4138,7 +4138,7 @@ function ImageSystemCard({
                   {imgFile && (
                     <button
                       type="button"
-                      onClick={() => { setImgFile(null); setImgPreview(''); setImgResult(null); }}
+                      onClick={() => { setImgFile(null); setImgPreview(''); setHasResult(false); }}
                       className="mt-1.5 text-[11px] text-slate-600 hover:text-red-400 transition-colors"
                     >
                       × Quitar imagen
