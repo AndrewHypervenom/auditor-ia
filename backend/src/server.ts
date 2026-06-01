@@ -1159,6 +1159,24 @@ app.post('/api/admin/criteria', authenticateUser, requireAdminOrAnalyst, async (
   }
 });
 
+app.post('/api/admin/criteria/generate-prompt', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+  try {
+    const { description, topic, call_type } = req.body;
+    if (!description || !description.trim()) {
+      return res.status(400).json({ error: 'description es requerida' });
+    }
+    const prompt = await openAIService.generateCriterionPrompt(
+      description.trim(),
+      topic ?? '',
+      call_type ?? ''
+    );
+    res.json({ prompt });
+  } catch (error: any) {
+    logger.error('Error generando prompt de criterio:', error);
+    res.status(500).json({ error: 'Error al generar instrucción con IA' });
+  }
+});
+
 app.put('/api/admin/criteria/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -1389,6 +1407,46 @@ app.post('/api/admin/image-systems', authenticateUser, requireAdminOrAnalyst, as
   } catch (error: any) {
     logger.error('Error creating image_system:', error);
     res.status(500).json({ error: 'Error al crear sistema de imagen' });
+  }
+});
+
+app.get('/api/admin/image-systems/analytics', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const data = await databaseService.getImageSystemAnalytics();
+    res.json(data);
+  } catch (error: any) {
+    logger.error('Error fetching image system analytics:', error);
+    res.status(500).json({ error: 'Error al obtener analytics' });
+  }
+});
+
+app.post('/api/admin/criteria/generate-blocks', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+  try {
+    const { description, call_type, mode } = req.body;
+    if (!description?.trim() || !call_type) {
+      return res.status(400).json({ error: 'description y call_type son requeridos' });
+    }
+    const imageSystems = await databaseService.getImageSystems();
+    const systemNames = imageSystems.filter((s: any) => s.is_active !== false).map((s: any) => s.system_name as string);
+    const result = await openAIService.generateCriteriaBlocks(description.trim(), call_type, mode ?? 'INBOUND', systemNames);
+    res.json(result);
+  } catch (error: any) {
+    logger.error('Error generando criterios con IA:', error);
+    res.status(500).json({ error: 'Error al generar criterios' });
+  }
+});
+
+app.post('/api/admin/image-systems/generate-hints', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+  try {
+    const { system_name, description } = req.body;
+    if (!system_name || !description?.trim()) {
+      return res.status(400).json({ error: 'system_name y description son requeridos' });
+    }
+    const result = await openAIService.generateImageSystemHints(system_name, description.trim());
+    res.json(result);
+  } catch (error: any) {
+    logger.error('Error generando hints de sistema de imagen:', error);
+    res.status(500).json({ error: 'Error al generar con IA' });
   }
 });
 
@@ -1652,6 +1710,35 @@ app.post('/api/gpf/download-report', authenticateUser, requireAdmin, async (req:
 // ============================================
 // GPF ATTENTIONS (auto-auth)
 // ============================================
+
+app.get('/api/gpf/categories', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+ try {
+ const env = (req.query.env as string) || 'test';
+ const token = await gpfTokenService.getTokenWithRetry(env);
+ const attentions = await gpfDataService.getAttentions(env, token);
+
+ // Agrupa por Calificación + Sub-calificación
+ const groups: Record<string, { calificacion: string; subcalificacion: string; count: number }> = {};
+ for (const a of attentions) {
+  const cal = (a['Calificación'] || '').trim();
+  const sub = (a['Sub-calificación'] || '').trim();
+  if (!cal) continue;
+  const key = `${cal}|||${sub}`;
+  if (!groups[key]) groups[key] = { calificacion: cal, subcalificacion: sub, count: 0 };
+  groups[key].count++;
+ }
+
+ const result = Object.values(groups)
+  .sort((a, b) => b.count - a.count)
+  .slice(0, 50);
+
+ res.json({ categories: result, total_attentions: attentions.length });
+ } catch (error: any) {
+ logger.error('Error fetching GPF categories:', error);
+ if (error.message?.includes('401')) gpfTokenService.invalidate((req.query.env as string) || 'test');
+ res.status(502).json({ error: `Error obteniendo categorías GPF: ${error.message}` });
+ }
+});
 
 app.get('/api/gpf/attentions', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
  try {

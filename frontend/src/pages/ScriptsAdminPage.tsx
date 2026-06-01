@@ -29,6 +29,13 @@ import {
   ToggleRight,
   ChevronRight,
   CreditCard,
+  Sparkles,
+  Info,
+  Wand2,
+  BarChart,
+  Eye,
+  RefreshCw,
+  ImageIcon,
 } from 'lucide-react';
 import {
   scriptsService,
@@ -39,6 +46,7 @@ import {
   imageSystemsService,
   callTypesConfigService,
   binesService,
+  gpfService,
   type ScriptStep,
   type CriteriaBlock,
   type CriteriaItem,
@@ -49,6 +57,8 @@ import {
   type ImageSystemField,
   type CallTypeConfig,
   type BinesItem,
+  type GeneratedBlock,
+  type GeneratedCriterion,
 } from '../services/api';
 import PlantillaGPFTab from '../components/PlantillaGPFTab';
 import ModeSelector, { type AdminMode } from '../components/ModeSelector';
@@ -668,6 +678,7 @@ function CriteriaTab() {
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<AdminMode>('INBOUND');
   const [selectedCallType, setSelectedCallType] = useState<string>('');
+  const [showAiGenerator, setShowAiGenerator] = useState(false);
   const { callTypeNames: availableCallTypes } = useCallTypesConfig();
 
   // Setear el primer callType disponible cuando cargue desde BD
@@ -736,7 +747,7 @@ function CriteriaTab() {
         <ModeSelector selected={mode} onChange={setMode} />
       </div>
 
-      {/* Selector de call type + Stat Chips */}
+      {/* Selector de call type + Stat Chips + Botón IA */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <CallTypeSelectorShared selected={selectedCallType} onChange={setSelectedCallType} />
 
@@ -744,8 +755,27 @@ function CriteriaTab() {
           <StatChip icon={BarChart2} label={`${totalPoints} pts`} color="blue" />
           <StatChip icon={AlertTriangle} label={`${criticalCount} críticos`} color="red" />
           <StatChip icon={ListChecks} label={`${totalCriteria} criterios`} color="green" />
+          <button
+            onClick={() => setShowAiGenerator(true)}
+            disabled={!selectedCallType}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold
+                       bg-purple-500/15 border border-purple-500/30 text-purple-300
+                       hover:bg-purple-500/25 disabled:opacity-40 transition-all duration-150"
+          >
+            <Wand2 size={12} />
+            Generar con IA
+          </button>
         </div>
       </div>
+
+      {showAiGenerator && selectedCallType && (
+        <AiCriteriaGeneratorDrawer
+          callType={selectedCallType}
+          mode={mode}
+          onClose={() => setShowAiGenerator(false)}
+          onImported={() => { load(); setShowAiGenerator(false); }}
+        />
+      )}
 
       <div className="space-y-3">
         {currentBlocks.map((block) => (
@@ -800,11 +830,9 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(block.block_name);
-  const [editingCriteriaId, setEditingCriteriaId] = useState<string | null>(null);
+  const [drawerCriteria, setDrawerCriteria] = useState<CriteriaItem | null>(null);
   const availableTipoCierres = getSubcalificacionesForCallType(block.call_type);
-  const [selectedTipoCierre, setSelectedTipoCierre] = useState<string | null>(
-    availableTipoCierres[0] ?? null
-  );
+  const [selectedTipoCierre, setSelectedTipoCierre] = useState<string | null>(null);
 
   const criteria = (block.criteria || []).sort((a, b) => a.criteria_order - b.criteria_order);
   const blockPoints = criteria.filter((c) => c.applies && c.points !== null).reduce((s, c) => s + (c.points ?? 0), 0);
@@ -842,7 +870,7 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
   const handleAddCriteria = async () => {
     const newOrder = criteria.length > 0 ? Math.max(...criteria.map((c) => c.criteria_order)) + 1 : 1;
     try {
-      await criteriaService.createCriteria({
+      const newItem = await criteriaService.createCriteria({
         block_id: block.id,
         topic: 'Nuevo criterio',
         criticality: '-',
@@ -853,8 +881,8 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
         validation_source: [],
         criteria_order: newOrder,
       });
-      toast.success('Criterio agregado');
       onUpdate();
+      setDrawerCriteria(newItem);
     } catch {
       toast.error('Error al agregar criterio');
     }
@@ -951,29 +979,49 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
       {/* ── Tabla de criterios ── */}
       <div className="expand-content border-t border-slate-800/60">
 
-        {/* Selector de subcalificación */}
+        {/* Selector de subcalificación — tabs visuales */}
         {availableTipoCierres.length > 0 && (
-          <div className="px-5 pt-3 pb-3 border-b border-slate-800/40 flex items-center gap-3 flex-wrap">
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
-              Subcalificación:
-            </span>
-            <select
-              value={selectedTipoCierre || ''}
-              onChange={(e) => {
-                setSelectedTipoCierre(e.target.value);
-                setEditingCriteriaId(null);
-              }}
-              className="bg-slate-800/60 border border-slate-700/50 rounded-lg px-2.5 py-1
-                         text-xs text-white focus:outline-none focus:border-teal-600/50 cursor-pointer"
-            >
-              {availableTipoCierres.map(tc => (
-                <option key={tc} value={tc}>{tc}</option>
-              ))}
-            </select>
-            {selectedTipoCierre && (
-              <span className="text-[11px] text-teal-400 font-medium">
-                Criterios para: <strong>{selectedTipoCierre}</strong>
+          <div className="px-5 pt-3 pb-3 border-b border-slate-800/40">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mr-1 flex-shrink-0">
+                Subcalificación
               </span>
+              <button
+                onClick={() => setSelectedTipoCierre(null)}
+                className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-all duration-150 ${
+                  selectedTipoCierre === null
+                    ? 'bg-slate-700/60 border-slate-600/60 text-slate-200'
+                    : 'bg-slate-800/40 border-slate-700/40 text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                Base
+              </button>
+              {availableTipoCierres.map(tc => {
+                const isSelected = selectedTipoCierre === tc;
+                const hasOverride = criteria.some(c => c.tipo_cierre_overrides?.[tc]);
+                return (
+                  <button
+                    key={tc}
+                    onClick={() => setSelectedTipoCierre(isSelected ? null : tc)}
+                    title={hasOverride ? 'Tiene configuración personalizada' : 'Sin configuración específica — usa la base'}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-all duration-150 ${
+                      isSelected
+                        ? 'bg-teal-500/15 border-teal-500/30 text-teal-300'
+                        : 'bg-slate-800/40 border-slate-700/40 text-slate-500 hover:text-slate-300 hover:border-slate-600'
+                    }`}
+                  >
+                    {tc}
+                    {hasOverride && (
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isSelected ? 'bg-teal-400' : 'bg-teal-600'}`} />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {selectedTipoCierre && (
+              <p className="text-[11px] text-teal-400/80 mt-2">
+                Configuración específica para: <strong className="text-teal-400">{selectedTipoCierre}</strong>
+              </p>
             )}
           </div>
         )}
@@ -986,43 +1034,33 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
                   <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-widest text-slate-500">
                     Criterio
                   </th>
-                  <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-20">
+                  <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-16">
                     Pts
                   </th>
                   <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-24">
                     Criticidad
                   </th>
                   <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-16">
-                    Aplica
+                    Activo
                   </th>
                   <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-amber-600/70 w-24">
-                    Val. Manual
+                    Rev. Manual
                   </th>
-                  <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-20">
+                  <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-32">
                     Acciones
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {criteria.map((c) =>
-                  editingCriteriaId === c.id ? (
-                    <CriteriaEditRow
-                      key={c.id}
-                      item={c}
-                      selectedTipoCierre={selectedTipoCierre}
-                      onSave={() => { setEditingCriteriaId(null); onUpdate(); }}
-                      onCancel={() => setEditingCriteriaId(null)}
-                    />
-                  ) : (
-                    <CriteriaViewRow
-                      key={c.id}
-                      item={c}
-                      selectedTipoCierre={selectedTipoCierre}
-                      onEdit={() => setEditingCriteriaId(c.id)}
-                      onUpdate={onUpdate}
-                    />
-                  )
-                )}
+                {criteria.map((c) => (
+                  <CriteriaViewRow
+                    key={c.id}
+                    item={c}
+                    selectedTipoCierre={selectedTipoCierre}
+                    onEdit={() => setDrawerCriteria(c)}
+                    onUpdate={onUpdate}
+                  />
+                ))}
               </tbody>
             </table>
           </div>
@@ -1031,13 +1069,22 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
         <div className="px-5 py-4">
           <button
             onClick={handleAddCriteria}
-            className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-300 transition-colors duration-150"
+            className="flex items-center gap-2 text-sm text-slate-500 hover:text-brand-400 transition-colors duration-150"
           >
             <Plus size={14} />
             Agregar criterio
           </button>
         </div>
       </div>
+      {drawerCriteria && (
+        <CriteriaEditDrawer
+          item={drawerCriteria}
+          selectedTipoCierre={selectedTipoCierre}
+          blockCallType={block.call_type}
+          onSave={() => { onUpdate(); setDrawerCriteria(null); }}
+          onClose={() => setDrawerCriteria(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1154,17 +1201,20 @@ function CriteriaViewRow({ item, onEdit, onUpdate, selectedTipoCierre }: Criteri
           )}
           {effectiveValidation && effectiveValidation.length > 0 && (
             <div className="flex gap-1 mt-1 flex-wrap">
-              {effectiveValidation.map(src => (
-                <span key={src} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
-                  src === 'gpf'
-                    ? 'bg-blue-900/40 text-blue-300 border border-blue-700/40'
-                    : src === 'imagenes'
-                    ? 'bg-brand-900/40 text-brand-300 border border-brand-700/40'
-                    : 'bg-amber-900/40 text-amber-300 border border-amber-700/40'
-                }`}>
-                  {src === 'gpf' ? 'GPF' : src === 'imagenes' ? 'Imágenes' : 'Llamada'}
-                </span>
-              ))}
+              {effectiveValidation.map(src => {
+                const isSpecificImg = src.startsWith('imagenes:');
+                const label = src === 'gpf' ? 'GPF' : src === 'llamada' ? 'Llamada' : isSpecificImg ? src.slice(9) : 'Imágenes';
+                const color = src === 'gpf'
+                  ? 'bg-blue-900/40 text-blue-300 border-blue-700/40'
+                  : src === 'llamada'
+                  ? 'bg-amber-900/40 text-amber-300 border-amber-700/40'
+                  : 'bg-brand-900/40 text-brand-300 border-brand-700/40';
+                return (
+                  <span key={src} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${color}`}>
+                    {label}
+                  </span>
+                );
+              })}
             </div>
           )}
         </div>
@@ -1233,13 +1283,15 @@ function CriteriaViewRow({ item, onEdit, onUpdate, selectedTipoCierre }: Criteri
 
       {/* Acciones */}
       <td className="py-3 px-3">
-        <div className="flex items-center gap-1 justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+        <div className="flex items-center gap-1 justify-center">
           <button
             onClick={onEdit}
-            className="p-1.5 rounded-lg text-slate-500 hover:text-brand-400 hover:bg-brand-500/10
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-slate-500
+                       hover:text-brand-400 hover:bg-brand-500/10 text-xs font-medium
                        transition-all duration-150"
           >
-            <Pencil size={13} />
+            <Pencil size={11} />
+            Configurar
           </button>
           <button
             onClick={handleDelete}
@@ -1491,6 +1543,1031 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
         </div>
       </td>
     </tr>
+  );
+}
+
+// ─── ImageAnalyticsBanner ────────────────────────────────────
+
+interface ImageAnalyticsItem {
+  system_name: string;
+  count: number;
+  avg_confidence: number;
+  last_seen: string | null;
+}
+
+interface ImageAnalyticsBannerProps {
+  onQuickEdit: (systemName: string) => void;
+}
+
+// Nombres genéricos que no son sistemas reales — se filtran del banner
+const NOISE_SYSTEM_NAMES = new Set(['multiple', 'desconocido', 'unknown', 'none', 'n/a', '', 'null']);
+
+function ImageAnalyticsBanner({ onQuickEdit }: ImageAnalyticsBannerProps) {
+  const [data, setData] = useState<ImageAnalyticsItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    imageSystemsService.getAnalytics()
+      .then(raw => {
+        // Filtrar sistemas genéricos/ruido, normalizar confidence
+        const clean = raw
+          .filter(d => !NOISE_SYSTEM_NAMES.has(d.system_name?.toLowerCase?.() ?? ''))
+          .map(d => ({
+            ...d,
+            // La confianza puede venir como 0–1 o como 0–100; si avg < 1.5 asumimos escala 0–1
+            avg_confidence: d.avg_confidence > 1.5 ? d.avg_confidence / 100 : d.avg_confidence,
+          }));
+        setData(clean);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return (
+    <div className="animate-pulse h-24 bg-slate-900/40 border border-slate-800/40 rounded-2xl mb-4" />
+  );
+  if (data.length === 0) return null;
+
+  const maxCount = data[0]?.count || 1;
+
+  return (
+    <div className="mb-4 bg-slate-900/60 border border-slate-800/50 rounded-2xl overflow-hidden">
+      <button
+        onClick={() => setCollapsed(!collapsed)}
+        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-slate-800/30 transition-colors duration-150"
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="w-6 h-6 rounded-lg bg-purple-500/15 border border-purple-500/20 flex items-center justify-center">
+            <BarChart size={12} className="text-purple-400" />
+          </div>
+          <span className="text-sm font-semibold text-slate-200">Sistemas más usados en auditorías</span>
+          <span className="text-xs text-slate-500">({data.length} detectados)</span>
+        </div>
+        <ChevronDown size={15} className={`text-slate-500 transition-transform duration-200 ${collapsed ? '' : 'rotate-180'}`} />
+      </button>
+
+      {!collapsed && (
+        <div className="px-5 pb-4 animate-fadeIn">
+          <div className="space-y-2.5">
+            {data.slice(0, 8).map((item) => {
+              const pct = Math.max(4, Math.round((item.count / maxCount) * 100));
+              // Confianza: si es 0 o muy baja, mostrar "Sin dato" en lugar de 0%
+              const confPct = Math.round(item.avg_confidence * 100);
+              const hasConf = confPct > 0;
+              return (
+                <div key={item.system_name} className="group/bar flex items-center gap-3">
+                  {/* Nombre */}
+                  <div className="w-24 flex-shrink-0 text-right">
+                    <span className="text-xs font-mono font-bold text-purple-300">{item.system_name}</span>
+                  </div>
+                  {/* Barra */}
+                  <div className="flex-1 flex items-center gap-2">
+                    <div className="flex-1 h-6 bg-slate-800/60 rounded-lg overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-purple-500/40 to-purple-400/60 rounded-lg flex items-center justify-end pr-2 transition-all duration-500"
+                        style={{ width: `${pct}%` }}
+                      >
+                        <span className="text-[10px] font-bold text-purple-200">{item.count}×</span>
+                      </div>
+                    </div>
+                    {/* Confianza */}
+                    <span className={`text-[10px] font-medium w-10 flex-shrink-0 ${!hasConf ? 'text-slate-600' : confPct >= 80 ? 'text-green-400' : confPct >= 60 ? 'text-amber-400' : 'text-red-400'}`}>
+                      {hasConf ? `${confPct}%` : '—'}
+                    </span>
+                  </div>
+                  {/* Acciones (aparecen en hover) */}
+                  <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover/bar:opacity-100 transition-opacity duration-150">
+                    <button
+                      onClick={() => onQuickEdit(item.system_name)}
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium
+                                 text-slate-500 hover:text-brand-400 hover:bg-brand-500/10 border border-transparent
+                                 hover:border-brand-700/20 transition-all duration-150"
+                    >
+                      <Pencil size={10} />
+                      Editar
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {data.length > 8 && (
+            <p className="text-[11px] text-slate-600 mt-3 text-center">+{data.length - 8} sistemas más</p>
+          )}
+          <p className="text-[10px] text-slate-700 mt-3">
+            Basado en las últimas auditorías completadas · Confianza = qué tan segura está la IA de su detección
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── AiCriteriaGeneratorDrawer ────────────────────────────────
+
+interface AiCriteriaGeneratorDrawerProps {
+  callType: string;
+  mode: string;
+  onClose: () => void;
+  onImported: () => void;
+}
+
+function AiCriteriaGeneratorDrawer({ callType, mode, onClose, onImported }: AiCriteriaGeneratorDrawerProps) {
+  const [description, setDescription] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [preview, setPreview] = useState<GeneratedBlock[]>([]);
+  const [selected, setSelected] = useState<Record<string, Record<number, boolean>>>({});
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState('');
+
+  // GPF category picker
+  const [gpfOpen, setGpfOpen] = useState(false);
+  const [gpfLoading, setGpfLoading] = useState(false);
+  const [gpfEnv, setGpfEnv] = useState<'test' | 'prod'>('prod');
+  const [gpfCategories, setGpfCategories] = useState<Array<{ calificacion: string; subcalificacion: string; count: number }>>([]);
+  const [gpfTotal, setGpfTotal] = useState(0);
+  const [gpfError, setGpfError] = useState('');
+
+  const fetchGpfCategories = async () => {
+    setGpfLoading(true);
+    setGpfError('');
+    setGpfCategories([]);
+    try {
+      const { categories, total_attentions } = await gpfService.getCategories(gpfEnv);
+      setGpfCategories(categories);
+      setGpfTotal(total_attentions);
+    } catch (e: any) {
+      setGpfError(e?.response?.data?.error || 'Error al conectar con GPF');
+    } finally {
+      setGpfLoading(false);
+    }
+  };
+
+  const applyGpfCategory = (cat: { calificacion: string; subcalificacion: string }) => {
+    const parts = [cat.calificacion, cat.subcalificacion].filter(Boolean);
+    setDescription(prev => {
+      const prefix = `Tipo de llamada: ${parts.join(' / ')}\n\n`;
+      return prev.startsWith('Tipo de llamada:') ? prev : prefix + prev;
+    });
+    setGpfOpen(false);
+  };
+
+  const handleGenerate = async () => {
+    if (!description.trim()) return;
+    setGenerating(true);
+    setPreview([]);
+    setSelected({});
+    try {
+      const { blocks } = await criteriaService.generateBlocks({ description: description.trim(), call_type: callType, mode });
+      setPreview(blocks);
+      const sel: Record<string, Record<number, boolean>> = {};
+      blocks.forEach((b, bi) => {
+        sel[bi] = {};
+        b.criteria.forEach((_, ci) => { sel[bi][ci] = true; });
+      });
+      setSelected(sel);
+    } catch {
+      toast.error('Error al generar criterios');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const toggleCriterion = (bi: number, ci: number) => {
+    setSelected(prev => ({ ...prev, [bi]: { ...prev[bi], [ci]: !prev[bi]?.[ci] } }));
+  };
+
+  const toggleBlock = (bi: number) => {
+    const allOn = preview[bi].criteria.every((_, ci) => selected[bi]?.[ci]);
+    setSelected(prev => {
+      const next = { ...prev[bi] };
+      preview[bi].criteria.forEach((_, ci) => { next[ci] = !allOn; });
+      return { ...prev, [bi]: next };
+    });
+  };
+
+  const selectedCount = preview.reduce((sum, _, bi) =>
+    sum + (preview[bi]?.criteria?.filter((_, ci) => selected[bi]?.[ci]).length || 0), 0);
+
+  const handleImport = async () => {
+    setImporting(true);
+    let blockOrder = 1;
+    try {
+      for (let bi = 0; bi < preview.length; bi++) {
+        const block = preview[bi];
+        const selectedCriteria = block.criteria.filter((_, ci) => selected[bi]?.[ci]);
+        if (selectedCriteria.length === 0) continue;
+        setImportProgress(`Creando bloque "${block.block_name}"...`);
+        const newBlock = await criteriaService.createBlock({
+          call_type: callType, mode, block_name: block.block_name, block_order: blockOrder++,
+        });
+        for (let ci = 0; ci < selectedCriteria.length; ci++) {
+          const c = selectedCriteria[ci];
+          setImportProgress(`Importando criterio ${ci + 1}/${selectedCriteria.length} de "${block.block_name}"...`);
+          await criteriaService.createCriteria({
+            block_id: newBlock.id,
+            topic: c.topic,
+            criticality: (c.criticality === 'Crítico' ? 'Crítico' : '-') as 'Crítico' | '-',
+            points: c.points,
+            applies: c.applies !== false,
+            requires_manual_review: false,
+            what_to_look_for: c.what_to_look_for || '',
+            validation_source: c.validation_source || [],
+            criteria_order: ci + 1,
+          });
+        }
+      }
+      toast.success(`✅ ${selectedCount} criterios importados correctamente`);
+      onImported();
+      onClose();
+    } catch {
+      toast.error('Error al importar criterios');
+    } finally {
+      setImporting(false);
+      setImportProgress('');
+    }
+  };
+
+  const sourceChip = (src: string) => {
+    const isImg = src === 'imagenes' || src.startsWith('imagenes:');
+    const label = src === 'gpf' ? 'GPF' : src === 'llamada' ? 'Llamada' : src.startsWith('imagenes:') ? src.slice(9) : 'Imgs';
+    const color = src === 'gpf' ? 'bg-blue-500/15 text-blue-300 border-blue-500/20'
+      : src === 'llamada' ? 'bg-amber-500/15 text-amber-300 border-amber-500/20'
+      : 'bg-brand-500/15 text-brand-300 border-brand-700/20';
+    return <span key={src} className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${color}`}>{label}</span>;
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={onClose} />
+      <div className="fixed right-0 top-0 h-screen w-[560px] max-w-[calc(100vw-2rem)]
+                      bg-slate-950 border-l border-slate-800/60 z-50 flex flex-col
+                      overflow-hidden animate-slideFromRight shadow-2xl">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800/60">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-purple-500/15 border border-purple-500/20 flex items-center justify-center">
+              <Wand2 size={15} className="text-purple-400" />
+            </div>
+            <div>
+              <h2 className="text-white font-semibold text-sm">Generar criterios con IA</h2>
+              <p className="text-[11px] text-slate-500">{callType} · {mode}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-slate-800/60 transition-all">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto">
+
+          {/* Panel GPF — buscar categorías */}
+          <div className="px-6 pt-5 pb-0">
+            <button
+              type="button"
+              onClick={() => setGpfOpen(!gpfOpen)}
+              className="w-full flex items-center justify-between px-4 py-3 rounded-xl
+                         bg-teal-500/8 border border-teal-500/20 hover:bg-teal-500/12
+                         transition-all duration-150 group"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-6 h-6 rounded-lg bg-teal-500/15 border border-teal-500/20 flex items-center justify-center">
+                  <Eye size={12} className="text-teal-400" />
+                </div>
+                <span className="text-sm font-semibold text-teal-300">Buscar categorías en GPF</span>
+                <span className="text-[11px] text-teal-500/70">Importa directamente desde casos reales</span>
+              </div>
+              <ChevronDown size={14} className={`text-teal-500 transition-transform duration-200 ${gpfOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {gpfOpen && (
+              <div className="mt-2 mb-3 p-4 rounded-xl bg-slate-900/60 border border-slate-800/50 animate-fadeIn space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex rounded-lg border border-slate-700/60 overflow-hidden text-xs">
+                    {(['prod', 'test'] as const).map(env => (
+                      <button
+                        key={env}
+                        type="button"
+                        onClick={() => setGpfEnv(env)}
+                        className={`px-3 py-1.5 font-medium transition-colors duration-100 ${
+                          gpfEnv === env
+                            ? 'bg-teal-500/20 text-teal-300'
+                            : 'text-slate-500 hover:text-slate-300'
+                        }`}
+                      >
+                        {env === 'prod' ? 'Producción' : 'Pruebas'}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={fetchGpfCategories}
+                    disabled={gpfLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-500/15
+                               border border-teal-500/25 text-teal-300 text-xs font-medium
+                               hover:bg-teal-500/25 disabled:opacity-50 transition-all duration-150"
+                  >
+                    {gpfLoading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                    {gpfLoading ? 'Buscando...' : 'Buscar'}
+                  </button>
+                  {gpfTotal > 0 && (
+                    <span className="text-[11px] text-slate-500">{gpfTotal} casos analizados</span>
+                  )}
+                </div>
+
+                {gpfError && (
+                  <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                    {gpfError}
+                  </p>
+                )}
+
+                {gpfCategories.length > 0 && (
+                  <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                    {gpfCategories.map((cat, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => applyGpfCategory(cat)}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl
+                                   bg-slate-800/50 border border-slate-700/40 hover:border-teal-500/30
+                                   hover:bg-teal-500/8 transition-all duration-150 text-left group/cat"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-semibold text-slate-200 block truncate">{cat.calificacion}</span>
+                          {cat.subcalificacion && (
+                            <span className="text-[11px] text-teal-400/80 block truncate">{cat.subcalificacion}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-xs text-slate-500 tabular-nums">{cat.count} casos</span>
+                          <span className="text-[10px] font-medium text-teal-400 opacity-0 group-hover/cat:opacity-100 transition-opacity">
+                            Usar →
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {!gpfLoading && gpfCategories.length === 0 && !gpfError && (
+                  <p className="text-xs text-slate-500 text-center py-2">
+                    Haz clic en "Buscar" para cargar las categorías disponibles en GPF
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Descripción */}
+          <div className="px-6 py-5 border-b border-slate-800/40">
+            <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-200 mb-2">
+              ¿Qué debe evaluar este tipo de llamada?
+              <InfoTooltip text="Describe en tus palabras qué hace el agente en este tipo de llamada y qué quieres verificar." />
+            </label>
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              rows={4}
+              placeholder={`Ej: En llamadas de ${callType} el agente debe verificar la identidad del cliente, revisar las transacciones sospechosas en FALCON y VCAS, bloquear la tarjeta si hay fraude confirmado, crear un folio de bonificación y explicar el proceso al cliente...`}
+              className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3.5 py-3
+                         text-sm text-white resize-none focus:outline-none focus:border-purple-600/60
+                         focus:ring-1 focus:ring-purple-500/20 placeholder:text-slate-600 transition-colors"
+            />
+            <button
+              onClick={handleGenerate}
+              disabled={generating || !description.trim()}
+              className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl
+                         bg-purple-500/15 border border-purple-500/30 text-purple-300 text-sm font-semibold
+                         hover:bg-purple-500/25 disabled:opacity-50 transition-all duration-150"
+            >
+              {generating
+                ? <><Loader2 size={14} className="animate-spin" /> Analizando y generando criterios...</>
+                : <><Wand2 size={14} /> Generar criterios con IA</>}
+            </button>
+          </div>
+
+          {/* Preview de criterios generados */}
+          {preview.length > 0 && (
+            <div className="px-6 py-4 space-y-3 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-200">
+                  Vista previa — {preview.length} bloques generados
+                </p>
+                <span className="text-xs text-slate-500">{selectedCount} criterios seleccionados</span>
+              </div>
+
+              {preview.map((block, bi) => {
+                const blockSelectedCount = block.criteria.filter((_, ci) => selected[bi]?.[ci]).length;
+                const allBlockSelected = blockSelectedCount === block.criteria.length;
+                return (
+                  <div key={bi} className="bg-slate-900/50 border border-slate-800/50 rounded-xl overflow-hidden">
+                    {/* Block header */}
+                    <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-800/40 bg-slate-900/60">
+                      <input
+                        type="checkbox"
+                        checked={allBlockSelected}
+                        onChange={() => toggleBlock(bi)}
+                        className="w-3.5 h-3.5 accent-purple-500 cursor-pointer"
+                      />
+                      <span className="flex-1 text-sm font-semibold text-white">{block.block_name}</span>
+                      <span className="text-xs text-slate-500">{blockSelectedCount}/{block.criteria.length} criterios</span>
+                    </div>
+                    {/* Criteria list */}
+                    <div className="divide-y divide-slate-800/40">
+                      {block.criteria.map((c, ci) => {
+                        const isOn = selected[bi]?.[ci] ?? true;
+                        return (
+                          <div
+                            key={ci}
+                            onClick={() => toggleCriterion(bi, ci)}
+                            className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors duration-100 ${
+                              isOn ? 'hover:bg-slate-800/20' : 'opacity-40 hover:opacity-60 hover:bg-slate-800/10'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isOn}
+                              onChange={() => toggleCriterion(bi, ci)}
+                              onClick={e => e.stopPropagation()}
+                              className="w-3.5 h-3.5 accent-purple-500 cursor-pointer mt-0.5 flex-shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start gap-2 flex-wrap">
+                                <span className={`text-sm leading-snug ${isOn ? 'text-slate-200' : 'text-slate-500'}`}>{c.topic}</span>
+                                {c.criticality === 'Crítico' && (
+                                  <span className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/15 border border-red-500/20 text-red-300">CRÍTICO</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                {c.points !== null && c.points !== undefined && (
+                                  <span className="text-[10px] font-semibold text-brand-400">{c.points} pts</span>
+                                )}
+                                {(c.validation_source || []).map(s => sourceChip(s))}
+                              </div>
+                              {c.what_to_look_for && (
+                                <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">{c.what_to_look_for}</p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {preview.length > 0 && (
+          <div className="px-6 py-4 border-t border-slate-800/60 space-y-2">
+            {importing && importProgress && (
+              <p className="text-xs text-purple-400 text-center animate-pulse">{importProgress}</p>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={handleImport}
+                disabled={importing || selectedCount === 0}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl
+                           bg-purple-500/20 border border-purple-500/40 text-purple-200 text-sm font-semibold
+                           hover:bg-purple-500/30 disabled:opacity-50 transition-all duration-150"
+              >
+                {importing ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                {importing ? 'Importando...' : `Importar ${selectedCount} criterios`}
+              </button>
+              <button
+                onClick={() => { setPreview([]); setDescription(''); }}
+                disabled={importing}
+                className="px-4 py-2.5 rounded-xl text-slate-400 text-sm hover:text-white hover:bg-slate-800/60 transition-all disabled:opacity-50"
+              >
+                Limpiar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ─── InfoTooltip ─────────────────────────────────────────────
+
+function InfoTooltip({ text }: { text: string }) {
+  return (
+    <span className="relative group/tip inline-flex items-center cursor-help">
+      <Info size={13} className="text-slate-600 group-hover/tip:text-slate-400 transition-colors" />
+      <span className="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2
+                       w-52 whitespace-normal rounded-xl px-3 py-2 text-[11px] leading-relaxed
+                       bg-slate-900 border border-slate-700/60 text-slate-300 shadow-xl
+                       opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-[60]">
+        {text}
+      </span>
+    </span>
+  );
+}
+
+// ─── AiPromptAssistant ────────────────────────────────────────
+
+interface AiPromptAssistantProps {
+  currentTopic: string;
+  callType: string;
+  onUse: (generated: string) => void;
+}
+
+function AiPromptAssistant({ currentTopic, callType, onUse }: AiPromptAssistantProps) {
+  const [open, setOpen] = useState(false);
+  const [description, setDescription] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [result, setResult] = useState('');
+
+  const handleGenerate = async () => {
+    if (!description.trim()) return;
+    setGenerating(true);
+    setResult('');
+    try {
+      const { prompt } = await criteriaService.generatePrompt({
+        description: description.trim(),
+        topic: currentTopic,
+        call_type: callType,
+      });
+      setResult(prompt);
+    } catch {
+      toast.error('Error al generar instrucción con IA');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-brand-400 transition-colors duration-150"
+      >
+        <Sparkles size={12} />
+        {open ? 'Ocultar asistente' : 'Generar con IA'}
+        <ChevronDown size={11} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="mt-3 p-4 rounded-xl bg-slate-900/60 border border-slate-700/40 animate-fadeIn space-y-3">
+          <p className="text-xs text-slate-400">
+            Describe en tus propias palabras qué debe verificar la IA y generamos la instrucción técnica.
+          </p>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            placeholder="Ej: El agente debe verificar que la cuenta aparezca como bloqueada en el sistema VCAS..."
+            className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl px-3 py-2
+                       text-xs text-white resize-none focus:outline-none focus:border-brand-600/60
+                       placeholder:text-slate-600 transition-colors"
+          />
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={generating || !description.trim()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-500/15
+                       border border-brand-700/30 text-brand-300 text-xs font-medium
+                       hover:bg-brand-500/25 disabled:opacity-50 transition-all duration-150"
+          >
+            {generating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+            {generating ? 'Generando...' : 'Generar instrucción'}
+          </button>
+
+          {result && (
+            <div className="animate-fadeIn space-y-2">
+              <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Instrucción generada</p>
+              <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl px-3.5 py-3">
+                <p className="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">{result}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { onUse(result); setOpen(false); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                           bg-green-500/15 border border-green-500/25 text-green-300 text-xs font-medium
+                           hover:bg-green-500/25 transition-all duration-150"
+              >
+                <Check size={12} />
+                Usar esta instrucción
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── CriteriaEditDrawer ───────────────────────────────────────
+
+interface CriteriaEditDrawerProps {
+  item: CriteriaItem;
+  selectedTipoCierre: string | null;
+  blockCallType: string;
+  onSave: () => void;
+  onClose: () => void;
+}
+
+function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, onClose }: CriteriaEditDrawerProps) {
+  const existingOverride = selectedTipoCierre ? item.tipo_cierre_overrides?.[selectedTipoCierre] : undefined;
+  const isSubcalMode = !!selectedTipoCierre;
+
+  const [topic, setTopic] = useState(item.topic);
+  const [points, setPoints] = useState<string>(item.points === null ? 'n/a' : String(item.points));
+  const [criticality, setCriticality] = useState<'Crítico' | '-'>(item.criticality);
+  const [applies, setApplies] = useState(
+    existingOverride?.applies !== undefined ? existingOverride.applies : item.applies
+  );
+  const [whatToLookFor, setWhatToLookFor] = useState(
+    existingOverride?.what_to_look_for !== undefined
+      ? (existingOverride.what_to_look_for || '')
+      : (item.what_to_look_for || '')
+  );
+  const [validationSource, setValidationSource] = useState<string[]>(
+    existingOverride?.validation_source !== undefined
+      ? (existingOverride.validation_source ?? [])
+      : (item.validation_source ?? [])
+  );
+  const [saving, setSaving] = useState(false);
+  const [availableImageSystems, setAvailableImageSystems] = useState<import('../services/api').ImageSystem[]>([]);
+
+  useEffect(() => {
+    imageSystemsService.getAll().then(sys => setAvailableImageSystems(sys.filter(s => s.is_active !== false)));
+  }, []);
+
+  const hasImages = validationSource.some(s => s === 'imagenes' || s.startsWith('imagenes:'));
+  const specificSystems = validationSource.filter(s => s.startsWith('imagenes:')).map(s => s.slice(9));
+
+  const toggleBaseSource = (src: 'gpf' | 'llamada') => {
+    setValidationSource(prev => prev.includes(src) ? prev.filter(s => s !== src) : [...prev, src]);
+  };
+
+  const toggleImages = () => {
+    if (hasImages) {
+      setValidationSource(prev => prev.filter(s => s !== 'imagenes' && !s.startsWith('imagenes:')));
+    } else {
+      setValidationSource(prev => [...prev, 'imagenes']);
+    }
+  };
+
+  const toggleImageSystem = (systemName: string) => {
+    const key = `imagenes:${systemName}`;
+    setValidationSource(prev => {
+      const withoutGeneric = prev.filter(s => s !== 'imagenes');
+      if (withoutGeneric.includes(key)) {
+        const result = withoutGeneric.filter(s => s !== key);
+        return result.some(s => s.startsWith('imagenes:')) ? result : [...result, 'imagenes'];
+      }
+      return [...withoutGeneric, key];
+    });
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (isSubcalMode) {
+        const newOverrides = {
+          ...(item.tipo_cierre_overrides || {}),
+          [selectedTipoCierre!]: { applies, what_to_look_for: whatToLookFor, validation_source: validationSource },
+        };
+        await criteriaService.updateCriteria(item.id, { tipo_cierre_overrides: newOverrides });
+      } else {
+        await criteriaService.updateCriteria(item.id, {
+          topic,
+          criticality,
+          points: points === 'n/a' ? null : parseInt(points, 10),
+          applies,
+          what_to_look_for: whatToLookFor,
+          validation_source: validationSource,
+        });
+      }
+      toast.success('Criterio actualizado');
+      onSave();
+    } catch {
+      toast.error('Error al guardar criterio');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResetOverride = async () => {
+    if (!selectedTipoCierre) return;
+    setSaving(true);
+    try {
+      const newOverrides = { ...(item.tipo_cierre_overrides || {}) };
+      delete newOverrides[selectedTipoCierre];
+      await criteriaService.updateCriteria(item.id, { tipo_cierre_overrides: newOverrides });
+      toast.success('Configuración reseteada a base');
+      onSave();
+    } catch {
+      toast.error('Error al resetear');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+
+  return (
+    <>
+      {/* Overlay */}
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={onClose} />
+
+      {/* Drawer panel */}
+      <div className="fixed right-0 top-0 h-screen w-[480px] max-w-[calc(100vw-2rem)]
+                      bg-slate-950 border-l border-slate-800/60 z-50 flex flex-col
+                      overflow-hidden animate-slideFromRight shadow-2xl">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800/60">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-brand-500/15 border border-brand-700/20 flex items-center justify-center flex-shrink-0">
+                <Pencil size={12} className="text-brand-400" />
+              </div>
+              <h2 className="text-white font-semibold text-sm">Configurar criterio</h2>
+            </div>
+            {isSubcalMode && (
+              <div className="flex items-center gap-1.5 mt-1.5 ml-9">
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-400 flex-shrink-0" />
+                <p className="text-[11px] text-teal-400">Subcalificación: <strong>{selectedTipoCierre}</strong></p>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-slate-800/60 transition-all duration-150"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Override banner */}
+        {isSubcalMode && existingOverride && (
+          <div className="mx-6 mt-4 flex items-center justify-between px-3.5 py-2.5 rounded-xl
+                          bg-teal-500/10 border border-teal-500/20">
+            <span className="text-xs text-teal-300">Configuración específica para <strong>{selectedTipoCierre}</strong></span>
+            <button
+              type="button"
+              onClick={handleResetOverride}
+              disabled={saving}
+              className="text-[11px] text-slate-400 hover:text-rose-400 transition-colors flex items-center gap-1 disabled:opacity-50"
+            >
+              <RotateCcw size={11} />
+              Resetear a base
+            </button>
+          </div>
+        )}
+
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+
+          {/* ¿Qué verifica? */}
+          {!isSubcalMode && (
+            <div>
+              <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-200 mb-2">
+                ¿Qué verifica este criterio?
+                <InfoTooltip text="Nombre o descripción del criterio. Define lo que el agente debe cumplir." />
+              </label>
+              <textarea
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                rows={2}
+                placeholder="Ej: El agente verifica la identidad del cliente antes de dar información..."
+                className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3.5 py-2.5
+                           text-sm text-white resize-none focus:outline-none focus:border-brand-600/60
+                           focus:ring-1 focus:ring-brand-500/20 placeholder:text-slate-600 transition-colors"
+              />
+            </div>
+          )}
+
+          {/* Puntos + Criticidad */}
+          {!isSubcalMode && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-200 mb-2">
+                  Puntos
+                  <InfoTooltip text="Valor en puntos de este criterio. Escribe 'n/a' si no tiene puntaje." />
+                </label>
+                <input
+                  value={points}
+                  onChange={(e) => setPoints(e.target.value)}
+                  placeholder="5 o n/a"
+                  className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3.5 py-2.5
+                             text-sm text-white focus:outline-none focus:border-brand-600/60
+                             focus:ring-1 focus:ring-brand-500/20 placeholder:text-slate-600 transition-colors"
+                />
+              </div>
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-200 mb-2">
+                  ¿Es crítico?
+                  <InfoTooltip text="Si falla un criterio crítico, la llamada puede reprobarse aunque el puntaje total sea alto." />
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCriticality('Crítico')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-medium border transition-all duration-150 ${
+                      criticality === 'Crítico'
+                        ? 'bg-red-500/15 border-red-500/30 text-red-300'
+                        : 'bg-slate-900/60 border-slate-700/60 text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    <AlertTriangle size={13} />
+                    Sí
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCriticality('-')}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all duration-150 ${
+                      criticality === '-'
+                        ? 'bg-slate-700/40 border-slate-600/40 text-slate-300'
+                        : 'bg-slate-900/60 border-slate-700/60 text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    No
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Aplica */}
+          <div
+            onClick={() => setApplies(!applies)}
+            className={`flex items-start gap-3.5 p-4 rounded-xl border cursor-pointer transition-all duration-200 ${
+              applies ? 'bg-blue-500/10 border-blue-500/20' : 'bg-slate-900/40 border-slate-800/60'
+            }`}
+          >
+            <div className="pt-0.5 flex-shrink-0">
+              <div
+                className="toggle-track"
+                style={{ backgroundColor: applies ? 'rgba(59,130,246,0.5)' : '' }}
+              >
+                <span
+                  className="toggle-thumb"
+                  style={{
+                    transform: applies ? 'translateX(16px)' : 'translateX(2px)',
+                    backgroundColor: applies ? '#fff' : '#64748b',
+                  }}
+                />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-semibold text-slate-200">
+                  {applies ? 'Aplica' : 'No aplica'}{isSubcalMode ? ` para ${selectedTipoCierre}` : ''}
+                </p>
+                <InfoTooltip text="Desactivado = la IA ignora este criterio en las auditorías automáticas." />
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {applies ? 'La IA evaluará este criterio en las auditorías' : 'La IA ignorará este criterio'}
+              </p>
+            </div>
+          </div>
+
+          {/* Dónde verificar */}
+          <div>
+            <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-200 mb-3">
+              ¿Dónde lo verifica la IA?
+              <InfoTooltip text="Selecciona qué material debe revisar la IA para evaluar este criterio." />
+            </label>
+            <div className="flex gap-2">
+              {/* GPF */}
+              {(() => {
+                const active = validationSource.includes('gpf');
+                return (
+                  <button type="button" onClick={() => toggleBaseSource('gpf')}
+                    className={`flex-1 flex flex-col items-center gap-1 py-3 px-2 rounded-xl border text-xs font-semibold transition-all duration-150 ${
+                      active ? 'bg-blue-500/15 border-blue-500/30 text-blue-300' : 'bg-slate-900/60 border-slate-700/60 text-slate-500 hover:text-blue-300 hover:border-blue-500/20'
+                    }`}>
+                    <span className="text-sm font-bold">GPF</span>
+                    <span className={`text-[10px] font-normal leading-tight ${active ? 'opacity-80' : 'opacity-50'}`}>Registro GPF</span>
+                    {active && <Check size={12} className="mt-0.5" />}
+                  </button>
+                );
+              })()}
+              {/* Imágenes */}
+              <button type="button" onClick={toggleImages}
+                className={`flex-1 flex flex-col items-center gap-1 py-3 px-2 rounded-xl border text-xs font-semibold transition-all duration-150 ${
+                  hasImages ? 'bg-brand-500/15 border-brand-700/30 text-brand-300' : 'bg-slate-900/60 border-slate-700/60 text-slate-500 hover:text-brand-300 hover:border-brand-700/20'
+                }`}>
+                <span className="text-sm font-bold">Imágenes</span>
+                <span className={`text-[10px] font-normal leading-tight text-center ${hasImages ? 'opacity-80' : 'opacity-50'}`}>
+                  {specificSystems.length > 0 ? specificSystems.join(', ') : 'Capturas de pantalla'}
+                </span>
+                {hasImages && <Check size={12} className="mt-0.5" />}
+              </button>
+              {/* Llamada */}
+              {(() => {
+                const active = validationSource.includes('llamada');
+                return (
+                  <button type="button" onClick={() => toggleBaseSource('llamada')}
+                    className={`flex-1 flex flex-col items-center gap-1 py-3 px-2 rounded-xl border text-xs font-semibold transition-all duration-150 ${
+                      active ? 'bg-amber-500/15 border-amber-500/30 text-amber-300' : 'bg-slate-900/60 border-slate-700/60 text-slate-500 hover:text-amber-300 hover:border-amber-500/20'
+                    }`}>
+                    <span className="text-sm font-bold">Llamada</span>
+                    <span className={`text-[10px] font-normal leading-tight ${active ? 'opacity-80' : 'opacity-50'}`}>Transcripción audio</span>
+                    {active && <Check size={12} className="mt-0.5" />}
+                  </button>
+                );
+              })()}
+            </div>
+
+            {/* Sub-selector de sistemas de imagen */}
+            {hasImages && availableImageSystems.length > 0 && (
+              <div className="mt-3 p-3.5 rounded-xl bg-slate-900/60 border border-brand-700/20 animate-fadeIn">
+                <div className="flex items-center justify-between mb-2.5">
+                  <p className="text-[11px] font-semibold text-brand-400 uppercase tracking-wider">
+                    ¿Qué imágenes verificar?
+                  </p>
+                  {specificSystems.length === 0 && (
+                    <span className="text-[10px] text-slate-600">Sin selección = todas las imágenes</span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {availableImageSystems.map(sys => {
+                    const isSelected = specificSystems.includes(sys.system_name);
+                    return (
+                      <button
+                        key={sys.id}
+                        type="button"
+                        onClick={() => toggleImageSystem(sys.system_name)}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-all duration-150 ${
+                          isSelected
+                            ? 'bg-purple-500/15 border-purple-500/30 text-purple-300'
+                            : 'bg-slate-800/60 border-slate-700/50 text-slate-500 hover:text-purple-300 hover:border-purple-500/20'
+                        }`}
+                        title={sys.description}
+                      >
+                        {sys.system_name}
+                        {isSelected && <Check size={10} />}
+                      </button>
+                    );
+                  })}
+                </div>
+                {specificSystems.length > 0 && (
+                  <p className="text-[10px] text-slate-600 mt-2">
+                    La IA buscará evidencia específicamente en: <strong className="text-slate-500">{specificSystems.join(', ')}</strong>
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Instrucción para la IA */}
+          <div>
+            <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-200 mb-2">
+              Instrucción para la IA
+              <InfoTooltip text="Describe exactamente qué debe buscar la IA para decidir si el agente cumplió este criterio." />
+            </label>
+            <textarea
+              value={whatToLookFor}
+              onChange={(e) => setWhatToLookFor(e.target.value)}
+              rows={6}
+              placeholder="Ej: En la captura de VCAS, verifica que el campo Account State muestre el valor BLOCKED..."
+              className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3.5 py-2.5
+                         text-sm text-white resize-y focus:outline-none focus:border-brand-600/60
+                         focus:ring-1 focus:ring-brand-500/20 placeholder:text-slate-600 transition-colors"
+            />
+            <AiPromptAssistant
+              currentTopic={topic || item.topic}
+              callType={blockCallType}
+              onUse={(generated) => setWhatToLookFor(generated)}
+            />
+          </div>
+
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-800/60 flex gap-2">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl
+                       bg-brand-500/15 border border-brand-700/30 text-brand-300 text-sm font-semibold
+                       hover:bg-brand-500/25 disabled:opacity-50 transition-all duration-150"
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+            {saving ? 'Guardando...' : 'Guardar cambios'}
+          </button>
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="px-4 py-2.5 rounded-xl text-slate-400 text-sm font-medium
+                       hover:text-slate-200 hover:bg-slate-800/60 disabled:opacity-50
+                       border border-transparent hover:border-slate-700/60 transition-all duration-150"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -2138,6 +3215,176 @@ function VocabularioTab() {
   );
 }
 
+// ─── DiscoveredSystemsImporter ───────────────────────────────
+
+interface DiscoveredSystemsImporterProps {
+  existingSystems: ImageSystem[];
+  onCreated: () => void;
+  onClose: () => void;
+}
+
+const SYSTEM_DESCRIPTIONS: Record<string, string> = {
+  FALCON:  'Sistema de gestión de casos de fraude bancario',
+  VCAS:    'Verificación de cuenta y estado de bloqueo',
+  VISION:  'Pantalla VISION / ASHI — comentarios y estado de la cuenta',
+  VRM:     'Validación de transacciones ARTD y ARSD',
+  GPF:     'Registro y cierre de casos en el sistema GPF',
+  HOTLIST: 'Gestión de hotlist y bloqueos preventivos',
+};
+
+function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: DiscoveredSystemsImporterProps) {
+  const [loading, setLoading] = useState(true);
+  const [candidates, setCandidates] = useState<Array<{ name: string; count: number; selected: boolean; description: string }>>([]);
+  const [importing, setImporting] = useState(false);
+
+  useEffect(() => {
+    imageSystemsService.getAnalytics()
+      .then(data => {
+        const existingNames = new Set(existingSystems.map(s => s.system_name.toUpperCase()));
+        const valid = data
+          .filter(d => !NOISE_SYSTEM_NAMES.has(d.system_name?.toLowerCase?.() ?? '') && d.count > 0)
+          .filter(d => !existingNames.has(d.system_name.toUpperCase()))
+          .map(d => ({
+            name: d.system_name.toUpperCase(),
+            count: d.count,
+            selected: true,
+            description: SYSTEM_DESCRIPTIONS[d.system_name.toUpperCase()] || `Sistema ${d.system_name} detectado en auditorías`,
+          }));
+        setCandidates(valid);
+      })
+      .catch(() => setCandidates([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggle = (i: number) => setCandidates(prev => prev.map((c, idx) => idx === i ? { ...c, selected: !c.selected } : c));
+  const updateDesc = (i: number, desc: string) => setCandidates(prev => prev.map((c, idx) => idx === i ? { ...c, description: desc } : c));
+
+  const selectedCount = candidates.filter(c => c.selected).length;
+
+  const handleImport = async () => {
+    setImporting(true);
+    try {
+      const toCreate = candidates.filter(c => c.selected);
+      for (let i = 0; i < toCreate.length; i++) {
+        const c = toCreate[i];
+        await imageSystemsService.create({
+          system_name: c.name,
+          description: c.description,
+          fields_schema: [],
+          display_order: i + 1,
+        });
+      }
+      toast.success(`✅ ${toCreate.length} sistema${toCreate.length > 1 ? 's' : ''} importado${toCreate.length > 1 ? 's' : ''}`);
+      onCreated();
+    } catch {
+      toast.error('Error al importar sistemas');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <div className="bg-slate-900/60 border border-teal-500/20 rounded-2xl overflow-hidden animate-fadeIn">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-teal-500/15 bg-teal-500/5">
+        <div className="flex items-center gap-2.5">
+          <div className="w-6 h-6 rounded-lg bg-teal-500/15 border border-teal-500/20 flex items-center justify-center">
+            <RefreshCw size={12} className="text-teal-400" />
+          </div>
+          <span className="text-sm font-semibold text-teal-300">Importar desde auditorías</span>
+          {!loading && candidates.length > 0 && (
+            <span className="text-[11px] text-teal-500">{candidates.length} sistemas nuevos detectados</span>
+          )}
+        </div>
+        <button onClick={onClose} className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800/60 transition-all">
+          <X size={14} />
+        </button>
+      </div>
+
+      <div className="px-5 py-4">
+        {loading && (
+          <div className="flex items-center gap-2 py-6 justify-center">
+            <Loader2 size={16} className="animate-spin text-teal-400" />
+            <span className="text-sm text-slate-400">Analizando auditorías anteriores...</span>
+          </div>
+        )}
+
+        {!loading && candidates.length === 0 && (
+          <div className="text-center py-6">
+            <p className="text-slate-400 font-medium text-sm">No hay sistemas nuevos por importar</p>
+            <p className="text-slate-600 text-xs mt-1">Todos los sistemas detectados ya están configurados</p>
+          </div>
+        )}
+
+        {!loading && candidates.length > 0 && (
+          <div className="space-y-2.5">
+            <p className="text-xs text-slate-500 mb-3">
+              Estos sistemas aparecieron en tus auditorías pero no están configurados aún.
+              Selecciona los que quieres agregar y ajusta la descripción si es necesario.
+            </p>
+
+            {candidates.map((c, i) => (
+              <div
+                key={c.name}
+                className={`rounded-xl border p-3.5 transition-all duration-150 ${
+                  c.selected
+                    ? 'bg-teal-500/8 border-teal-500/25'
+                    : 'bg-slate-800/30 border-slate-700/40 opacity-60'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={c.selected}
+                    onChange={() => toggle(i)}
+                    className="w-4 h-4 accent-teal-500 cursor-pointer mt-0.5 flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-mono font-bold text-sm text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-lg">
+                        {c.name}
+                      </span>
+                      <span className="text-[11px] text-slate-500">{c.count} aparición{c.count > 1 ? 'es' : ''} en auditorías</span>
+                    </div>
+                    {c.selected && (
+                      <input
+                        value={c.description}
+                        onChange={e => updateDesc(i, e.target.value)}
+                        placeholder="Descripción del sistema..."
+                        className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-slate-200
+                                   focus:outline-none focus:border-teal-500/50 placeholder:text-slate-600"
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={handleImport}
+                disabled={importing || selectedCount === 0}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold
+                           bg-teal-500/20 border border-teal-500/35 text-teal-200
+                           hover:bg-teal-500/30 disabled:opacity-50 transition-all"
+              >
+                {importing ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                {importing ? 'Importando...' : `Importar ${selectedCount} sistema${selectedCount !== 1 ? 's' : ''}`}
+              </button>
+              <button
+                onClick={() => setCandidates(prev => prev.map(c => ({ ...c, selected: !prev.every(x => x.selected) })))}
+                className="text-xs text-slate-500 hover:text-slate-300 transition-colors px-2 py-2"
+              >
+                {candidates.every(c => c.selected) ? 'Deseleccionar todos' : 'Seleccionar todos'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════
 // SISTEMAS DE IMAGEN
 // ═══════════════════════════════════════════════════════════════
@@ -2147,9 +3394,25 @@ function ImageSystemsTab() {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [highlightedSystem, setHighlightedSystem] = useState<string | null>(null);
+
+  const handleQuickEdit = (systemName: string) => {
+    const sys = systems.find(s => s.system_name === systemName);
+    if (sys) {
+      setExpandedId(sys.id);
+      setEditingId(sys.id);
+      setHighlightedSystem(sys.id);
+      setTimeout(() => setHighlightedSystem(null), 2000);
+      // Scroll to card
+      setTimeout(() => {
+        document.getElementById(`sys-card-${sys.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  };
   const [editData, setEditData] = useState<Partial<ImageSystem>>({});
   const [saving, setSaving] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [showImporter, setShowImporter] = useState(false);
   const [newSystem, setNewSystem] = useState({ system_name: '', description: '', detection_hints: '' });
 
   const load = useCallback(async () => {
@@ -2236,19 +3499,39 @@ function ImageSystemsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <p className="text-sm text-slate-400 leading-relaxed">
+      <ImageAnalyticsBanner onQuickEdit={handleQuickEdit} />
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <p className="text-sm text-slate-400 leading-relaxed flex-1 min-w-[200px]">
           Sistemas detectados en capturas de pantalla bancarias. Definen qué campos extrae la IA de cada imagen.
         </p>
-        <button
-          onClick={() => setShowAdd(!showAdd)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
-                     bg-purple-500/10 border border-purple-500/30 text-purple-300
-                     hover:bg-purple-500/20 transition-all whitespace-nowrap"
-        >
-          <Plus size={14} /> Nuevo sistema
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={() => { setShowImporter(!showImporter); setShowAdd(false); }}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold
+                       bg-teal-500/10 border border-teal-500/25 text-teal-300
+                       hover:bg-teal-500/20 transition-all whitespace-nowrap"
+          >
+            <RefreshCw size={13} /> Importar detectados
+          </button>
+          <button
+            onClick={() => { setShowAdd(!showAdd); setShowImporter(false); }}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold
+                       bg-purple-500/10 border border-purple-500/30 text-purple-300
+                       hover:bg-purple-500/20 transition-all whitespace-nowrap"
+          >
+            <Plus size={14} /> Nuevo sistema
+          </button>
+        </div>
       </div>
+
+      {/* Panel: Importar sistemas detectados en auditorías */}
+      {showImporter && (
+        <DiscoveredSystemsImporter
+          existingSystems={systems}
+          onCreated={() => { load(); setShowImporter(false); }}
+          onClose={() => setShowImporter(false)}
+        />
+      )}
 
       {/* Formulario nuevo sistema */}
       {showAdd && (
@@ -2309,16 +3592,31 @@ function ImageSystemsTab() {
 
       {/* Lista de sistemas */}
       {systems.length === 0 ? (
-        <EmptyState
-          icon={<Monitor size={28} className="text-slate-600" />}
-          title="Sin sistemas configurados"
-          description="Agrega sistemas para que la IA pueda detectarlos en imágenes"
-        />
+        <div className="flex flex-col items-center gap-4 py-12 px-4">
+          <div className="w-14 h-14 rounded-2xl bg-slate-900/60 border border-slate-800/60 flex items-center justify-center">
+            <ImageIcon size={24} className="text-slate-600" />
+          </div>
+          <div className="text-center max-w-sm">
+            <p className="text-slate-300 font-semibold mb-1">Sin sistemas configurados</p>
+            <p className="text-slate-500 text-sm">La IA necesita saber qué pantallas existen para extraer información correctamente.</p>
+          </div>
+          <button
+            onClick={() => setShowImporter(true)}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold
+                       bg-teal-500/15 border border-teal-500/30 text-teal-300
+                       hover:bg-teal-500/25 transition-all"
+          >
+            <RefreshCw size={14} />
+            Importar desde auditorías anteriores
+          </button>
+          <p className="text-[11px] text-slate-600">o usa "Nuevo sistema" para agregar uno manualmente</p>
+        </div>
       ) : (
         <div className="space-y-3">
           {systems.map(sys => (
+            <div key={sys.id} id={`sys-card-${sys.id}`}
+              className={`transition-all duration-500 rounded-xl ${highlightedSystem === sys.id ? 'ring-2 ring-purple-500/50 ring-offset-1 ring-offset-slate-950' : ''}`}>
             <ImageSystemCard
-              key={sys.id}
               system={sys}
               expanded={expandedId === sys.id}
               onToggleExpand={() => setExpandedId(expandedId === sys.id ? null : sys.id)}
@@ -2333,6 +3631,7 @@ function ImageSystemsTab() {
               onFieldsChange={(fields) => handleFieldUpdate(sys.id, fields)}
               saving={saving}
             />
+            </div>
           ))}
         </div>
       )}
@@ -2362,6 +3661,24 @@ function ImageSystemCard({
 }: ImageSystemCardProps) {
   const [newField, setNewField] = useState<ImageSystemField>({ field_name: '', description: '', example: '' });
   const [showAddField, setShowAddField] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiUserDesc, setAiUserDesc] = useState('');
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiResult, setAiResult] = useState<{ detection_hints: string; suggested_fields: ImageSystemField[] } | null>(null);
+
+  const handleAiGenerate = async () => {
+    if (!aiUserDesc.trim()) return;
+    setAiGenerating(true);
+    setAiResult(null);
+    try {
+      const result = await imageSystemsService.generateHints(system.system_name, aiUserDesc.trim());
+      setAiResult(result);
+    } catch {
+      toast.error('Error al generar con IA');
+    } finally {
+      setAiGenerating(false);
+    }
+  };
 
   const fields: ImageSystemField[] = Array.isArray(system.fields_schema) ? system.fields_schema : [];
 
@@ -2439,6 +3756,80 @@ function ImageSystemCard({
               className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200
                          focus:outline-none focus:border-purple-500/50"
             />
+            {/* Asistente IA para detection_hints */}
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={() => setAiOpen(!aiOpen)}
+                className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-purple-400 transition-colors duration-150"
+              >
+                <Sparkles size={12} />
+                {aiOpen ? 'Ocultar asistente' : 'Generar con IA'}
+                <ChevronDown size={11} className={`transition-transform duration-200 ${aiOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {aiOpen && (
+                <div className="mt-2 p-3.5 rounded-xl bg-slate-900/60 border border-purple-500/20 animate-fadeIn space-y-2.5">
+                  <p className="text-[11px] text-slate-400">Describe visualmente cómo se ve este sistema en pantalla y qué información muestra.</p>
+                  <textarea
+                    value={aiUserDesc}
+                    onChange={e => setAiUserDesc(e.target.value)}
+                    rows={2}
+                    placeholder={`Ej: ${system.system_name} es una pantalla donde aparece el número de caso, fecha, monto y estado de la cuenta...`}
+                    className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-slate-200 resize-none
+                               focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAiGenerate}
+                    disabled={aiGenerating || !aiUserDesc.trim()}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/15
+                               border border-purple-500/30 text-purple-300 text-xs font-medium
+                               hover:bg-purple-500/25 disabled:opacity-50 transition-all duration-150"
+                  >
+                    {aiGenerating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                    {aiGenerating ? 'Generando...' : 'Generar'}
+                  </button>
+                  {aiResult && (
+                    <div className="animate-fadeIn space-y-2">
+                      <div>
+                        <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mb-1">Pistas de detección generadas</p>
+                        <div className="bg-slate-800/60 rounded-lg px-3 py-2 border border-slate-700/40">
+                          <p className="text-[11px] text-slate-200 leading-relaxed">{aiResult.detection_hints}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => onEditDataChange({ ...editData, detection_hints: aiResult.detection_hints })}
+                          className="mt-1.5 flex items-center gap-1 text-[11px] text-green-400 hover:text-green-300 transition-colors"
+                        >
+                          <Check size={11} /> Usar estas pistas
+                        </button>
+                      </div>
+                      {aiResult.suggested_fields.length > 0 && (
+                        <div>
+                          <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mb-1">Campos sugeridos</p>
+                          <div className="space-y-1">
+                            {aiResult.suggested_fields.map((f, i) => (
+                              <div key={i} className="flex items-center gap-2 text-[11px]">
+                                <span className="font-mono text-purple-300/80 w-32 flex-shrink-0">{f.field_name}</span>
+                                <span className="text-slate-400 flex-1">{f.description}</span>
+                                {f.example && <span className="text-slate-600 italic">{f.example}</span>}
+                              </div>
+                            ))}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => { onFieldsChange(aiResult.suggested_fields); setAiResult(null); setAiOpen(false); }}
+                            className="mt-1.5 flex items-center gap-1 text-[11px] text-green-400 hover:text-green-300 transition-colors"
+                          >
+                            <Check size={11} /> Agregar estos campos al sistema
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex gap-2 justify-end">
             <button onClick={onCancelEdit} className="px-3 py-1.5 rounded-lg text-xs text-slate-400 border border-slate-700/40 hover:text-slate-200 transition-all">

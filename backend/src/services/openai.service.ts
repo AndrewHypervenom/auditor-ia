@@ -164,6 +164,135 @@ class OpenAIService {
  return text;
  }
  }
+
+ async generateCriteriaBlocks(description: string, callType: string, mode: string, availableSystems: string[]): Promise<{ blocks: Array<{ block_name: string; criteria: Array<{ topic: string; points: number | null; criticality: string; what_to_look_for: string; validation_source: string[]; applies: boolean }> }> }> {
+ const systemsStr = availableSystems.length > 0 ? availableSystems.join(', ') : 'FALCON, VCAS, VISION, VRM, GPF';
+ const systemPrompt = `Eres un experto en calidad de call centers bancarios en México, especializado en crear rúbricas de evaluación para auditorías de llamadas.
+
+Genera criterios de evaluación para auditar llamadas de tipo "${callType}" en modo "${mode}".
+El usuario describe lo que quiere evaluar: "${description}"
+
+Sistemas de imagen disponibles: ${systemsStr}
+
+Genera de 3 a 6 bloques lógicos de criterios. Responde ÚNICAMENTE con JSON válido (sin markdown):
+{
+  "blocks": [
+    {
+      "block_name": "Nombre del bloque",
+      "criteria": [
+        {
+          "topic": "Nombre corto del criterio",
+          "points": 5,
+          "criticality": "Crítico",
+          "what_to_look_for": "Instrucción clara y específica para la IA sobre qué buscar en la evidencia",
+          "validation_source": ["gpf"],
+          "applies": true
+        }
+      ]
+    }
+  ]
+}
+
+Reglas:
+- Bloques típicos: Gestión del caso / Verificación en sistemas / Comunicación / Cierre / Script
+- Cada bloque: 3 a 7 criterios
+- Puntos: 5, 7, 10, 11, 17 (suma total ~100-130 pts)
+- Máximo 3 criterios con criticality "Crítico" (los demás "-")
+- validation_source opciones: "gpf", "imagenes", "llamada" (usa "imagenes:SISTEMA" para sistema específico, ej: "imagenes:FALCON")
+- what_to_look_for: instrucción detallada de 2-5 oraciones para la IA evaluadora
+- Si no aplica para este tipo de llamada, aplica:false`;
+
+ try {
+ logger.info('[OPENAI] Generando bloques de criterios', { callType, mode });
+ const response = await this.client.chat.completions.create({
+ model: 'gpt-5.4-mini',
+ temperature: 0.4,
+ messages: [{ role: 'user', content: systemPrompt }]
+ });
+ const content = response.choices[0]?.message?.content?.trim() ?? '{}';
+ const cleaned = content.replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
+ const parsed = JSON.parse(cleaned);
+ logger.info('[OPENAI] Criterios generados', { blocks: parsed.blocks?.length, tokens: response.usage?.total_tokens });
+ return { blocks: Array.isArray(parsed.blocks) ? parsed.blocks : [] };
+ } catch (error: any) {
+ logger.error('[OPENAI] Error generando criterios', { error: error.message });
+ throw error;
+ }
+ }
+
+ async generateImageSystemHints(systemName: string, userDescription: string): Promise<{ detection_hints: string; suggested_fields: Array<{ field_name: string; description: string; example?: string }> }> {
+ const systemPrompt = `Eres un experto en sistemas bancarios de call center de México.
+Tu tarea es ayudar a configurar un sistema de IA que detecta y extrae información de capturas de pantalla de sistemas bancarios internos.
+
+El sistema bancario se llama: "${systemName}"
+El usuario describe el sistema así: "${userDescription}"
+
+Genera:
+1. "detection_hints": Texto que aparece VISUALMENTE en la pantalla de este sistema y permite identificarlo con certeza (nombres de campos, títulos, menús, colores). Máximo 3 oraciones cortas.
+2. "suggested_fields": Lista de 3-6 campos clave que este sistema muestra y que son relevantes para evaluar llamadas de auditoría de fraude. Cada campo debe tener: field_name (en inglés, snake_case), description (en español), example (valor de ejemplo real).
+
+Responde SOLO con JSON válido, sin markdown, sin explicaciones adicionales. Formato:
+{"detection_hints": "...", "suggested_fields": [{"field_name": "...", "description": "...", "example": "..."}]}`;
+
+ try {
+ logger.info('[OPENAI] Generando hints para sistema de imagen', { systemName });
+ const response = await this.client.chat.completions.create({
+ model: 'gpt-5.4-mini',
+ temperature: 0.3,
+ messages: [{ role: 'user', content: systemPrompt }]
+ });
+ const content = response.choices[0]?.message?.content?.trim() ?? '{}';
+ const cleaned = content.replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
+ const parsed = JSON.parse(cleaned);
+ logger.info('[OPENAI] Hints generados', { tokens: response.usage?.total_tokens });
+ return {
+ detection_hints: parsed.detection_hints ?? '',
+ suggested_fields: Array.isArray(parsed.suggested_fields) ? parsed.suggested_fields : [],
+ };
+ } catch (error: any) {
+ logger.error('[OPENAI] Error generando hints de sistema', { error: error.message });
+ throw error;
+ }
+ }
+
+ async generateCriterionPrompt(description: string, topic: string, callType: string): Promise<string> {
+ const systemPrompt = `Eres un experto en calidad y auditoría de call centers bancarios.
+Tu tarea es generar instrucciones técnicas precisas para un sistema de IA que evalúa automáticamente si los agentes de call center cumplen con criterios de calidad.
+
+CONTEXTO DEL SISTEMA:
+- El sistema analiza: transcripciones de llamadas, capturas de pantalla de sistemas internos (VCAS, Falcon, Vision, GPF, VRM) y registros GPF.
+- El criterio de evaluación ya tiene un nombre/descripción: "${topic}"
+- Tipo de llamada: ${callType}
+
+INSTRUCCIONES PARA GENERAR EL PROMPT:
+1. Sé específico sobre QUÉ buscar (campo exacto, valor esperado, ubicación en la pantalla).
+2. Define claramente cuándo es CORRECTO vs INCORRECTO.
+3. Menciona casos especiales o excepciones si los hay.
+4. Usa el mismo lenguaje y formato que los demás criterios del sistema.
+5. Máximo 400 palabras, sin formato markdown innecesario.
+
+El usuario te describirá en lenguaje natural lo que debe verificarse. Genera la instrucción técnica lista para usar.`;
+
+ try {
+ logger.info('[OPENAI] Generando instrucción de criterio', { topic, callType });
+
+ const response = await this.client.chat.completions.create({
+ model: 'gpt-5.4-mini',
+ temperature: 0.3,
+ messages: [
+ { role: 'system', content: systemPrompt },
+ { role: 'user', content: description }
+ ]
+ });
+
+ const result = response.choices[0]?.message?.content?.trim() ?? '';
+ logger.info('[OPENAI] Instrucción generada', { tokens: response.usage?.total_tokens });
+ return result;
+ } catch (error: any) {
+ logger.error('[OPENAI] Error generando instrucción de criterio', { error: error.message });
+ throw error;
+ }
+ }
 }
 
 export { OpenAIService };
@@ -185,5 +314,14 @@ export const openAIService = {
  },
  correctTranscription: async (text: string) => {
  return getOpenAIService().correctTranscription(text);
+ },
+ generateCriterionPrompt: async (description: string, topic: string, callType: string) => {
+ return getOpenAIService().generateCriterionPrompt(description, topic, callType);
+ },
+ generateImageSystemHints: async (systemName: string, userDescription: string) => {
+ return getOpenAIService().generateImageSystemHints(systemName, userDescription);
+ },
+ generateCriteriaBlocks: async (description: string, callType: string, mode: string, availableSystems: string[]) => {
+ return getOpenAIService().generateCriteriaBlocks(description, callType, mode, availableSystems);
  }
 };

@@ -40,7 +40,7 @@ class EvaluatorService {
  const imageRubroHints = criteriaEarly
   .flatMap((block: any) =>
    block.topics
-    .filter((t: any) => t.applies && Array.isArray(t.validationSource) && t.validationSource.includes('imagenes') && t.whatToLookFor)
+    .filter((t: any) => t.applies && Array.isArray(t.validationSource) && t.validationSource.some((s: string) => s === 'imagenes' || s.startsWith('imagenes:')) && t.whatToLookFor)
     .map((t: any) => `- [${block.blockName}] ${t.topic}: ${t.whatToLookFor}`)
   ).join('\n');
 
@@ -820,7 +820,7 @@ TÓPICOS A EVALUAR
 
 ${topics.map((t, i) => {
   const sourceLabels: string = Array.isArray(t.validationSource) && t.validationSource.length > 0
-   ? t.validationSource.map((s: string) => s === 'gpf' ? 'GPF' : s === 'imagenes' ? 'Imágenes del sistema' : 'Llamada/Transcripción').join(' + ')
+   ? t.validationSource.map((s: string) => s === 'gpf' ? 'GPF' : s === 'llamada' ? 'Llamada/Transcripción' : s.startsWith('imagenes:') ? `Imágenes ${s.slice(9)}` : 'Imágenes del sistema').join(' + ')
    : 'Toda la evidencia disponible';
   const sourceRule: string = Array.isArray(t.validationSource) && t.validationSource.length > 0
    ? `OBLIGATORIO: evalúa ÚNICAMENTE usando la(s) fuente(s): ${sourceLabels}. Si esa fuente no tiene evidencia → 0 puntos.`

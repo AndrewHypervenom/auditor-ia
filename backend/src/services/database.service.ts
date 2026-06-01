@@ -1227,6 +1227,40 @@ class DatabaseService {
     this.invalidateImageSystemsCache();
   }
 
+  async getImageSystemAnalytics(): Promise<Array<{ system_name: string; count: number; avg_confidence: number; last_seen: string | null }>> {
+    const { data, error } = await supabaseAdmin
+      .from('image_analyses')
+      .select('system_detected, confidence, created_at')
+      .not('system_detected', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(3000);
+
+    if (error) {
+      logger.warn('getImageSystemAnalytics: error', { error });
+      return [];
+    }
+
+    const grouped: Record<string, { count: number; totalConf: number; lastSeen: string | null }> = {};
+    for (const row of (data || [])) {
+      const name = (row.system_detected as string) || 'DESCONOCIDO';
+      if (!grouped[name]) grouped[name] = { count: 0, totalConf: 0, lastSeen: null };
+      grouped[name].count++;
+      grouped[name].totalConf += Number(row.confidence) || 0;
+      if (!grouped[name].lastSeen || (row.created_at && row.created_at > grouped[name].lastSeen!)) {
+        grouped[name].lastSeen = row.created_at as string;
+      }
+    }
+
+    return Object.entries(grouped)
+      .map(([system_name, s]) => ({
+        system_name,
+        count: s.count,
+        avg_confidence: s.count > 0 ? Math.round((s.totalConf / s.count) * 100) / 100 : 0,
+        last_seen: s.lastSeen,
+      }))
+      .sort((a, b) => b.count - a.count);
+  }
+
   // ============================================================
   // CALL TYPES CONFIG
   // ============================================================
@@ -1462,6 +1496,8 @@ export const databaseService = {
   createBin: (payload: Parameters<DatabaseService['createBin']>[0]) => getDatabaseService().createBin(payload),
   updateBin: (id: string, payload: Parameters<DatabaseService['updateBin']>[1]) => getDatabaseService().updateBin(id, payload),
   deleteBin: (id: string) => getDatabaseService().deleteBin(id),
+  // Analytics
+  getImageSystemAnalytics: () => getDatabaseService().getImageSystemAnalytics(),
 };
 
 export { DatabaseService };

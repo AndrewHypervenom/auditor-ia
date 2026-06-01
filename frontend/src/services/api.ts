@@ -493,6 +493,14 @@ export const gpfService = {
   return response.data;
  },
 
+ async getCategories(env: 'test' | 'prod' = 'prod'): Promise<{
+   categories: Array<{ calificacion: string; subcalificacion: string; count: number }>;
+   total_attentions: number;
+ }> {
+  const response = await api.get(`/gpf/categories?env=${env}`);
+  return response.data;
+ },
+
  async getAttentionDetail(env: 'test' | 'prod', id: string | number): Promise<GpfAttentionDetail> {
  const response = await api.get(`/gpf/attention-detail?env=${env}&id=${encodeURIComponent(String(id))}`);
  return response.data;
@@ -594,6 +602,14 @@ export const criteriaService = {
   async removeCriteria(id: string) {
     const response = await api.delete(`/admin/criteria/${id}`);
     return response.data;
+  },
+  async generatePrompt(payload: { description: string; topic: string; call_type: string }) {
+    const response = await api.post('/admin/criteria/generate-prompt', payload);
+    return response.data as { prompt: string };
+  },
+  async generateBlocks(payload: { description: string; call_type: string; mode: string }): Promise<{ blocks: GeneratedBlock[] }> {
+    const response = await api.post('/admin/criteria/generate-blocks', payload);
+    return response.data;
   }
 };
 
@@ -624,6 +640,20 @@ export interface CriteriaBlock {
   created_at: string;
   updated_at: string;
   criteria: CriteriaItem[];
+}
+
+export interface GeneratedCriterion {
+  topic: string;
+  points: number | null;
+  criticality: 'Crítico' | '-';
+  what_to_look_for: string;
+  validation_source: string[];
+  applies: boolean;
+}
+
+export interface GeneratedBlock {
+  block_name: string;
+  criteria: GeneratedCriterion[];
 }
 
 export interface CriteriaItemOverride {
@@ -778,6 +808,14 @@ export const imageSystemsService = {
   async update(id: string, payload: Partial<Pick<ImageSystem, 'system_name' | 'description' | 'detection_hints' | 'fields_schema' | 'is_active' | 'display_order'>>): Promise<ImageSystem> {
     const response = await api.put(`/admin/image-systems/${id}`, payload);
     return response.data as ImageSystem;
+  },
+  async generateHints(system_name: string, description: string): Promise<{ detection_hints: string; suggested_fields: ImageSystemField[] }> {
+    const response = await api.post('/admin/image-systems/generate-hints', { system_name, description });
+    return response.data;
+  },
+  async getAnalytics(): Promise<Array<{ system_name: string; count: number; avg_confidence: number; last_seen: string | null }>> {
+    const response = await api.get('/admin/image-systems/analytics');
+    return response.data;
   },
   async remove(id: string): Promise<void> {
     await api.delete(`/admin/image-systems/${id}`);
