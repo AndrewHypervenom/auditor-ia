@@ -1761,23 +1761,37 @@ app.post('/api/gpf/discover-systems', authenticateUser, requireAdminOrAnalyst, a
 
   logger.info(`[DISCOVER-SYS] ${filtered.length} atenciones encontradas para "${calificacion}/${subcalificacion}"`);
   if (!filtered.length) {
-   return res.json({ systems: [], total_attentions: 0, images_analyzed: 0 });
+   return res.json({ systems: [], total_attentions: 0, images_analyzed: 0, cases_checked: [] });
   }
 
-  // 2. Buscar capturas en las primeras atenciones (hasta obtener max_images)
-  for (const att of filtered.slice(0, 25)) {
+  // 2. Muestra aleatoria de hasta 5 atenciones para buscar capturas
+  const shuffled = [...filtered].sort(() => Math.random() - 0.5);
+  const toCheck = shuffled.slice(0, 5);
+  const casesChecked: string[] = [];
+
+  for (const att of toCheck) {
    if (tempPaths.length >= max_images) break;
-   const id = att['id_atencion'] || att.id;
+   const id = att['id_atencion'] || att['Caso'] || att.id;
+   if (!id) continue;
+   casesChecked.push(String(id));
    try {
     const resp = await gpfFetch(
      `${baseUrl}/api/quality-control/v1/captures-comments/${id}`,
      { headers: authHeaders }
     );
-    if (!resp.ok) continue;
+    if (!resp.ok) {
+     logger.warn(`[DISCOVER-SYS] captures-comments ${id}: HTTP ${resp.status}`);
+     continue;
+    }
     const body: any = await resp.json();
-    if (!body?.is_success || !Array.isArray(body?.data?.captures)) continue;
+    logger.info(`[DISCOVER-SYS] captures-comments ${id}:`, {
+     is_success: body?.is_success,
+     capturesCount: Array.isArray(body?.data?.captures) ? body.data.captures.length : 'no-array',
+    });
+    const capturesArr = body?.data?.captures ?? body?.captures ?? [];
+    if (!Array.isArray(capturesArr) || capturesArr.length === 0) continue;
 
-    const urls: string[] = body.data.captures
+    const urls: string[] = capturesArr
      .filter((u: any) => typeof u === 'string' && u.length > 0)
      .map((u: string) => {
       if (u.includes('127.0.0.1') || u.match(/^https?:\/\/localhost/i)) {
@@ -1801,7 +1815,8 @@ app.post('/api/gpf/discover-systems', authenticateUser, requireAdminOrAnalyst, a
   if (!tempPaths.length) {
    return res.json({
     systems: [], total_attentions: filtered.length, images_analyzed: 0,
-    message: 'Las atenciones de este tipo no tienen capturas de imagen registradas en GPF'
+    cases_checked: casesChecked,
+    message: `Se revisaron ${casesChecked.length} casos y ninguno tiene capturas de pantalla registradas. Prueba un rango de fechas diferente o agrega los sistemas manualmente.`
    });
   }
 
@@ -1823,7 +1838,7 @@ app.post('/api/gpf/discover-systems', authenticateUser, requireAdminOrAnalyst, a
    .sort((a, b) => b.count - a.count);
 
   logger.info(`[DISCOVER-SYS] Sistemas detectados: ${systems.map(s => s.name).join(', ')}`);
-  return res.json({ systems, total_attentions: filtered.length, images_analyzed: analyses.length });
+  return res.json({ systems, total_attentions: filtered.length, images_analyzed: analyses.length, cases_checked: casesChecked });
 
  } catch (error: any) {
   logger.error('Error en discover-systems:', error);

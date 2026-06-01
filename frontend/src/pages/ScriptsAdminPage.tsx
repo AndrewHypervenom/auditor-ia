@@ -3271,7 +3271,7 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
 
   // Análisis de imágenes
   const [analyzing, setAnalyzing] = useState(false);
-  const [searchInfo, setSearchInfo] = useState<{ total: number; analyzed: number; message?: string } | null>(null);
+  const [searchInfo, setSearchInfo] = useState<{ total: number; analyzed: number; cases: string[]; message?: string } | null>(null);
   const [candidates, setCandidates] = useState<Array<{ name: string; count: number; selected: boolean; description: string }>>([]);
   const [importing, setImporting] = useState(false);
 
@@ -3312,7 +3312,7 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
       });
-      setSearchInfo({ total: result.total_attentions, analyzed: result.images_analyzed, message: result.message });
+      setSearchInfo({ total: result.total_attentions, analyzed: result.images_analyzed, cases: result.cases_checked ?? [], message: result.message });
       const valid = result.systems
         .filter(s => !NOISE_SYSTEM_NAMES.has(s.name.toLowerCase()))
         .map(s => ({
@@ -3454,19 +3454,31 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
 
         {/* Info + resultados */}
         {searchInfo && (
-          <div className="flex items-center gap-2 flex-wrap text-[11px] animate-fadeIn">
-            <span className="text-slate-500">{searchInfo.total} atencion{searchInfo.total !== 1 ? 'es' : ''} en GPF</span>
-            {searchInfo.analyzed > 0 && <span className="text-teal-400">· {searchInfo.analyzed} imagen{searchInfo.analyzed !== 1 ? 'es' : ''} analizadas</span>}
-            {searchInfo.message && <span className="text-amber-400/80">· {searchInfo.message}</span>}
+          <div className="space-y-1.5 animate-fadeIn">
+            <div className="flex items-center gap-2 flex-wrap text-[11px]">
+              <span className="text-slate-500">{searchInfo.total} atencion{searchInfo.total !== 1 ? 'es' : ''} en GPF</span>
+              <span className="text-slate-600">· {searchInfo.cases.length} caso{searchInfo.cases.length !== 1 ? 's' : ''} revisado{searchInfo.cases.length !== 1 ? 's' : ''}</span>
+              {searchInfo.analyzed > 0 && <span className="text-teal-400">· {searchInfo.analyzed} imagen{searchInfo.analyzed !== 1 ? 'es' : ''} analizadas</span>}
+            </div>
+            {searchInfo.cases.length > 0 && (
+              <p className="text-[10px] text-slate-700">
+                Casos revisados: {searchInfo.cases.join(', ')}
+              </p>
+            )}
+            {searchInfo.message && (
+              <p className="text-[11px] text-amber-400/80">{searchInfo.message}</p>
+            )}
           </div>
         )}
 
         {candidates.length === 0 && searchInfo && !analyzing && (
-          <p className="text-center text-slate-400 text-sm py-3">
-            {searchInfo.analyzed === 0
-              ? 'Estas atenciones no tienen capturas de pantalla registradas en GPF'
-              : 'No se detectaron sistemas reconocibles en las capturas'}
-          </p>
+          <div className="text-center py-3 space-y-2">
+            <p className="text-slate-400 text-sm">No se encontraron capturas de pantalla</p>
+            <p className="text-slate-600 text-xs max-w-xs mx-auto">
+              Los casos de este tipo no tienen imágenes registradas en GPF para ese rango de fechas.
+              Prueba otras fechas o agrega los sistemas manualmente con "Nuevo sistema".
+            </p>
+          </div>
         )}
 
         {candidates.length > 0 && (

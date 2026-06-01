@@ -512,6 +512,7 @@ export const gpfService = {
    systems: Array<{ name: string; count: number }>;
    total_attentions: number;
    images_analyzed: number;
+   cases_checked: string[];
    message?: string;
  }> {
   const response = await api.post('/gpf/discover-systems', payload);
