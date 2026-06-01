@@ -3832,7 +3832,13 @@ function ImageSystemCard({
   const [imgPreview, setImgPreview] = useState<string>('');
   const [imgDesc, setImgDesc] = useState('');
   const [imgAnalyzing, setImgAnalyzing] = useState(false);
-  const [imgResult, setImgResult] = useState<{ detection_hints: string; fields: Array<{ field_name: string; description: string; example: string; how_to_evaluate: string }> } | null>(null);
+
+  // Resultados editables
+  type EditableField = { field_name: string; description: string; example: string; how_to_evaluate: string; selected: boolean };
+  const [editableHints, setEditableHints] = useState<string>('');
+  const [editableFields, setEditableFields] = useState<EditableField[]>([]);
+  const [hasResult, setHasResult] = useState(false);
+  const [expandedField, setExpandedField] = useState<number | null>(null);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -3847,7 +3853,7 @@ function ImageSystemCard({
   const handleImgAnalyze = async () => {
     if (!imgFile || !imgPreview) return;
     setImgAnalyzing(true);
-    setImgResult(null);
+    setHasResult(false);
     try {
       const base64 = imgPreview.split(',')[1];
       const mimeType = imgFile.type || 'image/png';
@@ -3857,7 +3863,9 @@ function ImageSystemCard({
         system_name: system.system_name,
         user_description: imgDesc.trim(),
       });
-      setImgResult(result);
+      setEditableHints(result.detection_hints || '');
+      setEditableFields(result.fields.map(f => ({ ...f, selected: true })));
+      setHasResult(true);
     } catch {
       toast.error('Error al analizar imagen con IA');
     } finally {
@@ -3865,21 +3873,40 @@ function ImageSystemCard({
     }
   };
 
+  const updateField = (idx: number, patch: Partial<EditableField>) => {
+    setEditableFields(prev => prev.map((f, i) => i === idx ? { ...f, ...patch } : f));
+  };
+  const removeField = (idx: number) => {
+    setEditableFields(prev => prev.filter((_, i) => i !== idx));
+  };
+  const addBlankField = () => {
+    setEditableFields(prev => [...prev, { field_name: '', description: '', example: '', how_to_evaluate: '', selected: true }]);
+    setExpandedField(editableFields.length);
+  };
+  const toggleAll = () => {
+    const allOn = editableFields.every(f => f.selected);
+    setEditableFields(prev => prev.map(f => ({ ...f, selected: !allOn })));
+  };
+
+  const selectedFieldsCount = editableFields.filter(f => f.selected && f.field_name.trim()).length;
+
   const applyImgResult = () => {
-    if (!imgResult) return;
-    if (imgResult.detection_hints) {
-      onEditDataChange({ ...editData, detection_hints: imgResult.detection_hints });
+    if (editableHints.trim()) {
+      onEditDataChange({ ...editData, detection_hints: editableHints.trim() });
     }
-    if (imgResult.fields.length > 0) {
-      const newFields: ImageSystemField[] = imgResult.fields.map(f => ({
-        field_name: f.field_name,
-        description: `${f.description}${f.how_to_evaluate ? ` | Evaluar: ${f.how_to_evaluate}` : ''}`,
-        example: f.example,
+    const toAdd: ImageSystemField[] = editableFields
+      .filter(f => f.selected && f.field_name.trim())
+      .map(f => ({
+        field_name: f.field_name.trim(),
+        description: `${f.description.trim()}${f.how_to_evaluate.trim() ? ` | Evaluar: ${f.how_to_evaluate.trim()}` : ''}`,
+        example: f.example.trim() || undefined,
       }));
-      onFieldsChange([...fields, ...newFields.filter(nf => !fields.some(f => f.field_name === nf.field_name))]);
+    if (toAdd.length > 0) {
+      onFieldsChange([...fields, ...toAdd.filter(nf => !fields.some(f => f.field_name === nf.field_name))]);
     }
     setImgOpen(false);
-    toast.success('Campos y pistas aplicados correctamente');
+    setHasResult(false);
+    toast.success(`✅ Aplicados: pistas + ${toAdd.length} campo${toAdd.length !== 1 ? 's' : ''}`);
   };
 
   const handleAiGenerate = async () => {
@@ -4146,46 +4173,206 @@ function ImageSystemCard({
                   {imgAnalyzing ? 'Analizando imagen con IA...' : 'Analizar y generar campos'}
                 </button>
 
-                {imgResult && (
-                  <div className="space-y-3 animate-fadeIn">
-                    {imgResult.detection_hints && (
-                      <div>
-                        <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mb-1">Pistas de detección generadas</p>
-                        <div className="bg-slate-800/50 border border-slate-700/40 rounded-xl px-3 py-2.5">
-                          <p className="text-xs text-slate-200 leading-relaxed">{imgResult.detection_hints}</p>
+                {hasResult && (
+                  <div className="space-y-4 animate-fadeIn pt-2 border-t border-slate-700/40">
+
+                    {/* Banner editable */}
+                    <div className="px-3 py-2 rounded-xl bg-brand-500/10 border border-brand-700/20">
+                      <p className="text-[11px] text-brand-300 leading-relaxed">
+                        <strong>Todo es editable.</strong> Revisa, ajusta y desmarca lo que no necesites antes de aplicar.
+                      </p>
+                    </div>
+
+                    {/* Pistas de detección — EDITABLE */}
+                    <div>
+                      <label className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
+                          Pistas de detección (cómo identificar esta pantalla)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setEditableHints('')}
+                          className="text-[10px] text-slate-600 hover:text-red-400 transition-colors"
+                        >
+                          Limpiar
+                        </button>
+                      </label>
+                      <textarea
+                        value={editableHints}
+                        onChange={e => setEditableHints(e.target.value)}
+                        rows={4}
+                        placeholder="Describe cómo se identifica visualmente esta pantalla..."
+                        className="w-full bg-slate-800/50 border border-slate-700/40 rounded-xl px-3 py-2.5 text-xs text-slate-200 resize-y
+                                   focus:outline-none focus:border-brand-600/50 placeholder:text-slate-600 leading-relaxed"
+                      />
+                      <p className="text-[10px] text-slate-600 mt-1">
+                        Este texto entra al prompt de la IA cuando analiza imágenes reales en auditorías.
+                      </p>
+                    </div>
+
+                    {/* Campos editables */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
+                          {editableFields.length} campo{editableFields.length !== 1 ? 's' : ''} detectado{editableFields.length !== 1 ? 's' : ''}
+                          {selectedFieldsCount !== editableFields.length && (
+                            <span className="ml-1 text-brand-400 font-normal normal-case">· {selectedFieldsCount} seleccionado{selectedFieldsCount !== 1 ? 's' : ''}</span>
+                          )}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={toggleAll}
+                            className="text-[10px] text-slate-500 hover:text-brand-400 transition-colors"
+                          >
+                            {editableFields.every(f => f.selected) ? 'Desmarcar todos' : 'Seleccionar todos'}
+                          </button>
+                          <span className="text-slate-700">·</span>
+                          <button
+                            type="button"
+                            onClick={addBlankField}
+                            className="flex items-center gap-1 text-[10px] text-purple-400 hover:text-purple-300 transition-colors"
+                          >
+                            <Plus size={9} /> Añadir campo
+                          </button>
                         </div>
                       </div>
-                    )}
-                    {imgResult.fields.length > 0 && (
-                      <div>
-                        <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mb-1">
-                          {imgResult.fields.length} campos detectados
-                        </p>
-                        <div className="space-y-1.5">
-                          {imgResult.fields.map((f, i) => (
-                            <div key={i} className="bg-slate-800/50 border border-slate-700/40 rounded-xl px-3 py-2">
-                              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                                <span className="font-mono text-xs text-purple-300 font-bold">{f.field_name}</span>
-                                {f.example && <span className="text-[10px] text-slate-500 italic truncate">ej: {f.example}</span>}
+
+                      <div className="space-y-1.5">
+                        {editableFields.map((f, idx) => {
+                          const isExpanded = expandedField === idx;
+                          return (
+                            <div
+                              key={idx}
+                              className={`rounded-xl border transition-all duration-150 ${
+                                !f.selected ? 'opacity-40 bg-slate-800/20 border-slate-700/30'
+                                : isExpanded ? 'bg-slate-800/60 border-brand-700/30'
+                                : 'bg-slate-800/40 border-slate-700/40 hover:border-slate-600/60'
+                              }`}
+                            >
+                              {/* Header del campo (siempre visible) */}
+                              <div className="flex items-start gap-2 p-2.5">
+                                <input
+                                  type="checkbox"
+                                  checked={f.selected}
+                                  onChange={() => updateField(idx, { selected: !f.selected })}
+                                  className="w-3.5 h-3.5 accent-brand-500 cursor-pointer mt-0.5 flex-shrink-0"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedField(isExpanded ? null : idx)}
+                                  className="flex-1 min-w-0 text-left"
+                                >
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-mono text-xs text-purple-300 font-bold truncate">
+                                      {f.field_name || <span className="text-slate-600 italic">sin nombre</span>}
+                                    </span>
+                                    {f.example && (
+                                      <span className="text-[10px] text-slate-500 italic truncate">ej: {f.example}</span>
+                                    )}
+                                  </div>
+                                  {!isExpanded && f.description && (
+                                    <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{f.description}</p>
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedField(isExpanded ? null : idx)}
+                                  className="p-1 text-slate-600 hover:text-brand-400 transition-colors"
+                                >
+                                  <ChevronDown size={12} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); removeField(idx); if (expandedField === idx) setExpandedField(null); }}
+                                  className="p-1 text-slate-600 hover:text-red-400 transition-colors"
+                                  title="Eliminar campo"
+                                >
+                                  <Trash2 size={11} />
+                                </button>
                               </div>
-                              <p className="text-[11px] text-slate-300 leading-relaxed">{f.description}</p>
-                              {f.how_to_evaluate && (
-                                <p className="text-[10px] text-brand-400/70 mt-0.5">↳ {f.how_to_evaluate}</p>
+
+                              {/* Detalle editable */}
+                              {isExpanded && (
+                                <div className="px-2.5 pb-2.5 space-y-2 animate-fadeIn border-t border-slate-700/40 pt-2">
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="block text-[9px] text-slate-500 font-semibold uppercase tracking-wider mb-1">
+                                        Nombre del campo
+                                      </label>
+                                      <input
+                                        value={f.field_name}
+                                        onChange={e => updateField(idx, { field_name: e.target.value })}
+                                        placeholder="snake_case"
+                                        className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1.5 text-[11px] font-mono text-purple-200
+                                                   focus:outline-none focus:border-brand-600/50 placeholder:text-slate-600"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[9px] text-slate-500 font-semibold uppercase tracking-wider mb-1">
+                                        Ejemplo
+                                      </label>
+                                      <input
+                                        value={f.example}
+                                        onChange={e => updateField(idx, { example: e.target.value })}
+                                        placeholder="Valor visible"
+                                        className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1.5 text-[11px] text-slate-200
+                                                   focus:outline-none focus:border-brand-600/50 placeholder:text-slate-600"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className="block text-[9px] text-slate-500 font-semibold uppercase tracking-wider mb-1">
+                                      Descripción (qué representa)
+                                    </label>
+                                    <textarea
+                                      value={f.description}
+                                      onChange={e => updateField(idx, { description: e.target.value })}
+                                      rows={2}
+                                      placeholder="Qué significa este campo..."
+                                      className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1.5 text-[11px] text-slate-200 resize-none
+                                                 focus:outline-none focus:border-brand-600/50 placeholder:text-slate-600"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[9px] text-brand-400/80 font-semibold uppercase tracking-wider mb-1">
+                                      ↳ Cómo debe evaluarlo la IA (prompt)
+                                    </label>
+                                    <textarea
+                                      value={f.how_to_evaluate}
+                                      onChange={e => updateField(idx, { how_to_evaluate: e.target.value })}
+                                      rows={3}
+                                      placeholder="Instrucción para la IA evaluadora..."
+                                      className="w-full bg-slate-900/60 border border-brand-700/25 rounded-lg px-2 py-1.5 text-[11px] text-brand-100 resize-y
+                                                 focus:outline-none focus:border-brand-600/50 placeholder:text-slate-600"
+                                    />
+                                  </div>
+                                </div>
                               )}
                             </div>
-                          ))}
-                        </div>
+                          );
+                        })}
                       </div>
-                    )}
+
+                      {editableFields.length === 0 && (
+                        <div className="text-center py-4 text-[11px] text-slate-600">
+                          No quedan campos. Haz clic en "+ Añadir campo" para crear uno manual.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Aplicar */}
                     <button
                       type="button"
                       onClick={applyImgResult}
-                      className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl
-                                 bg-green-500/15 border border-green-500/25 text-green-300 text-xs font-semibold
-                                 hover:bg-green-500/25 transition-all"
+                      disabled={selectedFieldsCount === 0 && !editableHints.trim()}
+                      className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl
+                                 bg-green-500/15 border border-green-500/30 text-green-300 text-sm font-semibold
+                                 hover:bg-green-500/25 disabled:opacity-40 transition-all"
                     >
-                      <Check size={12} />
-                      Aplicar pistas y campos al sistema
+                      <Check size={13} />
+                      Aplicar al sistema · {selectedFieldsCount} campo{selectedFieldsCount !== 1 ? 's' : ''}
+                      {editableHints.trim() && ' + pistas'}
                     </button>
                   </div>
                 )}
