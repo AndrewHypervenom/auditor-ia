@@ -1227,6 +1227,69 @@ class DatabaseService {
     this.invalidateImageSystemsCache();
   }
 
+  async getCalificacionesFromAudits(): Promise<Array<{ calificacion: string; subcalificaciones: string[] }>> {
+    const { data, error } = await supabaseAdmin
+      .from('audits')
+      .select('calificacion, sub_calificacion')
+      .not('calificacion', 'is', null)
+      .eq('status', 'completed');
+
+    if (error) { logger.warn('getCalificaciones: error', { error }); return []; }
+
+    const map: Record<string, Set<string>> = {};
+    for (const row of (data || [])) {
+      const cal = (row.calificacion as string || '').trim();
+      const sub = (row.sub_calificacion as string || '').trim();
+      if (!cal) continue;
+      if (!map[cal]) map[cal] = new Set();
+      if (sub) map[cal].add(sub);
+    }
+    return Object.entries(map)
+      .map(([calificacion, subs]) => ({ calificacion, subcalificaciones: Array.from(subs).sort() }))
+      .sort((a, b) => a.calificacion.localeCompare(b.calificacion));
+  }
+
+  async getImageSystemsByCallType(calificacion?: string, subcalificacion?: string): Promise<Array<{ system_name: string; count: number; avg_confidence: number }>> {
+    // Paso 1: obtener IDs de auditorías que coincidan con el filtro
+    let auditQuery = supabaseAdmin
+      .from('audits')
+      .select('id')
+      .eq('status', 'completed');
+    if (calificacion) auditQuery = auditQuery.eq('calificacion', calificacion);
+    if (subcalificacion) auditQuery = auditQuery.eq('sub_calificacion', subcalificacion);
+
+    const { data: audits, error: auditErr } = await auditQuery.limit(2000);
+    if (auditErr || !audits?.length) return [];
+
+    const auditIds = audits.map((a: any) => a.id as string);
+
+    // Paso 2: obtener image_analyses para esos audits
+    const { data: images, error: imgErr } = await supabaseAdmin
+      .from('image_analyses')
+      .select('system_detected, confidence')
+      .in('audit_id', auditIds)
+      .not('system_detected', 'is', null);
+
+    if (imgErr || !images?.length) return [];
+
+    const grouped: Record<string, { count: number; totalConf: number }> = {};
+    for (const row of images) {
+      const name = (row.system_detected as string || '').trim();
+      if (!name) continue;
+      if (!grouped[name]) grouped[name] = { count: 0, totalConf: 0 };
+      grouped[name].count++;
+      grouped[name].totalConf += Number(row.confidence) || 0;
+    }
+
+    return Object.entries(grouped)
+      .map(([system_name, s]) => ({
+        system_name,
+        count: s.count,
+        avg_confidence: s.count > 0 ? Math.round((s.totalConf / s.count) * 100) / 100 : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+  }
+
   async getImageSystemAnalytics(): Promise<Array<{ system_name: string; count: number; avg_confidence: number; last_seen: string | null }>> {
     const { data, error } = await supabaseAdmin
       .from('image_analyses')
@@ -1498,6 +1561,8 @@ export const databaseService = {
   deleteBin: (id: string) => getDatabaseService().deleteBin(id),
   // Analytics
   getImageSystemAnalytics: () => getDatabaseService().getImageSystemAnalytics(),
+  getCalificacionesFromAudits: () => getDatabaseService().getCalificacionesFromAudits(),
+  getImageSystemsByCallType: (calificacion?: string, subcalificacion?: string) => getDatabaseService().getImageSystemsByCallType(calificacion, subcalificacion),
 };
 
 export { DatabaseService };

@@ -817,6 +817,17 @@ export const imageSystemsService = {
     const response = await api.get('/admin/image-systems/analytics');
     return response.data;
   },
+  async getByCallType(calificacion?: string, subcalificacion?: string): Promise<Array<{ system_name: string; count: number; avg_confidence: number }>> {
+    const params = new URLSearchParams();
+    if (calificacion) params.set('calificacion', calificacion);
+    if (subcalificacion) params.set('subcalificacion', subcalificacion);
+    const response = await api.get(`/admin/image-systems/by-calltype?${params.toString()}`);
+    return response.data;
+  },
+  async getCalificaciones(): Promise<Array<{ calificacion: string; subcalificaciones: string[] }>> {
+    const response = await api.get('/admin/audits/calificaciones');
+    return response.data;
+  },
   async remove(id: string): Promise<void> {
     await api.delete(`/admin/image-systems/${id}`);
   },

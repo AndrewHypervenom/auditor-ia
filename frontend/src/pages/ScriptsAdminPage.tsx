@@ -3233,48 +3233,78 @@ const SYSTEM_DESCRIPTIONS: Record<string, string> = {
 };
 
 function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: DiscoveredSystemsImporterProps) {
-  const [loading, setLoading] = useState(true);
+  // Filtros
+  const [calificaciones, setCalificaciones] = useState<Array<{ calificacion: string; subcalificaciones: string[] }>>([]);
+  const [selectedCal, setSelectedCal] = useState('');
+  const [selectedSub, setSelectedSub] = useState('');
+  const [loadingFilters, setLoadingFilters] = useState(true);
+
+  // Resultados
+  const [searching, setSearching] = useState(false);
+  const [searched, setSearched] = useState(false);
   const [candidates, setCandidates] = useState<Array<{ name: string; count: number; selected: boolean; description: string }>>([]);
   const [importing, setImporting] = useState(false);
 
   useEffect(() => {
-    imageSystemsService.getAnalytics()
-      .then(data => {
-        const existingNames = new Set(existingSystems.map(s => s.system_name.toUpperCase()));
-        const valid = data
-          .filter(d => !NOISE_SYSTEM_NAMES.has(d.system_name?.toLowerCase?.() ?? '') && d.count > 0)
-          .filter(d => !existingNames.has(d.system_name.toUpperCase()))
-          .map(d => ({
-            name: d.system_name.toUpperCase(),
-            count: d.count,
-            selected: true,
-            description: SYSTEM_DESCRIPTIONS[d.system_name.toUpperCase()] || `Sistema ${d.system_name} detectado en auditorías`,
-          }));
-        setCandidates(valid);
-      })
-      .catch(() => setCandidates([]))
-      .finally(() => setLoading(false));
+    imageSystemsService.getCalificaciones()
+      .then(data => setCalificaciones(data))
+      .catch(() => {})
+      .finally(() => setLoadingFilters(false));
   }, []);
+
+  const subcalificaciones = calificaciones.find(c => c.calificacion === selectedCal)?.subcalificaciones ?? [];
+
+  const handleSearch = async () => {
+    setSearching(true);
+    setSearched(false);
+    setCandidates([]);
+    try {
+      const data = await imageSystemsService.getByCallType(
+        selectedCal || undefined,
+        selectedSub || undefined
+      );
+      const existingNames = new Set(existingSystems.map(s => s.system_name.toUpperCase()));
+      const valid = data
+        .filter(d => !NOISE_SYSTEM_NAMES.has(d.system_name?.toLowerCase?.() ?? ''))
+        .map(d => ({
+          name: d.system_name.toUpperCase(),
+          count: d.count,
+          selected: !existingNames.has(d.system_name.toUpperCase()), // pre-check only new ones
+          description: SYSTEM_DESCRIPTIONS[d.system_name.toUpperCase()] || `Sistema ${d.system_name}`,
+        }));
+      setCandidates(valid);
+      setSearched(true);
+    } catch {
+      toast.error('Error al buscar sistemas');
+    } finally {
+      setSearching(false);
+    }
+  };
 
   const toggle = (i: number) => setCandidates(prev => prev.map((c, idx) => idx === i ? { ...c, selected: !c.selected } : c));
   const updateDesc = (i: number, desc: string) => setCandidates(prev => prev.map((c, idx) => idx === i ? { ...c, description: desc } : c));
 
+  const newCandidates = candidates.filter(c => {
+    const existingNames = new Set(existingSystems.map(s => s.system_name.toUpperCase()));
+    return !existingNames.has(c.name);
+  });
   const selectedCount = candidates.filter(c => c.selected).length;
+  const existingNames = new Set(existingSystems.map(s => s.system_name.toUpperCase()));
 
   const handleImport = async () => {
     setImporting(true);
     try {
-      const toCreate = candidates.filter(c => c.selected);
+      const toCreate = candidates.filter(c => c.selected && !existingNames.has(c.name));
       for (let i = 0; i < toCreate.length; i++) {
         const c = toCreate[i];
         await imageSystemsService.create({
           system_name: c.name,
           description: c.description,
           fields_schema: [],
-          display_order: i + 1,
+          display_order: existingSystems.length + i + 1,
         });
       }
-      toast.success(`✅ ${toCreate.length} sistema${toCreate.length > 1 ? 's' : ''} importado${toCreate.length > 1 ? 's' : ''}`);
+      toast.success(`✅ ${toCreate.length} sistema${toCreate.length !== 1 ? 's' : ''} importado${toCreate.length !== 1 ? 's' : ''}`);
       onCreated();
     } catch {
       toast.error('Error al importar sistemas');
@@ -3291,93 +3321,161 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
           <div className="w-6 h-6 rounded-lg bg-teal-500/15 border border-teal-500/20 flex items-center justify-center">
             <RefreshCw size={12} className="text-teal-400" />
           </div>
-          <span className="text-sm font-semibold text-teal-300">Importar desde auditorías</span>
-          {!loading && candidates.length > 0 && (
-            <span className="text-[11px] text-teal-500">{candidates.length} sistemas nuevos detectados</span>
-          )}
+          <span className="text-sm font-semibold text-teal-300">Descubrir sistemas por tipo de llamada</span>
         </div>
         <button onClick={onClose} className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800/60 transition-all">
           <X size={14} />
         </button>
       </div>
 
-      <div className="px-5 py-4">
-        {loading && (
-          <div className="flex items-center gap-2 py-6 justify-center">
-            <Loader2 size={16} className="animate-spin text-teal-400" />
-            <span className="text-sm text-slate-400">Analizando auditorías anteriores...</span>
-          </div>
-        )}
-
-        {!loading && candidates.length === 0 && (
-          <div className="text-center py-6">
-            <p className="text-slate-400 font-medium text-sm">No hay sistemas nuevos por importar</p>
-            <p className="text-slate-600 text-xs mt-1">Todos los sistemas detectados ya están configurados</p>
-          </div>
-        )}
-
-        {!loading && candidates.length > 0 && (
-          <div className="space-y-2.5">
-            <p className="text-xs text-slate-500 mb-3">
-              Estos sistemas aparecieron en tus auditorías pero no están configurados aún.
-              Selecciona los que quieres agregar y ajusta la descripción si es necesario.
-            </p>
-
-            {candidates.map((c, i) => (
-              <div
-                key={c.name}
-                className={`rounded-xl border p-3.5 transition-all duration-150 ${
-                  c.selected
-                    ? 'bg-teal-500/8 border-teal-500/25'
-                    : 'bg-slate-800/30 border-slate-700/40 opacity-60'
-                }`}
+      <div className="px-5 py-4 space-y-4">
+        {/* Filtros */}
+        <div>
+          <p className="text-xs text-slate-400 mb-3">
+            Filtra por tipo de llamada para ver qué sistemas de imagen aparecen en esas auditorías.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                Calificación
+              </label>
+              <select
+                value={selectedCal}
+                onChange={e => { setSelectedCal(e.target.value); setSelectedSub(''); setSearched(false); }}
+                disabled={loadingFilters}
+                className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-sm text-white
+                           focus:outline-none focus:border-teal-500/50 cursor-pointer disabled:opacity-50"
               >
-                <div className="flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={c.selected}
-                    onChange={() => toggle(i)}
-                    className="w-4 h-4 accent-teal-500 cursor-pointer mt-0.5 flex-shrink-0"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="font-mono font-bold text-sm text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-lg">
-                        {c.name}
-                      </span>
-                      <span className="text-[11px] text-slate-500">{c.count} aparición{c.count > 1 ? 'es' : ''} en auditorías</span>
+                <option value="">Todas</option>
+                {calificaciones.map(c => (
+                  <option key={c.calificacion} value={c.calificacion}>{c.calificacion}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                Subcalificación
+              </label>
+              <select
+                value={selectedSub}
+                onChange={e => { setSelectedSub(e.target.value); setSearched(false); }}
+                disabled={!selectedCal || subcalificaciones.length === 0}
+                className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-sm text-white
+                           focus:outline-none focus:border-teal-500/50 cursor-pointer disabled:opacity-40"
+              >
+                <option value="">Todas</option>
+                {subcalificaciones.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <button
+            onClick={handleSearch}
+            disabled={searching || loadingFilters}
+            className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl
+                       bg-teal-500/15 border border-teal-500/30 text-teal-300 text-sm font-semibold
+                       hover:bg-teal-500/25 disabled:opacity-50 transition-all"
+          >
+            {searching
+              ? <><Loader2 size={13} className="animate-spin" /> Buscando sistemas...</>
+              : <><Eye size={13} /> Buscar sistemas detectados</>}
+          </button>
+        </div>
+
+        {/* Resultados */}
+        {searched && candidates.length === 0 && (
+          <div className="text-center py-4">
+            <p className="text-slate-400 text-sm font-medium">Sin sistemas detectados</p>
+            <p className="text-slate-600 text-xs mt-1">
+              No hay auditorías completadas con {selectedCal ? `Calificación "${selectedCal}"` : 'estos filtros'} en el sistema
+            </p>
+          </div>
+        )}
+
+        {searched && candidates.length > 0 && (
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-slate-400">
+                {candidates.length} sistema{candidates.length !== 1 ? 's' : ''} detectado{candidates.length !== 1 ? 's' : ''}
+                {newCandidates.length > 0 && (
+                  <span className="ml-1 text-teal-400">· {newCandidates.length} nuevo{newCandidates.length !== 1 ? 's' : ''}</span>
+                )}
+              </p>
+              <button
+                onClick={() => {
+                  const allNewSelected = newCandidates.every(c => c.selected);
+                  setCandidates(prev => prev.map(c => ({
+                    ...c,
+                    selected: existingNames.has(c.name) ? false : !allNewSelected,
+                  })));
+                }}
+                className="text-[11px] text-slate-500 hover:text-teal-400 transition-colors"
+              >
+                {newCandidates.every(c => c.selected) ? 'Deseleccionar nuevos' : 'Seleccionar nuevos'}
+              </button>
+            </div>
+
+            {candidates.map((c, i) => {
+              const alreadyExists = existingNames.has(c.name);
+              return (
+                <div
+                  key={c.name}
+                  className={`rounded-xl border p-3.5 transition-all duration-150 ${
+                    alreadyExists
+                      ? 'bg-slate-800/20 border-slate-800/50 opacity-50'
+                      : c.selected
+                      ? 'bg-teal-500/8 border-teal-500/25'
+                      : 'bg-slate-800/30 border-slate-700/40'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={c.selected && !alreadyExists}
+                      disabled={alreadyExists}
+                      onChange={() => !alreadyExists && toggle(i)}
+                      className="w-4 h-4 accent-teal-500 cursor-pointer mt-0.5 flex-shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="font-mono font-bold text-sm text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-lg">
+                          {c.name}
+                        </span>
+                        <span className="text-[11px] text-slate-500">{c.count} vez{c.count !== 1 ? '' : ''}</span>
+                        {alreadyExists && (
+                          <span className="text-[10px] text-slate-600 bg-slate-800/60 border border-slate-700/40 px-1.5 py-0.5 rounded-full">
+                            Ya configurado
+                          </span>
+                        )}
+                      </div>
+                      {c.selected && !alreadyExists && (
+                        <input
+                          value={c.description}
+                          onChange={e => updateDesc(i, e.target.value)}
+                          placeholder="Descripción del sistema..."
+                          className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-slate-200
+                                     focus:outline-none focus:border-teal-500/50 placeholder:text-slate-600"
+                        />
+                      )}
                     </div>
-                    {c.selected && (
-                      <input
-                        value={c.description}
-                        onChange={e => updateDesc(i, e.target.value)}
-                        placeholder="Descripción del sistema..."
-                        className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-slate-200
-                                   focus:outline-none focus:border-teal-500/50 placeholder:text-slate-600"
-                      />
-                    )}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
-            <div className="flex items-center gap-2 pt-1">
+            {selectedCount > 0 && (
               <button
                 onClick={handleImport}
-                disabled={importing || selectedCount === 0}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold
+                disabled={importing}
+                className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold
                            bg-teal-500/20 border border-teal-500/35 text-teal-200
                            hover:bg-teal-500/30 disabled:opacity-50 transition-all"
               >
                 {importing ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
                 {importing ? 'Importando...' : `Importar ${selectedCount} sistema${selectedCount !== 1 ? 's' : ''}`}
               </button>
-              <button
-                onClick={() => setCandidates(prev => prev.map(c => ({ ...c, selected: !prev.every(x => x.selected) })))}
-                className="text-xs text-slate-500 hover:text-slate-300 transition-colors px-2 py-2"
-              >
-                {candidates.every(c => c.selected) ? 'Deseleccionar todos' : 'Seleccionar todos'}
-              </button>
-            </div>
+            )}
           </div>
         )}
       </div>

@@ -1420,6 +1420,31 @@ app.get('/api/admin/image-systems/analytics', authenticateUser, async (req: Requ
   }
 });
 
+app.get('/api/admin/audits/calificaciones', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const data = await databaseService.getCalificacionesFromAudits();
+    res.json(data);
+  } catch (error: any) {
+    logger.error('Error fetching calificaciones:', error);
+    res.status(500).json({ error: 'Error al obtener calificaciones' });
+  }
+});
+
+app.get('/api/admin/image-systems/by-calltype', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const calificacion = req.query.calificacion as string | undefined;
+    const subcalificacion = req.query.subcalificacion as string | undefined;
+    const data = await databaseService.getImageSystemsByCallType(
+      calificacion || undefined,
+      subcalificacion || undefined
+    );
+    res.json(data);
+  } catch (error: any) {
+    logger.error('Error fetching image systems by calltype:', error);
+    res.status(500).json({ error: 'Error al obtener sistemas' });
+  }
+});
+
 app.post('/api/admin/criteria/generate-blocks', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { description, call_type, mode } = req.body;
