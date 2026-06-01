@@ -1742,14 +1742,6 @@ app.post('/api/gpf/discover-systems', authenticateUser, requireAdminOrAnalyst, a
  const tempPaths: string[] = [];
  try {
   const token = await gpfTokenService.getTokenWithRetry(env);
-  const baseUrl = getGpfBaseUrl(env);
-  const appToken = process.env.GPF_APP_TOKEN || '';
-  const authHeaders = {
-   'Authorization': `Bearer ${token}`,
-   'X-App-Token': appToken,
-   'ngrok-skip-browser-warning': 'true',
-   'Accept': 'application/json',
-  };
 
   // 1. Traer atenciones filtradas por fecha y calificación
   const allAttentions = await gpfDataService.getAttentions(env, token, date_from, date_to);
@@ -1764,7 +1756,7 @@ app.post('/api/gpf/discover-systems', authenticateUser, requireAdminOrAnalyst, a
    return res.json({ systems: [], total_attentions: 0, images_analyzed: 0, cases_checked: [] });
   }
 
-  // 2. Muestra aleatoria de hasta 5 atenciones para buscar capturas
+  // 2. Muestra aleatoria de hasta 5 atenciones — usa fetchAttentionData (mismo código que nueva auditoría)
   const shuffled = [...filtered].sort(() => Math.random() - 0.5);
   const toCheck = shuffled.slice(0, 5);
   const casesChecked: string[] = [];
@@ -1775,40 +1767,17 @@ app.post('/api/gpf/discover-systems', authenticateUser, requireAdminOrAnalyst, a
    if (!id) continue;
    casesChecked.push(String(id));
    try {
-    const resp = await gpfFetch(
-     `${baseUrl}/api/quality-control/v1/captures-comments/${id}`,
-     { headers: authHeaders }
-    );
-    if (!resp.ok) {
-     logger.warn(`[DISCOVER-SYS] captures-comments ${id}: HTTP ${resp.status}`);
-     continue;
-    }
-    const body: any = await resp.json();
-    logger.info(`[DISCOVER-SYS] captures-comments ${id}:`, {
-     is_success: body?.is_success,
-     capturesCount: Array.isArray(body?.data?.captures) ? body.data.captures.length : 'no-array',
-    });
-    const capturesArr = body?.data?.captures ?? body?.captures ?? [];
-    if (!Array.isArray(capturesArr) || capturesArr.length === 0) continue;
+    // Reutilizamos gpfDataService.fetchAttentionData — idéntico al flujo de nueva auditoría
+    const detail = await gpfDataService.fetchAttentionData(env, id, token);
+    logger.info(`[DISCOVER-SYS] Atención ${id}: ${detail.imageUrls.length} capturas encontradas`);
+    if (!detail.imageUrls.length) continue;
 
-    const urls: string[] = capturesArr
-     .filter((u: any) => typeof u === 'string' && u.length > 0)
-     .map((u: string) => {
-      if (u.includes('127.0.0.1') || u.match(/^https?:\/\/localhost/i)) {
-       const parsed = new URL(u);
-       return `${baseUrl}${parsed.pathname}${parsed.search}`;
-      }
-      if (u.startsWith('/')) return `${baseUrl}${u}`;
-      return u;
-     })
-     .slice(0, max_images - tempPaths.length);
-
-    if (!urls.length) continue;
-    const { localPaths } = await downloadImagesToTemp(urls, token);
+    const urlsToDownload = detail.imageUrls.slice(0, max_images - tempPaths.length);
+    const { localPaths } = await downloadImagesToTemp(urlsToDownload, token);
     tempPaths.push(...localPaths);
     logger.info(`[DISCOVER-SYS] Descargadas ${localPaths.length} imágenes de atención ${id}`);
    } catch (e: any) {
-    logger.warn(`[DISCOVER-SYS] Error capturando atención ${id}: ${e.message}`);
+    logger.warn(`[DISCOVER-SYS] Error en atención ${id}: ${e.message}`);
    }
   }
 
