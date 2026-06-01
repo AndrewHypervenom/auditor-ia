@@ -506,6 +506,8 @@ export const gpfService = {
    calificacion?: string;
    subcalificacion?: string;
    max_images?: number;
+   date_from?: string;
+   date_to?: string;
  }): Promise<{
    systems: Array<{ name: string; count: number }>;
    total_attentions: number;

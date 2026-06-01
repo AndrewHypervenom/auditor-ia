@@ -1738,7 +1738,7 @@ app.post('/api/gpf/download-report', authenticateUser, requireAdmin, async (req:
 
 // Analiza imágenes reales de GPF para descubrir sistemas de pantalla
 app.post('/api/gpf/discover-systems', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
- const { env = 'prod', calificacion, subcalificacion, max_images = 6 } = req.body;
+ const { env = 'prod', calificacion, subcalificacion, max_images = 6, date_from, date_to } = req.body;
  const tempPaths: string[] = [];
  try {
   const token = await gpfTokenService.getTokenWithRetry(env);
@@ -1751,8 +1751,8 @@ app.post('/api/gpf/discover-systems', authenticateUser, requireAdminOrAnalyst, a
    'Accept': 'application/json',
   };
 
-  // 1. Traer atenciones y filtrar por calificación / subcalificación
-  const allAttentions = await gpfDataService.getAttentions(env, token);
+  // 1. Traer atenciones filtradas por fecha y calificación
+  const allAttentions = await gpfDataService.getAttentions(env, token, date_from, date_to);
   const filtered = allAttentions.filter((a: any) => {
    if (calificacion && (a['Calificación'] || '').trim() !== calificacion) return false;
    if (subcalificacion && (a['Sub-calificación'] || '').trim() !== subcalificacion) return false;
