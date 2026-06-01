@@ -827,6 +827,15 @@ export const imageSystemsService = {
     const response = await api.put(`/admin/image-systems/${id}`, payload);
     return response.data as ImageSystem;
   },
+  async analyzeScreenshot(payload: {
+    image_base64: string;
+    mime_type: string;
+    system_name: string;
+    user_description: string;
+  }): Promise<{ detection_hints: string; fields: Array<{ field_name: string; description: string; example: string; how_to_evaluate: string }> }> {
+    const response = await api.post('/admin/image-systems/analyze-screenshot', payload);
+    return response.data;
+  },
   async generateHints(system_name: string, description: string): Promise<{ detection_hints: string; suggested_fields: ImageSystemField[] }> {
     const response = await api.post('/admin/image-systems/generate-hints', { system_name, description });
     return response.data;

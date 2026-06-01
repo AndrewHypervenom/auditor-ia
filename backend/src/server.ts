@@ -1461,6 +1461,25 @@ app.post('/api/admin/criteria/generate-blocks', authenticateUser, requireAdminOr
   }
 });
 
+app.post('/api/admin/image-systems/analyze-screenshot', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+  try {
+    const { image_base64, mime_type, system_name, user_description } = req.body;
+    if (!image_base64 || !system_name) {
+      return res.status(400).json({ error: 'image_base64 y system_name son requeridos' });
+    }
+    const result = await openAIService.analyzeScreenshotForConfig(
+      image_base64,
+      mime_type || 'image/png',
+      system_name,
+      user_description || ''
+    );
+    res.json(result);
+  } catch (error: any) {
+    logger.error('Error analizando screenshot:', error);
+    res.status(500).json({ error: 'Error al analizar imagen con IA' });
+  }
+});
+
 app.post('/api/admin/image-systems/generate-hints', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { system_name, description } = req.body;

@@ -220,6 +220,62 @@ Reglas:
  }
  }
 
+ async analyzeScreenshotForConfig(
+ imageBase64: string,
+ mimeType: string,
+ systemName: string,
+ userDescription: string
+ ): Promise<{ detection_hints: string; fields: Array<{ field_name: string; description: string; example: string; how_to_evaluate: string }> }> {
+ const systemPrompt = `Eres un experto en sistemas bancarios de call center en México.
+Analiza esta captura de pantalla del sistema "${systemName}".
+El usuario quiere que la IA extraiga: "${userDescription}"
+
+Genera en JSON válido (sin markdown):
+{
+  "detection_hints": "Texto visual que identifica esta pantalla con certeza (3-4 oraciones: títulos, colores, secciones visibles, layout característico)",
+  "fields": [
+    {
+      "field_name": "nombre_en_snake_case",
+      "description": "Qué representa este campo (en español)",
+      "example": "Valor exacto visible en la imagen o valor típico",
+      "how_to_evaluate": "Qué debe verificar la IA sobre este campo para evaluar al agente (en español, 1-2 oraciones)"
+    }
+  ]
+}
+
+Incluye TODOS los campos relevantes visibles en la imagen que sean útiles para evaluar si el agente hizo su trabajo correctamente.
+Prioriza los campos que el usuario mencionó.`;
+
+ try {
+ logger.info('[OPENAI] Analizando captura para configuración de sistema', { systemName });
+ const response = await this.client.chat.completions.create({
+ model: 'gpt-5.4-mini',
+ temperature: 0.3,
+ messages: [{
+ role: 'user',
+ content: [
+ {
+ type: 'image_url',
+ image_url: { url: `data:${mimeType};base64,${imageBase64}`, detail: 'high' }
+ },
+ { type: 'text', text: systemPrompt }
+ ]
+ }]
+ });
+ const content = response.choices[0]?.message?.content?.trim() ?? '{}';
+ const cleaned = content.replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
+ const parsed = JSON.parse(cleaned);
+ logger.info('[OPENAI] Screenshot analizado', { fields: parsed.fields?.length, tokens: response.usage?.total_tokens });
+ return {
+ detection_hints: parsed.detection_hints ?? '',
+ fields: Array.isArray(parsed.fields) ? parsed.fields : [],
+ };
+ } catch (error: any) {
+ logger.error('[OPENAI] Error analizando screenshot', { error: error.message });
+ throw error;
+ }
+ }
+
  async generateImageSystemHints(systemName: string, userDescription: string): Promise<{ detection_hints: string; suggested_fields: Array<{ field_name: string; description: string; example?: string }> }> {
  const systemPrompt = `Eres un experto en sistemas bancarios de call center de México.
 Tu tarea es ayudar a configurar un sistema de IA que detecta y extrae información de capturas de pantalla de sistemas bancarios internos.
@@ -320,6 +376,9 @@ export const openAIService = {
  },
  generateImageSystemHints: async (systemName: string, userDescription: string) => {
  return getOpenAIService().generateImageSystemHints(systemName, userDescription);
+ },
+ analyzeScreenshotForConfig: async (imageBase64: string, mimeType: string, systemName: string, userDescription: string) => {
+ return getOpenAIService().analyzeScreenshotForConfig(imageBase64, mimeType, systemName, userDescription);
  },
  generateCriteriaBlocks: async (description: string, callType: string, mode: string, availableSystems: string[]) => {
  return getOpenAIService().generateCriteriaBlocks(description, callType, mode, availableSystems);

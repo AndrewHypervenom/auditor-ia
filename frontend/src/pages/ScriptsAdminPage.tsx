@@ -3820,10 +3820,67 @@ function ImageSystemCard({
 }: ImageSystemCardProps) {
   const [newField, setNewField] = useState<ImageSystemField>({ field_name: '', description: '', example: '' });
   const [showAddField, setShowAddField] = useState(false);
+  // Asistente IA texto
   const [aiOpen, setAiOpen] = useState(false);
   const [aiUserDesc, setAiUserDesc] = useState('');
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiResult, setAiResult] = useState<{ detection_hints: string; suggested_fields: ImageSystemField[] } | null>(null);
+
+  // Asistente IA con imagen
+  const [imgOpen, setImgOpen] = useState(false);
+  const [imgFile, setImgFile] = useState<File | null>(null);
+  const [imgPreview, setImgPreview] = useState<string>('');
+  const [imgDesc, setImgDesc] = useState('');
+  const [imgAnalyzing, setImgAnalyzing] = useState(false);
+  const [imgResult, setImgResult] = useState<{ detection_hints: string; fields: Array<{ field_name: string; description: string; example: string; how_to_evaluate: string }> } | null>(null);
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImgFile(file);
+    setImgResult(null);
+    const reader = new FileReader();
+    reader.onload = (ev) => setImgPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleImgAnalyze = async () => {
+    if (!imgFile || !imgPreview) return;
+    setImgAnalyzing(true);
+    setImgResult(null);
+    try {
+      const base64 = imgPreview.split(',')[1];
+      const mimeType = imgFile.type || 'image/png';
+      const result = await imageSystemsService.analyzeScreenshot({
+        image_base64: base64,
+        mime_type: mimeType,
+        system_name: system.system_name,
+        user_description: imgDesc.trim(),
+      });
+      setImgResult(result);
+    } catch {
+      toast.error('Error al analizar imagen con IA');
+    } finally {
+      setImgAnalyzing(false);
+    }
+  };
+
+  const applyImgResult = () => {
+    if (!imgResult) return;
+    if (imgResult.detection_hints) {
+      onEditDataChange({ ...editData, detection_hints: imgResult.detection_hints });
+    }
+    if (imgResult.fields.length > 0) {
+      const newFields: ImageSystemField[] = imgResult.fields.map(f => ({
+        field_name: f.field_name,
+        description: `${f.description}${f.how_to_evaluate ? ` | Evaluar: ${f.how_to_evaluate}` : ''}`,
+        example: f.example,
+      }));
+      onFieldsChange([...fields, ...newFields.filter(nf => !fields.some(f => f.field_name === nf.field_name))]);
+    }
+    setImgOpen(false);
+    toast.success('Campos y pistas aplicados correctamente');
+  };
 
   const handleAiGenerate = async () => {
     if (!aiUserDesc.trim()) return;
@@ -3990,6 +4047,132 @@ function ImageSystemCard({
               )}
             </div>
           </div>
+          {/* Analizar imagen de ejemplo con IA */}
+          <div className="border-t border-slate-700/40 pt-3">
+            <button
+              type="button"
+              onClick={() => setImgOpen(!imgOpen)}
+              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl
+                         bg-brand-500/8 border border-brand-700/20 hover:bg-brand-500/12
+                         transition-all duration-150"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles size={13} className="text-brand-400" />
+                <span className="text-sm font-semibold text-brand-300">Analizar imagen de ejemplo con IA</span>
+              </div>
+              <ChevronDown size={13} className={`text-brand-500 transition-transform duration-200 ${imgOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {imgOpen && (
+              <div className="mt-3 space-y-3 animate-fadeIn">
+                <p className="text-[11px] text-slate-400">
+                  Sube una captura de pantalla de este sistema y describe qué necesitas que la IA extraiga. Generamos los campos y las pistas de detección automáticamente.
+                </p>
+
+                {/* Upload */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                    Captura de pantalla
+                  </label>
+                  <label className={`flex flex-col items-center justify-center gap-2 w-full py-5 rounded-xl border-2 border-dashed cursor-pointer transition-all duration-150 ${
+                    imgFile ? 'border-brand-700/40 bg-brand-500/5' : 'border-slate-700/50 bg-slate-800/30 hover:border-brand-700/30 hover:bg-brand-500/5'
+                  }`}>
+                    {imgPreview ? (
+                      <img src={imgPreview} alt="preview" className="max-h-40 rounded-lg object-contain" />
+                    ) : (
+                      <>
+                        <ImageIcon size={24} className="text-slate-600" />
+                        <span className="text-xs text-slate-500">Haz clic para subir PNG o JPG</span>
+                      </>
+                    )}
+                    <input type="file" accept="image/png,image/jpeg,image/jpg" className="sr-only" onChange={handleImageSelect} />
+                  </label>
+                  {imgFile && (
+                    <button
+                      type="button"
+                      onClick={() => { setImgFile(null); setImgPreview(''); setImgResult(null); }}
+                      className="mt-1 text-[11px] text-slate-600 hover:text-red-400 transition-colors"
+                    >
+                      × Quitar imagen
+                    </button>
+                  )}
+                </div>
+
+                {/* Descripción */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                    ¿Qué debe extraer la IA de esta imagen?
+                  </label>
+                  <textarea
+                    value={imgDesc}
+                    onChange={e => setImgDesc(e.target.value)}
+                    rows={2}
+                    placeholder={`Ej: En la parte izquierda aparece el BLOCK CODE, en la derecha el estado de la cuenta y los comentarios del agente...`}
+                    className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-xs text-slate-200 resize-none
+                               focus:outline-none focus:border-brand-600/50 placeholder:text-slate-600"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleImgAnalyze}
+                  disabled={imgAnalyzing || !imgFile}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl
+                             bg-brand-500/15 border border-brand-700/30 text-brand-300 text-xs font-semibold
+                             hover:bg-brand-500/25 disabled:opacity-50 transition-all"
+                >
+                  {imgAnalyzing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                  {imgAnalyzing ? 'Analizando imagen con IA...' : 'Analizar y generar campos'}
+                </button>
+
+                {/* Resultados */}
+                {imgResult && (
+                  <div className="space-y-3 animate-fadeIn">
+                    {imgResult.detection_hints && (
+                      <div>
+                        <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mb-1">Pistas de detección generadas</p>
+                        <div className="bg-slate-800/50 border border-slate-700/40 rounded-xl px-3 py-2.5">
+                          <p className="text-xs text-slate-200 leading-relaxed">{imgResult.detection_hints}</p>
+                        </div>
+                      </div>
+                    )}
+                    {imgResult.fields.length > 0 && (
+                      <div>
+                        <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mb-1">
+                          {imgResult.fields.length} campos detectados
+                        </p>
+                        <div className="space-y-1.5">
+                          {imgResult.fields.map((f, i) => (
+                            <div key={i} className="bg-slate-800/50 border border-slate-700/40 rounded-xl px-3 py-2">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="font-mono text-xs text-purple-300 font-bold">{f.field_name}</span>
+                                {f.example && <span className="text-[10px] text-slate-500 italic">ej: {f.example}</span>}
+                              </div>
+                              <p className="text-[11px] text-slate-300 leading-relaxed">{f.description}</p>
+                              {f.how_to_evaluate && (
+                                <p className="text-[10px] text-brand-400/70 mt-0.5">↳ {f.how_to_evaluate}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={applyImgResult}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl
+                                 bg-green-500/15 border border-green-500/25 text-green-300 text-xs font-semibold
+                                 hover:bg-green-500/25 transition-all"
+                    >
+                      <Check size={12} />
+                      Aplicar pistas y campos al sistema
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-2 justify-end">
             <button onClick={onCancelEdit} className="px-3 py-1.5 rounded-lg text-xs text-slate-400 border border-slate-700/40 hover:text-slate-200 transition-all">
               Cancelar
