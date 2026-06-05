@@ -241,9 +241,12 @@ class DatabaseService {
         companyId
       } = params;
 
-      // 1. Guardar transcripciÃ³n
+      const cid = companyId ? { company_id: companyId } : {};
+
+      // 1. Guardar transcripción
       await supabaseAdmin.from('transcriptions').insert({
         audit_id: auditId,
+        ...cid,
         full_text: transcription,
         utterances: transcriptionWords || [],
         audio_duration: null,
@@ -253,10 +256,11 @@ class DatabaseService {
         language: 'es'
       });
 
-      // 2. Guardar anÃ¡lisis de imÃ¡genes (si existe)
-      if (imageAnalysis && imageAnalysis !== 'No se proporcionaron imÃ¡genes para analizar') {
+      // 2. Guardar análisis de imágenes (si existe)
+      if (imageAnalysis && imageAnalysis !== 'No se proporcionaron imágenes para analizar') {
         await supabaseAdmin.from('image_analyses').insert({
           audit_id: auditId,
+          ...cid,
           image_path: '',
           image_filename: '',
           system_detected: 'multiple',
@@ -268,9 +272,10 @@ class DatabaseService {
         });
       }
 
-      // 3. Guardar evaluaciÃ³n - âœ… AHORA INCLUYE excel_data
-      await supabaseAdmin.from('evaluations').insert({
+      // 3. Guardar evaluación
+      const { error: evalError } = await supabaseAdmin.from('evaluations').insert({
         audit_id: auditId,
+        ...cid,
         total_score: evaluation.totalScore,
         max_possible_score: evaluation.maxPossibleScore,
         percentage: evaluation.percentage,
@@ -281,8 +286,9 @@ class DatabaseService {
         openai_response: { dataWarnings: (evaluation as any).dataWarnings || [] },
         excel_filename: excelFilename,
         excel_path: excelFilename,
-        excel_data: excelBase64              // âœ… NUEVO: Guardar Excel como base64
+        excel_data: excelBase64
       });
+      if (evalError) throw evalError;
 
       // 4. Guardar costos
       await this.saveAPICosts(auditId, costs, companyId);
