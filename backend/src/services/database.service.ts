@@ -45,9 +45,10 @@ interface CompleteAuditParams {
   imageAnalysis: string;
   evaluation: EvaluationResult;
   excelFilename: string;
-  excelBase64: string;        // âœ… NUEVO: Excel como base64
+  excelBase64: string;
   processingTimeMs: number;
   costs: APICosts;
+  companyId?: string | null;
 }
 
 class DatabaseService {
@@ -190,12 +191,13 @@ class DatabaseService {
   /**
    * Guardar costos de API
    */
-  async saveAPICosts(auditId: string, costs: APICosts): Promise<void> {
+  async saveAPICosts(auditId: string, costs: APICosts, companyId?: string | null): Promise<void> {
     try {
       const { error } = await supabaseAdmin
         .from('api_costs')
         .insert({
           audit_id: auditId,
+          ...(companyId ? { company_id: companyId } : {}),
           assemblyai_duration_minutes: costs.assemblyai.audioDurationMinutes,
           assemblyai_cost: costs.assemblyai.totalCost,
           openai_images_count: costs.openai.images.count,
@@ -235,7 +237,8 @@ class DatabaseService {
         excelFilename,
         excelBase64,
         processingTimeMs,
-        costs
+        costs,
+        companyId
       } = params;
 
       // 1. Guardar transcripciÃ³n
@@ -282,7 +285,7 @@ class DatabaseService {
       });
 
       // 4. Guardar costos
-      await this.saveAPICosts(auditId, costs);
+      await this.saveAPICosts(auditId, costs, companyId);
 
       // 5. Marcar como completada
       const { error } = await supabaseAdmin
@@ -1659,7 +1662,7 @@ export const databaseService = {
   saveTranscription: (params: SaveTranscriptionParams) => getDatabaseService().saveTranscription(params),
   saveImageAnalysis: (params: SaveImageAnalysisParams) => getDatabaseService().saveImageAnalysis(params),
   saveEvaluation: (params: SaveEvaluationParams) => getDatabaseService().saveEvaluation(params),
-  saveAPICosts: (auditId: string, costs: APICosts) => getDatabaseService().saveAPICosts(auditId, costs),
+  saveAPICosts: (auditId: string, costs: APICosts, companyId?: string | null) => getDatabaseService().saveAPICosts(auditId, costs, companyId),
   completeAudit: (auditId: string, params: CompleteAuditParams) => getDatabaseService().completeAudit(auditId, params),
   deleteAudit: (auditId: string, userId: string, userRole: string) => getDatabaseService().deleteAudit(auditId, userId, userRole),
   markAuditError: (auditId: string, errorMessage: string) => getDatabaseService().markAuditError(auditId, errorMessage),

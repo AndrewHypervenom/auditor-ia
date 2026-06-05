@@ -505,9 +505,10 @@ app.post('/api/evaluate',
  imageAnalysis: imageAnalysis,
  evaluation,
  excelFilename: excelResult.filename,
- excelBase64: excelBase64, // NUEVO
+ excelBase64: excelBase64,
  processingTimeMs: Date.now() - startTime,
- costs
+ costs,
+ companyId: req.user!.company_id ?? null
  });
 
  logger.success(' Audit completed successfully', {
@@ -2642,7 +2643,8 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
  excelFilename: excelResult.filename,
  excelBase64,
  processingTimeMs: Date.now() - startTime,
- costs
+ costs,
+ companyId: req.user!.company_id ?? null
  });
 
  logger.success(' GPF audit completed', {
