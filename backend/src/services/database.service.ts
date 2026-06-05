@@ -558,7 +558,7 @@ class DatabaseService {
             const scoreMap = new Map(evaluation.detailed_scores.map((s: any) => [s.criterion, s]));
             const sorted = orderedKeys.map((k: string) => {
               if (scoreMap.has(k)) return scoreMap.get(k);
-              // Inyectar criterio manual faltante (evaluaciones ya guardadas sin ese rubro)
+              // Inyectar criterio faltante (evaluaciones ya guardadas sin ese rubro)
               const meta = topicMetaMap.get(k);
               if (meta?.requiresManualReview) {
                 return {
@@ -568,6 +568,16 @@ class DatabaseService {
                   observations: 'Requiere validación manual — este criterio no puede evaluarse automáticamente a partir de las capturas de pantalla.',
                   criticality: meta.criticality || '-',
                   requiresManualReview: true,
+                };
+              }
+              if (meta?.applies) {
+                return {
+                  criterion: k,
+                  score: 0,
+                  maxScore: meta.points === null ? 0 : meta.points,
+                  observations: 'Criterio no evaluado en la auditoría original — asigna el puntaje manualmente.',
+                  criticality: meta.criticality || '-',
+                  requiresManualReview: false,
                 };
               }
               return null;
