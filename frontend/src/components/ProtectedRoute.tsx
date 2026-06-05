@@ -1,6 +1,7 @@
 ﻿// frontend/src/components/ProtectedRoute.tsx
 
 import { Navigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import type { UserRole } from '../types/auth.types';
 
@@ -15,6 +16,7 @@ export function ProtectedRoute({
  allowedRoles,
  requirePermission,
 }: ProtectedRouteProps) {
+ const { t } = useTranslation();
  const { user, profile, loading, hasPermission } = useAuth();
  const location = useLocation();
 
@@ -39,27 +41,32 @@ export function ProtectedRoute({
  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
  <div className="max-w-md mx-auto text-center bg-slate-800/50 backdrop-blur-lg p-8 rounded-2xl border border-yellow-500/20">
  <div className="text-yellow-400 text-6xl mb-4"></div>
- <h2 className="text-2xl font-bold text-white mb-2">Error de Perfil</h2>
+ <h2 className="text-2xl font-bold text-white mb-2">{t('errors.serverError')}</h2>
  <p className="text-slate-300 mb-4">
- No se pudo cargar tu perfil de usuario. Esto puede deberse a un problema de conexión.
+ {t('errors.profileLoadFailed')}
  </p>
  <div className="flex gap-3 justify-center">
  <button
  onClick={() => window.location.reload()}
- className="px-6 py-2 bg-brand-500 hover:bg-brand-400 text-black text-white rounded-lg transition-colors"
+ className="px-6 py-2 bg-brand-500 hover:bg-brand-400 text-white rounded-lg transition-colors"
  >
- Reintentar
+ {t('errors.retry')}
  </button>
  <button
  onClick={() => window.location.href = '/login'}
  className="px-6 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
  >
- Volver al inicio
+ {t('errors.goHome')}
  </button>
  </div>
  </div>
  </div>
  );
+ }
+
+ // admin bypasea todos los role checks (acceso total a la plataforma)
+ if (profile.role === 'admin') {
+ return <>{children}</>;
  }
 
  // Verificar roles permitidos si se especificaron
@@ -68,15 +75,15 @@ export function ProtectedRoute({
  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
  <div className="max-w-md mx-auto text-center bg-slate-800/50 backdrop-blur-lg p-8 rounded-2xl border border-yellow-500/20">
  <div className="text-yellow-400 text-6xl mb-4"></div>
- <h2 className="text-2xl font-bold text-white mb-2">Acceso Denegado</h2>
+ <h2 className="text-2xl font-bold text-white mb-2">{t('errors.accessDenied')}</h2>
  <p className="text-slate-300 mb-4">
- No tienes permisos para acceder a esta sección.
+ {t('errors.accessDenied')}
  </p>
  <button
  onClick={() => window.location.href = '/dashboard'}
  className="px-6 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
  >
- Ir al Dashboard
+ {t('errors.goHome')}
  </button>
  </div>
  </div>
@@ -89,15 +96,15 @@ export function ProtectedRoute({
  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
  <div className="max-w-md mx-auto text-center bg-slate-800/50 backdrop-blur-lg p-8 rounded-2xl border border-yellow-500/20">
  <div className="text-yellow-400 text-6xl mb-4"></div>
- <h2 className="text-2xl font-bold text-white mb-2">Permiso Requerido</h2>
+ <h2 className="text-2xl font-bold text-white mb-2">{t('errors.accessDenied')}</h2>
  <p className="text-slate-300 mb-4">
- No tienes el permiso necesario para acceder a esta funcionalidad.
+ {t('errors.accessDenied')}
  </p>
  <button
  onClick={() => window.location.href = '/dashboard'}
  className="px-6 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
  >
- Ir al Dashboard
+ {t('errors.goHome')}
  </button>
  </div>
  </div>

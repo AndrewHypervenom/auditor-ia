@@ -4,21 +4,20 @@ import { Request, Response, NextFunction } from 'express';
 import { supabase, supabaseAdmin } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 
-// Tipos de roles - Executive eliminado según documento v1.0
 export type UserRole = 'admin' | 'supervisor' | 'analyst';
 
-// Extender Request para incluir user
 declare global {
- namespace Express {
- interface Request {
- user?: {
- id: string;
- email: string;
- role: UserRole;
- full_name?: string;
- };
- }
- }
+  namespace Express {
+    interface Request {
+      user?: {
+        id: string;
+        email: string;
+        role: UserRole;
+        full_name?: string;
+        company_id: string | null; // null solo para admin (ve todas las empresas)
+      };
+    }
+  }
 }
 
 /**
@@ -48,11 +47,23 @@ export const authenticateUser = async (
  }
 
  // Obtener perfil del usuario con rol
+ // Intentar con company_id (post-migración); si la columna no existe, caer sin ella
  let { data: profile, error: profileError } = await supabaseAdmin
+ .from('users')
+ .select('role, full_name, is_active, company_id')
+ .eq('id', user.id)
+ .single();
+
+ // Si falla por columna inexistente (pre-migración), reintentar sin company_id
+ if (profileError && (profileError.code === 'PGRST200' || profileError.message?.includes('company_id'))) {
+ const fallback = await supabaseAdmin
  .from('users')
  .select('role, full_name, is_active')
  .eq('id', user.id)
  .single();
+ profile = fallback.data ? { ...fallback.data, company_id: null } : null;
+ profileError = fallback.error;
+ }
 
  // Si el usuario no existe en la tabla users, crearlo con rol analyst por defecto
  if (profileError && profileError.code === 'PGRST116') {
@@ -70,7 +81,7 @@ export const authenticateUser = async (
  role: 'analyst', // Rol por defecto (operador principal)
  is_active: true
  })
- .select('role, full_name, is_active')
+ .select('role, full_name, is_active, company_id')
  .single();
 
  if (createError) {
@@ -102,7 +113,8 @@ export const authenticateUser = async (
  id: user.id,
  email: user.email!,
  role: (profile?.role as UserRole) || 'analyst',
- full_name: profile?.full_name || undefined
+ full_name: profile?.full_name || undefined,
+ company_id: profile?.company_id ?? null
  };
 
  logger.info(' User authenticated', { 
@@ -217,6 +229,29 @@ export const canAccessAudit = async (req: Request, res: Response, next: NextFunc
  logger.error(' Error in canAccessAudit middleware', error);
  return res.status(500).json({ error: 'Internal server error' });
  }
+};
+
+/**
+ * Middleware para verificar que el usuario sea Admin o Supervisor (gestores de empresa/plataforma)
+ */
+export const requireAdminOrSupervisor = (req: Request, res: Response, next: NextFunction) => {
+ if (!req.user) {
+ return res.status(401).json({ error: 'Not authenticated' });
+ }
+
+ if (!['admin', 'supervisor'].includes(req.user.role)) {
+ logger.warn(' Unauthorized access attempt', {
+ userId: req.user.id,
+ role: req.user.role,
+ requiredRoles: ['admin', 'supervisor']
+ });
+ return res.status(403).json({
+ error: 'Insufficient permissions',
+ message: 'This action requires administrator or supervisor privileges'
+ });
+ }
+
+ next();
 };
 
 /**

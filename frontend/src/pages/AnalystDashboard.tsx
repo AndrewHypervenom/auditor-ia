@@ -2,32 +2,16 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { auditService, type Audit } from '../services/api';
 import {
-  FileText,
-  Plus,
-  Download,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  AlertTriangle,
-  Loader2,
-  TrendingUp,
-  Eye,
-  BarChart3,
-  PhoneIncoming,
-  Monitor,
-  Moon,
-  Search,
-  RefreshCw,
-  LogOut,
-  BookOpen,
+  FileText, Plus, Download, Clock, CheckCircle2, AlertCircle,
+  AlertTriangle, Loader2, TrendingUp, Eye, BarChart3, PhoneIncoming,
+  Monitor, Moon, Search, RefreshCw, LogOut, BookOpen,
 } from 'lucide-react';
 import AppHeader from '../components/AppHeader';
 import toast from 'react-hot-toast';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 const isBatchAudit = (audit: Audit) => audit.audio_filename === 'gpf-batch';
 
@@ -46,8 +30,6 @@ function fmtDate(s: string) {
     });
   } catch { return s; }
 }
-
-// ── Sub-components ────────────────────────────────────────────────────────────
 
 function StatCard({ label, value, sub, icon: Icon, accent = false }: {
   label: string; value: string | number; sub?: string;
@@ -76,89 +58,71 @@ function AuditCard({ audit, onView, onDownload }: {
   onView: () => void;
   onDownload: (filename: string) => void;
 }) {
+  const { t } = useTranslation();
   const evals = Array.isArray(audit.evaluations) ? audit.evaluations : [];
   const score = evals[0];
   const colors = score ? scoreColor(score.percentage) : null;
   const batch = isBatchAudit(audit);
-  // emptyEval: lote completado pero sin criterios reales (viejo normalizador o fallo de evaluación)
   const hasRealCriteria = Array.isArray(score?.detailed_scores) && score.detailed_scores.length > 0;
   const emptyEval = batch && audit.status === 'completed' && (!score || !hasRealCriteria);
   const isMonitoreo = (audit.call_type || '').toUpperCase() === 'MONITOREO';
 
   return (
-    <div
-      className={`rounded-2xl border overflow-hidden transition-all hover:shadow-lg group ${
-        audit.status === 'error'
-          ? 'bg-red-500/5 border-red-500/20'
-          : batch
-          ? 'bg-indigo-500/5 border-indigo-500/20 hover:border-indigo-500/35'
-          : 'bg-slate-800/40 border-slate-700/50 hover:border-slate-600/60'
-      }`}
-    >
+    <div className={`rounded-2xl border overflow-hidden transition-all hover:shadow-lg group ${
+      audit.status === 'error'
+        ? 'bg-red-500/5 border-red-500/20'
+        : batch
+        ? 'bg-indigo-500/5 border-indigo-500/20 hover:border-indigo-500/35'
+        : 'bg-slate-800/40 border-slate-700/50 hover:border-slate-600/60'
+    }`}>
       <div className="p-4">
-        {/* Top row: badges + status */}
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Batch badge */}
             {batch && (
               <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/25">
                 <Moon className="w-2.5 h-2.5" />
-                Nocturna
+                {t('analyst.badgeNight')}
               </span>
             )}
-            {/* Empty eval warning badge */}
             {emptyEval && (
               <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25">
                 <AlertTriangle className="w-2.5 h-2.5" />
-                Sin evaluación
+                {t('analyst.badgeNoEval')}
               </span>
             )}
-            {/* Call type */}
             {isMonitoreo ? (
               <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/25">
                 <Monitor className="w-2.5 h-2.5" />
-                Monitoreo
+                {t('analyst.badgeMonitoreo')}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20">
                 <PhoneIncoming className="w-2.5 h-2.5" />
-                Inbound
+                {t('analyst.badgeInbound')}
               </span>
             )}
           </div>
-
-          {/* Status */}
           <div className="flex-shrink-0">
             {audit.status === 'completed' ? (
               <span className="inline-flex items-center gap-1 text-[10px] font-medium text-green-400">
-                <CheckCircle2 className="w-3 h-3" />
-                Completado
+                <CheckCircle2 className="w-3 h-3" />{t('analyst.statusCompleted')}
               </span>
             ) : audit.status === 'processing' ? (
               <span className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-400">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                Procesando
+                <Loader2 className="w-3 h-3 animate-spin" />{t('analyst.statusProcessing')}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 text-[10px] font-medium text-red-400">
-                <AlertCircle className="w-3 h-3" />
-                Error
+                <AlertCircle className="w-3 h-3" />{t('analyst.statusError')}
               </span>
             )}
           </div>
         </div>
 
-        {/* Main content */}
-        <div
-          className="cursor-pointer"
-          onClick={onView}
-        >
-          {/* Executive name */}
+        <div className="cursor-pointer" onClick={onView}>
           <h3 className="text-white font-semibold text-sm leading-snug group-hover:text-brand-300 transition-colors">
             {audit.executive_name}
           </h3>
-
-          {/* Metadata row */}
           <div className="flex items-center gap-3 mt-1.5 text-[11px] text-slate-500 flex-wrap">
             <span>Caso {audit.gpf_data?.attentionFields?.['Caso'] ?? audit.executive_id}</span>
             {audit.client_id && <><span className="text-slate-700">·</span><span>Socio {audit.client_id}</span></>}
@@ -171,7 +135,6 @@ function AuditCard({ audit, onView, onDownload }: {
           </div>
         </div>
 
-        {/* Score bar */}
         {score && colors && (
           <div className="mt-3 pt-3 border-t border-slate-700/40">
             <div className="flex items-center justify-between mb-1.5">
@@ -185,60 +148,48 @@ function AuditCard({ audit, onView, onDownload }: {
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
-                <button
-                  onClick={(e) => { e.stopPropagation(); onView(); }}
+                <button onClick={(e) => { e.stopPropagation(); onView(); }}
                   className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-700/50 transition-all"
-                  title="Ver auditoría"
-                >
+                  title={t('analyst.viewAudit')}>
                   <Eye className="w-3.5 h-3.5" />
                 </button>
                 {score.excel_filename && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onDownload(score.excel_filename); }}
+                  <button onClick={(e) => { e.stopPropagation(); onDownload(score.excel_filename); }}
                     className="p-1.5 rounded-lg text-slate-500 hover:text-brand-400 hover:bg-brand-500/10 transition-all"
-                    title="Descargar Excel"
-                  >
+                    title={t('analyst.downloadExcel')}>
                     <Download className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
             </div>
             <div className="h-1.5 bg-slate-700/60 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${colors.bar}`}
-                style={{ width: `${Math.min(score.percentage, 100)}%` }}
-              />
+              <div className={`h-full rounded-full transition-all duration-500 ${colors.bar}`}
+                style={{ width: `${Math.min(score.percentage, 100)}%` }} />
             </div>
           </div>
         )}
 
-        {/* Empty batch eval: explain + action */}
         {emptyEval && (
           <div className="mt-3 pt-3 border-t border-amber-500/20">
             <div className="flex items-start gap-2 text-[11px] text-amber-400/80 mb-2">
               <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-              <span>La evaluación no generó criterios. El lote se procesó con una versión anterior del sistema. Puedes ver el detalle de la auditoría.</span>
+              <span>{t('analyst.badgeNoEval')}</span>
             </div>
             <div className="flex justify-end">
-              <button
-                onClick={(e) => { e.stopPropagation(); onView(); }}
+              <button onClick={(e) => { e.stopPropagation(); onView(); }}
                 className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-700/50 transition-all"
-                title="Ver auditoría"
-              >
+                title={t('analyst.viewAudit')}>
                 <Eye className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
         )}
 
-        {/* No score yet: just actions */}
         {!score && !emptyEval && audit.status !== 'processing' && (
           <div className="mt-3 pt-3 border-t border-slate-700/40 flex justify-end">
-            <button
-              onClick={(e) => { e.stopPropagation(); onView(); }}
+            <button onClick={(e) => { e.stopPropagation(); onView(); }}
               className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-700/50 transition-all"
-              title="Ver auditoría"
-            >
+              title={t('analyst.viewAudit')}>
               <Eye className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -248,11 +199,10 @@ function AuditCard({ audit, onView, onDownload }: {
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
-
 type Filter = 'all' | 'normal' | 'batch';
 
 export default function AnalystDashboard() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const [audits, setAudits] = useState<Audit[]>([]);
@@ -269,7 +219,7 @@ export default function AnalystDashboard() {
       const response = await auditService.getUserAudits();
       setAudits(Array.isArray(response?.audits) ? response.audits : []);
     } catch {
-      toast.error('Error al cargar auditorías');
+      toast.error(t('analyst.loadError'));
       setAudits([]);
     } finally {
       setLoading(false);
@@ -279,7 +229,7 @@ export default function AnalystDashboard() {
 
   const handleDownloadExcel = async (filename: string) => {
     try {
-      toast.loading('Descargando Excel...', { id: 'dl' });
+      toast.loading(t('analyst.downloadingExcel'), { id: 'dl' });
       const blob = await auditService.downloadExcel(filename);
       const url = window.URL.createObjectURL(blob);
       const a = Object.assign(document.createElement('a'), { href: url, download: filename });
@@ -287,13 +237,11 @@ export default function AnalystDashboard() {
       a.click();
       window.URL.revokeObjectURL(url);
       a.remove();
-      toast.success('Excel descargado', { id: 'dl' });
+      toast.success(t('analyst.excelDownloaded'), { id: 'dl' });
     } catch {
-      toast.error('Error al descargar Excel', { id: 'dl' });
+      toast.error(t('analyst.excelError'), { id: 'dl' });
     }
   };
-
-  // ── Derived ──────────────────────────────────────────────────────────────────
 
   const completed = audits.filter(a => a?.status === 'completed');
   const batchAudits = audits.filter(a => a && isBatchAudit(a));
@@ -326,12 +274,16 @@ export default function AnalystDashboard() {
     return list;
   }, [audits, filter, search]);
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  const filterLabel = (f: Filter) => {
+    if (f === 'all') return t('analyst.filterAll');
+    if (f === 'normal') return t('analyst.filterNormal');
+    return t('analyst.filterBatch');
+  };
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-base)' }}>
       <AppHeader
-        title="Panel de Analista"
+        title={t('analyst.pageTitle')}
         rightContent={
           <div className="flex items-center gap-2">
             <button
@@ -339,21 +291,14 @@ export default function AnalystDashboard() {
               className="btn-ghost flex items-center gap-1.5 text-xs py-1 px-3 text-indigo-300 border border-indigo-500/40 bg-indigo-500/10 hover:bg-indigo-500/20"
             >
               <Moon className="w-3.5 h-3.5" />
-              Cola Nocturna
+              {t('analyst.batchQueue')}
             </button>
-            <button
-              onClick={() => loadAudits(true)}
-              disabled={refreshing}
-              className="btn-ghost p-2 rounded-xl"
-              title="Actualizar"
-            >
+            <button onClick={() => loadAudits(true)} disabled={refreshing}
+              className="btn-ghost p-2 rounded-xl" title={t('analyst.refresh')}>
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
-            <button
-              onClick={async () => { await signOut(); navigate('/login'); }}
-              className="btn-ghost p-2 rounded-xl text-slate-400"
-              title="Cerrar sesión"
-            >
+            <button onClick={async () => { await signOut(); navigate('/login'); }}
+              className="btn-ghost p-2 rounded-xl text-slate-400" title={t('analyst.logout')}>
               <LogOut className="w-4 h-4" />
             </button>
           </div>
@@ -361,98 +306,79 @@ export default function AnalystDashboard() {
       />
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-5">
-
-        {/* Stats */}
         <div className="grid grid-cols-3 gap-3">
-          <StatCard icon={FileText} label="Total" value={audits.length} sub="auditorías" />
-          <StatCard icon={CheckCircle2} label="Completadas" value={completed.length}
-            sub={`${batchAudits.length} nocturna${batchAudits.length !== 1 ? 's' : ''}`} />
-          <StatCard icon={TrendingUp} label="Promedio" value={`${avgScore}%`}
-            sub="score global" accent={avgScore >= 75} />
+          <StatCard icon={FileText} label={t('analyst.statsTotal')} value={audits.length} sub={t('analyst.statAudits')} />
+          <StatCard icon={CheckCircle2} label={t('analyst.statsCompleted')} value={completed.length}
+            sub={`${batchAudits.length} ${t('analyst.statBatch')}`} />
+          <StatCard icon={TrendingUp} label={t('analyst.statsAvg')} value={`${avgScore}%`}
+            sub={t('analyst.statScore')} accent={avgScore >= 75} />
         </div>
 
-        {/* Action buttons */}
         <div className="grid grid-cols-3 gap-3">
-          <button
-            onClick={() => navigate('/audit/new')}
-            className="rounded-2xl border border-brand-500/30 bg-brand-500/8 hover:bg-brand-500/15 transition-all p-4 text-left group"
-          >
+          <button onClick={() => navigate('/audit/new')}
+            className="rounded-2xl border border-brand-500/30 bg-brand-500/8 hover:bg-brand-500/15 transition-all p-4 text-left group">
             <div className="w-9 h-9 rounded-xl bg-brand-500/20 flex items-center justify-center mb-3 group-hover:bg-brand-500/30 transition-colors">
               <Plus className="w-5 h-5 text-brand-400" />
             </div>
-            <div className="text-white font-semibold text-sm">Nueva auditoría</div>
-            <div className="text-slate-500 text-xs mt-0.5">Procesar caso ahora</div>
+            <div className="text-white font-semibold text-sm">{t('analyst.newAudit')}</div>
+            <div className="text-slate-500 text-xs mt-0.5">{t('analyst.processNow')}</div>
           </button>
 
-          <button
-            onClick={() => navigate('/reports')}
-            className="rounded-2xl border border-slate-700/50 bg-slate-800/40 hover:bg-slate-800/70 transition-all p-4 text-left group"
-          >
+          <button onClick={() => navigate('/reports')}
+            className="rounded-2xl border border-slate-700/50 bg-slate-800/40 hover:bg-slate-800/70 transition-all p-4 text-left group">
             <div className="w-9 h-9 rounded-xl bg-slate-700/60 flex items-center justify-center mb-3 group-hover:bg-slate-700 transition-colors">
               <BarChart3 className="w-5 h-5 text-slate-400" />
             </div>
-            <div className="text-white font-semibold text-sm">Reportes</div>
-            <div className="text-slate-500 text-xs mt-0.5">Exportar datos</div>
+            <div className="text-white font-semibold text-sm">{t('nav.reports')}</div>
+            <div className="text-slate-500 text-xs mt-0.5">{t('reports.export')}</div>
           </button>
 
-          <button
-            onClick={() => navigate('/scripts-admin')}
-            className="rounded-2xl border border-emerald-500/30 bg-emerald-500/8 hover:bg-emerald-500/15 transition-all p-4 text-left group"
-          >
+          <button onClick={() => navigate('/scripts-admin')}
+            className="rounded-2xl border border-emerald-500/30 bg-emerald-500/8 hover:bg-emerald-500/15 transition-all p-4 text-left group">
             <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center mb-3 group-hover:bg-emerald-500/30 transition-colors">
               <BookOpen className="w-5 h-5 text-emerald-400" />
             </div>
-            <div className="text-white font-semibold text-sm">Scripts y Criterios</div>
-            <div className="text-slate-500 text-xs mt-0.5">Guiones y rúbricas</div>
+            <div className="text-white font-semibold text-sm">{t('scripts.title')}</div>
+            <div className="text-slate-500 text-xs mt-0.5">{t('analyst.criteriaScripts') ?? 'Guiones y rúbricas'}</div>
           </button>
         </div>
 
-        {/* List */}
         <div className="space-y-3">
-          {/* Toolbar */}
           <div className="flex items-center gap-3">
-            {/* Search */}
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
               <input
                 type="text"
-                placeholder="Buscar por nombre, ID o socio..."
+                placeholder={t('analyst.searchPlaceholder')}
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-xl text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-brand-600"
               />
             </div>
-
-            {/* Filter tabs */}
             <div className="flex gap-1 p-1 bg-slate-800/60 rounded-xl border border-slate-700/50 flex-shrink-0">
               {(['all', 'normal', 'batch'] as Filter[]).map(f => (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
+                <button key={f} onClick={() => setFilter(f)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center gap-1 ${
                     filter === f ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
-                  }`}
-                >
+                  }`}>
                   {f === 'batch' && <Moon className="w-3 h-3 text-indigo-400" />}
-                  {f === 'all' ? 'Todas' : f === 'normal' ? 'Normales' : 'Nocturnas'}
+                  {filterLabel(f)}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Results count */}
           {!loading && (
             <div className="text-xs text-slate-600 px-0.5">
-              {filtered.length} {filtered.length === 1 ? 'auditoría' : 'auditorías'}
+              {filtered.length} {filtered.length === 1 ? t('analyst.resultSingular') : t('analyst.resultPlural')}
               {filter !== 'all' || search ? ` · ${audits.length} total` : ''}
             </div>
           )}
 
-          {/* Loading */}
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <Loader2 className="w-7 h-7 text-brand-400 animate-spin" />
-              <span className="text-slate-500 text-sm">Cargando auditorías...</span>
+              <span className="text-slate-500 text-sm">{t('analyst.loading')}</span>
             </div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-14">
@@ -461,22 +387,21 @@ export default function AnalystDashboard() {
                   <div className="w-14 h-14 rounded-2xl bg-slate-800 flex items-center justify-center mx-auto mb-4">
                     <FileText className="w-7 h-7 text-slate-600" />
                   </div>
-                  <p className="text-slate-400 font-medium">No tienes auditorías aún</p>
-                  <p className="text-slate-600 text-sm mt-1">Crea una nueva o agrega casos a la cola nocturna</p>
-                  <button
-                    onClick={() => navigate('/audit/new')}
-                    className="mt-4 btn-primary inline-flex items-center gap-2 px-5 py-2.5 text-sm"
-                  >
+                  <p className="text-slate-400 font-medium">{t('analyst.noAudits')}</p>
+                  <p className="text-slate-600 text-sm mt-1">{t('analyst.noAuditsHint')}</p>
+                  <button onClick={() => navigate('/audit/new')}
+                    className="mt-4 btn-primary inline-flex items-center gap-2 px-5 py-2.5 text-sm">
                     <Plus className="w-4 h-4" />
-                    Nueva auditoría
+                    {t('analyst.newAudit')}
                   </button>
                 </>
               ) : (
                 <>
                   <Search className="w-8 h-8 text-slate-600 mx-auto mb-3" />
-                  <p className="text-slate-400 text-sm">Sin resultados para "{search}"</p>
-                  <button onClick={() => { setSearch(''); setFilter('all'); }} className="mt-2 text-xs text-brand-400 hover:text-brand-300">
-                    Limpiar filtros
+                  <p className="text-slate-400 text-sm">{t('analyst.noResults', { search })}</p>
+                  <button onClick={() => { setSearch(''); setFilter('all'); }}
+                    className="mt-2 text-xs text-brand-400 hover:text-brand-300">
+                    {t('analyst.clearFilters')}
                   </button>
                 </>
               )}
@@ -484,12 +409,9 @@ export default function AnalystDashboard() {
           ) : (
             <div className="space-y-2.5">
               {filtered.map(audit => (
-                <AuditCard
-                  key={audit.id}
-                  audit={audit}
+                <AuditCard key={audit.id} audit={audit}
                   onView={() => navigate(`/audit/${audit.id}`)}
-                  onDownload={handleDownloadExcel}
-                />
+                  onDownload={handleDownloadExcel} />
               ))}
             </div>
           )}

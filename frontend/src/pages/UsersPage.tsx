@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth, useRole } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
 import { userService } from '../services/api';
@@ -46,6 +47,7 @@ interface UserFormData {
 }
 
 export default function UsersPage() {
+ const { t } = useTranslation();
  const navigate = useNavigate();
  const { profile } = useAuth();
  const { isAdmin, isSupervisor } = useRole();
@@ -72,7 +74,7 @@ export default function UsersPage() {
  useEffect(() => {
  // Verificar que sea admin o supervisor
  if (!isAdmin && !isSupervisor) {
- toast.error('No tienes permisos para acceder a esta página');
+ toast.error(t('usersPage.noPermission'));
  navigate('/dashboard');
  return;
  }
@@ -100,7 +102,7 @@ export default function UsersPage() {
  setUsers(data || []);
  } catch (error: any) {
  console.error('Error loading users:', error);
- toast.error('Error al cargar usuarios');
+ toast.error(t('usersPage.loadError'));
  } finally {
  setLoading(false);
  }
@@ -112,12 +114,12 @@ export default function UsersPage() {
  
  // Validaciones
  if (!newUser.email || !newUser.password || !newUser.full_name) {
- toast.error('Por favor completa todos los campos');
+ toast.error(t('usersPage.fillFields'));
  return;
  }
 
  if (newUser.password.length < 6) {
- toast.error('La contraseña debe tener al menos 6 caracteres');
+ toast.error(t('usersPage.passwordMin'));
  return;
  }
 
@@ -126,7 +128,7 @@ export default function UsersPage() {
  
  await userService.createUser(newUser);
 
- toast.success('Usuario creado exitosamente');
+ toast.success(t('usersPage.created'));
  setShowCreateModal(false);
  setNewUser({
  email: '',
@@ -155,7 +157,7 @@ export default function UsersPage() {
 
  await userService.updateUser(editingUser.id, editForm);
 
- toast.success('Usuario actualizado exitosamente');
+ toast.success(t('usersPage.updated'));
  setShowEditModal(false);
  setEditingUser(null);
  loadUsers();
@@ -177,7 +179,7 @@ export default function UsersPage() {
  try {
  await userService.deleteUser(userId);
 
- toast.success('Usuario eliminado exitosamente');
+ toast.success(t('usersPage.deleted'));
  loadUsers();
  } catch (error: any) {
  console.error('Error deleting user:', error);
@@ -195,11 +197,11 @@ export default function UsersPage() {
 
  if (error) throw error;
 
- toast.success(`Usuario ${!currentStatus ? 'activado' : 'desactivado'} exitosamente`);
+ toast.success(!currentStatus ? t('usersPage.activated') : t('usersPage.deactivated'));
  loadUsers();
  } catch (error: any) {
  console.error('Error toggling user status:', error);
- toast.error('Error al cambiar estado del usuario');
+ toast.error(t('usersPage.loadError'));
  }
  };
 
@@ -209,28 +211,28 @@ export default function UsersPage() {
  return (
  <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-900/20 border border-red-500/30 rounded-full text-red-300 text-xs font-medium">
  <Shield className="w-3 h-3" />
- Administrador
+ {t('usersPage.roleAdmin')}
  </span>
  );
  case 'supervisor':
  return (
  <span className="inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-green-900/30 to-emerald-900/30 border border-green-500/30 rounded-full text-green-300 text-xs font-medium">
  <Eye className="w-3 h-3" />
- Supervisor
+ {t('usersPage.roleSupervisor')}
  </span>
  );
  case 'analyst':
  return (
  <span className="inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-brand-900/30 to-indigo-900/30 border border-brand-700/40 rounded-full text-brand-300 text-xs font-medium">
  <Award className="w-3 h-3" />
- Analista
+ {t('usersPage.roleAnalyst')}
  </span>
  );
  default:
  return (
  <span className="inline-flex items-center gap-1 px-3 py-1 bg-slate-800/50 border border-[#1e1e32] rounded-full text-slate-400 text-xs font-medium">
  <UserIcon className="w-3 h-3" />
- {role || 'Sin rol'}
+ {role || t('usersPage.noRole')}
  </span>
  );
  }
@@ -266,11 +268,11 @@ export default function UsersPage() {
  <AppHeader
  showBack
  onBack={() => navigate('/dashboard')}
- title={isSupervisor ? 'Equipo de Analistas' : 'Gestión de Usuarios'}
+ title={isSupervisor ? t('usersPage.teamTitle') : t('usersPage.manageTitle')}
  rightContent={isAdmin ? (
    <button onClick={() => setShowCreateModal(true)} className="btn-primary flex items-center gap-1.5 text-xs py-1 px-3">
      <Plus className="w-3.5 h-3.5" />
-     Nuevo Usuario
+     {t('usersPage.newUser')}
    </button>
  ) : undefined}
  />
@@ -283,10 +285,9 @@ export default function UsersPage() {
  <div className="flex items-start gap-3">
  <UserCheck className="w-5 h-5 text-brand-400 mt-0.5 flex-shrink-0" />
  <div>
- <h3 className="text-brand-400 font-semibold mb-1">Vista de Supervisor</h3>
+ <h3 className="text-brand-400 font-semibold mb-1">{t('usersPage.supervisorBannerTitle')}</h3>
  <p className="text-slate-400 text-sm">
- Puedes consultar la información de los analistas del equipo. 
- No tienes permisos para crear, editar o eliminar usuarios.
+ {t('usersPage.supervisorBannerDesc')}
  </p>
  </div>
  </div>
@@ -300,7 +301,7 @@ export default function UsersPage() {
  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
  <input
  type="text"
- placeholder="Buscar por nombre o email..."
+ placeholder={t('usersPage.searchPlaceholder')}
  value={searchTerm}
  onChange={(e) => setSearchTerm(e.target.value)}
  className="input pl-10"
@@ -314,7 +315,7 @@ export default function UsersPage() {
  <Users className="w-5 h-5 text-brand-400" />
  </div>
  <div>
- <p className="text-slate-400 text-xs">Total {isSupervisor ? 'Analistas' : 'Usuarios'}</p>
+ <p className="text-slate-400 text-xs">{isSupervisor ? t('usersPage.totalAnalysts') : t('usersPage.totalUsers')}</p>
  <p className="text-2xl font-bold text-white">{filteredUsers.length}</p>
  </div>
  </div>
@@ -327,7 +328,7 @@ export default function UsersPage() {
  <CheckCircle className="w-5 h-5 text-green-400" />
  </div>
  <div>
- <p className="text-slate-400 text-xs">Activos</p>
+ <p className="text-slate-400 text-xs">{t('usersPage.active')}</p>
  <p className="text-2xl font-bold text-white">
  {users.filter(u => u.is_active).length}
  </p>
@@ -347,7 +348,7 @@ export default function UsersPage() {
  <div className="text-center py-8">
  <Users className="w-16 h-16 text-slate-600 mx-auto mb-4" />
  <p className="text-slate-400">
- {searchTerm ? 'No se encontraron usuarios' : 'No hay usuarios registrados'}
+ {searchTerm ? t('usersPage.noUsers') : t('usersPage.noUsersYet')}
  </p>
  </div>
  ) : (
@@ -362,12 +363,12 @@ export default function UsersPage() {
  {user.is_active ? (
  <div className="flex items-center gap-1 px-2 py-1 bg-green-500/20 border border-green-500/30 rounded-full">
  <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
- <span className="text-green-300 text-xs font-medium">Activo</span>
+ <span className="text-green-300 text-xs font-medium">{t('usersPage.statusActive')}</span>
  </div>
  ) : (
  <div className="flex items-center gap-1 px-2 py-1 bg-red-500/20 border border-red-500/30 rounded-full">
  <div className="w-1.5 h-1.5 bg-red-400 rounded-full"></div>
- <span className="text-red-300 text-xs font-medium">Inactivo</span>
+ <span className="text-red-300 text-xs font-medium">{t('usersPage.statusInactive')}</span>
  </div>
  )}
  </div>
@@ -387,7 +388,7 @@ export default function UsersPage() {
 
  <div className="flex-1 min-w-0">
  <h3 className="text-sm font-semibold text-white truncate mb-1">
- {user.full_name || 'Sin nombre'}
+ {user.full_name || t('usersPage.noName')}
  </h3>
  {getRoleBadge(user.role)}
  </div>
@@ -440,7 +441,7 @@ export default function UsersPage() {
  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
  <div className="bg-[#141424] rounded-2xl p-6 max-w-md w-full border border-[#1e1e32] shadow-2xl">
  <div className="flex items-center justify-between mb-4">
- <h2 className="text-xl font-bold text-white">Crear Nuevo Usuario</h2>
+ <h2 className="text-xl font-bold text-white">{t('usersPage.createTitle')}</h2>
  <button
  onClick={() => setShowCreateModal(false)}
  className="text-slate-400 hover:text-white transition-colors"
@@ -451,13 +452,13 @@ export default function UsersPage() {
 
  <form onSubmit={handleCreateUser} className="space-y-4">
  <div>
- <label className="block text-sm text-slate-400 mb-2">Nombre Completo</label>
+ <label className="block text-sm text-slate-400 mb-2">{t('usersPage.nameLabel')}</label>
  <input
  type="text"
  value={newUser.full_name}
  onChange={(e) => setNewUser(prev => ({ ...prev, full_name: e.target.value }))}
  className="input"
- placeholder="Juan Pérez"
+ placeholder={t('usersPage.namePlaceholder')}
  required
  />
  </div>
@@ -475,28 +476,28 @@ export default function UsersPage() {
  </div>
 
  <div>
- <label className="block text-sm text-slate-400 mb-2">Contraseña</label>
+ <label className="block text-sm text-slate-400 mb-2">{t('usersPage.passwordLabel')}</label>
  <input
  type="password"
  value={newUser.password}
  onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
  className="input"
- placeholder="Mínimo 6 caracteres"
+ placeholder={t('usersPage.passwordPlaceholder')}
  required
  minLength={6}
  />
  </div>
 
  <div>
- <label className="block text-sm text-slate-400 mb-2">Rol</label>
+ <label className="block text-sm text-slate-400 mb-2">{t('usersPage.roleLabel')}</label>
  <select
  value={newUser.role}
  onChange={(e) => setNewUser(prev => ({ ...prev, role: e.target.value as UserRole }))}
  className="input"
  >
- <option value="analyst">Analista</option>
- <option value="supervisor">Supervisor</option>
- <option value="admin">Administrador</option>
+ <option value="analyst">{t('usersPage.roleAnalyst')}</option>
+ <option value="supervisor">{t('usersPage.roleSupervisor')}</option>
+ <option value="admin">{t('usersPage.roleAdmin')}</option>
  </select>
  </div>
 
@@ -506,7 +507,7 @@ export default function UsersPage() {
  onClick={() => setShowCreateModal(false)}
  className="flex-1 btn-secondary"
  >
- Cancelar
+ {t('usersPage.cancelBtn')}
  </button>
  <button
  type="submit"
@@ -516,12 +517,12 @@ export default function UsersPage() {
  {submitting ? (
  <>
  <Loader2 className="w-4 h-4 animate-spin" />
- Creando...
+ {t('usersPage.creating')}
  </>
  ) : (
  <>
  <Save className="w-4 h-4" />
- Crear Usuario
+ {t('usersPage.createBtn')}
  </>
  )}
  </button>
@@ -536,7 +537,7 @@ export default function UsersPage() {
  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
  <div className="bg-[#141424] rounded-2xl p-6 max-w-md w-full border border-[#1e1e32] shadow-2xl">
  <div className="flex items-center justify-between mb-4">
- <h2 className="text-xl font-bold text-white">Editar Usuario</h2>
+ <h2 className="text-xl font-bold text-white">{t('usersPage.editTitle')}</h2>
  <button
  onClick={() => {
  setShowEditModal(false);
@@ -557,35 +558,35 @@ export default function UsersPage() {
  disabled
  className="input opacity-50 cursor-not-allowed"
  />
- <p className="text-xs text-slate-500 mt-1">El email no se puede modificar</p>
+ <p className="text-xs text-slate-500 mt-1">{t('usersPage.emailNote')}</p>
  </div>
 
  <div>
- <label className="block text-sm text-slate-400 mb-2">Nombre Completo</label>
+ <label className="block text-sm text-slate-400 mb-2">{t('usersPage.nameLabel')}</label>
  <input
  type="text"
  value={editForm.full_name}
  onChange={(e) => setEditForm(prev => ({ ...prev, full_name: e.target.value }))}
  className="input"
- placeholder="Juan Pérez"
+ placeholder={t('usersPage.namePlaceholder')}
  required
  />
  </div>
 
  <div>
- <label className="block text-sm text-slate-400 mb-2">Rol</label>
+ <label className="block text-sm text-slate-400 mb-2">{t('usersPage.roleLabel')}</label>
  <select
  value={editForm.role}
  onChange={(e) => setEditForm(prev => ({ ...prev, role: e.target.value as UserRole }))}
  disabled={editingUser.id === profile?.id}
  className="input disabled:opacity-50 disabled:cursor-not-allowed"
  >
- <option value="analyst">Analista</option>
- <option value="supervisor">Supervisor</option>
- <option value="admin">Administrador</option>
+ <option value="analyst">{t('usersPage.roleAnalyst')}</option>
+ <option value="supervisor">{t('usersPage.roleSupervisor')}</option>
+ <option value="admin">{t('usersPage.roleAdmin')}</option>
  </select>
  {editingUser.id === profile?.id && (
- <p className="text-xs text-slate-500 mt-1">No puedes cambiar tu propio rol</p>
+ <p className="text-xs text-slate-500 mt-1">{t('usersPage.ownRoleNote')}</p>
  )}
  </div>
 
@@ -598,7 +599,7 @@ export default function UsersPage() {
  }}
  className="flex-1 btn-secondary"
  >
- Cancelar
+ {t('usersPage.cancelBtn')}
  </button>
  <button
  type="submit"
@@ -608,12 +609,12 @@ export default function UsersPage() {
  {submitting ? (
  <>
  <Loader2 className="w-4 h-4 animate-spin" />
- Guardando...
+ {t('usersPage.saving')}
  </>
  ) : (
  <>
  <Save className="w-4 h-4" />
- Guardar Cambios
+ {t('usersPage.saveBtn')}
  </>
  )}
  </button>

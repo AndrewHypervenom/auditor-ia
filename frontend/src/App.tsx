@@ -18,6 +18,7 @@ import AiAnalysisPage from './pages/AiAnalysisPage';
 import ScriptsAdminPage from './pages/ScriptsAdminPage';
 import ScriptsReferencePage from './pages/ScriptsReferencePage';
 import BatchPage from './pages/BatchPage';
+import CompaniesPage from './pages/CompaniesPage';
 import { useVersionCheck } from './hooks/useVersionCheck';
 
 function App() {
@@ -179,6 +180,15 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['admin', 'analyst']}>
                 <BatchPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/companies"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <CompaniesPage />
               </ProtectedRoute>
             }
           />

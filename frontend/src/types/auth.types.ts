@@ -20,6 +20,8 @@ export interface UserProfile {
   role: UserRole;
   avatar_url: string | null;
   is_active: boolean;
+  company_id: string | null;
+  company_name?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -46,7 +48,9 @@ export type Permission =
   // Logs y Seguridad
   | 'logs:read'
   // Reportes
-  | 'reports:generate';
+  | 'reports:generate'
+  // Gestión de plataforma
+  | 'companies:manage';
 
 /**
  * Mapa de permisos por rol según documento oficial
@@ -89,6 +93,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'logs:read',
     // Reportes
     'reports:generate',
+    // Plataforma
+    'companies:manage',
   ],
   analyst: [
     // Usuarios (solo lectura básica)
@@ -103,16 +109,22 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     // SIN ACCESO A: costos, configuración, logs
   ],
   supervisor: [
-    // Usuarios (solo consulta)
+    // Usuarios (gestión de su empresa)
+    'users:create',
     'users:read',
-    // Auditorías (SOLO LECTURA)
+    'users:update',
+    // Auditorías (crear, editar, leer — admin de empresa)
+    'audits:create',
     'audits:read:all',
+    'audits:update',
+    'audits:delete',
     // Costos (acceso completo de lectura)
     'costs:read',
     'costs:read:all',
-    // Reportes (solo lectura)
+    // Configuración (de su empresa)
+    'config:manage',
+    // Reportes
     'reports:generate',
-    // SIN ACCESO A: crear/editar/eliminar auditorías, configuración, logs
   ],
 };
 

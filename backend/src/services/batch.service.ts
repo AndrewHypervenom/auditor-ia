@@ -592,6 +592,7 @@ class BatchService {
         // Crear audit record
         const auditId = await databaseService.createAudit({
           userId: job.created_by,
+          companyId: job.company_id,
           auditInput: metadata,
           audioFilename: 'gpf-batch',
           imageFilenames: imageResults.map((_: any, i: number) => `batch-img-${i}.jpg`),

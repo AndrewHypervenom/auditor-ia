@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth, useRole } from '../contexts/AuthContext';
 import { auditService, getAuditTotalCost, type Audit } from '../services/api';
 import {
@@ -43,6 +44,7 @@ interface Stats {
 }
 
 export default function SupervisorDashboard() {
+ const { t } = useTranslation();
  const { user, profile, signOut } = useAuth();
  const { isAdmin, isSupervisor } = useRole();
  const navigate = useNavigate();
@@ -85,7 +87,7 @@ export default function SupervisorDashboard() {
  const auditsArray = Array.isArray(response.audits) ? response.audits : [];
  setAudits(auditsArray);
  } catch (error: any) {
- toast.error('Error al cargar auditorías');
+ toast.error(t('supervisor.loadError'));
  setAudits([]); // âœ… Asegurar array vacío en caso de error
  } finally {
  setLoading(false);
@@ -123,7 +125,7 @@ export default function SupervisorDashboard() {
  totalCosts: statsData.totalCosts || 0
  });
  } catch (error: any) {
- toast.error('Error al cargar estadísticas');
+ toast.error(t('supervisor.statsLoadError'));
  // âœ… Valores por defecto en caso de error
  setStats({
  totalAudits: 0,
@@ -147,17 +149,17 @@ export default function SupervisorDashboard() {
 
  // âœ… NUEVO: Funcion para eliminar auditorías (Supervisores SI pueden eliminar)
  const handleDeleteAudit = async (auditId: string) => {
- if (!confirm('Â¿Estás seguro de eliminar esta auditoría?')) {
+ if (!confirm(t('supervisor.deleteConfirm'))) {
  return;
  }
 
  try {
  setDeletingId(auditId);
  await auditService.deleteAudit(auditId);
- toast.success('Auditoría eliminada correctamente');
- await loadData(); // Recargar auditorías Y estadísticas
+ toast.success(t('supervisor.deleted'));
+ await loadData();
  } catch (error) {
- toast.error('Error al eliminar auditoría');
+ toast.error(t('supervisor.deleteError'));
  console.error(error);
  } finally {
  setDeletingId(null);
@@ -166,7 +168,7 @@ export default function SupervisorDashboard() {
 
  const handleDownloadExcel = async (filename: string) => {
  try {
- toast.loading('Descargando Excel...', { id: 'download' });
+ toast.loading(t('supervisor.downloadingExcel'), { id: 'download' });
  const blob = await auditService.downloadExcel(filename);
  const url = window.URL.createObjectURL(blob);
  const a = document.createElement('a');
@@ -176,9 +178,9 @@ export default function SupervisorDashboard() {
  a.click();
  window.URL.revokeObjectURL(url);
  document.body.removeChild(a);
- toast.success('Excel descargado correctamente', { id: 'download' });
+ toast.success(t('supervisor.excelDownloaded'), { id: 'download' });
  } catch (error) {
- toast.error('Error al descargar Excel', { id: 'download' });
+ toast.error(t('audits.loadError'), { id: 'download' });
  }
  };
 
@@ -188,21 +190,21 @@ export default function SupervisorDashboard() {
  return (
  <span className="badge badge-success">
  <CheckCircle2 className="w-3 h-3 mr-1" />
- Completado
+ {t('supervisor.statusCompleted')}
  </span>
  );
  case 'processing':
  return (
  <span className="badge badge-info">
  <Clock className="w-3 h-3 mr-1" />
- Procesando
+ {t('supervisor.statusProcessing')}
  </span>
  );
  case 'error':
  return (
  <span className="badge badge-danger">
  <AlertCircle className="w-3 h-3 mr-1" />
- Error
+ {t('supervisor.statusError')}
  </span>
  );
  default:
@@ -236,16 +238,16 @@ export default function SupervisorDashboard() {
  return (
  <div className="min-h-screen">
  <AppHeader
-   title="Panel de Supervisor"
+   title={t('supervisor.pageTitle')}
    rightContent={
      <>
-       <button onClick={() => loadData()} className="btn-ghost flex items-center gap-1.5 text-xs" title="Recargar datos">
+       <button onClick={() => loadData()} className="btn-ghost flex items-center gap-1.5 text-xs" title={t('supervisor.reloadData')}>
          <RefreshCw className="w-3.5 h-3.5" />
-         Actualizar
+         {t('supervisor.refresh')}
        </button>
        <button onClick={handleLogout} className="btn-ghost flex items-center gap-1.5 text-xs">
          <LogOut className="w-3.5 h-3.5" />
-         Salir
+         {t('supervisor.logout')}
        </button>
      </>
    }
@@ -261,55 +263,55 @@ export default function SupervisorDashboard() {
  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
  <div className="stat-card">
  <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-sm font-medium">Total Auditorías</span>
+ <span className="text-slate-400 text-sm font-medium">{t('supervisor.totalAudits')}</span>
  <FileText className="w-5 h-5 text-brand-400" />
  </div>
  <div className="text-2xl font-bold text-white">{stats.totalAudits}</div>
  <div className="text-sm text-slate-500 mt-1">
- {stats.completedAudits} completadas
+ {stats.completedAudits} {t('supervisor.completed')}
  </div>
  </div>
 
  <div className="stat-card">
  <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-sm font-medium">Promedio Score</span>
+ <span className="text-slate-400 text-sm font-medium">{t('supervisor.avgScore')}</span>
  <TrendingUp className="w-5 h-5 text-brand-400" />
  </div>
  <div className="text-2xl font-bold text-white">
  {Math.round(stats.averageScore)}%
  </div>
  <div className="text-sm text-slate-500 mt-1">
- De auditorías completadas
+ {t('supervisor.ofCompletedAudits')}
  </div>
  </div>
 
  <div className="stat-card">
  <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-sm font-medium">Este Mes</span>
+ <span className="text-slate-400 text-sm font-medium">{t('supervisor.thisMonth')}</span>
  <Calendar className="w-5 h-5 text-cyan-400" />
  </div>
  <div className="text-2xl font-bold text-white">{stats.thisMonthAudits}</div>
  <div className="text-sm text-slate-500 mt-1">
- Auditorías realizadas
+ {t('supervisor.auditsDone')}
  </div>
  </div>
 
  <div className="stat-card">
  <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-sm font-medium">Costos Totales</span>
+ <span className="text-slate-400 text-sm font-medium">{t('supervisor.totalCosts')}</span>
  <DollarSign className="w-5 h-5 text-green-400" />
  </div>
  <div className="text-2xl font-bold text-white">
  {formatCurrency(stats.totalCosts)}
  </div>
  <div className="text-sm text-slate-500 mt-1">
- Inversión en APIs
+ {t('supervisor.apiInvestment')}
  </div>
  </div>
  </div>
  ) : (
  <div className="text-center py-8 text-slate-400">
- No se pudieron cargar las estadísticas
+ {t('supervisor.statsError')}
  </div>
  )}
 
@@ -324,8 +326,8 @@ export default function SupervisorDashboard() {
  <FileText className="w-5 h-5 text-brand-400" />
  </div>
  <div className="text-left">
- <h3 className="text-sm font-semibold text-white">Ver Todas las Auditorías</h3>
- <p className="text-sm text-slate-400">Explorar historial completo</p>
+ <h3 className="text-sm font-semibold text-white">{t('supervisor.viewAllAudits')}</h3>
+ <p className="text-sm text-slate-400">{t('supervisor.exploreHistory')}</p>
  </div>
  </div>
  </button>
@@ -339,8 +341,8 @@ export default function SupervisorDashboard() {
  <BarChart3 className="w-5 h-5 text-green-400" />
  </div>
  <div className="text-left">
- <h3 className="text-sm font-semibold text-white">Generar Reportes</h3>
- <p className="text-sm text-slate-400">Análisis y exportación</p>
+ <h3 className="text-sm font-semibold text-white">{t('supervisor.generateReports')}</h3>
+ <p className="text-sm text-slate-400">{t('supervisor.analysisExport')}</p>
  </div>
  </div>
  </button>
@@ -354,8 +356,8 @@ export default function SupervisorDashboard() {
  <BookOpen className="w-5 h-5 text-violet-400" />
  </div>
  <div className="text-left">
- <h3 className="text-sm font-semibold text-white">Criterios y Scripts</h3>
- <p className="text-sm text-slate-400">Consulta de referencia</p>
+ <h3 className="text-sm font-semibold text-white">{t('supervisor.criteriaScripts')}</h3>
+ <p className="text-sm text-slate-400">{t('supervisor.referenceConsult')}</p>
  </div>
  </div>
  </button>
@@ -365,7 +367,7 @@ export default function SupervisorDashboard() {
  <div className="card">
  <h2 className="section-header">
  <Clock className="w-5 h-5 text-green-400" />
- Auditorías Recientes
+ {t('supervisor.recentAudits')}
  </h2>
 
  {loading ? (
@@ -378,7 +380,7 @@ export default function SupervisorDashboard() {
  <FileText className="w-8 h-8 text-slate-600" />
  </div>
  <p className="text-slate-400">
- No hay auditorías disponibles
+ {t('supervisor.noAudits')}
  </p>
  </div>
  ) : (
@@ -401,36 +403,36 @@ export default function SupervisorDashboard() {
  </div>
  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 text-sm">
  <div>
- <span className="text-slate-500">ID Ejecutivo:</span>
+ <span className="text-slate-500">{t('supervisor.idExecutive')}</span>
  <p className="text-slate-300 font-medium break-all">{audit.executive_id}</p>
  </div>
  <div>
- <span className="text-slate-500">Cliente:</span>
+ <span className="text-slate-500">{t('supervisor.client')}</span>
  <p className="text-slate-300 font-medium break-all">{audit.client_id}</p>
  </div>
  <div>
- <span className="text-slate-500">Tipo:</span>
+ <span className="text-slate-500">{t('supervisor.type')}</span>
  <div className="mt-1">
  {(audit.call_type || '').toUpperCase() === 'MONITOREO' ? (
  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
  <Monitor className="w-3 h-3" />
- Monitoreo
+ {t('supervisor.badgeMonitoreo')}
  </span>
  ) : (
  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-500/10 text-brand-400 border border-brand-700/40">
  <PhoneIncoming className="w-3 h-3" />
- Inbound
+ {t('supervisor.badgeInbound')}
  </span>
  )}
  </div>
  </div>
  <div>
- <span className="text-slate-500">Fecha:</span>
+ <span className="text-slate-500">{t('supervisor.date')}</span>
  <p className="text-slate-300 font-medium">{formatDate(audit.created_at)}</p>
  </div>
  <div>
- <span className="text-slate-500 flex items-center gap-1"><UserCheck className="w-3 h-3" /> Creado por:</span>
- <p className="text-cyan-300 font-medium truncate">{audit.created_by_name || 'Desconocido'}</p>
+ <span className="text-slate-500 flex items-center gap-1"><UserCheck className="w-3 h-3" /> {t('supervisor.createdBy')}</span>
+ <p className="text-cyan-300 font-medium truncate">{audit.created_by_name || t('supervisor.unknown')}</p>
  </div>
  </div>
 
@@ -439,7 +441,7 @@ export default function SupervisorDashboard() {
  <div className="mt-4 flex items-center gap-4">
  <div className="flex items-center gap-2">
  <TrendingUp className="w-4 h-4 text-brand-400" />
- <span className="text-slate-400 text-sm">Score:</span>
+ <span className="text-slate-400 text-sm">{t('supervisor.score')}</span>
  <span className="text-xl font-bold text-brand-400">
  {evaluations[0].percentage.toFixed(2)}%
  </span>
@@ -451,7 +453,7 @@ export default function SupervisorDashboard() {
  {/* âœ… Mostrar costos para supervisor */}
  <div className="flex items-center gap-2">
  <DollarSign className="w-4 h-4 text-emerald-400" />
- <span className="text-slate-400 text-sm">Costo:</span>
+ <span className="text-slate-400 text-sm">{t('supervisor.cost')}</span>
  <span className="text-sm font-semibold text-emerald-400">
  {formatCurrency(getAuditTotalCost(audit))}
  </span>
@@ -467,7 +469,7 @@ export default function SupervisorDashboard() {
  navigate(`/audit/${audit.id}`);
  }}
  className="btn-icon"
- title="Ver detalles"
+ title={t('supervisor.viewDetails')}
  >
  <Eye className="w-4 h-4" />
  </button>
@@ -479,7 +481,7 @@ export default function SupervisorDashboard() {
  handleDownloadExcel(evaluations[0].excel_filename);
  }}
  className="btn-icon"
- title="Descargar Excel"
+ title={t('supervisor.downloadExcel')}
  >
  <Download className="w-4 h-4" />
  </button>

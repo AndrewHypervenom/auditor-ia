@@ -1,6 +1,7 @@
 ﻿// frontend/src/components/ProcessingStatus.tsx
 
 import { Loader2, CheckCircle2, Clock, Brain, FileSearch, Mic, FileSpreadsheet } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface ProcessingStatusProps {
  stage: string;
@@ -9,45 +10,46 @@ interface ProcessingStatusProps {
 }
 
 export default function ProcessingStatus({ stage, progress, message }: ProcessingStatusProps) {
+ const { t } = useTranslation();
  const stages = [
  {
  id: 'upload',
- label: 'Obteniendo datos GPF',
+ label: t('processingStatus.stageGpfData'),
  icon: Clock,
  duration: '~10s',
  color: 'blue'
  },
  {
  id: 'analysis',
- label: 'Analizando capturas (IA Vision)',
+ label: t('processingStatus.stageAnalyzing'),
  icon: FileSearch,
  duration: '~30s',
  color: 'pink'
  },
  {
  id: 'audio',
- label: 'Procesando audio (AssemblyAI)',
+ label: t('processingStatus.stageAudio'),
  icon: Mic,
  duration: '~45s',
  color: 'purple'
  },
  {
  id: 'evaluation',
- label: 'Evaluando con IA',
+ label: t('processingStatus.stageEvaluation'),
  icon: Brain,
  duration: '~50s',
  color: 'green'
  },
  {
  id: 'excel',
- label: 'Generando reporte',
+ label: t('processingStatus.stageExcel'),
  icon: FileSpreadsheet,
  duration: '~5s',
  color: 'emerald'
  },
  {
  id: 'completed',
- label: 'Completado',
+ label: t('processingStatus.stageCompleted'),
  icon: CheckCircle2,
  duration: '',
  color: 'emerald'
@@ -98,12 +100,12 @@ export default function ProcessingStatus({ stage, progress, message }: Processin
  </div>
  )}
  <h2 className="text-2xl font-bold mb-2 bg-gradient-to-r from-brand-900/30 to-purple-400 bg-clip-text text-transparent">
- {normalizedStage === 'completed' ? '¡Auditoría Completada!' : 'Procesando Auditoría'}
+ {normalizedStage === 'completed' ? t('processingStatus.completedTitle') : t('processingStatus.processingTitle')}
  </h2>
  <p className="text-slate-400">
- {normalizedStage === 'completed' 
- ? 'Tu auditoría ha sido procesada exitosamente' 
- : 'Nuestro sistema de IA está analizando tu auditoría'}
+ {normalizedStage === 'completed'
+ ? t('processingStatus.completedMessage')
+ : t('processingStatus.processingMessage')}
  </p>
  </div>
 
@@ -111,7 +113,7 @@ export default function ProcessingStatus({ stage, progress, message }: Processin
  <div className="mb-10">
  <div className="flex items-center justify-between mb-3">
  <span className="text-sm font-semibold text-slate-300">
- Progreso total
+ {t('processingStatus.progressLabel')}
  </span>
  <span className="text-2xl font-bold bg-gradient-to-r from-brand-900/30 to-purple-400 bg-clip-text text-transparent">
  {progress}%
@@ -204,12 +206,12 @@ export default function ProcessingStatus({ stage, progress, message }: Processin
  </p>
  {isCompleted && (
  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
- Completado
+ {t('processingStatus.completedBadge')}
  </span>
  )}
  {isCurrent && (
  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-brand-500/10 text-brand-400 border border-brand-700/40 animate-pulse">
- En progreso...
+ {t('processingStatus.inProgress')}
  </span>
  )}
  </div>
@@ -240,10 +242,10 @@ export default function ProcessingStatus({ stage, progress, message }: Processin
  <Clock className="w-5 h-5 text-brand-400 flex-shrink-0 mt-0.5" />
  <div>
  <p className="text-sm font-medium text-brand-400 mb-1">
- Tiempo estimado: 2-4 minutos
+ {t('processingStatus.estimatedTime')}
  </p>
  <p className="text-xs text-slate-400">
- No cierres esta ventana. El proceso se completará automáticamente.
+ {t('processingStatus.doNotClose')}
  </p>
  </div>
  </div>

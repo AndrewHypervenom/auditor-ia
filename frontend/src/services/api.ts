@@ -1067,3 +1067,18 @@ export const userService = {
  return response.data;
  }
 };
+
+// Gestión de empresas (solo admin de plataforma)
+export const companyService = {
+  getAll: () => api.get('/platform/companies').then((r: any) => r.data),
+  create: (payload: { name: string; slug: string; integration_type?: string }) =>
+    api.post('/platform/companies', payload).then((r: any) => r.data),
+  update: (id: string, payload: Record<string, unknown>) =>
+    api.put(`/platform/companies/${id}`, payload).then((r: any) => r.data),
+  getUsage: (id: string) => api.get(`/platform/companies/${id}/usage`).then((r: any) => r.data),
+  setLimits: (id: string, limits: Record<string, unknown>) =>
+    api.put(`/platform/companies/${id}/limits`, limits).then((r: any) => r.data),
+  getOwnUsage: () => api.get('/admin/company/usage').then((r: any) => r.data),
+  setRolePermissions: (permissions: Record<string, unknown>) =>
+    api.put('/admin/company/role-permissions', permissions).then((r: any) => r.data),
+};

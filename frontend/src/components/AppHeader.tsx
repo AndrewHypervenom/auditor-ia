@@ -4,13 +4,16 @@
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
+import LanguageSelector from './LanguageSelector';
+import { useAuth } from '../contexts/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 interface AppHeaderProps {
   /** Mostrar botón ‹ Volver en la izquierda (oculta el logo). */
   showBack?: boolean;
   /** Handler del botón volver. Default: navigate(-1). */
   onBack?: () => void;
-  /** Etiqueta del botón volver. Default: 'Volver'. */
+  /** Etiqueta del botón volver. Default: t('common.back'). */
   backLabel?: string;
   /** Título centrado en el nav (absolutamente centrado). */
   title?: string;
@@ -23,13 +26,16 @@ interface AppHeaderProps {
 export default function AppHeader({
   showBack = false,
   onBack,
-  backLabel = 'Volver',
+  backLabel,
   title,
   subtitle,
   rightContent,
 }: AppHeaderProps) {
   const navigate = useNavigate();
   const handleBack = onBack ?? (() => navigate(-1));
+  const { profile } = useAuth();
+  const { t } = useTranslation();
+  const resolvedBackLabel = backLabel ?? t('common.back');
 
   return (
     <header
@@ -52,7 +58,7 @@ export default function AppHeader({
                 className="btn-ghost flex items-center gap-0.5 text-xs py-1 px-2 -ml-1"
               >
                 <ChevronLeft className="w-4 h-4 -mr-0.5" />
-                {backLabel}
+                {resolvedBackLabel}
               </button>
             ) : (
               /* Logo S+ — visible solo en dashboards (sin botón Volver) */
@@ -69,30 +75,26 @@ export default function AppHeader({
           </div>
 
           {/* CENTRO: título absolutamente centrado — independiente del ancho de botones */}
-          {(title || subtitle) && (
+          {(title || subtitle || profile?.company_name) && (
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none animate-fadeIn">
               {title && (
                 <span className="text-[14px] font-semibold text-white tracking-tight leading-tight">
                   {title}
                 </span>
               )}
-              {subtitle && (
+              {(subtitle ?? profile?.company_name) && (
                 <span className="text-[10px] text-slate-400 tracking-tight mt-px">
-                  {subtitle}
+                  {subtitle ?? profile?.company_name}
                 </span>
               )}
             </div>
           )}
 
-          {/* DERECHA: acciones específicas de la página */}
-          {rightContent ? (
-            <div className="flex items-center gap-2 flex-shrink-0 z-10">
-              {rightContent}
-            </div>
-          ) : (
-            /* Spacer invisible para mantener el título centrado cuando no hay acciones */
-            <div className="w-16 flex-shrink-0" />
-          )}
+          {/* DERECHA: acciones de la página + selector de idioma siempre visible */}
+          <div className="flex items-center gap-2 flex-shrink-0 z-10">
+            {rightContent}
+            <LanguageSelector />
+          </div>
 
         </div>
       </div>

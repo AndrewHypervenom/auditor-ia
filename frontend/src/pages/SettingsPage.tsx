@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import AppHeader from '../components/AppHeader';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -30,6 +31,7 @@ interface SystemConfig {
 
 export default function SettingsPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -58,7 +60,7 @@ export default function SettingsPage() {
   useEffect(() => {
     // Verificar que sea admin
     if (profile?.role !== 'admin') {
-      toast.error('No tienes permisos para acceder a esta página');
+      toast.error(t('settingsPage.unauthorized'));
       navigate('/dashboard');
       return;
     }
@@ -74,7 +76,7 @@ export default function SettingsPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Error al cargar configuración');
+        throw new Error(t('settingsPage.loadError'));
       }
 
       const data = await response.json();
@@ -82,7 +84,7 @@ export default function SettingsPage() {
       await checkConnections();
     } catch (error: any) {
       console.error('Error loading config:', error);
-      toast.error('Error al cargar configuración');
+      toast.error(t('settingsPage.loadError'));
     } finally {
       setLoading(false);
     }
@@ -117,14 +119,14 @@ export default function SettingsPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Error al guardar configuración');
+        throw new Error(t('settingsPage.saveError'));
       }
 
-      toast.success('Configuración guardada exitosamente');
+      toast.success(t('settingsPage.saveSuccess'));
       await checkConnections();
     } catch (error: any) {
       console.error('Error saving config:', error);
-      toast.error('Error al guardar configuración');
+      toast.error(t('settingsPage.saveError'));
     } finally {
       setSaving(false);
     }
@@ -140,14 +142,14 @@ export default function SettingsPage() {
       const result = await response.json();
 
       if (result.success) {
-        toast.success(`Conexión exitosa con ${service.toUpperCase()}`);
+        toast.success(`${t('settingsPage.testSuccess')} ${service.toUpperCase()}`);
         setConnectionStatus(prev => ({ ...prev, [service]: true }));
       } else {
-        toast.error(`Error conectando con ${service.toUpperCase()}: ${result.error}`);
+        toast.error(`${t('settingsPage.testError')} ${service.toUpperCase()}: ${result.error}`);
         setConnectionStatus(prev => ({ ...prev, [service]: false }));
       }
     } catch (error: any) {
-      toast.error(`Error probando conexión: ${error.message}`);
+      toast.error(`${t('settingsPage.testError')}: ${error.message}`);
       setConnectionStatus(prev => ({ ...prev, [service]: false }));
     } finally {
       setTesting(null);
@@ -170,7 +172,7 @@ export default function SettingsPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-brand-500/50 border-r-transparent"></div>
-          <p className="mt-4 text-white">Cargando configuración...</p>
+          <p className="mt-4 text-white">{t('settingsPage.loading')}</p>
         </div>
       </div>
     );
@@ -178,7 +180,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen">
-      <AppHeader showBack onBack={() => navigate('/dashboard')} title="Configuración del Sistema" />
+      <AppHeader showBack onBack={() => navigate('/dashboard')} title={t('settingsPage.title')} />
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div>
@@ -190,7 +192,7 @@ export default function SettingsPage() {
               <div className="flex items-center gap-3">
                 <Brain className="w-5 h-5 text-brand-400" />
                 <div>
-                  <p className="text-sm text-slate-400">OpenAI</p>
+                  <p className="text-sm text-slate-400">{t('settingsPage.openaiTitle')}</p>
                   <p className="text-xs text-slate-500">GPT-4o</p>
                 </div>
               </div>
@@ -207,8 +209,8 @@ export default function SettingsPage() {
               <div className="flex items-center gap-3">
                 <Mic className="w-5 h-5 text-brand-400" />
                 <div>
-                  <p className="text-sm text-slate-400">AssemblyAI</p>
-                  <p className="text-xs text-slate-500">Transcripción</p>
+                  <p className="text-sm text-slate-400">{t('settingsPage.assemblyaiTitle')}</p>
+                  <p className="text-xs text-slate-500">{t('settingsPage.transcription')}</p>
                 </div>
               </div>
               {connectionStatus.assemblyai ? (
@@ -224,8 +226,8 @@ export default function SettingsPage() {
               <div className="flex items-center gap-3">
                 <Database className="w-6 h-6 text-brand-400" />
                 <div>
-                  <p className="text-sm text-slate-400">Supabase</p>
-                  <p className="text-xs text-slate-500">Base de datos</p>
+                  <p className="text-sm text-slate-400">{t('settingsPage.supabaseTitle')}</p>
+                  <p className="text-xs text-slate-500">{t('settingsPage.database')}</p>
                 </div>
               </div>
               {connectionStatus.supabase ? (
@@ -257,13 +259,13 @@ export default function SettingsPage() {
                 ) : (
                   <CheckCircle className="w-4 h-4" />
                 )}
-                Probar Conexión
+                {t('settingsPage.testConnection')}
               </button>
             </div>
             <div className="space-y-2">
               <label className="text-sm text-slate-400 flex items-center gap-2">
                 <Key className="w-4 h-4" />
-                API Key
+                {t('settingsPage.apiKey')}
               </label>
               <div className="relative">
                 <input
@@ -307,13 +309,13 @@ export default function SettingsPage() {
                 ) : (
                   <CheckCircle className="w-4 h-4" />
                 )}
-                Probar Conexión
+                {t('settingsPage.testConnection')}
               </button>
             </div>
             <div className="space-y-2">
               <label className="text-sm text-slate-400 flex items-center gap-2">
                 <Key className="w-4 h-4" />
-                API Key
+                {t('settingsPage.apiKey')}
               </label>
               <div className="relative">
                 <input
@@ -357,7 +359,7 @@ export default function SettingsPage() {
                 ) : (
                   <CheckCircle className="w-4 h-4" />
                 )}
-                Probar Conexión
+                {t('settingsPage.testConnection')}
               </button>
             </div>
             <div className="space-y-4">
@@ -434,12 +436,12 @@ export default function SettingsPage() {
             {saving ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                Guardando...
+                {t('settingsPage.saving')}
               </>
             ) : (
               <>
                 <Save className="w-5 h-5" />
-                Guardar Configuración
+                {t('settingsPage.saveConfig')}
               </>
             )}
           </button>

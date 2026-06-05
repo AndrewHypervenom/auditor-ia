@@ -28,7 +28,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // ============================================
 const PROFILE_LOAD_TIMEOUT = 8000; // 8 segundos (solo para primer login sin caché)
 const CACHE_DURATION = 30 * 60 * 1000; // 30 minutos
-const PROFILE_STORAGE_KEY = 'auth_profile_cache';
+const PROFILE_STORAGE_KEY = 'auth_profile_cache_v2'; // v2: incluye company_id
 
 // Caché en memoria (entre renders, pero no sobrevive recargas)
 const profileCache = new Map<string, { profile: UserProfile; timestamp: number }>();
@@ -126,6 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  setTimeout(() => reject(new Error('Profile load timeout')), PROFILE_LOAD_TIMEOUT);
  });
 
+ // Query 1: perfil del usuario (sin join para evitar conflicto RLS)
  const profilePromise = supabase
  .from('users')
  .select('*')
@@ -140,6 +141,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  if (error || !userProfile) {
  logAuthEvent('PROFILE_LOAD_ERROR', { userId, error: error?.message });
  return null;
+ }
+
+ // Query 2: nombre de empresa (query separada, post-migración)
+ if (userProfile.company_id) {
+ try {
+ const { data: company } = await supabase
+ .from('companies')
+ .select('name')
+ .eq('id', userProfile.company_id)
+ .single();
+ if (company?.name) userProfile.company_name = company.name;
+ } catch {
+ // No bloquear login si falla — company_name es decorativo
+ }
  }
 
  // Verificar cuenta desactivada

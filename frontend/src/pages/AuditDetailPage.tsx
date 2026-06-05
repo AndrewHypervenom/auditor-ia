@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import AppHeader from '../components/AppHeader';
 import { auditService, type AuditDetail } from '../services/api';
 import ResultsView from '../components/ResultsView';
@@ -9,6 +10,7 @@ import { Loader2, UserCheck } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 export default function AuditDetailPage() {
+  const { t } = useTranslation();
   const { auditId } = useParams<{ auditId: string }>();
   const navigate = useNavigate();
   const [auditDetail, setAuditDetail] = useState<AuditDetail | null>(null);
@@ -26,7 +28,7 @@ export default function AuditDetailPage() {
       const data = await auditService.getAuditById(auditId);
       setAuditDetail(data);
     } catch (error: any) {
-      toast.error('Error al cargar auditoría');
+      toast.error(t('auditDetail.loading').replace('...', ' - Error'));
       console.error(error);
       navigate('/dashboard');
     } finally {
@@ -38,7 +40,7 @@ export default function AuditDetailPage() {
     if (!auditDetail?.evaluation?.excel_filename) return;
 
     try {
-      toast.loading('Preparando descarga...', { id: 'download' });
+      toast.loading(t('auditDetail.downloadPreparing'), { id: 'download' });
       const blob = await auditService.downloadExcel(auditDetail.evaluation.excel_filename);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -48,9 +50,9 @@ export default function AuditDetailPage() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      toast.success('Excel descargado exitosamente', { id: 'download' });
+      toast.success(t('auditDetail.downloadSuccess'), { id: 'download' });
     } catch (error) {
-      toast.error('Error al descargar el archivo', { id: 'download' });
+      toast.error(t('auditDetail.downloadError'), { id: 'download' });
       console.error(error);
     }
   };
@@ -71,7 +73,7 @@ export default function AuditDetailPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-brand-400 animate-spin mx-auto mb-4" />
-          <p className="text-slate-400">Cargando auditoría...</p>
+          <p className="text-slate-400">{t('auditDetail.loading')}</p>
         </div>
       </div>
     );
@@ -81,9 +83,9 @@ export default function AuditDetailPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <p className="text-slate-400 mb-4">Auditoría no encontrada</p>
+          <p className="text-slate-400 mb-4">{t('auditDetail.notFound')}</p>
           <button onClick={() => navigate('/dashboard')} className="btn-primary">
-            Volver al Dashboard
+            {t('auditDetail.back')}
           </button>
         </div>
       </div>
@@ -110,7 +112,7 @@ export default function AuditDetailPage() {
 
   return (
     <div className="min-h-screen">
-      <AppHeader showBack onBack={() => navigate('/dashboard')} title="Detalle de Auditoría" />
+      <AppHeader showBack onBack={() => navigate('/dashboard')} title={t('auditDetail.title')} />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
@@ -118,7 +120,7 @@ export default function AuditDetailPage() {
         {auditDetail.audit?.created_by_name && (
           <div className="mb-4 px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl flex items-center gap-3 text-sm">
             <UserCheck className="w-5 h-5 text-cyan-400 flex-shrink-0" />
-            <span className="text-slate-400">Creado por:</span>
+            <span className="text-slate-400">{t('auditDetail.createdBy')}</span>
             <span className="text-cyan-300 font-semibold">{auditDetail.audit.created_by_name}</span>
             {auditDetail.audit.created_by_email && (
               <span className="text-slate-500">({auditDetail.audit.created_by_email})</span>

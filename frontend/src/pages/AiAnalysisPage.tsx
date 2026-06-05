@@ -4,6 +4,7 @@
 // El procesamiento real (audio, imágenes, Excel) ocurre en la pestaña original.
 
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Database,
   Image,
@@ -39,6 +40,7 @@ interface CaseSnapshot {
 }
 
 export default function AiAnalysisPage() {
+  const { t } = useTranslation();
   const [data, setData] = useState<CaseSnapshot | null>(null);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<'info' | 'captures' | 'transactions' | 'comments' | 'otp'>('info');
@@ -158,7 +160,7 @@ export default function AiAnalysisPage() {
   return (
     <div className="min-h-screen text-slate-100">
 
-      <AppHeader showBack onBack={() => window.close()} backLabel="Cerrar" title="Análisis IA" />
+      <AppHeader showBack onBack={() => window.close()} backLabel={t('common.close')} title="Análisis IA" />
 
       {/* Contenido */}
       <main className="max-w-5xl mx-auto px-4 py-6">

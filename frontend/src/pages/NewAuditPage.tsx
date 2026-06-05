@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import AppHeader from '../components/AppHeader';
 import { toast } from 'react-hot-toast';
 import ProcessingStatus from '../components/ProcessingStatus';
@@ -106,6 +107,7 @@ const parseDateForCompare = (dateStr: string): string => {
 
 export default function NewAuditPage() {
  const navigate = useNavigate();
+ const { t } = useTranslation();
  const { modes: availableModes } = useCallTypesConfig();
 
  const [state, setState] = useState<AppState>('selecting');
@@ -298,7 +300,7 @@ export default function NewAuditPage() {
  }
  } catch (error: any) {
  console.error('Error loading attentions:', error);
- toast.error(error.response?.data?.error || 'Error al cargar casos GPF');
+ toast.error(error.response?.data?.error || t('newAudit.loadError'));
  } finally {
  setLoadingAttentions(false);
  }
@@ -448,12 +450,12 @@ export default function NewAuditPage() {
      });
      // Enviar inmediatamente a OpenAI (fire-and-forget en el backend)
      batchService.submitJob(job.id).catch(() => {});
-     toast.success(`${selected.length} caso${selected.length !== 1 ? 's' : ''} enviado${selected.length !== 1 ? 's' : ''} a OpenAI — resultados en ~24 h`);
+     toast.success(`${selected.length} caso${selected.length !== 1 ? 's' : ''} enviado${selected.length !== 1 ? 's' : ''} ${t('newAudit.batchCreated')}`);
      setShowBatchModal(false);
      setBatchMode(false);
      setSelectedIds(new Set());
    } catch (e: any) {
-     toast.error(e.response?.data?.error || 'Error al crear el lote');
+     toast.error(e.response?.data?.error || t('newAudit.batchError'));
    } finally {
      setSubmittingBatch(false);
    }
@@ -556,7 +558,7 @@ export default function NewAuditPage() {
  eventSource.close();
  setTimeout(() => {
  if (completedAuditId) {
- toast.success('¡Evaluación completada exitosamente!', { duration: 4000, icon: '' });
+ toast.success(t('newAudit.auditCompleted'), { duration: 4000, icon: '' });
  navigate(`/audit/${completedAuditId}`);
  }
  }, 1000);
@@ -576,7 +578,7 @@ export default function NewAuditPage() {
  eventSource.onerror = () => {
  eventSource.close();
  if (processing.progress < 100) {
- toast.error('Se perdió la conexión con el servidor. Intenta de nuevo.');
+ toast.error(t('newAudit.serverDisconnected'));
  setState('confirming');
  }
  };
@@ -595,7 +597,7 @@ export default function NewAuditPage() {
  completedAuditId = result.auditId;
  setTimeout(() => {
  if (completedAuditId) {
- toast.success('¡Evaluación completada exitosamente!', { duration: 4000, icon: '' });
+ toast.success(t('newAudit.auditCompleted'), { duration: 4000, icon: '' });
  navigate(`/audit/${completedAuditId}`);
  }
  }, 2000);
@@ -604,7 +606,7 @@ export default function NewAuditPage() {
  console.error('[Auditoria] Error al procesar:', error);
  console.error('[Auditoria] Respuesta del servidor:', error?.response?.data);
  console.error('[Auditoria] Status HTTP:', error?.response?.status);
- toast.error(error.response?.data?.error || 'Error al procesar la auditoría');
+ toast.error(error.response?.data?.error || t('newAudit.auditError'));
  eventSource.close();
  setState('confirming');
  }
@@ -614,7 +616,7 @@ export default function NewAuditPage() {
 
  return (
  <div className="min-h-screen">
- <AppHeader showBack onBack={() => navigate('/')} title="Nueva Auditoría" />
+ <AppHeader showBack onBack={() => navigate('/')} title={t('newAudit.pageTitle')} />
 
  <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
 
@@ -634,7 +636,7 @@ export default function NewAuditPage() {
  className="px-6 py-3 bg-brand-500 text-black rounded-lg font-semibold  disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg flex items-center gap-2"
  >
  {loadingAttentions ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
- {loadingAttentions ? 'Cargando...' : 'Cargar Casos'}
+ {loadingAttentions ? t('newAudit.loading') : t('newAudit.loadCases')}
  </button>
 
  <button
@@ -646,7 +648,7 @@ export default function NewAuditPage() {
  }`}
  >
  <Filter className="w-4 h-4" />
- Filtros
+ {t('newAudit.filters')}
  {activeFilterCount > 0 && (
  <span className="px-1.5 py-0.5 text-xs bg-brand-500 text-white rounded-full leading-none">
  {activeFilterCount}
@@ -663,7 +665,7 @@ export default function NewAuditPage() {
  {exporting
  ? <RefreshCw className="w-4 h-4 animate-spin" />
  : <FileSpreadsheet className="w-4 h-4" />}
- {exporting ? 'Exportando...' : 'Exportar Excel'}
+ {exporting ? t('newAudit.exporting') : t('newAudit.exportExcel')}
  </button>
  )}
 
@@ -678,7 +680,7 @@ export default function NewAuditPage() {
      }`}
    >
      <Moon className="w-4 h-4" />
-     Cola nocturna
+     {t('newAudit.batchQueue')}
    </button>
  )}
 
@@ -696,7 +698,7 @@ export default function NewAuditPage() {
  <div className="mb-4 p-4 bg-slate-800/40 border border-slate-700 rounded-xl">
  <div className="flex items-center justify-between mb-3">
  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
- <Filter className="w-3 h-3" /> Filtros
+ <Filter className="w-3 h-3" /> {t('newAudit.filters')}
  </p>
  <div className="flex items-center gap-2">
  <button
@@ -710,14 +712,14 @@ export default function NewAuditPage() {
  }}
  className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1.5 transition-all border border-brand-700/50 rounded-lg px-3 py-1.5 hover:bg-brand-500/10 hover:border-brand-500/60 font-medium"
  >
- <CalendarRange className="w-3 h-3" /> Día vencido
+ <CalendarRange className="w-3 h-3" /> {t('newAudit.yesterday')}
  </button>
  {activeFilterCount > 0 && (
  <button
  onClick={clearFilters}
  className="text-xs text-slate-500 hover:text-red-400 flex items-center gap-1 transition-colors"
  >
- <X className="w-3 h-3" /> Limpiar filtros
+ <X className="w-3 h-3" /> {t('newAudit.clearFilters')}
  </button>
  )}
  </div>
@@ -726,7 +728,7 @@ export default function NewAuditPage() {
  {/* Date From */}
  <div>
  <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
- <CalendarRange className="w-3 h-3" /> Fecha desde
+ <CalendarRange className="w-3 h-3" /> {t('newAudit.dateFrom')}
  </label>
  <input
  type="date"
@@ -738,7 +740,7 @@ export default function NewAuditPage() {
  {/* Date To */}
  <div>
  <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
- <CalendarRange className="w-3 h-3" /> Fecha hasta
+ <CalendarRange className="w-3 h-3" /> {t('newAudit.dateTo')}
  </label>
  <input
  type="date"
@@ -758,7 +760,7 @@ export default function NewAuditPage() {
  type="text"
  value={filterAgent}
  onChange={(e) => setFilterAgent(e.target.value)}
- placeholder="Buscar agente..."
+ placeholder={t('newAudit.searchAgent')}
  className="w-full pl-10 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-brand-700"
  />
  </div>
@@ -766,7 +768,7 @@ export default function NewAuditPage() {
  {/* Client */}
  <div>
  <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
- <Search className="w-3 h-3" /> Cliente / Caso
+ <Search className="w-3 h-3" /> {t('newAudit.clientCase')}
  </label>
  <div className="relative">
  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
@@ -774,7 +776,7 @@ export default function NewAuditPage() {
  type="text"
  value={filterClient}
  onChange={(e) => setFilterClient(e.target.value)}
- placeholder="Buscar en cualquier campo..."
+ placeholder={t('newAudit.searchField')}
  className="w-full pl-10 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-brand-700"
  />
  </div>
@@ -782,7 +784,7 @@ export default function NewAuditPage() {
  {/* Calificación */}
  <div>
  <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
- <Tag className="w-3 h-3" /> Calificación
+ <Tag className="w-3 h-3" /> {t('newAudit.qualification')}
  </label>
  <div className="relative">
  <select
@@ -790,7 +792,7 @@ export default function NewAuditPage() {
  onChange={(e) => { setFilterCalificacion(e.target.value); setFilterSubcal(''); }}
  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 appearance-none focus:outline-none focus:border-brand-700 pr-8"
  >
- <option value="">Todas</option>
+ <option value="">{t('newAudit.all')}</option>
  {uniqueCalificaciones.map((c) => (
  <option key={c} value={c}>{c}</option>
  ))}
@@ -801,7 +803,7 @@ export default function NewAuditPage() {
  {/* Subcalificación */}
  <div>
  <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1">
- <Tag className="w-3 h-3" /> Subcalificación
+ <Tag className="w-3 h-3" /> {t('newAudit.subQualification')}
  </label>
  <div className="relative">
  <select
@@ -809,7 +811,7 @@ export default function NewAuditPage() {
  onChange={(e) => setFilterSubcal(e.target.value)}
  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 appearance-none focus:outline-none focus:border-brand-700 pr-8"
  >
- <option value="">Todas</option>
+ <option value="">{t('newAudit.all')}</option>
  {uniqueSubcals.map((s) => (
  <option key={s} value={s}>{s}</option>
  ))}
@@ -832,7 +834,7 @@ export default function NewAuditPage() {
  {/* Texto descriptivo */}
  <div className="text-center">
  <p className="text-slate-300 font-medium text-lg">Cargando casos</p>
- <p className="text-slate-500 text-sm mt-1 animate-pulse">Consultando la API de GPF...</p>
+ <p className="text-slate-500 text-sm mt-1 animate-pulse">{t('newAudit.queryingGpf')}</p>
  </div>
  {/* Filas shimmer escalonadas */}
  <div className="w-full max-w-md space-y-3">
@@ -854,9 +856,9 @@ export default function NewAuditPage() {
  {filteredAttentions.length === 0 ? (
  <div className="text-center py-8 text-slate-500">
  <Search className="w-10 h-10 mx-auto mb-3 opacity-30" />
- <p>No hay casos que coincidan con los filtros</p>
+ <p>{t('newAudit.noCasesMatch')}</p>
  <button onClick={clearFilters} className="mt-2 text-sm text-brand-400 hover:text-brand-300 underline">
- Limpiar filtros
+ {t('newAudit.clearFilters')}
  </button>
  </div>
  ) : (
@@ -898,7 +900,7 @@ export default function NewAuditPage() {
              onClick={toggleSelectAll}
              className="text-xs text-indigo-300 hover:text-indigo-200 px-2.5 py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 transition-all"
            >
-             {selectedIds.size === filteredAttentions.length && filteredAttentions.length > 0 ? 'Ninguno' : 'Todos'}
+             {selectedIds.size === filteredAttentions.length && filteredAttentions.length > 0 ? t('newAudit.selectNone') : t('newAudit.selectAll')}
            </button>
            <button
              onClick={toggleBatchMode}
@@ -1019,7 +1021,7 @@ export default function NewAuditPage() {
  {!loadingAttentions && attentions.length === 0 && (
  <div className="text-center py-16 text-slate-500">
  <Database className="w-12 h-12 mx-auto mb-3 opacity-30" />
- <p>Carga los casos para comenzar</p>
+ <p>{t('newAudit.noCasesStart')}</p>
  </div>
  )}
  </div>
@@ -1087,7 +1089,7 @@ export default function NewAuditPage() {
            <Moon className="w-4 h-4" />
            {selectedIds.size > 0
              ? `Agregar ${selectedIds.size} a la cola`
-             : 'Agregar a la cola'
+             : t('newAudit.addToQueue')
            }
          </button>
        </div>
@@ -1109,7 +1111,7 @@ export default function NewAuditPage() {
            <Moon className="w-5 h-5 text-brand-400" />
          </div>
          <div>
-           <h3 className="text-white font-semibold">Agregar a cola nocturna</h3>
+           <h3 className="text-white font-semibold">{t('newAudit.batchModalTitle')}</h3>
            <p className="text-slate-400 text-xs">{selectedIds.size} caso{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}</p>
          </div>
        </div>
@@ -1206,12 +1208,12 @@ export default function NewAuditPage() {
        {/* Form */}
        <div className="space-y-3">
          <div>
-           <label className="block text-xs text-slate-400 mb-1">Nombre del lote</label>
+           <label className="block text-xs text-slate-400 mb-1">{t('newAudit.batchNameLabel')}</label>
            <input
              type="text"
              value={batchName}
              onChange={e => setBatchName(e.target.value)}
-             placeholder="Ej: Lote noche 7 Mayo"
+             placeholder={t('newAudit.batchNamePlaceholder')}
              className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-brand-600 placeholder:text-slate-600"
            />
          </div>
@@ -1224,7 +1226,7 @@ export default function NewAuditPage() {
            onClick={() => setShowBatchModal(false)}
            className="flex-1 btn-secondary py-2.5 text-sm"
          >
-           Cancelar
+           {t('newAudit.cancel')}
          </button>
          <button
            onClick={handleSubmitBatch}
@@ -1236,7 +1238,7 @@ export default function NewAuditPage() {
              ? <Loader2 className="w-4 h-4 animate-spin" />
              : <Moon className="w-4 h-4" />
            }
-           {submittingBatch ? 'Agregando...' : 'Agregar a cola'}
+           {submittingBatch ? t('newAudit.adding') : t('newAudit.addToQueue')}
          </button>
        </div>
      </div>
@@ -1299,11 +1301,11 @@ export default function NewAuditPage() {
  {/* Tabs */}
  <div className="flex gap-1 mb-4 bg-slate-800/60 rounded-xl p-1 border border-slate-700 overflow-x-auto">
  {[
- { key: 'info', label: 'Información', icon: <Database className="w-3.5 h-3.5" /> },
- { key: 'captures', label: `Capturas ${attentionDetail ? `(${attentionDetail.imageUrls.length})` : ''}`, icon: <Image className="w-3.5 h-3.5" /> },
- { key: 'transactions', label: `Transacciones ${attentionDetail ? `(${attentionDetail.transactions.length})` : ''}`, icon: <CreditCard className="w-3.5 h-3.5" /> },
- { key: 'comments', label: `Comentarios ${attentionDetail ? `(${attentionDetail.comments.length})` : ''}`, icon: <MessageSquare className="w-3.5 h-3.5" /> },
- { key: 'otp', label: `OTP ${attentionDetail ? `(${attentionDetail.otpValidations.length})` : ''}`, icon: <ShieldCheck className="w-3.5 h-3.5" /> },
+ { key: 'info', label: t('newAudit.information'), icon: <Database className="w-3.5 h-3.5" /> },
+ { key: 'captures', label: `${t('newAudit.captures')} ${attentionDetail ? `(${attentionDetail.imageUrls.length})` : ''}`, icon: <Image className="w-3.5 h-3.5" /> },
+ { key: 'transactions', label: `${t('newAudit.transactions')} ${attentionDetail ? `(${attentionDetail.transactions.length})` : ''}`, icon: <CreditCard className="w-3.5 h-3.5" /> },
+ { key: 'comments', label: `${t('newAudit.comments')} ${attentionDetail ? `(${attentionDetail.comments.length})` : ''}`, icon: <MessageSquare className="w-3.5 h-3.5" /> },
+ { key: 'otp', label: `${t('newAudit.otp')} ${attentionDetail ? `(${attentionDetail.otpValidations.length})` : ''}`, icon: <ShieldCheck className="w-3.5 h-3.5" /> },
  ].map((tab) => (
  <button
  key={tab.key}
@@ -1325,9 +1327,9 @@ export default function NewAuditPage() {
  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
  {[
  ['ID Caso', String(getAttentionId(selectedAttention))],
- ['Ejecutivo / Agente', getAttentionExecutive(selectedAttention)],
- ['Calificación', getAttentionCalificacion(selectedAttention)],
- ['Sub-calificación', selectedAttention['Sub-calificación'] ?? ''],
+ [t('newAudit.executiveAgent'), getAttentionExecutive(selectedAttention)],
+ [t('newAudit.qualification'), getAttentionCalificacion(selectedAttention)],
+ [t('newAudit.subQualification'), selectedAttention['Sub-calificación'] ?? ''],
  ['Estado llamada', selectedAttention['Estado llamada'] ?? ''],
  ['Llamada en curso', selectedAttention['Llamada en curso'] ?? ''],
  ['Cliente / Socio', selectedAttention['Socio'] ?? ''],
@@ -1435,7 +1437,7 @@ export default function NewAuditPage() {
  ) : attentionDetail.transactions.length === 0 ? (
  <p className="text-slate-500 text-sm text-center py-8 flex flex-col items-center gap-2">
  <CreditCard className="w-8 h-8 opacity-30" />
- Sin transacciones registradas
+ {t('newAudit.noTransactions')}
  </p>
  ) : (
  <div className="overflow-x-auto rounded-xl border border-slate-700">
@@ -1443,9 +1445,9 @@ export default function NewAuditPage() {
  <thead>
  <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase">
  <th className="px-4 py-2 text-left">#</th>
- <th className="px-4 py-2 text-left">Fecha</th>
+ <th className="px-4 py-2 text-left">{t('newAudit.date')}</th>
  <th className="px-4 py-2 text-left">Comercio</th>
- <th className="px-4 py-2 text-right">Monto</th>
+ <th className="px-4 py-2 text-right">{t('newAudit.amount')}</th>
  </tr>
  </thead>
  <tbody>
@@ -1475,7 +1477,7 @@ export default function NewAuditPage() {
  ) : attentionDetail.comments.length === 0 ? (
  <p className="text-slate-500 text-sm text-center py-8 flex flex-col items-center gap-2">
  <MessageSquare className="w-8 h-8 opacity-30" />
- Sin comentarios registrados
+ {t('newAudit.noComments')}
  </p>
  ) : (
  <div className="overflow-x-auto rounded-xl border border-slate-700">
@@ -1483,9 +1485,9 @@ export default function NewAuditPage() {
  <thead>
  <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase">
  <th className="px-4 py-2 text-left">#</th>
- <th className="px-4 py-2 text-left">Fecha</th>
- <th className="px-4 py-2 text-left">Agente</th>
- <th className="px-4 py-2 text-left">Comentario</th>
+ <th className="px-4 py-2 text-left">{t('newAudit.date')}</th>
+ <th className="px-4 py-2 text-left">{t('newAudit.agent')}</th>
+ <th className="px-4 py-2 text-left">{t('newAudit.comment')}</th>
  </tr>
  </thead>
  <tbody>
@@ -1515,7 +1517,7 @@ export default function NewAuditPage() {
  ) : attentionDetail.otpValidations.length === 0 ? (
  <p className="text-slate-500 text-sm text-center py-8 flex flex-col items-center gap-2">
  <ShieldCheck className="w-8 h-8 opacity-30" />
- Sin validaciones OTP registradas
+ {t('newAudit.noOtp')}
  </p>
  ) : (
  <div className="overflow-x-auto rounded-xl border border-slate-700">
@@ -1523,9 +1525,9 @@ export default function NewAuditPage() {
  <thead>
  <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase">
  <th className="px-4 py-2 text-left">#</th>
- <th className="px-4 py-2 text-left">Fecha</th>
- <th className="px-4 py-2 text-left">Agente</th>
- <th className="px-4 py-2 text-left">Resultado</th>
+ <th className="px-4 py-2 text-left">{t('newAudit.date')}</th>
+ <th className="px-4 py-2 text-left">{t('newAudit.agent')}</th>
+ <th className="px-4 py-2 text-left">{t('newAudit.result')}</th>
  </tr>
  </thead>
  <tbody>
@@ -1537,11 +1539,11 @@ export default function NewAuditPage() {
  <td className="px-4 py-2">
  {v.resultado === true || (v.resultado as any) === 'true' ? (
  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
- <CheckCircle2 className="w-3 h-3" /> Validado
+ <CheckCircle2 className="w-3 h-3" /> {t('newAudit.validated')}
  </span>
  ) : (
  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-semibold">
- <XCircle className="w-3 h-3" /> Fallido
+ <XCircle className="w-3 h-3" /> {t('newAudit.failed')}
  </span>
  )}
  </td>
@@ -1578,7 +1580,7 @@ export default function NewAuditPage() {
  ) : (
  <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
    <span className="text-red-400 text-lg">⚠</span>
-   <p className="text-red-400 text-sm font-medium">Sin audio disponible — no se puede auditar este caso.</p>
+   <p className="text-red-400 text-sm font-medium">{t('newAudit.noAudioAvailable')}</p>
  </div>
  )}
  </div>
@@ -1605,11 +1607,11 @@ export default function NewAuditPage() {
  <button
  onClick={handleConfirm}
  disabled={!audioUrl || audioLoading}
- title={!audioUrl && !audioLoading ? 'Se requiere audio para realizar la auditoría' : undefined}
+ title={!audioUrl && !audioLoading ? t('newAudit.audioRequired') : undefined}
  className="flex-1 px-6 py-4 bg-brand-500 hover:bg-brand-400 text-black rounded-lg font-semibold transition-all shadow-lg shadow-brand-500/30 hover:shadow-brand-400/40 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-brand-500 disabled:shadow-none"
  >
  <Sparkles className="w-5 h-5" />
- Confirmar y Auditar
+ {t('newAudit.confirmAudit')}
  </button>
 
  <button
@@ -1617,7 +1619,7 @@ export default function NewAuditPage() {
  className="px-6 py-4 bg-slate-800 text-slate-300 rounded-lg font-semibold hover:bg-slate-700 transition-colors flex items-center justify-center gap-2"
  >
  <ArrowLeft className="w-5 h-5" />
- Volver
+ {t('newAudit.back')}
  </button>
  </div>
  </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import AppHeader from '../components/AppHeader';
 import { useAuth, useRole } from '../contexts/AuthContext';
 import { auditService, getAuditTotalCost, type Audit } from '../services/api';
@@ -40,6 +41,7 @@ type SortField = 'created_at' | 'executive_name' | 'status' | 'score';
 type SortOrder = 'asc' | 'desc';
 
 export default function AuditsViewPage() {
+ const { t } = useTranslation();
  const navigate = useNavigate();
  const { user } = useAuth();
  const { isSupervisor } = useRole();
@@ -70,7 +72,7 @@ export default function AuditsViewPage() {
  const { audits: data } = await auditService.getUserAudits();
  setAudits(data);
  } catch (error: any) {
- toast.error('Error al cargar auditorías');
+ toast.error(t('auditsView.loadError'));
  console.error(error);
  } finally {
  setLoading(false);
@@ -81,12 +83,12 @@ export default function AuditsViewPage() {
  setRefreshing(true);
  await loadAudits();
  setRefreshing(false);
- toast.success('Datos actualizados');
+ toast.success(t('auditsView.refreshed'));
  };
 
  const handleDownloadExcel = async (filename: string) => {
  try {
- toast.loading('Descargando Excel...', { id: 'download' });
+ toast.loading(t('analyst.downloadingExcel'), { id: 'download' });
  const blob = await auditService.downloadExcel(filename);
  const url = window.URL.createObjectURL(blob);
  const a = document.createElement('a');
@@ -96,22 +98,22 @@ export default function AuditsViewPage() {
  a.click();
  window.URL.revokeObjectURL(url);
  document.body.removeChild(a);
- toast.success('Excel descargado correctamente', { id: 'download' });
+ toast.success(t('analyst.excelDownloaded'), { id: 'download' });
  } catch (error) {
- toast.error('Error al descargar Excel', { id: 'download' });
+ toast.error(t('analyst.excelError'), { id: 'download' });
  }
  };
 
  // Exportación mejorada a Excel con formato profesional
  const exportToExcel = async () => {
  if (filteredAndSortedAudits.length === 0) {
- toast.error('No hay datos para exportar');
+ toast.error(t('auditsView.noDataExport'));
  return;
  }
 
  try {
  setExporting(true);
- toast.loading('Generando reporte Excel...', { id: 'export-excel' });
+ toast.loading(t('auditsView.generatingExcel'), { id: 'export-excel' });
 
  const workbook = new ExcelJS.Workbook();
  workbook.creator = 'Sistema de Auditorías AI';
@@ -306,7 +308,7 @@ export default function AuditsViewPage() {
  id_ejecutivo: audit.executive_id || 'N/A',
  cliente: truncateText(audit.client_id || 'N/A', 30),
  tipo_llamada: (audit.call_type || '').toUpperCase() === 'MONITOREO' ? '🖥️ Monitoreo' : '📞 Inbound',
- creado_por: audit.created_by_name || 'Desconocido',
+ creado_por: audit.created_by_name || t('auditsView.unknown'),
          estado: audit.status === 'completed' ? '✅ Completada' :
          audit.status === 'processing' ? '⏳ Procesando' : '❌ Error',
  score: audit.evaluations?.[0]?.percentage 
@@ -564,10 +566,10 @@ export default function AuditsViewPage() {
  document.body.removeChild(link);
  window.URL.revokeObjectURL(url);
 
- toast.success('Excel generado exitosamente', { id: 'export-excel' });
+ toast.success(t('auditsView.excelGenerated'), { id: 'export-excel' });
  } catch (error) {
  console.error('Error al exportar:', error);
- toast.error('Error al generar el Excel', { id: 'export-excel' });
+ toast.error(t('auditsView.excelError'), { id: 'export-excel' });
  } finally {
  setExporting(false);
  }
@@ -734,11 +736,11 @@ export default function AuditsViewPage() {
  <AppHeader
  showBack
  onBack={() => navigate(-1)}
- title="Explorador de Auditorías"
+ title={t('auditsView.pageTitle')}
  rightContent={
    <button onClick={handleRefresh} disabled={refreshing} className="btn-ghost flex items-center gap-1.5 text-xs">
      <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-     Actualizar
+     {t('auditsView.refresh')}
    </button>
  }
  />
@@ -819,7 +821,7 @@ export default function AuditsViewPage() {
  type="text"
  value={searchTerm}
  onChange={(e) => setSearchTerm(e.target.value)}
- placeholder="Buscar por ejecutivo, ID, cliente o creador..."
+ placeholder={t('auditsView.searchPlaceholder')}
  className="input pl-10"
  />
  </div>
@@ -836,7 +838,7 @@ export default function AuditsViewPage() {
  }`}
  >
  <SlidersHorizontal className="w-5 h-5" />
- <span className="hidden sm:inline">Filtros</span>
+ <span className="hidden sm:inline">{t('auditsView.filters')}</span>
  </button>
 
  {/* Vista Grid/Table */}
@@ -848,7 +850,7 @@ export default function AuditsViewPage() {
  ? 'bg-brand-500 text-black'
  : 'text-slate-400 hover:text-white'
  }`}
- title="Vista en tarjetas"
+ title={t('auditsView.viewCards')}
  >
  <Grid3x3 className="w-5 h-5" />
  </button>
@@ -859,7 +861,7 @@ export default function AuditsViewPage() {
  ? 'bg-brand-500 text-black'
  : 'text-slate-400 hover:text-white'
  }`}
- title="Vista en tabla"
+ title={t('auditsView.viewTable')}
  >
  <List className="w-5 h-5" />
  </button>
@@ -877,7 +879,7 @@ export default function AuditsViewPage() {
  <FileSpreadsheet className="w-5 h-5" />
  )}
  <span className="hidden sm:inline">
- {exporting ? 'Exportando...' : 'Exportar Excel'}
+ {exporting ? t('auditsView.exporting') : t('auditsView.exportExcel')}
  </span>
  </button>
  </div>
@@ -911,50 +913,50 @@ export default function AuditsViewPage() {
  className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 border border-slate-700"
  >
  <X className="w-3.5 h-3.5" />
- Limpiar filtros
+ {t('auditsView.clearFilters')}
  </button>
  </div>
  </div>
  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
  <div>
- <label className="block text-sm text-slate-400 mb-2 font-medium">Estado</label>
+ <label className="block text-sm text-slate-400 mb-2 font-medium">{t('auditsView.statusLabel')}</label>
  <select
  value={statusFilter}
  onChange={(e) => setStatusFilter(e.target.value)}
  className="input"
  >
- <option value="all">Todos los estados</option>
-         <option value="completed">Completadas</option>
-         <option value="processing">Procesando</option>
-         <option value="error">Con Error</option>
+ <option value="all">{t('auditsView.allStatuses')}</option>
+         <option value="completed">{t('auditsView.statusCompleted')}</option>
+         <option value="processing">{t('auditsView.statusProcessing')}</option>
+         <option value="error">{t('auditsView.statusError')}</option>
  </select>
  </div>
 
  <div>
- <label className="block text-sm text-slate-400 mb-2 font-medium">Tipo de Llamada</label>
+ <label className="block text-sm text-slate-400 mb-2 font-medium">{t('auditsView.callTypeLabel')}</label>
  <select
  value={callTypeFilter}
  onChange={(e) => setCallTypeFilter(e.target.value)}
  className="input"
  >
- <option value="all">Todas las llamadas</option>
+ <option value="all">{t('auditsView.allCallTypes')}</option>
          <option value="INBOUND">📞 Inbound</option>
          <option value="MONITOREO">🖥️ Monitoreo</option>
  </select>
  </div>
 
  <div>
-         <label className="block text-sm text-slate-400 mb-2 font-medium">Período</label>
+         <label className="block text-sm text-slate-400 mb-2 font-medium">{t('auditsView.periodLabel')}</label>
  <select
  value={dateFilter}
  onChange={(e) => setDateFilter(e.target.value)}
  className="input"
  >
-         <option value="all">Todo el tiempo</option>
- <option value="today">Hoy</option>
- <option value="yesterday">Ayer (día vencido)</option>
-         <option value="week">Última semana</option>
-         <option value="month">Último mes</option>
+         <option value="all">{t('auditsView.allTime')}</option>
+ <option value="today">{t('auditsView.today')}</option>
+ <option value="yesterday">{t('auditsView.yesterday2')}</option>
+         <option value="week">{t('auditsView.lastWeek')}</option>
+         <option value="month">{t('auditsView.lastMonth')}</option>
  </select>
  </div>
  </div>
@@ -970,11 +972,11 @@ export default function AuditsViewPage() {
  ) : filteredAndSortedAudits.length === 0 ? (
  <div className="card text-center py-16">
  <FileText className="w-16 h-16 text-slate-600 mx-auto mb-4" />
- <h3 className="text-xl font-semibold text-white mb-2">No se encontraron auditorías</h3>
+ <h3 className="text-xl font-semibold text-white mb-2">{t('auditsView.noAudits')}</h3>
  <p className="text-slate-400 mb-4">
  {searchTerm || statusFilter !== 'all' || callTypeFilter !== 'all' || dateFilter !== 'all'
-         ? 'Intenta ajustar los filtros de búsqueda'
- : 'Aún no hay auditorías registradas'}
+         ? t('auditsView.adjustFilters')
+ : t('auditsView.noAuditsYet')}
  </p>
  {(searchTerm || statusFilter !== 'all' || callTypeFilter !== 'all' || dateFilter !== 'all') && (
  <button
@@ -986,7 +988,7 @@ export default function AuditsViewPage() {
  }}
  className="btn-secondary"
  >
- Limpiar filtros
+ {t('auditsView.clearFilters')}
  </button>
  )}
  </div>
@@ -1017,7 +1019,7 @@ export default function AuditsViewPage() {
  <div className="space-y-3 mb-4">
  <div className="flex items-center gap-2 text-sm">
  <User className="w-4 h-4 text-slate-500 flex-shrink-0" />
- <span className="text-slate-400">Cliente:</span>
+ <span className="text-slate-400">{t('auditsView.cardClient')}</span>
  <span className="text-white font-medium truncate">{audit.client_id}</span>
  </div>
  <div className="flex items-center gap-2 text-sm">
@@ -1037,7 +1039,7 @@ export default function AuditsViewPage() {
  {audit.created_by_name && (
  <div className="flex items-center gap-2 text-sm">
  <UserCheck className="w-4 h-4 text-cyan-500 flex-shrink-0" />
- <span className="text-slate-400">Creado por:</span>
+ <span className="text-slate-400">{t('auditsView.colCreatedBy')}:</span>
  <span className="text-cyan-300 font-medium truncate">{audit.created_by_name}</span>
  </div>
  )}
@@ -1047,7 +1049,7 @@ export default function AuditsViewPage() {
  {audit.evaluations && audit.evaluations.length > 0 && (
  <div className="pt-4 border-t border-slate-700/50">
  <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-sm font-medium">Score de Calidad</span>
+ <span className="text-slate-400 text-sm font-medium">{t('auditsView.cardScore')}</span>
  <TrendingUp className="w-4 h-4 text-green-400" />
  </div>
  <div className="flex items-baseline gap-2">
@@ -1081,7 +1083,7 @@ export default function AuditsViewPage() {
  className="flex-1 px-3 py-2 bg-brand-500/10 hover:bg-brand-500/20 border border-brand-700/40 text-brand-400 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium"
  >
  <Eye className="w-4 h-4" />
- Ver Detalles
+ {t('auditsView.viewDetails')}
  </button>
  {audit.evaluations?.[0]?.excel_filename && (
  <button
@@ -1111,7 +1113,7 @@ export default function AuditsViewPage() {
  onClick={() => handleSort('created_at')}
  className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-medium whitespace-nowrap"
  >
- Fecha
+ {t('auditsView.colDate')}
  {sortField === 'created_at' && (
  sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
  )}
@@ -1122,21 +1124,21 @@ export default function AuditsViewPage() {
  onClick={() => handleSort('executive_name')}
  className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-medium whitespace-nowrap"
  >
- Ejecutivo
+ {t('auditsView.colExecutive')}
  {sortField === 'executive_name' && (
  sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
  )}
  </button>
  </th>
- <th className="px-4 py-3 text-left text-slate-400 text-sm font-medium whitespace-nowrap">Cliente</th>
- <th className="px-4 py-3 text-left text-slate-400 text-sm font-medium whitespace-nowrap">Tipo</th>
- <th className="px-4 py-3 text-left text-slate-400 text-sm font-medium whitespace-nowrap">Creado por</th>
+ <th className="px-4 py-3 text-left text-slate-400 text-sm font-medium whitespace-nowrap">{t('auditsView.colClient')}</th>
+ <th className="px-4 py-3 text-left text-slate-400 text-sm font-medium whitespace-nowrap">{t('auditsView.colType')}</th>
+ <th className="px-4 py-3 text-left text-slate-400 text-sm font-medium whitespace-nowrap">{t('auditsView.colCreatedBy')}</th>
  <th className="px-4 py-3 text-left">
  <button
  onClick={() => handleSort('status')}
  className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-medium whitespace-nowrap"
  >
- Estado
+ {t('auditsView.colStatus')}
  {sortField === 'status' && (
  sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
  )}
@@ -1147,16 +1149,16 @@ export default function AuditsViewPage() {
  onClick={() => handleSort('score')}
  className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-medium whitespace-nowrap"
  >
- Score
+ {t('auditsView.colScore')}
  {sortField === 'score' && (
  sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
  )}
  </button>
  </th>
  {isSupervisor && (
- <th className="px-4 py-3 text-left text-slate-400 text-sm font-medium whitespace-nowrap">Costo</th>
+ <th className="px-4 py-3 text-left text-slate-400 text-sm font-medium whitespace-nowrap">{t('auditsView.colCost')}</th>
  )}
- <th className="px-4 py-3 text-right text-slate-400 text-sm font-medium whitespace-nowrap">Acciones</th>
+ <th className="px-4 py-3 text-right text-slate-400 text-sm font-medium whitespace-nowrap">{t('auditsView.colActions')}</th>
  </tr>
  </thead>
  <tbody>
@@ -1187,7 +1189,7 @@ export default function AuditsViewPage() {
  </td>
  <td className="px-4 py-4 text-sm whitespace-nowrap">
  <span className="text-cyan-300 font-medium" title={audit.created_by_email || ''}>
- {audit.created_by_name || 'Desconocido'}
+ {audit.created_by_name || t('auditsView.unknown')}
  </span>
  </td>
  <td className="px-4 py-4">

@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import AppHeader from '../components/AppHeader';
 import { useAuth, useRole } from '../contexts/AuthContext';
 import { auditService, getAuditTotalCost, type Audit } from '../services/api';
@@ -142,6 +143,7 @@ const EXAMPLE_DATA = {
 
 export default function ReportsPage() {
  const navigate = useNavigate();
+ const { t } = useTranslation();
  const { user, profile, signOut } = useAuth();
  const { isSupervisor, isAnalyst } = useRole();
  const [audits, setAudits] = useState<Audit[]>([]);
@@ -158,7 +160,7 @@ export default function ReportsPage() {
  const { audits: data } = await auditService.getUserAudits();
  setAudits(data);
  } catch (error: any) {
- toast.error('Error al cargar datos');
+ toast.error(t('reportsPage.loadError'));
  console.error(error);
  } finally {
  setLoading(false);
@@ -391,13 +393,13 @@ export default function ReportsPage() {
 
  const exportToExcel = async () => {
  if (useRealData && audits.length === 0) {
- toast.error('No hay datos para exportar');
+ toast.error(t('reportsPage.noDataExport'));
  return;
  }
 
  try {
  setExporting(true);
- toast.loading('Generando reporte Excel...', { id: 'export' });
+ toast.loading(t('reportsPage.generatingExcel'), { id: 'export' });
 
  const workbook = new ExcelJS.Workbook();
  workbook.creator = 'Sistema de Auditorías AI';
@@ -558,8 +560,8 @@ export default function ReportsPage() {
  });
  });
 
- // 5. HOJA: Métricas de Performance
- const performanceSheet = workbook.addWorksheet('Métricas de Performance', {
+ // 5. HOJA: {t('reportsPage.performanceMetrics')}
+ const performanceSheet = workbook.addWorksheet(t('reportsPage.performanceMetrics'), {
  properties: { tabColor: { argb: 'FF06B6D4' } }
  });
 
@@ -590,7 +592,7 @@ export default function ReportsPage() {
  });
 
  // 6. HOJA: Distribución por Tipo
- const typeSheet = workbook.addWorksheet('Tipos de Llamada', {
+ const typeSheet = workbook.addWorksheet(t('reportsPage.callTypes'), {
  properties: { tabColor: { argb: 'FFF59E0B' } }
  });
 
@@ -625,10 +627,10 @@ export default function ReportsPage() {
  link.download = `reporte_completo_${new Date().toISOString().split('T')[0]}.xlsx`;
  link.click();
 
- toast.success('Reporte Excel generado exitosamente', { id: 'export' });
+ toast.success(t('reportsPage.excelSuccess'), { id: 'export' });
  } catch (error) {
  console.error('Error generating Excel:', error);
- toast.error('Error al generar el reporte Excel', { id: 'export' });
+ toast.error(t('reportsPage.excelError'), { id: 'export' });
  } finally {
  setExporting(false);
  }
@@ -636,14 +638,14 @@ export default function ReportsPage() {
 
  return (
  <div className="min-h-screen">
- <AppHeader showBack onBack={() => navigate('/dashboard')} title="Reportes y Análisis" />
+ <AppHeader showBack onBack={() => navigate('/dashboard')} title={t('reportsPage.title')} />
 
  {/* Main Content */}
  <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
  {loading ? (
  <div className="flex flex-col items-center justify-center py-20 gap-4">
  <Loader2 className="w-12 h-12 text-brand-400 animate-spin" />
- <p className="text-slate-400 font-medium">Cargando datos...</p>
+ <p className="text-slate-400 font-medium">{t('reportsPage.loading')}</p>
  </div>
  ) : (
  <>
@@ -669,7 +671,7 @@ export default function ReportsPage() {
  }`}
  >
  {useRealData ? <Database className="w-5 h-5" /> : <Sparkles className="w-5 h-5" />}
- {useRealData ? 'Datos Reales' : 'Datos de Ejemplo'}
+ {useRealData ? t('reportsPage.realData') : t('reportsPage.exampleData')}
  </button>
  <button
  onClick={exportToExcel}
@@ -682,7 +684,7 @@ export default function ReportsPage() {
  <Download className="w-5 h-5" />
  )}
  <span className="hidden sm:inline">
- {exporting ? 'Exportando...' : 'Exportar Excel'}
+ {exporting ? t('reportsPage.exporting') : t('reportsPage.exportExcel')}
  </span>
  </button>
  </div>
@@ -695,7 +697,7 @@ export default function ReportsPage() {
  <div className="absolute inset-0 bg-gradient-to-br from-brand-900/30 to-cyan-600/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
  <div className="relative stat-card bg-slate-800/50 backdrop-blur-sm border-brand-700/40 hover:border-brand-500/50/60 transition-all duration-300 transform hover:-translate-y-1 shadow-xl hover:shadow-brand-500/20">
  <div className="flex items-center justify-between mb-3">
- <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">Total Auditorías</span>
+ <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">{t('reportsPage.totalAudits')}</span>
  <div className="p-2 bg-brand-500/10 rounded-xl group-hover:bg-brand-500/30 transition-colors duration-200">
  <FileText className="w-5 h-5 text-brand-400" />
  </div>
@@ -716,7 +718,7 @@ export default function ReportsPage() {
  <div className="absolute inset-0 bg-gradient-to-br from-green-600/10 to-emerald-600/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
  <div className="relative stat-card bg-slate-800/50 backdrop-blur-sm border-green-500/30 hover:border-green-400/60 transition-all duration-300 transform hover:-translate-y-1 shadow-xl hover:shadow-green-500/20">
  <div className="flex items-center justify-between mb-3">
- <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">Completadas</span>
+ <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">{t('reportsPage.completed')}</span>
  <div className="p-2 bg-green-500/20 rounded-xl group-hover:bg-green-500/30 transition-colors duration-200">
  <CheckCircle2 className="w-5 h-5 text-green-400" />
  </div>
@@ -725,7 +727,7 @@ export default function ReportsPage() {
  <div className="text-xs text-slate-500">
  <span className="text-green-400 font-bold">
  {stats.totalAudits > 0 ? ((stats.completedAudits / stats.totalAudits) * 100).toFixed(1) : 0}%
- </span> tasa de éxito
+ </span> {t('reportsPage.successRate')}
  </div>
  </div>
  </div>
@@ -735,7 +737,7 @@ export default function ReportsPage() {
  <div className="absolute inset-0 bg-gradient-to-br from-brand-900/20 to-brand-800/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
  <div className="relative stat-card bg-slate-800/50 backdrop-blur-sm border-brand-700/40 hover:border-brand-500/50 transition-all duration-300 transform hover:-translate-y-1 shadow-xl hover:shadow-brand-500/20">
  <div className="flex items-center justify-between mb-3">
- <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">Score Promedio</span>
+ <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">{t('reportsPage.avgScore')}</span>
  <div className="p-2 bg-brand-500/10 rounded-xl group-hover:bg-brand-500/20 transition-colors duration-200">
  <Award className="w-5 h-5 text-brand-400" />
  </div>
@@ -756,7 +758,7 @@ export default function ReportsPage() {
  <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/10 to-green-600/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
  <div className="relative stat-card bg-slate-800/50 backdrop-blur-sm border-emerald-500/30 hover:border-emerald-400/60 transition-all duration-300 transform hover:-translate-y-1 shadow-xl hover:shadow-emerald-500/20">
  <div className="flex items-center justify-between mb-3">
- <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">Costos Totales</span>
+ <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">{t('reportsPage.totalCosts')}</span>
  <div className="p-2 bg-emerald-500/20 rounded-xl group-hover:bg-emerald-500/30 transition-colors duration-200">
  <DollarSign className="w-5 h-5 text-emerald-400" />
  </div>
@@ -765,7 +767,7 @@ export default function ReportsPage() {
  ${stats.totalCosts.toFixed(4)}
  </div>
  <div className="text-xs text-slate-500">
- Promedio: <span className="text-emerald-400 font-semibold">${stats.avgCost.toFixed(4)}</span>
+ {t('reportsPage.avgCost')} <span className="text-emerald-400 font-semibold">${stats.avgCost.toFixed(4)}</span>
  </div>
  </div>
  </div>
@@ -775,14 +777,14 @@ export default function ReportsPage() {
 
  {/* Gráficos principales - Primera fila */}
  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
- {/* Gráfico de Dona - Distribución por Estado */}
+ {/* Gráfico de Dona - {t('reportsPage.statusDistribution')} */}
  <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-brand-500/10 transform hover:-translate-y-1">
  <div className="flex items-center justify-between mb-4">
  <h3 className="text-xl font-bold text-white flex items-center gap-2">
  <div className="p-2 bg-brand-500/10 rounded-xl">
  <PieChart className="w-5 h-5 text-brand-400" />
  </div>
- Distribución por Estado
+ {t('reportsPage.statusDistribution')}
  </h3>
  <div className="text-xs text-slate-500 bg-slate-800/50 px-3 py-1.5 rounded-full">
  Total: {stats.totalAudits}
@@ -823,18 +825,18 @@ export default function ReportsPage() {
  </ResponsiveContainer>
  </div>
 
- {/* Gráfico de Línea - Auditorías por Mes */}
+ {/* Gráfico de Línea - {t('reportsPage.auditsByMonth')} */}
  <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-brand-500/10 transform hover:-translate-y-1">
  <div className="flex items-center justify-between mb-4">
  <h3 className="text-xl font-bold text-white flex items-center gap-2">
  <div className="p-2 bg-purple-500/20 rounded-xl">
  <Calendar className="w-5 h-5 text-brand-400" />
  </div>
- Auditorías por Mes
+ {t('reportsPage.auditsByMonth')}
  </h3>
  <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-slate-800/50 px-3 py-1.5 rounded-full">
  <TrendingUp className="w-3.5 h-3.5 text-green-400" />
- Últimos 6 meses
+ {t('reportsPage.last6Months')}
  </div>
  </div>
  <ResponsiveContainer width="100%" height={320}>
@@ -887,11 +889,11 @@ export default function ReportsPage() {
  <div className="p-2 bg-brand-500/10 rounded-xl">
  <Users className="w-5 h-5 text-brand-400" />
  </div>
- Top 8 Agentes
+ {t('reportsPage.topAgents')}
  </h3>
  <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-slate-800/50 px-3 py-1.5 rounded-full">
  <Award className="w-3.5 h-3.5 text-yellow-400" />
- Mejores performers
+ {t('reportsPage.bestPerformers')}
  </div>
  </div>
  <ResponsiveContainer width="100%" height={320}>
@@ -933,18 +935,18 @@ export default function ReportsPage() {
  </ResponsiveContainer>
  </div>
 
- {/* Gráfico de Área - Tendencia de Scores */}
+ {/* Gráfico de Área - {t('reportsPage.scoreTrend')} */}
  <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-brand-500/10 transform hover:-translate-y-1">
  <div className="flex items-center justify-between mb-4">
  <h3 className="text-xl font-bold text-white flex items-center gap-2">
  <div className="p-2 bg-green-500/20 rounded-xl">
  <TrendingUp className="w-5 h-5 text-green-400" />
  </div>
- Tendencia de Scores
+ {t('reportsPage.scoreTrend')}
  </h3>
  <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-slate-800/50 px-3 py-1.5 rounded-full">
  <Zap className="w-3.5 h-3.5 text-yellow-400" />
- Últimas 20
+ {t('reportsPage.last20')}
  </div>
  </div>
  <ResponsiveContainer width="100%" height={320}>
@@ -991,17 +993,17 @@ export default function ReportsPage() {
 
  {/* Sección adicional - Gráficos de métricas - SIEMPRE SE MUESTRAN */}
  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
- {/* Gráfico Radar - Métricas de Performance */}
+ {/* Gráfico Radar - {t('reportsPage.performanceMetrics')} */}
  <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-brand-500/10 transform hover:-translate-y-1">
  <div className="flex items-center justify-between mb-4">
  <h3 className="text-xl font-bold text-white flex items-center gap-2">
  <div className="p-2 bg-brand-500/10 rounded-xl">
  <Target className="w-5 h-5 text-brand-400" />
  </div>
- Métricas de Performance
+ {t('reportsPage.performanceMetrics')}
  </h3>
  <div className="text-xs text-slate-500 bg-slate-800/50 px-3 py-1.5 rounded-full">
- {useRealData ? 'Basado en datos' : 'Promedio equipo'}
+ {useRealData ? 'Basado en datos' : t('reportsPage.teamAverage')}
  </div>
  </div>
  <ResponsiveContainer width="100%" height={320}>
@@ -1041,10 +1043,10 @@ export default function ReportsPage() {
  <div className="p-2 bg-brand-500/10 rounded-xl">
  <Activity className="w-5 h-5 text-brand-400" />
  </div>
- Tipos de Llamada
+ {t('reportsPage.callTypes')}
  </h3>
  <div className="text-xs text-slate-500 bg-slate-800/50 px-3 py-1.5 rounded-full">
- Distribución
+ {t('reportsPage.distribution')}
  </div>
  </div>
  <ResponsiveContainer width="100%" height={320}>

@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { auditService, gpfService, getAuditTotalCost, type Audit, type GpfProxyResponse } from '../services/api';
 import { FileDown, CalendarRange } from 'lucide-react';
@@ -39,6 +40,7 @@ import {
  ChevronDown,
  BookOpen,
  Moon,
+ Building2,
 } from 'lucide-react';
 
 const isBatchAudit = (audit: Audit) => audit.audio_filename === 'gpf-batch';
@@ -63,6 +65,7 @@ interface SystemStats {
 export default function AdminDashboard() {
  const navigate = useNavigate();
  const { user, profile, signOut } = useAuth();
+ const { t } = useTranslation();
  const [audits, setAudits] = useState<Audit[]>([]);
  const [loading, setLoading] = useState(true);
  const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -138,7 +141,7 @@ export default function AdminDashboard() {
  const auditsArray = Array.isArray(response.audits) ? response.audits : [];
  setAudits(auditsArray);
  } catch (error: any) {
- toast.error('Error al cargar auditorías');
+ toast.error(t('adminDash.loadError'));
  console.error(error);
  setAudits([]); // Asegurar array vacío en caso de error
  } finally {
@@ -176,7 +179,7 @@ export default function AdminDashboard() {
  totalCosts: totalCosts
  });
  } catch (error) {
- toast.error('Error al cargar estadísticas');
+ toast.error(t('adminDash.statsError'));
  // Valores por defecto si falla
  setSystemStats({
  totalUsers: 0,
@@ -195,18 +198,18 @@ export default function AdminDashboard() {
  };
 
  const handleDeleteAudit = async (auditId: string) => {
- if (!confirm('¿Estás seguro de eliminar esta auditoría?')) {
+ if (!confirm(t('adminDash.confirmDelete'))) {
  return;
  }
 
  try {
  setDeletingId(auditId);
  await auditService.deleteAudit(auditId);
- toast.success('Auditoría eliminada correctamente');
+ toast.success(t('adminDash.deleteSuccess'));
  await loadAudits();
  await loadSystemStats(); // Recargar estadísticas después de eliminar
  } catch (error) {
- toast.error('Error al eliminar auditoría');
+ toast.error(t('audits.deleteError'));
  } finally {
  setDeletingId(null);
  }
@@ -214,7 +217,7 @@ export default function AdminDashboard() {
 
  const handleDownloadExcel = async (filename: string) => {
  try {
- toast.loading('Descargando Excel...', { id: 'download' });
+ toast.loading(t('adminDash.downloadingExcel'), { id: 'download' });
  const blob = await auditService.downloadExcel(filename);
  const url = window.URL.createObjectURL(blob);
  const a = document.createElement('a');
@@ -224,9 +227,9 @@ export default function AdminDashboard() {
  a.click();
  window.URL.revokeObjectURL(url);
  document.body.removeChild(a);
- toast.success('Excel descargado correctamente', { id: 'download' });
+ toast.success(t('adminDash.downloadSuccess'), { id: 'download' });
  } catch (error) {
- toast.error('Error al descargar Excel', { id: 'download' });
+ toast.error(t('adminDash.downloadError'), { id: 'download' });
  }
  };
 
@@ -1212,21 +1215,21 @@ export default function AdminDashboard() {
  return (
  <span className="badge badge-success">
  <CheckCircle2 className="w-3 h-3 mr-1" />
- Completado
+ {t('adminDash.statusCompleted')}
  </span>
  );
  case 'processing':
  return (
  <span className="badge badge-info">
  <Clock className="w-3 h-3 mr-1" />
- Procesando
+ {t('adminDash.statusProcessing')}
  </span>
  );
  case 'error':
  return (
  <span className="badge badge-danger">
  <AlertCircle className="w-3 h-3 mr-1" />
- Error
+ {t('adminDash.statusError')}
  </span>
  );
  default:
@@ -1257,8 +1260,8 @@ export default function AdminDashboard() {
  <Users className="w-5 h-5 text-brand-400" />
  </div>
  <div className="text-left">
- <h3 className="text-sm font-semibold text-white">Usuarios</h3>
- <p className="text-sm text-slate-400">Gestionar equipo</p>
+ <h3 className="text-sm font-semibold text-white">{t('adminDash.users')}</h3>
+ <p className="text-sm text-slate-400">{t('adminDash.manageTeam')}</p>
  </div>
  </div>
  </button>
@@ -1272,8 +1275,8 @@ export default function AdminDashboard() {
  <Settings className="w-6 h-6 text-slate-400" />
  </div>
  <div className="text-left">
- <h3 className="text-sm font-semibold text-white">Configuración</h3>
- <p className="text-sm text-slate-400">Sistema y APIs</p>
+ <h3 className="text-sm font-semibold text-white">{t('adminDash.settings')}</h3>
+ <p className="text-sm text-slate-400">{t('adminDash.systemAndApis')}</p>
  </div>
  </div>
  </button>
@@ -1287,8 +1290,8 @@ export default function AdminDashboard() {
  <BookOpen className="w-6 h-6 text-emerald-400" />
  </div>
  <div className="text-left">
- <h3 className="text-sm font-semibold text-white">Scripts y Criterios</h3>
- <p className="text-sm text-slate-400">Guiones y rúbricas</p>
+ <h3 className="text-sm font-semibold text-white">{t('adminDash.scriptsAndCriteria')}</h3>
+ <p className="text-sm text-slate-400">{t('adminDash.guidelinesAndRubrics')}</p>
  </div>
  </div>
  </button>
@@ -1302,8 +1305,8 @@ export default function AdminDashboard() {
  <BarChart3 className="w-5 h-5 text-brand-400" />
  </div>
  <div className="text-left">
- <h3 className="text-sm font-semibold text-white">Reportes</h3>
- <p className="text-sm text-slate-400">Análisis avanzado</p>
+ <h3 className="text-sm font-semibold text-white">{t('adminDash.reports')}</h3>
+ <p className="text-sm text-slate-400">{t('adminDash.advancedAnalysis')}</p>
  </div>
  </div>
  </button>
@@ -1317,8 +1320,23 @@ export default function AdminDashboard() {
  <FileSpreadsheet className="w-5 h-5 text-green-400" />
  </div>
  <div className="text-left">
- <h3 className="text-sm font-semibold text-white">Auditorías</h3>
- <p className="text-sm text-slate-400">Ver todas</p>
+ <h3 className="text-sm font-semibold text-white">{t('adminDash.audits')}</h3>
+ <p className="text-sm text-slate-400">{t('adminDash.viewAll')}</p>
+ </div>
+ </div>
+ </button>
+
+ <button
+ onClick={() => navigate('/companies')}
+ className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-cyan-900/20 to-cyan-800/20 border-cyan-500/30"
+ >
+ <div className="flex items-center gap-4">
+ <div className="p-3 bg-cyan-500/20 rounded-xl">
+ <Building2 className="w-5 h-5 text-cyan-400" />
+ </div>
+ <div className="text-left">
+ <h3 className="text-sm font-semibold text-white">{t('adminDash.companies')}</h3>
+ <p className="text-sm text-slate-400">{t('adminDash.multiTenant')}</p>
  </div>
  </div>
  </button>
@@ -1328,16 +1346,16 @@ export default function AdminDashboard() {
  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
  <div className="stat-card bg-gradient-to-br from-indigo-900/20 to-indigo-800/20 border-indigo-500/30">
  <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-sm font-medium">Usuarios Totales</span>
+ <span className="text-slate-400 text-sm font-medium">{t('adminDash.totalUsers')}</span>
  <Users className="w-5 h-5 text-indigo-400" />
  </div>
  <div className="text-2xl font-bold text-white">{systemStats.totalUsers}</div>
- <div className="text-xs text-slate-500 mt-1">{systemStats.activeUsers} activos</div>
+ <div className="text-xs text-slate-500 mt-1">{systemStats.activeUsers} {t('adminDash.activeUsers')}</div>
  </div>
 
  <div className="stat-card">
  <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-sm font-medium">Total Auditorías</span>
+ <span className="text-slate-400 text-sm font-medium">{t('adminDash.totalAudits')}</span>
  <FileText className="w-5 h-5 text-brand-400" />
  </div>
  <div className="text-2xl font-bold text-white">{systemStats.totalAudits}</div>
@@ -1345,7 +1363,7 @@ export default function AdminDashboard() {
 
  <div className="stat-card">
  <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-sm font-medium">Completadas</span>
+ <span className="text-slate-400 text-sm font-medium">{t('adminDash.completedAudits')}</span>
  <CheckCircle2 className="w-5 h-5 text-green-400" />
  </div>
  <div className="text-2xl font-bold text-white">{systemStats.completedAudits}</div>
@@ -1353,13 +1371,13 @@ export default function AdminDashboard() {
 
  <div className="stat-card bg-gradient-to-br from-emerald-900/20 to-green-900/20 border-emerald-500/30">
  <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-sm font-medium">Costos Totales</span>
+ <span className="text-slate-400 text-sm font-medium">{t('adminDash.totalCosts')}</span>
  <DollarSign className="w-5 h-5 text-emerald-400" />
  </div>
  <div className="text-2xl font-bold text-emerald-400">
  ${systemStats.totalCosts.toFixed(4)}
  </div>
- <div className="text-xs text-slate-500 mt-1">USD</div>
+ <div className="text-xs text-slate-500 mt-1">{t('adminDash.usd')}</div>
  </div>
  </div>
 
@@ -1368,7 +1386,7 @@ export default function AdminDashboard() {
  <div className="grid grid-cols-1 mb-5">
  <div className="stat-card">
  <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-sm font-medium">Promedio Score</span>
+ <span className="text-slate-400 text-sm font-medium">{t('adminDash.averageScore')}</span>
  <TrendingUp className="w-5 h-5 text-brand-400" />
  </div>
  <div className="text-2xl font-bold text-white">{systemStats.averageScore}%</div>
@@ -1380,7 +1398,7 @@ export default function AdminDashboard() {
  <div className="card">
  <h2 className="section-header">
  <FileText className="w-5 h-5 text-brand-400" />
- Gestión Completa de Auditorías
+ {t('adminDash.auditManagement')}
  </h2>
 
  {loading ? (
@@ -1393,14 +1411,14 @@ export default function AdminDashboard() {
  <FileText className="w-8 h-8 text-slate-600" />
  </div>
  <p className="text-slate-400 mb-4">
- No hay auditorías en el sistema
+ {t('adminDash.noAudits')}
  </p>
  <button
  onClick={() => navigate('/audit/new')}
  className="btn-primary inline-flex items-center gap-2"
  >
  <Plus className="w-5 h-5" />
- Crear primera auditoría
+ {t('adminDash.createFirst')}
  </button>
  </div>
  ) : (
@@ -1430,13 +1448,13 @@ export default function AdminDashboard() {
  {isBatchAudit(audit) && (
    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/25">
      <Moon className="w-2.5 h-2.5" />
-     Nocturna
+     {t('adminDash.badgeNight')}
    </span>
  )}
  {isEmptyBatchEval(audit) && (
    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25">
      <AlertTriangle className="w-2.5 h-2.5" />
-     Sin evaluación
+     {t('adminDash.badgeNoEval')}
    </span>
  )}
  </div>
@@ -1450,37 +1468,37 @@ export default function AdminDashboard() {
 
  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
  <div>
- <span className="text-slate-500">ID Ejecutivo:</span>
+ <span className="text-slate-500">{t('adminDash.executiveId')}</span>
  <p className="text-slate-300 font-medium">{audit.executive_id}</p>
  </div>
  <div>
- <span className="text-slate-500">Cliente:</span>
+ <span className="text-slate-500">{t('adminDash.client')}</span>
  <p className="text-slate-300 font-medium">{audit.client_id}</p>
  </div>
  <div>
- <span className="text-slate-500">Tipo:</span>
+ <span className="text-slate-500">{t('adminDash.type')}</span>
  <div className="mt-1">
  {(audit.call_type || '').toUpperCase() === 'MONITOREO' ? (
  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
  <Monitor className="w-3 h-3" />
- Monitoreo
+ {t('adminDash.badgeMonitoreo')}
  </span>
  ) : (
  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-500/10 text-brand-400 border border-brand-700/40">
  <PhoneIncoming className="w-3 h-3" />
- Inbound
+ {t('adminDash.badgeInbound')}
  </span>
  )}
  </div>
  </div>
  <div>
- <span className="text-slate-500">Fecha:</span>
+ <span className="text-slate-500">{t('adminDash.date')}</span>
  <p className="text-slate-300 font-medium">{formatDate(audit.created_at)}</p>
  </div>
  <div>
- <span className="text-slate-500">Auditor:</span>
+ <span className="text-slate-500">{t('adminDash.auditor')}</span>
  <p className="text-slate-300 font-medium truncate" title={audit.created_by_email || ''}>
- {audit.created_by_name || 'Desconocido'}
+ {audit.created_by_name || t('adminDash.unknown')}
  </p>
  </div>
  </div>
@@ -1491,7 +1509,7 @@ export default function AdminDashboard() {
  <div className="mt-4 flex items-center gap-4">
  <div className="flex items-center gap-2">
  <TrendingUp className="w-4 h-4 text-brand-400" />
- <span className="text-slate-400 text-sm">Score:</span>
+ <span className="text-slate-400 text-sm">{t('adminDash.score')}</span>
  <span className="text-xl font-bold text-brand-400">
  {evaluations[0].percentage.toFixed(2)}%
  </span>
@@ -1502,7 +1520,7 @@ export default function AdminDashboard() {
 
  <div className="flex items-center gap-2">
  <DollarSign className="w-4 h-4 text-emerald-400" />
- <span className="text-slate-400 text-sm">Costo:</span>
+ <span className="text-slate-400 text-sm">{t('adminDash.cost')}</span>
  <span className="text-sm font-semibold text-emerald-400">
  ${getAuditTotalCost(audit).toFixed(4)}
  </span>
@@ -1520,7 +1538,7 @@ export default function AdminDashboard() {
  handleDownloadExcel(audit.excel_filename!);
  }}
  className="btn-icon"
- title="Descargar Excel"
+ title={t('adminDash.downloadExcel')}
  >
  <Download className="w-4 h-4" />
  </button>
@@ -1532,7 +1550,7 @@ export default function AdminDashboard() {
  }}
  disabled={deletingId === audit.id}
  className="btn-icon-danger"
- title="Eliminar auditoría"
+ title={t('adminDash.deleteAudit')}
  >
  {deletingId === audit.id ? (
  <Loader2 className="w-4 h-4 animate-spin" />
@@ -1554,7 +1572,7 @@ export default function AdminDashboard() {
  return (
  <div className="min-h-screen">
  <AppHeader
-   title="Panel de Administrador"
+   title={t('adminDash.pageTitle')}
    rightContent={
      <>
        <button
@@ -1571,15 +1589,15 @@ export default function AdminDashboard() {
        </button>
        <button onClick={() => navigate('/batch')} className="btn-ghost flex items-center gap-1.5 text-xs py-1 px-3 text-brand-400 border border-brand-700/40 bg-brand-500/10 hover:bg-brand-500/20">
          <Moon className="w-3.5 h-3.5" />
-         Cola Nocturna
+         {t('adminDash.batchQueue')}
        </button>
        <button onClick={() => navigate('/audit/new')} className="btn-primary flex items-center gap-1.5 text-xs py-1 px-3">
          <Plus className="w-3.5 h-3.5" />
-         Nueva Auditoría
+         {t('adminDash.newAudit')}
        </button>
        <button onClick={handleLogout} className="btn-ghost flex items-center gap-1.5 text-xs">
          <LogOut className="w-3.5 h-3.5" />
-         Salir
+         {t('adminDash.logout')}
        </button>
      </>
    }

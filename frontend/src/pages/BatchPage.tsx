@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import AppHeader from '../components/AppHeader';
 import { useAuth } from '../contexts/AuthContext';
 import { batchService, type BatchJob } from '../services/api';
@@ -34,16 +35,19 @@ import { BATCH_LIMITS_CLIENT } from '../services/api';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const STATUS_META: Record<BatchJob['status'], { label: string; color: string; icon: any }> = {
-  pending:    { label: 'En cola',     color: 'text-amber-400',  icon: Clock },
-  assembling: { label: 'Preparando',  color: 'text-blue-400',   icon: Loader2 },
-  submitted:  { label: 'Procesando',  color: 'text-blue-400',   icon: Loader2 },
-  completed:  { label: 'Completado',  color: 'text-brand-400',  icon: CheckCircle2 },
-  failed:     { label: 'Fallido',     color: 'text-red-400',    icon: XCircle },
-  cancelled:  { label: 'Cancelado',   color: 'text-slate-400',  icon: XCircle },
-};
+function getStatusMeta(t: (key: string) => string): Record<BatchJob['status'], { label: string; color: string; icon: any }> {
+  return {
+    pending:    { label: t('batchPage.statusQueued'),     color: 'text-amber-400',  icon: Clock },
+    assembling: { label: t('batchPage.statusPreparing'),  color: 'text-blue-400',   icon: Loader2 },
+    submitted:  { label: t('batchPage.statusProcessing'), color: 'text-blue-400',   icon: Loader2 },
+    completed:  { label: t('batchPage.statusCompleted'),  color: 'text-brand-400',  icon: CheckCircle2 },
+    failed:     { label: t('batchPage.statusFailed'),     color: 'text-red-400',    icon: XCircle },
+    cancelled:  { label: t('batchPage.statusCancelled'),  color: 'text-slate-400',  icon: XCircle },
+  };
+}
 
-function jobStatusMeta(job: BatchJob) {
+function jobStatusMeta(job: BatchJob, t: (key: string) => string) {
+  const STATUS_META = getStatusMeta(t);
   const base = STATUS_META[job.status] ?? STATUS_META.pending;
   if (job.status === 'completed' && job.failed_count > 0 && job.completed_count === 0) {
     return { label: 'Sin resultados', color: 'text-amber-400', icon: AlertTriangle };
@@ -92,9 +96,10 @@ function StatCard({ icon: Icon, label, value, sub, accent = false }: {
 
 function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void }) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState<'submit' | 'check' | 'delete' | null>(null);
-  const meta = jobStatusMeta(job);
+  const meta = jobStatusMeta(job, t);
   const StatusIcon = meta.icon;
   const pct = progressPct(job);
   const isActive = job.status === 'pending' || job.status === 'assembling' || job.status === 'submitted';
@@ -104,10 +109,10 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
     setLoading('submit');
     try {
       await batchService.submitJob(job.id);
-      toast.success('Lote enviado a OpenAI Batch API. Procesará en las próximas horas.');
+      toast.success(t('batchPage.batchSubmitted'));
       onRefresh();
     } catch (e: any) {
-      toast.error(e.response?.data?.error || 'Error al enviar el lote');
+      toast.error(e.response?.data?.error || t('batchPage.errorSubmitting'));
     } finally {
       setLoading(null);
     }
@@ -120,21 +125,21 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
       toast.success(result.message);
       onRefresh();
     } catch (e: any) {
-      toast.error(e.response?.data?.error || 'Error al verificar el lote');
+      toast.error(e.response?.data?.error || t('batchPage.errorChecking'));
     } finally {
       setLoading(null);
     }
   };
 
   const handleDelete = async () => {
-    if (!confirm(`¿Eliminar el lote "${job.name}"? Esta acción no se puede deshacer.`)) return;
+    if (!confirm(t('batchPage.confirmDelete'))) return;
     setLoading('delete');
     try {
       await batchService.deleteJob(job.id);
-      toast.success('Lote eliminado');
+      toast.success(t('batchPage.batchDeleted'));
       onRefresh();
     } catch (e: any) {
-      toast.error(e.response?.data?.error || 'Error al eliminar el lote');
+      toast.error(e.response?.data?.error || t('batchPage.errorDeleting'));
     } finally {
       setLoading(null);
     }
@@ -271,7 +276,7 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
       {/* Expanded items */}
       {expanded && job.batch_items && job.batch_items.length > 0 && (
         <div className="px-4 pb-3 space-y-1.5 border-t border-slate-700/50 pt-3">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Casos en este lote</div>
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">{t('batchPage.casesInBatch')}</div>
           {job.batch_items.map(item => (
             <div
               key={item.id}
@@ -301,7 +306,7 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
                 <button
                   onClick={() => navigate(`/audit/${item.audit_id}`)}
                   className="btn-ghost p-1.5 rounded-lg"
-                  title="Ver auditoría"
+                  title={t('batchPage.viewAudit')}
                 >
                   <Eye className="w-3.5 h-3.5" />
                 </button>
@@ -320,7 +325,7 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
             className="btn-ghost text-xs flex items-center gap-1 py-1.5 px-3"
           >
             {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            {expanded ? 'Ocultar casos' : 'Ver casos'}
+            {expanded ? t('batchPage.hideCases') : t('batchPage.viewCases')}
           </button>
         )}
 
@@ -339,7 +344,7 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
             ) : (
               <Play className="w-3.5 h-3.5" />
             )}
-            Enviar antes de hora
+            {t('batchPage.submitEarly')}
           </button>
         )}
 
@@ -355,7 +360,7 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
             ) : (
               <RefreshCw className="w-3.5 h-3.5" />
             )}
-            Verificar estado
+            {t('batchPage.checkStatus')}
           </button>
         )}
 
@@ -382,6 +387,7 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
 
 export default function BatchPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [jobs, setJobs] = useState<BatchJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -420,8 +426,8 @@ export default function BatchPage() {
       <AppHeader
         showBack
         onBack={() => navigate('/dashboard')}
-        title="Cola Nocturna"
-        subtitle="Procesamiento nocturno por lotes"
+        title={t('batchPage.title')}
+        subtitle={t('batchPage.subtitle')}
         rightContent={
           <button
             onClick={() => load(true)}
@@ -452,7 +458,7 @@ export default function BatchPage() {
               <Moon className="w-5 h-5 text-brand-400" />
             </div>
             <div>
-              <h2 className="text-white font-semibold">Procesa casos en lote durante la noche</h2>
+              <h2 className="text-white font-semibold">{t('batchPage.heroTitle')}</h2>
               <p className="text-slate-400 text-sm mt-0.5 leading-relaxed">
                 Selecciona casos GPF en "Nueva Auditoría" → agrega a la cola nocturna →
                 el sistema los procesa en lote y entrega los resultados listos al día siguiente.
@@ -487,7 +493,7 @@ export default function BatchPage() {
             <Moon className="w-4.5 h-4.5 text-brand-400" />
           </div>
           <div className="flex-1">
-            <div className="text-white text-sm font-medium">Agregar casos a la cola</div>
+            <div className="text-white text-sm font-medium">{t('batchPage.addCases')}</div>
             <div className="text-slate-500 text-xs">
               Ir a Nueva Auditoría → seleccionar casos GPF → "Agregar a cola nocturna"
             </div>
@@ -497,17 +503,17 @@ export default function BatchPage() {
 
         {/* Tabs */}
         <div className="flex gap-1 p-1 bg-slate-800/60 rounded-2xl border border-slate-700/50">
-          {(['active', 'history'] as const).map(t => (
+          {(['active', 'history'] as const).map(tabKey => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
+              key={tabKey}
+              onClick={() => setTab(tabKey)}
               className={`flex-1 py-2 text-sm font-medium rounded-xl transition-all ${
-                tab === t
+                tab === tabKey
                   ? 'bg-slate-700 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              {t === 'active' ? `En proceso (${activeJobs.length})` : `Historial (${historyJobs.length})`}
+              {tabKey === 'active' ? `${t('batchPage.tabActive')} (${activeJobs.length})` : `${t('batchPage.tabHistory')} (${historyJobs.length})`}
             </button>
           ))}
         </div>
@@ -516,7 +522,7 @@ export default function BatchPage() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <Loader2 className="w-8 h-8 text-brand-400 animate-spin" />
-            <span className="text-slate-400 text-sm">Cargando lotes...</span>
+            <span className="text-slate-400 text-sm">{t('batchPage.loading')}</span>
           </div>
         ) : (
           <div className="space-y-3">
@@ -524,9 +530,9 @@ export default function BatchPage() {
               activeJobs.length === 0 ? (
                 <div className="text-center py-12">
                   <Moon className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                  <p className="text-slate-400 text-sm">No hay lotes activos</p>
+                  <p className="text-slate-400 text-sm">{t('batchPage.noActiveBatches')}</p>
                   <p className="text-slate-600 text-xs mt-1">
-                    Agrega casos desde "Nueva Auditoría"
+                    {t('batchPage.noActiveBatchesHint')}
                   </p>
                 </div>
               ) : (
@@ -540,7 +546,7 @@ export default function BatchPage() {
               historyJobs.length === 0 ? (
                 <div className="text-center py-12">
                   <Clock className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                  <p className="text-slate-400 text-sm">Sin historial de lotes</p>
+                  <p className="text-slate-400 text-sm">{t('batchPage.noHistory')}</p>
                 </div>
               ) : (
                 historyJobs.map(job => (

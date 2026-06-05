@@ -13,6 +13,7 @@ import type {
 
 interface CreateAuditParams {
   userId: string;
+  companyId?: string | null;
   auditInput: AuditInput;
   audioFilename: string;
   imageFilenames: string[];
@@ -60,12 +61,13 @@ class DatabaseService {
    */
   async createAudit(params: CreateAuditParams): Promise<string> {
     try {
-      const { userId, auditInput, audioFilename, imageFilenames } = params;
+      const { userId, companyId, auditInput, audioFilename, imageFilenames } = params;
 
       const { data, error } = await supabaseAdmin
         .from('audits')
         .insert({
           user_id: userId,
+          ...(companyId ? { company_id: companyId } : {}),
           executive_name: auditInput.executiveName,
           executive_id: auditInput.executiveId,
           call_type: auditInput.callType,
@@ -421,11 +423,16 @@ class DatabaseService {
   /**
    * Obtener todas las auditorias (incluye created_by_name y created_by_email)
    */
-  async getUserAudits(userId: string, userRole: string, limit = 50, offset = 0) {
+  async getUserAudits(userId: string, userRole: string, companyId: string | null, limit = 50, offset = 0) {
     try {
       let query = supabaseAdmin
         .from('audits')
         .select('*, evaluations(*), api_costs(*)', { count: 'exact' });
+
+      // admin (companyId=null) ve todas las empresas; el resto solo su empresa
+      if (companyId) {
+        query = query.eq('company_id', companyId);
+      }
 
       const { data, error, count } = await query
         .order('created_at', { ascending: false })
@@ -606,18 +613,21 @@ class DatabaseService {
     this.promptsCache.clear();
   }
 
-  async getScriptsForCallType(callType: string): Promise<any[]> {
+  async getScriptsForCallType(callType: string, companyId?: string): Promise<any[]> {
     const normalized = this.normalizeCallTypeForDB(callType);
-    const key = normalized.toUpperCase();
+    const key = `${normalized.toUpperCase()}__${companyId ?? 'all'}`;
     const cached = this.scriptsCache.get(key);
     if (cached && this.isCacheValid(cached)) return cached.data;
 
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('call_scripts')
       .select('*')
       .eq('call_type', normalized)
-      .eq('is_active', true)
-      .order('step_order', { ascending: true });
+      .eq('is_active', true);
+
+    if (companyId) query = query.eq('company_id', companyId);
+
+    const { data, error } = await query.order('step_order', { ascending: true });
 
     if (error) {
       logger.warn('Warning: could not load scripts from DB, returning empty', { callType, error });
@@ -628,13 +638,16 @@ class DatabaseService {
     return data || [];
   }
 
-  async getAllScripts(): Promise<any[]> {
-    const { data, error } = await supabaseAdmin
+  async getAllScripts(companyId?: string): Promise<any[]> {
+    let query = supabaseAdmin
       .from('call_scripts')
       .select('*')
       .order('call_type')
       .order('step_order', { ascending: true });
 
+    if (companyId) query = query.eq('company_id', companyId);
+
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   }
@@ -646,6 +659,7 @@ class DatabaseService {
     step_label: string;
     step_order: number;
     lines: string[];
+    company_id?: string | null;
   }): Promise<any> {
     const { data, error } = await supabaseAdmin
       .from('call_scripts')
@@ -706,18 +720,21 @@ class DatabaseService {
     return KNOWN_TYPES.includes(normalized) ? normalized : null;
   }
 
-  async getCriteriaForCallType(callType: string, subCalificacion?: string): Promise<any[]> {
+  async getCriteriaForCallType(callType: string, subCalificacion?: string, companyId?: string): Promise<any[]> {
     const normalized = this.normalizeCallTypeForDB(callType);
-    const key = normalized.toUpperCase() + (subCalificacion ? `__${subCalificacion.toUpperCase()}` : '');
+    const key = `${normalized.toUpperCase()}${subCalificacion ? `__${subCalificacion.toUpperCase()}` : ''}__${companyId ?? 'all'}`;
     const cached = this.criteriaCache.get(key);
     if (cached && this.isCacheValid(cached)) return cached.data;
 
-    const { data: blocks, error: blocksError } = await supabaseAdmin
+    let blocksQuery = supabaseAdmin
       .from('evaluation_blocks')
       .select('*')
       .eq('call_type', normalized)
-      .eq('is_active', true)
-      .order('block_order', { ascending: true });
+      .eq('is_active', true);
+
+    if (companyId) blocksQuery = blocksQuery.eq('company_id', companyId);
+
+    const { data: blocks, error: blocksError } = await blocksQuery.order('block_order', { ascending: true });
 
     if (blocksError) {
       throw new Error(`Error al cargar bloques de criterios desde la BD: ${blocksError.message}`);
@@ -789,12 +806,16 @@ class DatabaseService {
     return result;
   }
 
-  async getAllCriteriaBlocks(): Promise<any[]> {
-    const { data: blocks, error: blocksError } = await supabaseAdmin
+  async getAllCriteriaBlocks(companyId?: string): Promise<any[]> {
+    let blocksQuery = supabaseAdmin
       .from('evaluation_blocks')
       .select('*')
       .order('call_type')
       .order('block_order', { ascending: true });
+
+    if (companyId) blocksQuery = blocksQuery.eq('company_id', companyId);
+
+    const { data: blocks, error: blocksError } = await blocksQuery;
 
     if (blocksError) throw blocksError;
     if (!blocks || blocks.length === 0) return [];
@@ -821,6 +842,7 @@ class DatabaseService {
     block_name: string;
     block_order: number;
     applicable_tipo_cierres?: string[];
+    company_id?: string | null;
   }): Promise<any> {
     const { data, error } = await supabaseAdmin
       .from('evaluation_blocks')
@@ -1054,11 +1076,13 @@ class DatabaseService {
     return data.content;
   }
 
-  async getAllPrompts(): Promise<any[]> {
-    const { data, error } = await supabaseAdmin
+  async getAllPrompts(companyId?: string): Promise<any[]> {
+    let query = supabaseAdmin
       .from('ai_prompts')
       .select('*')
       .order('prompt_key');
+    if (companyId) query = query.eq('company_id', companyId);
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   }
@@ -1484,6 +1508,139 @@ class DatabaseService {
       .eq('id', id);
     if (error) throw error;
   }
+
+  // ============================================================
+  // COMPANIES (multi-tenancy)
+  // ============================================================
+
+  async getAllCompanies(): Promise<any[]> {
+    const { data, error } = await supabaseAdmin
+      .from('companies')
+      .select('*')
+      .order('name');
+    if (error) throw error;
+    return data || [];
+  }
+
+  async getCompany(companyId: string): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('companies')
+      .select('*')
+      .eq('id', companyId)
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async createCompany(payload: {
+    name: string;
+    slug: string;
+    logo_url?: string;
+    integration_type?: string;
+    integration_config?: Record<string, unknown>;
+    role_permissions?: Record<string, unknown>;
+    usage_limits?: Record<string, unknown>;
+  }): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('companies')
+      .insert(payload)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async updateCompany(id: string, payload: Partial<{
+    name: string;
+    slug: string;
+    logo_url: string | null;
+    is_active: boolean;
+    integration_type: string;
+    integration_config: Record<string, unknown>;
+    role_permissions: Record<string, unknown>;
+    usage_limits: Record<string, unknown>;
+  }>): Promise<any> {
+    const { data, error } = await supabaseAdmin
+      .from('companies')
+      .update({ ...payload, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async updateCompanyRolePermissions(companyId: string, rolePermissions: Record<string, unknown>): Promise<void> {
+    const { error } = await supabaseAdmin
+      .from('companies')
+      .update({ role_permissions: rolePermissions, updated_at: new Date().toISOString() })
+      .eq('id', companyId);
+    if (error) throw error;
+  }
+
+  async updateCompanyUsageLimits(companyId: string, usageLimits: Record<string, unknown>): Promise<void> {
+    const { error } = await supabaseAdmin
+      .from('companies')
+      .update({ usage_limits: usageLimits, updated_at: new Date().toISOString() })
+      .eq('id', companyId);
+    if (error) throw error;
+  }
+
+  async getCompanyMonthlyUsage(companyId: string, month?: Date): Promise<{
+    total_audits: number;
+    total_cost_usd: number;
+    total_openai_tokens: number;
+    image_tokens: number;
+    evaluation_tokens: number;
+    total_assemblyai_minutes: number;
+  }> {
+    const targetMonth = month || new Date();
+    const monthStart = new Date(targetMonth.getFullYear(), targetMonth.getMonth(), 1).toISOString();
+    const monthEnd = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 1).toISOString();
+
+    const { data, error } = await supabaseAdmin
+      .from('api_costs')
+      .select('total_cost, openai_images_input_tokens, openai_images_output_tokens, openai_evaluation_input_tokens, openai_evaluation_output_tokens, assemblyai_duration_minutes, audit_id')
+      .eq('company_id', companyId)
+      .gte('created_at', monthStart)
+      .lt('created_at', monthEnd);
+
+    if (error) throw error;
+
+    const rows = data || [];
+    return {
+      total_audits: rows.length,
+      total_cost_usd: rows.reduce((s, r) => s + (Number(r.total_cost) || 0), 0),
+      image_tokens: rows.reduce((s, r) => s + (r.openai_images_input_tokens || 0) + (r.openai_images_output_tokens || 0), 0),
+      evaluation_tokens: rows.reduce((s, r) => s + (r.openai_evaluation_input_tokens || 0) + (r.openai_evaluation_output_tokens || 0), 0),
+      total_openai_tokens: rows.reduce((s, r) => s + (r.openai_images_input_tokens || 0) + (r.openai_images_output_tokens || 0) + (r.openai_evaluation_input_tokens || 0) + (r.openai_evaluation_output_tokens || 0), 0),
+      total_assemblyai_minutes: rows.reduce((s, r) => s + (Number(r.assemblyai_duration_minutes) || 0), 0),
+    };
+  }
+
+  async getAllCompaniesMonthlyUsage(): Promise<any[]> {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+
+    const { data, error } = await supabaseAdmin
+      .from('api_costs')
+      .select('company_id, total_cost, openai_images_input_tokens, openai_images_output_tokens, openai_evaluation_input_tokens, openai_evaluation_output_tokens, assemblyai_duration_minutes')
+      .gte('created_at', monthStart)
+      .lt('created_at', monthEnd);
+
+    if (error) throw error;
+
+    const byCompany: Record<string, { total_cost: number; total_tokens: number; total_audits: number }> = {};
+    for (const row of (data || [])) {
+      const cid = row.company_id as string;
+      if (!byCompany[cid]) byCompany[cid] = { total_cost: 0, total_tokens: 0, total_audits: 0 };
+      byCompany[cid].total_cost += Number(row.total_cost) || 0;
+      byCompany[cid].total_tokens += (row.openai_images_input_tokens || 0) + (row.openai_images_output_tokens || 0) + (row.openai_evaluation_input_tokens || 0) + (row.openai_evaluation_output_tokens || 0);
+      byCompany[cid].total_audits++;
+    }
+    return Object.entries(byCompany).map(([company_id, stats]) => ({ company_id, ...stats }));
+  }
 }
 
 // Exportar instancia singleton
@@ -1506,7 +1663,7 @@ export const databaseService = {
   completeAudit: (auditId: string, params: CompleteAuditParams) => getDatabaseService().completeAudit(auditId, params),
   deleteAudit: (auditId: string, userId: string, userRole: string) => getDatabaseService().deleteAudit(auditId, userId, userRole),
   markAuditError: (auditId: string, errorMessage: string) => getDatabaseService().markAuditError(auditId, errorMessage),
-  getUserAudits: (userId: string, userRole: string, limit?: number, offset?: number) => getDatabaseService().getUserAudits(userId, userRole, limit, offset),
+  getUserAudits: (userId: string, userRole: string, companyId: string | null, limit?: number, offset?: number) => getDatabaseService().getUserAudits(userId, userRole, companyId, limit, offset),
   getAuditById: (auditId: string, userId: string, userRole: string) => getDatabaseService().getAuditById(auditId, userId, userRole),
   getExcelData: (filename: string) => getDatabaseService().getExcelData(filename),
   logAuditActivity: (auditId: string, userId: string, action: string, details?: any, ip?: string, ua?: string) =>
@@ -1527,14 +1684,14 @@ export const databaseService = {
   updateCallTypeConfig: (id: string, payload: Parameters<DatabaseService['updateCallTypeConfig']>[1]) => getDatabaseService().updateCallTypeConfig(id, payload),
   deleteCallTypeConfig: (id: string) => getDatabaseService().deleteCallTypeConfig(id),
   // Scripts dinámicos
-  getScriptsForCallType: (callType: string) => getDatabaseService().getScriptsForCallType(callType),
-  getAllScripts: () => getDatabaseService().getAllScripts(),
+  getScriptsForCallType: (callType: string, companyId?: string) => getDatabaseService().getScriptsForCallType(callType, companyId),
+  getAllScripts: (companyId?: string) => getDatabaseService().getAllScripts(companyId),
   createScript: (payload: Parameters<DatabaseService['createScript']>[0]) => getDatabaseService().createScript(payload),
   updateScript: (id: string, payload: Parameters<DatabaseService['updateScript']>[1]) => getDatabaseService().updateScript(id, payload),
   deleteScript: (id: string) => getDatabaseService().deleteScript(id),
   // Criterios dinámicos
-  getCriteriaForCallType: (callType: string, subCalificacion?: string) => getDatabaseService().getCriteriaForCallType(callType, subCalificacion),
-  getAllCriteriaBlocks: () => getDatabaseService().getAllCriteriaBlocks(),
+  getCriteriaForCallType: (callType: string, subCalificacion?: string, companyId?: string) => getDatabaseService().getCriteriaForCallType(callType, subCalificacion, companyId),
+  getAllCriteriaBlocks: (companyId?: string) => getDatabaseService().getAllCriteriaBlocks(companyId),
   createBlock: (payload: Parameters<DatabaseService['createBlock']>[0]) => getDatabaseService().createBlock(payload),
   updateBlock: (id: string, payload: Parameters<DatabaseService['updateBlock']>[1]) => getDatabaseService().updateBlock(id, payload),
   deleteBlock: (id: string) => getDatabaseService().deleteBlock(id),
@@ -1551,7 +1708,7 @@ export const databaseService = {
   deletePlantillaItem: (id: string) => getDatabaseService().deletePlantillaItem(id),
   // AI Prompts
   getPromptByKey: (key: string) => getDatabaseService().getPromptByKey(key),
-  getAllPrompts: () => getDatabaseService().getAllPrompts(),
+  getAllPrompts: (companyId?: string) => getDatabaseService().getAllPrompts(companyId),
   updatePrompt: (id: string, payload: Parameters<DatabaseService['updatePrompt']>[1]) => getDatabaseService().updatePrompt(id, payload),
   invalidatePromptsCache: () => getDatabaseService().invalidatePromptsCache(),
   // Bines
@@ -1563,6 +1720,15 @@ export const databaseService = {
   getImageSystemAnalytics: () => getDatabaseService().getImageSystemAnalytics(),
   getCalificacionesFromAudits: () => getDatabaseService().getCalificacionesFromAudits(),
   getImageSystemsByCallType: (calificacion?: string, subcalificacion?: string) => getDatabaseService().getImageSystemsByCallType(calificacion, subcalificacion),
+  // Companies
+  getAllCompanies: () => getDatabaseService().getAllCompanies(),
+  getCompany: (companyId: string) => getDatabaseService().getCompany(companyId),
+  createCompany: (payload: Parameters<DatabaseService['createCompany']>[0]) => getDatabaseService().createCompany(payload),
+  updateCompany: (id: string, payload: Parameters<DatabaseService['updateCompany']>[1]) => getDatabaseService().updateCompany(id, payload),
+  updateCompanyRolePermissions: (companyId: string, perms: Record<string, unknown>) => getDatabaseService().updateCompanyRolePermissions(companyId, perms),
+  updateCompanyUsageLimits: (companyId: string, limits: Record<string, unknown>) => getDatabaseService().updateCompanyUsageLimits(companyId, limits),
+  getCompanyMonthlyUsage: (companyId: string, month?: Date) => getDatabaseService().getCompanyMonthlyUsage(companyId, month),
+  getAllCompaniesMonthlyUsage: () => getDatabaseService().getAllCompaniesMonthlyUsage(),
 };
 
 export { DatabaseService };

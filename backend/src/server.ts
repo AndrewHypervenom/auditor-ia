@@ -17,7 +17,8 @@ import { evaluatorService } from './services/evaluator.service.js';
 import { excelService } from './services/excel.service.js';
 import { databaseService } from './services/database.service.js';
 import { costCalculatorService } from './services/cost-calculator.service.js';
-import { authenticateUser, requireAdmin, requireAdminOrAnalyst } from './middleware/auth.middleware.js';
+import { authenticateUser, requireAdmin, requireAdminOrAnalyst, requireAdminOrSupervisor } from './middleware/auth.middleware.js';
+import { checkUsageLimits } from './middleware/usage-limit.middleware.js';
 import { gpfTokenService } from './services/gpf-token.service.js';
 import { gpfDataService } from './services/gpf-data.service.js';
 import { buildSyntheticTranscript } from './utils/synthetic-transcript.js';
@@ -303,6 +304,7 @@ app.get('/api/audits', authenticateUser, async (req: Request, res: Response) => 
  const { audits, total } = await databaseService.getUserAudits(
  req.user!.id,
  req.user!.role,
+ req.user!.company_id,
  limit,
  offset
  );
@@ -351,8 +353,9 @@ app.get('/api/audits/:auditId', authenticateUser, async (req: Request, res: Resp
 });
 
 // POST /api/evaluate - Crear nueva auditoría
-app.post('/api/evaluate', 
+app.post('/api/evaluate',
  authenticateUser,
+ checkUsageLimits,
  upload.fields([
  { name: 'audio', maxCount: 1 },
  { name: 'images', maxCount: 15 }
@@ -419,6 +422,7 @@ app.post('/api/evaluate',
 
  auditId = await databaseService.createAudit({
  userId: req.user!.id,
+ companyId: req.user!.company_id ?? undefined,
  auditInput: metadata,
  audioFilename: audioFile.filename,
  imageFilenames: imageFiles.map(f => f.filename)
@@ -478,12 +482,14 @@ app.post('/api/evaluate',
  sizeKB: (excelResult.buffer.length / 1024).toFixed(1)
  });
 
- // 6. Calcular costos
+ // 6. Calcular costos (fix: usar tokens reales del análisis de imágenes)
+ const imgInputTokens = imageAnalyses.reduce((s: number, img: any) => s + (img.usage?.input_tokens || 0), 0);
+ const imgOutputTokens = imageAnalyses.reduce((s: number, img: any) => s + (img.usage?.output_tokens || 0), 0);
  const costs = costCalculatorService.calculateTotalCost(
  transcription.audio_duration || 0,
  imageFiles.length,
- 0,
- 0,
+ imgInputTokens,
+ imgOutputTokens,
  evaluation.usage?.inputTokens || 0,
  evaluation.usage?.outputTokens || 0
  );
@@ -707,12 +713,19 @@ app.delete('/api/audits/:auditId', authenticateUser, async (req: Request, res: R
 // ADMIN USER MANAGEMENT
 // ============================================
 
-app.get('/api/admin/users', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.get('/api/admin/users', authenticateUser, requireAdminOrSupervisor, async (req: Request, res: Response) => {
  try {
- const { data: users, error } = await supabaseAdmin
+ let query = supabaseAdmin
  .from('users')
  .select('*')
  .order('created_at', { ascending: false });
+
+ // admin ve todos los usuarios; supervisor solo los de su empresa
+ if (req.user!.role !== 'admin' && req.user!.company_id) {
+ query = query.eq('company_id', req.user!.company_id);
+ }
+
+ const { data: users, error } = await query;
 
  if (error) {
  logger.error('Error fetching users:', error);
@@ -726,7 +739,7 @@ app.get('/api/admin/users', authenticateUser, requireAdmin, async (req: Request,
  }
 });
 
-app.post('/api/admin/users', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.post('/api/admin/users', authenticateUser, requireAdminOrSupervisor, async (req: Request, res: Response) => {
  try {
  const { email, password, full_name, role } = req.body;
 
@@ -737,6 +750,17 @@ app.post('/api/admin/users', authenticateUser, requireAdmin, async (req: Request
  const validRoles = ['admin', 'supervisor', 'analyst'];
  if (!validRoles.includes(role)) {
  return res.status(400).json({ error: 'Rol inválido' });
+ }
+
+ // supervisor no puede crear admins
+ if (req.user!.role === 'supervisor' && role === 'admin') {
+ return res.status(403).json({ error: 'No tienes permisos para crear administradores' });
+ }
+
+ // company_id del nuevo usuario = company_id del usuario que lo crea
+ const companyId = req.user!.company_id;
+ if (!companyId) {
+ return res.status(400).json({ error: 'No hay empresa asociada al usuario creador' });
  }
 
  const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -760,7 +784,8 @@ app.post('/api/admin/users', authenticateUser, requireAdmin, async (req: Request
  id: authData.user.id,
  email,
  full_name,
- role
+ role,
+ company_id: companyId
  })
  .select()
  .single();
@@ -779,7 +804,7 @@ app.post('/api/admin/users', authenticateUser, requireAdmin, async (req: Request
  }
 });
 
-app.put('/api/admin/users/:userId', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+app.put('/api/admin/users/:userId', authenticateUser, requireAdminOrSupervisor, async (req: Request, res: Response) => {
  try {
  const { userId } = req.params;
  const { email, full_name, role, password } = req.body;
@@ -1011,7 +1036,8 @@ app.get('/api/admin/test/:service', authenticateUser, requireAdmin, async (req: 
 
 app.get('/api/admin/scripts', authenticateUser, async (req: Request, res: Response) => {
   try {
-    const scripts = await databaseService.getAllScripts();
+    const companyId = req.user!.company_id ?? undefined;
+    const scripts = await databaseService.getAllScripts(companyId);
     res.json(scripts);
   } catch (error: any) {
     logger.error('Error fetching scripts:', error);
@@ -1042,7 +1068,8 @@ app.post('/api/admin/scripts', authenticateUser, requireAdminOrAnalyst, async (r
       step_key,
       step_label,
       step_order: step_order ?? 0,
-      lines: lines ?? []
+      lines: lines ?? [],
+      ...(req.user!.company_id ? { company_id: req.user!.company_id } : {})
     });
     res.status(201).json(script);
   } catch (error: any) {
@@ -1080,7 +1107,8 @@ app.delete('/api/admin/scripts/:id', authenticateUser, requireAdminOrAnalyst, as
 
 app.get('/api/admin/criteria', authenticateUser, async (req: Request, res: Response) => {
   try {
-    const blocks = await databaseService.getAllCriteriaBlocks();
+    const companyId = req.user!.company_id ?? undefined;
+    const blocks = await databaseService.getAllCriteriaBlocks(companyId);
     res.json(blocks);
   } catch (error: any) {
     logger.error('Error fetching criteria:', error);
@@ -1099,6 +1127,7 @@ app.post('/api/admin/blocks', authenticateUser, requireAdminOrAnalyst, async (re
       mode: mode ?? 'INBOUND',
       block_name,
       block_order: block_order ?? 0,
+      ...(req.user!.company_id ? { company_id: req.user!.company_id } : {}),
       ...(applicable_tipo_cierres !== undefined && { applicable_tipo_cierres })
     });
     res.status(201).json(block);
@@ -1308,7 +1337,8 @@ app.delete('/api/admin/plantilla-gpf/:id', authenticateUser, requireAdminOrAnaly
 
 app.get('/api/admin/ai-prompts', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
   try {
-    const prompts = await databaseService.getAllPrompts();
+    const companyId = req.user!.company_id ?? undefined;
+    const prompts = await databaseService.getAllPrompts(companyId);
     res.json(prompts);
   } catch (error: any) {
     logger.error('Error fetching ai_prompts:', error);
@@ -2180,7 +2210,7 @@ app.post('/api/gpf/audio-proxy', authenticateUser, requireAdminOrAnalyst, async 
 // EVALUATE FROM GPF (no file upload needed)
 // ============================================
 
-app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, checkUsageLimits, async (req: Request, res: Response) => {
  const startTime = Date.now();
  let auditId: string | null = null;
  const tempFilePaths: string[] = [];
@@ -2280,6 +2310,7 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
 
  auditId = await databaseService.createAudit({
  userId: req.user!.id,
+ companyId: req.user!.company_id ?? undefined,
  auditInput: metadata,
  audioFilename: 'gpf-sourced',
  imageFilenames: localPaths.map(p => path.basename(p))
@@ -2583,12 +2614,14 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, asyn
 
  const excelResult = await excelService.generateExcelReport(metadata, evaluation);
 
- // ── 8. Calculate costs ───────────────────────────────────────────────────
+ // ── 8. Calculate costs (fix: usar tokens reales del análisis de imágenes) ─
+ const imgInputTokensGpf = imageAnalyses.reduce((s: number, img: any) => s + (img.usage?.input_tokens || 0), 0);
+ const imgOutputTokensGpf = imageAnalyses.reduce((s: number, img: any) => s + (img.usage?.output_tokens || 0), 0);
  const costs = costCalculatorService.calculateTotalCost(
- audioDurationSeconds / 60, // duración real si hubo audio, 0 si no
+ audioDurationSeconds / 60,
  localPaths.length,
- 0,
- 0,
+ imgInputTokensGpf,
+ imgOutputTokensGpf,
  evaluation.usage?.inputTokens || 0,
  evaluation.usage?.outputTokens || 0
  );
@@ -2917,6 +2950,92 @@ setInterval(async () => {
     logger.warn('Stale audit cleanup error', { err: err.message });
   }
 }, 30 * 60 * 1000);
+
+// ============================================================
+// PLATFORM — Companies (solo admin)
+// ============================================================
+
+app.get('/api/platform/companies', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+ try {
+ const companies = await databaseService.getAllCompanies();
+ const usageMap = await databaseService.getAllCompaniesMonthlyUsage();
+ const usageByCompany = new Map(usageMap.map((u: any) => [u.company_id, u]));
+ const result = companies.map((c: any) => ({
+ ...c,
+ usage_this_month: usageByCompany.get(c.id) ?? { total_audits: 0, total_cost: 0, total_tokens: 0 }
+ }));
+ res.json(result);
+ } catch (error: any) {
+ logger.error('Error fetching companies', error);
+ res.status(500).json({ error: 'Error al obtener empresas' });
+ }
+});
+
+app.post('/api/platform/companies', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+ try {
+ const company = await databaseService.createCompany(req.body);
+ res.status(201).json(company);
+ } catch (error: any) {
+ logger.error('Error creating company', error);
+ res.status(500).json({ error: 'Error al crear empresa' });
+ }
+});
+
+app.put('/api/platform/companies/:id', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+ try {
+ const company = await databaseService.updateCompany(req.params.id, req.body);
+ res.json(company);
+ } catch (error: any) {
+ logger.error('Error updating company', error);
+ res.status(500).json({ error: 'Error al actualizar empresa' });
+ }
+});
+
+app.get('/api/platform/companies/:id/usage', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+ try {
+ const usage = await databaseService.getCompanyMonthlyUsage(req.params.id);
+ res.json(usage);
+ } catch (error: any) {
+ logger.error('Error fetching company usage', error);
+ res.status(500).json({ error: 'Error al obtener consumo de empresa' });
+ }
+});
+
+app.put('/api/platform/companies/:id/limits', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
+ try {
+ await databaseService.updateCompanyUsageLimits(req.params.id, req.body);
+ res.json({ ok: true });
+ } catch (error: any) {
+ logger.error('Error updating usage limits', error);
+ res.status(500).json({ error: 'Error al actualizar límites' });
+ }
+});
+
+// ── Company own usage (supervisor o admin de esa empresa) ─────────────────
+app.get('/api/admin/company/usage', authenticateUser, requireAdminOrSupervisor, async (req: Request, res: Response) => {
+ try {
+ const companyId = req.user!.company_id;
+ if (!companyId) return res.status(400).json({ error: 'No company associated' });
+ const usage = await databaseService.getCompanyMonthlyUsage(companyId);
+ res.json(usage);
+ } catch (error: any) {
+ logger.error('Error fetching own company usage', error);
+ res.status(500).json({ error: 'Error al obtener consumo' });
+ }
+});
+
+// ── Role permissions (supervisor o admin) ────────────────────────────────
+app.put('/api/admin/company/role-permissions', authenticateUser, requireAdminOrSupervisor, async (req: Request, res: Response) => {
+ try {
+ const companyId = req.user!.company_id;
+ if (!companyId) return res.status(400).json({ error: 'No company associated' });
+ await databaseService.updateCompanyRolePermissions(companyId, req.body);
+ res.json({ ok: true });
+ } catch (error: any) {
+ logger.error('Error updating role permissions', error);
+ res.status(500).json({ error: 'Error al actualizar permisos' });
+ }
+});
 
 // Iniciar servidor
 app.listen(PORT, () => {

@@ -2,12 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
 import { toast } from 'react-hot-toast';
 import { LogIn, Mail, Lock, AlertCircle } from 'lucide-react';
+import LanguageSelector from '../components/LanguageSelector';
 
 export default function LoginPage() {
+ const { t } = useTranslation();
  const navigate = useNavigate();
  const location = useLocation();
  const { signIn, user, profile, loading: authLoading } = useAuth();
@@ -26,7 +29,7 @@ export default function LoginPage() {
    e.preventDefault();
 
    if (!email || !password) {
-     toast.error('Por favor completa todos los campos');
+     toast.error(t('auth.fillAllFields'));
      return;
    }
 
@@ -40,12 +43,12 @@ export default function LoginPage() {
      const { data: { session } } = await supabase.auth.getSession();
 
      if (!session || !session.user) {
-       toast.error('Tu cuenta ha sido desactivada. Contacta al administrador.');
+       toast.error(t('auth.accountDeactivated'));
        setLoading(false);
        return;
      }
 
-     toast.success('¡Bienvenido!');
+     toast.success(t('auth.welcome'));
 
      const from = (location.state as any)?.from?.pathname || '/dashboard';
      navigate(from, { replace: true });
@@ -53,14 +56,14 @@ export default function LoginPage() {
    } catch (error: any) {
      console.error('Login error:', error);
 
-     let errorMessage = 'Credenciales inválidas';
+     let errorMessage = t('auth.invalidCredentials');
 
      if (error.message?.includes('Invalid login credentials')) {
-       errorMessage = 'Email o contraseña incorrectos';
+       errorMessage = t('auth.invalidCredentials');
      } else if (error.message?.includes('Email not confirmed')) {
-       errorMessage = 'Por favor confirma tu email';
+       errorMessage = t('auth.emailNotConfirmed');
      } else if (error.message?.includes('Too many requests')) {
-       errorMessage = 'Demasiados intentos. Intenta más tarde';
+       errorMessage = t('auth.tooManyRequests');
      } else if (error.message) {
        errorMessage = error.message;
      }
@@ -82,7 +85,7 @@ export default function LoginPage() {
      >
        <div className="text-center">
          <div className="inline-block h-10 w-10 animate-spin rounded-full border-4 border-solid border-brand-500 border-r-transparent" />
-         <p className="mt-4 text-slate-400 text-sm">Verificando sesión...</p>
+         <p className="mt-4 text-slate-400 text-sm">{t('auth.verifyingSession')}</p>
        </div>
      </div>
    );
@@ -109,15 +112,15 @@ export default function LoginPage() {
            <div className="relative w-16 h-16 rounded-2xl overflow-hidden ring-1 ring-brand-500/30 shadow-glow">
              <img
                src="/logo.jpg"
-               alt="POSITIVO S+"
+               alt="AuditorIA"
                className="w-full h-full object-cover"
              />
            </div>
          </div>
 
          <div className="mb-0.5">
-           <span className="text-xl font-bold tracking-tight text-white">POSITIVO </span>
-           <span className="text-xl font-bold tracking-tight text-brand-500">S+</span>
+           <span className="text-xl font-bold tracking-tight text-white">Auditor</span>
+           <span className="text-xl font-bold tracking-tight text-brand-500">IA</span>
          </div>
          <p className="text-sm font-medium text-slate-400">Auditor IA · Sistema de evaluación</p>
        </div>
@@ -138,7 +141,7 @@ export default function LoginPage() {
            <div>
              <label htmlFor="email" className="flex items-center gap-2 mb-2">
                <Mail className="w-4 h-4 text-brand-500" />
-               Email
+               {t('auth.email')}
              </label>
              <input
                id="email"
@@ -158,7 +161,7 @@ export default function LoginPage() {
            <div>
              <label htmlFor="password" className="flex items-center gap-2 mb-2">
                <Lock className="w-4 h-4 text-slate-400" />
-               Contraseña
+               {t('auth.password')}
              </label>
              <input
                id="password"
@@ -182,12 +185,12 @@ export default function LoginPage() {
              {loading ? (
                <>
                  <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                 Iniciando sesión...
+                 {t('auth.loggingIn')}
                </>
              ) : (
                <>
                  <LogIn className="w-4 h-4" />
-                 Iniciar Sesión
+                 {t('auth.login')}
                </>
              )}
            </button>
@@ -202,20 +205,23 @@ export default function LoginPage() {
              <AlertCircle className="w-4 h-4 text-slate-500 flex-shrink-0 mt-0.5" />
              <div>
                <p className="text-sm font-medium text-slate-300 mb-0.5">
-                 ¿No tienes una cuenta?
+                 {t('auth.noAccount')}
                </p>
                <p className="text-xs text-slate-500">
-                 Contacta al administrador del sistema para solicitar acceso.
+                 {t('auth.contactAdmin')}
                </p>
              </div>
            </div>
          </div>
        </div>
 
-       {/* Footer */}
-       <p className="text-center text-slate-600 text-xs mt-8 tracking-wide">
-         © 2026 POSITIVO S+ · Auditor IA · Evaluación inteligente de llamadas
-       </p>
+       {/* Language selector + Footer */}
+       <div className="flex flex-col items-center gap-3 mt-8">
+         <LanguageSelector />
+         <p className="text-center text-slate-600 text-xs tracking-wide">
+           © 2026 AuditorIA · Evaluación inteligente de llamadas
+         </p>
+       </div>
      </div>
    </div>
  );
