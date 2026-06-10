@@ -222,6 +222,11 @@ export const auditService = {
  return response.data;
  },
 
+ async generateSentiment(auditId: string): Promise<{ sentimentResults: any[]; sentimentSummary: any }> {
+ const response = await api.post(`/audits/${auditId}/sentiment`);
+ return response.data;
+ },
+
  async updateAuditComments(auditId: string, comments: Record<string, string>): Promise<void> {
  await api.patch(`/audits/${auditId}/comments`, { comments });
  },

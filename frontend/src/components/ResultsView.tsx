@@ -81,6 +81,28 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
   const [allExpanded, setAllExpanded] = useState<boolean | null>(null);
   const [filter, setFilter] = useState<FilterType>('all');
 
+  // ── Sentimientos (con generación bajo demanda para auditorías antiguas) ─────
+  const [sentimentResults, setSentimentResults] = useState<any[]>(
+    Array.isArray(result?.sentimentResults) ? result.sentimentResults : []
+  );
+  const [sentimentSummary, setSentimentSummary] = useState<any>(result?.sentimentSummary ?? null);
+  const [generatingSentiment, setGeneratingSentiment] = useState(false);
+
+  const handleGenerateSentiment = async () => {
+    if (!auditId || generatingSentiment) return;
+    try {
+      setGeneratingSentiment(true);
+      const data = await auditService.generateSentiment(auditId);
+      setSentimentResults(Array.isArray(data.sentimentResults) ? data.sentimentResults : []);
+      setSentimentSummary(data.sentimentSummary ?? null);
+      toast.success('Análisis de sentimientos generado');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'No se pudo generar el análisis de sentimientos');
+    } finally {
+      setGeneratingSentiment(false);
+    }
+  };
+
   const [localScores, setLocalScores] = useState<any[]>(result.detailedScores ?? []);
   const [savedPercentage, setSavedPercentage] = useState<number>(result.percentage ?? 0);
   const [scoreEdits, setScoreEdits] = useState<Record<number, number>>({});
@@ -102,8 +124,6 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
     transcript: result?.transcript ?? '',
     audioConfidence: result?.audioConfidence,
     dataWarnings: Array.isArray(result?.dataWarnings) ? result.dataWarnings : [],
-    sentimentResults: Array.isArray(result?.sentimentResults) ? result.sentimentResults : [],
-    sentimentSummary: result?.sentimentSummary ?? null,
   };
 
   // ── Cálculos en tiempo real ──────────────────────────────────────────────────
@@ -1034,13 +1054,13 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
             </div>
           ),
         },
-        safeResult.sentimentResults.length > 0 && {
+        (sentimentResults.length > 0 || !!auditId) && {
           key: 'sentiment',
           icon: <HeartPulse className="w-3.5 h-3.5 text-pink-400" />,
           label: 'Análisis de Sentimientos',
-          count: safeResult.sentimentResults.length,
-          badge: safeResult.sentimentSummary && (() => {
-            const s = safeResult.sentimentSummary!;
+          count: sentimentResults.length > 0 ? sentimentResults.length : null,
+          badge: sentimentSummary && (() => {
+            const s = sentimentSummary;
             const cfg = s.overall === 'POSITIVE'
               ? { cls: 'bg-green-500/10 text-green-400 border-green-700/30', label: 'Positivo' }
               : s.overall === 'NEGATIVE'
@@ -1053,8 +1073,29 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
             );
           })(),
           content: (() => {
-            const results = safeResult.sentimentResults;
-            const summary = safeResult.sentimentSummary;
+            const results = sentimentResults;
+            const summary = sentimentSummary;
+
+            // Auditoría sin sentimientos (anterior a la función): generar bajo demanda
+            if (results.length === 0) {
+              return (
+                <div className="border-t border-dark-border px-4 py-6 text-center">
+                  <p className="text-sm text-slate-500 mb-3">
+                    Esta auditoría aún no tiene análisis de sentimientos.
+                  </p>
+                  <button
+                    onClick={handleGenerateSentiment}
+                    disabled={generatingSentiment}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-pink-500/10 text-pink-400 border border-pink-700/30 hover:bg-pink-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {generatingSentiment
+                      ? <><Loader2 className="w-4 h-4 animate-spin" /> Analizando sentimientos…</>
+                      : <><HeartPulse className="w-4 h-4" /> Generar análisis de sentimientos</>
+                    }
+                  </button>
+                </div>
+              );
+            }
             const pct = (n: number, total: number) => total > 0 ? Math.round((n / total) * 100) : 0;
             const sentimentCfg = (s: string) => s === 'POSITIVE'
               ? { icon: <Smile className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />, border: 'border-l-green-500/60', text: 'text-slate-300' }

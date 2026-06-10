@@ -598,6 +598,78 @@ app.post('/api/evaluate',
 );
 
 // ============================================================
+// POST /api/audits/:auditId/sentiment — Generar sentimientos bajo demanda
+// (para auditorías guardadas antes de la función de sentimientos)
+// ============================================================
+app.post('/api/audits/:auditId/sentiment', authenticateUser, async (req: Request, res: Response) => {
+ try {
+ const { auditId } = req.params;
+
+ const { data: t, error } = await databaseService.client
+ .from('transcriptions')
+ .select('*')
+ .eq('audit_id', auditId)
+ .single();
+
+ if (error || !t) {
+ return res.status(404).json({ error: 'La auditoría no tiene transcripción' });
+ }
+
+ // Si ya existen sentimientos, devolverlos sin regenerar
+ const existing = t.assemblyai_response?.sentiment_analysis_results;
+ if (Array.isArray(existing) && existing.length > 0) {
+ return res.json({
+ sentimentResults: existing,
+ sentimentSummary: t.assemblyai_response?.sentiment_summary
+ ?? buildSentimentSummary(existing, t.assemblyai_response?.sentiment_summary?.provider || 'openai')
+ });
+ }
+
+ // Usar utterances guardadas; si no hay (p. ej. lotes antiguos), derivar
+ // pseudo-utterances del texto plano (sin hablante ni timestamps)
+ let utterances: any[] = Array.isArray(t.utterances) ? t.utterances.filter((u: any) => u?.text) : [];
+ if (utterances.length === 0 && t.full_text) {
+ const cleanText = String(t.full_text).split('--- DATOS ESTRUCTURADOS GPF ---')[0];
+ utterances = cleanText
+ .split(/(?<=[.!?])\s+|\n+/)
+ .map((s: string) => s.trim())
+ .filter((s: string) => s.length > 3)
+ .slice(0, 400)
+ .map((s: string) => ({ speaker: '', text: s, start: 0, end: 0 }));
+ }
+
+ if (utterances.length === 0) {
+ return res.status(400).json({ error: 'No hay texto de transcripción para analizar' });
+ }
+
+ const { results } = await openAIService.analyzeSentiment(utterances);
+ if (results.length === 0) {
+ return res.status(500).json({ error: 'No se pudo generar el análisis de sentimientos' });
+ }
+
+ const summary = buildSentimentSummary(results, 'openai');
+
+ await databaseService.client
+ .from('transcriptions')
+ .update({
+ assemblyai_response: {
+ ...(t.assemblyai_response || {}),
+ sentiment_analysis_results: results,
+ sentiment_summary: summary
+ }
+ })
+ .eq('id', t.id);
+
+ logger.success(' Sentiment generated on demand', { auditId, frases: results.length });
+
+ res.json({ sentimentResults: results, sentimentSummary: summary });
+ } catch (error: any) {
+ logger.error(' Error generating sentiment on demand', error);
+ res.status(500).json({ error: error.message });
+ }
+});
+
+// ============================================================
 // PATCH /api/audits/:auditId/scores — Actualizar puntajes manualmente
 // ============================================================
 app.patch('/api/audits/:auditId/scores', authenticateUser, async (req: Request, res: Response) => {
