@@ -77,14 +77,31 @@ class AssemblyAIService {
  const wordBoostList = dbTerms.filter((t: any) => t.is_active !== false).map((t: any) => t.term);
  logger.info(`[ASSEMBLYAI] Vocabulario cargado desde BD: ${wordBoostList.length} términos`);
 
+ // ============ IDIOMA ============
+ const languageCode = process.env.ASSEMBLYAI_LANGUAGE_CODE || 'es';
+ // Sentiment Analysis nativo de AssemblyAI solo soporta inglés (en, en_au, en_uk, en_us).
+ // Para español/portugués el sentimiento se calcula con OpenAI (ver openai.service.ts).
+ const nativeSentiment = languageCode.startsWith('en');
+
+ // ============ KEYTERMS (Universal-3 Pro) ============
+ // Universal-3 Pro NO soporta word_boost ni custom_spelling: usa keyterms_prompt
+ // (hasta 1000 términos). Combinamos vocabulario de BD + términos de marca/banca.
+ const brandTerms = ['Bradescard', 'folio', 'contracargo', 'aclaración', 'OTP', 'NIP'];
+ const keyterms = Array.from(new Set([...brandTerms, ...wordBoostList])).slice(0, 1000);
+
  // ===============================================
- // CONFIGURACIÓN MEJORADA DE TRANSCRIPCIÓN
+ // CONFIGURACIÓN DE TRANSCRIPCIÓN — UNIVERSAL-3 PRO
  // ===============================================
  const transcript = await this.client.transcripts.transcribe({
  audio: uploadUrl!,
 
- // ============ IDIOMA Y PRECISIÓN ============
- language_code: 'es', // Español
+ // ============ MODELO ============
+ // Universal-3 Pro: modelo de mayor precisión (ES/PT/EN/FR/DE/IT nativos,
+ // con code-switching). Fallback automático a Universal-2 para otros idiomas.
+ speech_models: ['universal-3-pro', 'universal-2'],
+
+ // ============ IDIOMA ============
+ language_code: languageCode,
 
  // ============ MEJORAS DE CALIDAD ============
  speaker_labels: true, // Identificar speakers (A, B, C...)
@@ -95,25 +112,12 @@ class AssemblyAIService {
  // ============ CAPTURAR TODO EL CONTENIDO ============
  disfluencies: false, // NO capturar "eh", "um" para texto más limpio
 
- // ============ MODELO Y PRECISIÓN ============
- speech_model: 'best', // Usar el mejor modelo disponible (más preciso)
+ // ============ VOCABULARIO PERSONALIZADO (BD + marca) ============
+ keyterms_prompt: keyterms,
 
- // ============ VOCABULARIO PERSONALIZADO (cargado desde BD) ============
- word_boost: wordBoostList,
- boost_param: 'high', // Alta prioridad para las palabras del vocabulario
-
- // ============ CORRECCIÓN ORTOGRÁFICA DETERMINISTA (es_MX) ============
- // Corrige errores fonéticos frecuentes en español mexicano a nivel ASR,
- // antes de que el texto llegue a la post-corrección de OpenAI.
- custom_spelling: [
- { from: ['bradescar', 'brascar', 'prascar', 'bascar', 'bradiscard', 'la card'], to: 'Bradescard' },
- { from: ['folió', 'follo', 'foulio', 'fólio'], to: 'folio' },
- { from: ['contracaro', 'contra cargo'], to: 'contracargo' },
- { from: ['aclarasión', 'aclarasion'], to: 'aclaración' },
- { from: ['o te pe', 'ó te pe'], to: 'OTP' },
- { from: ['nip'], to: 'NIP' },
- ]
- });
+ // ============ AUDIO INTELLIGENCE ============
+ sentiment_analysis: nativeSentiment,
+ } as any);
 
  logger.info('[ASSEMBLYAI] Job de transcripcion creado, esperando resultado...', {
  transcriptId: transcript.id,
@@ -203,13 +207,32 @@ class AssemblyAIService {
  confianza: result.confidence ? (result.confidence * 100).toFixed(1) + '%' : 'N/A'
  });
 
- // Formatear resultado
+ // Formatear resultado (con corrección ortográfica determinista,
+ // antes aplicada vía custom_spelling — no soportado por Universal-3 Pro)
  const utterances = result.utterances?.map(u => ({
  speaker: u.speaker,
- text: u.text,
+ text: this.applySpellingCorrections(u.text),
  start: u.start, // En milisegundos
  end: u.end // En milisegundos
  })) || [];
+
+ const correctedText = this.applySpellingCorrections(result.text || '');
+
+ // Sentimientos nativos de AssemblyAI (solo disponibles en inglés)
+ const sentimentResults = (result as any).sentiment_analysis_results?.map((s: any) => ({
+ text: s.text,
+ sentiment: s.sentiment,
+ confidence: s.confidence,
+ speaker: s.speaker ?? null,
+ start: s.start,
+ end: s.end
+ })) || undefined;
+
+ if (sentimentResults?.length) {
+ logger.info('[ASSEMBLYAI] Análisis de sentimientos nativo completado', {
+ frases: sentimentResults.length
+ });
+ }
 
  // Log de muestra del contenido
  if (utterances.length > 0) {
@@ -239,12 +262,14 @@ class AssemblyAIService {
  }
 
  return {
- text: result.text || '',
+ text: correctedText,
  utterances,
  duration: result.audio_duration ?? undefined,
  words: utterances, // Mismo contenido que utterances
  audio_duration: result.audio_duration ?? undefined,
- confidence: result.confidence ?? undefined
+ confidence: result.confidence ?? undefined,
+ language_code: (result as any).language_code ?? languageCode,
+ sentiment_analysis_results: sentimentResults
  };
 
  } catch (error: any) {
@@ -254,6 +279,33 @@ class AssemblyAIService {
  });
  throw error;
  }
+ }
+
+ /**
+ * Corrección ortográfica determinista (es_MX).
+ * Universal-3 Pro no soporta custom_spelling, así que aplicamos las mismas
+ * correcciones fonéticas en código, antes de la post-corrección de OpenAI.
+ */
+ private applySpellingCorrections(text: string): string {
+ if (!text) return text;
+
+ const corrections: Array<{ from: string[]; to: string }> = [
+ { from: ['bradescar', 'brascar', 'prascar', 'bascar', 'bradiscard', 'la card'], to: 'Bradescard' },
+ { from: ['folió', 'follo', 'foulio', 'fólio'], to: 'folio' },
+ { from: ['contracaro', 'contra cargo'], to: 'contracargo' },
+ { from: ['aclarasión', 'aclarasion'], to: 'aclaración' },
+ { from: ['o te pe', 'ó te pe'], to: 'OTP' },
+ { from: ['nip'], to: 'NIP' },
+ ];
+
+ let corrected = text;
+ for (const { from, to } of corrections) {
+ for (const term of from) {
+ const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+ corrected = corrected.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), to);
+ }
+ }
+ return corrected;
  }
 
  /**

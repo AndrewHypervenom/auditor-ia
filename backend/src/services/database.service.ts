@@ -8,7 +8,9 @@ import type {
   ImageAnalysis, 
   EvaluationResult,
   APICosts,
-  TranscriptWord
+  TranscriptWord,
+  SentimentResult,
+  SentimentSummary
 } from '../types/index.js';
 
 interface CreateAuditParams {
@@ -49,6 +51,11 @@ interface CompleteAuditParams {
   processingTimeMs: number;
   costs: APICosts;
   companyId?: string | null;
+  audioDuration?: number | null;
+  transcriptionConfidence?: number | null;
+  languageCode?: string;
+  sentimentResults?: SentimentResult[];
+  sentimentSummary?: SentimentSummary | null;
 }
 
 class DatabaseService {
@@ -238,22 +245,34 @@ class DatabaseService {
         excelBase64,
         processingTimeMs,
         costs,
-        companyId
+        companyId,
+        audioDuration,
+        transcriptionConfidence,
+        languageCode,
+        sentimentResults,
+        sentimentSummary
       } = params;
 
       const cid = companyId ? { company_id: companyId } : {};
 
       // 1. Guardar transcripción
+      // Los sentimientos se guardan dentro del jsonb assemblyai_response
+      // para no requerir migración de esquema.
       await supabaseAdmin.from('transcriptions').insert({
         audit_id: auditId,
         ...cid,
         full_text: transcription,
         utterances: transcriptionWords || [],
-        audio_duration: null,
-        assemblyai_response: {},
+        audio_duration: audioDuration ?? null,
+        assemblyai_response: {
+          sentiment_analysis_results: sentimentResults || [],
+          sentiment_summary: sentimentSummary || null,
+          language_code: languageCode || 'es',
+          speech_model: 'universal-3-pro'
+        },
         word_count: transcriptionWords?.length || 0,
-        confidence: null,
-        language: 'es'
+        confidence: transcriptionConfidence ?? null,
+        language: languageCode || 'es'
       });
 
       // 2. Guardar análisis de imágenes (si existe)
@@ -1423,6 +1442,7 @@ class DatabaseService {
     modes?: string[];
     is_active?: boolean;
     display_order?: number;
+    company_id?: string | null;
   }): Promise<any> {
     const { data, error } = await supabaseAdmin
       .from('call_types_config')
@@ -1546,7 +1566,7 @@ class DatabaseService {
    * (clonando la config base de FRAUDE) y sus subcalificaciones se agregan a la
    * plantilla GPF para que aparezcan en el admin y todo funcione de inmediato.
    */
-  async syncCallTypesFromGpf(entries: Array<{ calificacion: string; subcalificacion: string }>): Promise<void> {
+  async syncCallTypesFromGpf(entries: Array<{ calificacion: string; subcalificacion: string }>, companyId?: string | null): Promise<void> {
     // Agrupar subcalificaciones por calificación (limpias y únicas)
     const byCal = new Map<string, Set<string>>();
     for (const e of entries) {
@@ -1561,11 +1581,16 @@ class DatabaseService {
     const existingTypes = await this.getCallTypesConfig();
     const maxOrder = existingTypes.reduce((m: number, t: any) => Math.max(m, t.display_order ?? 0), 0);
     let nextOrder = maxOrder + 1;
+    // company_id es NOT NULL en call_types_config: usar el del usuario o el de los tipos existentes
+    const effectiveCompanyId = companyId
+      ?? existingTypes.find((t: any) => t.company_id)?.company_id
+      ?? null;
 
     for (const [calificacion, subcals] of byCal) {
-      // ¿Ya se resuelve a un tipo configurado (por texto o por plantilla)?
-      const resolved = await this.resolveCallTypeFromText(calificacion)
-        ?? await this.getCallTypeFromPlantilla(calificacion);
+      // ¿Ya se resuelve a un tipo configurado por texto? (No usar la plantilla aquí:
+      // la plantilla histórica mapea todas las categorías a FRAUDE/TH CONFIRMA y
+      // eso impediría registrar las calificaciones nuevas como tipos propios.)
+      const resolved = await this.resolveCallTypeFromText(calificacion);
       const callTypeName = resolved ?? calificacion.toUpperCase();
 
       if (!resolved) {
@@ -1575,7 +1600,8 @@ class DatabaseService {
             name: callTypeName,
             modes: ['INBOUND', 'MONITOREO'],
             is_active: true,
-            display_order: nextOrder++
+            display_order: nextOrder++,
+            company_id: effectiveCompanyId
           });
           logger.info(`syncCallTypesFromGpf: calificación nueva registrada → "${callTypeName}"`);
         } catch (err: any) {
@@ -1620,7 +1646,8 @@ class DatabaseService {
               categoria_orden: categoriaOrden,
               tipo_orden: tipoOrden,
               call_type: callTypeName,
-              mode
+              mode,
+              ...(effectiveCompanyId ? { company_id: effectiveCompanyId } : {})
             });
           }
           tipoOrden++;
@@ -1903,7 +1930,7 @@ export const databaseService = {
   updateCallTypeConfig: (id: string, payload: Parameters<DatabaseService['updateCallTypeConfig']>[1]) => getDatabaseService().updateCallTypeConfig(id, payload),
   deleteCallTypeConfig: (id: string) => getDatabaseService().deleteCallTypeConfig(id),
   cloneCallTypeData: (fromCallType: string, toCallType: string) => getDatabaseService().cloneCallTypeData(fromCallType, toCallType),
-  syncCallTypesFromGpf: (entries: Array<{ calificacion: string; subcalificacion: string }>) => getDatabaseService().syncCallTypesFromGpf(entries),
+  syncCallTypesFromGpf: (entries: Array<{ calificacion: string; subcalificacion: string }>, companyId?: string | null) => getDatabaseService().syncCallTypesFromGpf(entries, companyId),
   // Scripts dinámicos
   getScriptsForCallType: (callType: string, companyId?: string) => getDatabaseService().getScriptsForCallType(callType, companyId),
   getAllScripts: (companyId?: string) => getDatabaseService().getAllScripts(companyId),

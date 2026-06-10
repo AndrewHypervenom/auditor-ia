@@ -4,16 +4,20 @@ import { logger } from '../utils/logger.js';
 import type { APICosts } from '../types/index.js';
 
 /**
- * Precios actualizados a Enero 2026
+ * Precios actualizados a Junio 2026
  * Fuentes:
  * - AssemblyAI: https://www.assemblyai.com/pricing
  * - OpenAI GPT-4o: https://openai.com/api/pricing/
  */
 class CostCalculatorService {
  // ============================================
- // PRECIOS ASSEMBLYAI (Enero 2026)
+ // PRECIOS ASSEMBLYAI — UNIVERSAL-3 PRO (Junio 2026)
  // ============================================
- private readonly ASSEMBLYAI_COST_PER_MINUTE = 0.00037; // $0.00037 por minuto
+ private readonly ASSEMBLYAI_U3PRO_PER_HOUR = 0.21; // Universal-3 Pro base
+ private readonly ASSEMBLYAI_DIARIZATION_PER_HOUR = 0.02; // Speaker labels (add-on)
+ private readonly ASSEMBLYAI_SENTIMENT_PER_HOUR = 0.02; // Sentiment analysis nativo (solo EN)
+ private readonly ASSEMBLYAI_COST_PER_MINUTE =
+ (this.ASSEMBLYAI_U3PRO_PER_HOUR + this.ASSEMBLYAI_DIARIZATION_PER_HOUR) / 60; // ≈ $0.00383/min
 
  // ============================================
  // PRECIOS OPENAI GPT-4o (Enero 2026)
@@ -24,23 +28,26 @@ class CostCalculatorService {
  /**
  * Calcular costo de transcripción de AssemblyAI
  */
- calculateAssemblyAICost(audioDurationSeconds: number): {
+ calculateAssemblyAICost(audioDurationSeconds: number, includeNativeSentiment = false): {
  audioDurationMinutes: number;
  costPerMinute: number;
  totalCost: number;
  } {
  const durationMinutes = audioDurationSeconds / 60;
- const totalCost = durationMinutes * this.ASSEMBLYAI_COST_PER_MINUTE;
+ const costPerMinute = this.ASSEMBLYAI_COST_PER_MINUTE +
+ (includeNativeSentiment ? this.ASSEMBLYAI_SENTIMENT_PER_HOUR / 60 : 0);
+ const totalCost = durationMinutes * costPerMinute;
 
- logger.info(' AssemblyAI cost calculated', {
+ logger.info(' AssemblyAI cost calculated (Universal-3 Pro)', {
  durationMinutes: durationMinutes.toFixed(2),
- costPerMinute: this.ASSEMBLYAI_COST_PER_MINUTE,
+ costPerMinute: costPerMinute.toFixed(6),
+ nativeSentiment: includeNativeSentiment,
  totalCost: `$${totalCost.toFixed(4)}`
  });
 
  return {
  audioDurationMinutes: parseFloat(durationMinutes.toFixed(2)),
- costPerMinute: this.ASSEMBLYAI_COST_PER_MINUTE,
+ costPerMinute: parseFloat(costPerMinute.toFixed(6)),
  totalCost: parseFloat(totalCost.toFixed(4))
  };
  }
@@ -118,9 +125,10 @@ class CostCalculatorService {
  imageInputTokens: number,
  imageOutputTokens: number,
  evaluationInputTokens: number,
- evaluationOutputTokens: number
+ evaluationOutputTokens: number,
+ includeNativeSentiment = false
  ): APICosts {
- const assemblyaiCost = this.calculateAssemblyAICost(audioDurationSeconds);
+ const assemblyaiCost = this.calculateAssemblyAICost(audioDurationSeconds, includeNativeSentiment);
  const imagesCost = this.calculateImageAnalysisCost(
  imageCount,
  imageInputTokens,

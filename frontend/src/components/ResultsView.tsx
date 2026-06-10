@@ -4,7 +4,8 @@ import {
   Download, CheckCircle2, AlertCircle, Clock, TrendingUp, FileText, Award,
   Target, ChevronDown, ChevronUp, PhoneIncoming, Monitor, Pencil, Check,
   X, Save, RotateCcw, AlertTriangle, ShieldAlert, Plus, ChevronsUpDown,
-  MinusCircle, XCircle, ClipboardList, MessageSquare, Copy, Loader2
+  MinusCircle, XCircle, ClipboardList, MessageSquare, Copy, Loader2,
+  Smile, Frown, Meh, HeartPulse
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
@@ -72,6 +73,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
     observations: false,
     recommendations: false,
     keyMoments: false,
+    sentiment: false,
     transcript: false,
     comments: true,
   });
@@ -100,6 +102,8 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
     transcript: result?.transcript ?? '',
     audioConfidence: result?.audioConfidence,
     dataWarnings: Array.isArray(result?.dataWarnings) ? result.dataWarnings : [],
+    sentimentResults: Array.isArray(result?.sentimentResults) ? result.sentimentResults : [],
+    sentimentSummary: result?.sentimentSummary ?? null,
   };
 
   // ── Cálculos en tiempo real ──────────────────────────────────────────────────
@@ -1029,6 +1033,97 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
               })}
             </div>
           ),
+        },
+        safeResult.sentimentResults.length > 0 && {
+          key: 'sentiment',
+          icon: <HeartPulse className="w-3.5 h-3.5 text-pink-400" />,
+          label: 'Análisis de Sentimientos',
+          count: safeResult.sentimentResults.length,
+          badge: safeResult.sentimentSummary && (() => {
+            const s = safeResult.sentimentSummary!;
+            const cfg = s.overall === 'POSITIVE'
+              ? { cls: 'bg-green-500/10 text-green-400 border-green-700/30', label: 'Positivo' }
+              : s.overall === 'NEGATIVE'
+                ? { cls: 'bg-red-500/10 text-red-400 border-red-700/30', label: 'Negativo' }
+                : { cls: 'bg-slate-500/10 text-slate-400 border-slate-600/30', label: 'Neutral' };
+            return (
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.cls}`}>
+                {cfg.label}
+              </span>
+            );
+          })(),
+          content: (() => {
+            const results = safeResult.sentimentResults;
+            const summary = safeResult.sentimentSummary;
+            const pct = (n: number, total: number) => total > 0 ? Math.round((n / total) * 100) : 0;
+            const sentimentCfg = (s: string) => s === 'POSITIVE'
+              ? { icon: <Smile className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />, border: 'border-l-green-500/60', text: 'text-slate-300' }
+              : s === 'NEGATIVE'
+                ? { icon: <Frown className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />, border: 'border-l-red-500/60', text: 'text-slate-300' }
+                : { icon: <Meh className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />, border: 'border-l-slate-600/40', text: 'text-slate-500' };
+            const msToTime = (ms: number) => {
+              const totalSec = Math.floor(ms / 1000);
+              return `${String(Math.floor(totalSec / 60)).padStart(2, '0')}:${String(totalSec % 60).padStart(2, '0')}`;
+            };
+            return (
+              <div className="border-t border-dark-border">
+                {summary && (
+                  <div className="px-4 py-3 border-b border-dark-border/60 space-y-3">
+                    {/* Barra de distribución */}
+                    <div>
+                      <div className="flex h-2 rounded-full overflow-hidden bg-dark-bg/60">
+                        {summary.positive > 0 && <div className="bg-green-500/70" style={{ width: `${pct(summary.positive, summary.total)}%` }} />}
+                        {summary.neutral > 0 && <div className="bg-slate-600/70" style={{ width: `${pct(summary.neutral, summary.total)}%` }} />}
+                        {summary.negative > 0 && <div className="bg-red-500/70" style={{ width: `${pct(summary.negative, summary.total)}%` }} />}
+                      </div>
+                      <div className="flex items-center gap-4 mt-2 text-xs">
+                        <span className="flex items-center gap-1.5 text-green-400">
+                          <Smile className="w-3.5 h-3.5" /> {summary.positive} ({pct(summary.positive, summary.total)}%)
+                        </span>
+                        <span className="flex items-center gap-1.5 text-slate-400">
+                          <Meh className="w-3.5 h-3.5" /> {summary.neutral} ({pct(summary.neutral, summary.total)}%)
+                        </span>
+                        <span className="flex items-center gap-1.5 text-red-400">
+                          <Frown className="w-3.5 h-3.5" /> {summary.negative} ({pct(summary.negative, summary.total)}%)
+                        </span>
+                      </div>
+                    </div>
+                    {/* Resumen por hablante */}
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(summary.bySpeaker).map(([speaker, s]) => {
+                        const cls = s.overall === 'POSITIVE'
+                          ? 'bg-green-500/10 text-green-400 border-green-700/30'
+                          : s.overall === 'NEGATIVE'
+                            ? 'bg-red-500/10 text-red-400 border-red-700/30'
+                            : 'bg-slate-500/10 text-slate-400 border-slate-600/30';
+                        return (
+                          <span key={speaker} className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium border ${cls}`}>
+                            Hablante {speaker}: +{s.positive} / −{s.negative}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {/* Lista de frases con sentimiento */}
+                <div className="max-h-80 overflow-y-auto divide-y divide-dark-border/40">
+                  {results.map((r, i) => {
+                    const cfg = sentimentCfg(r.sentiment);
+                    return (
+                      <div key={i} className={`flex items-start gap-2.5 px-4 py-2 border-l-2 ${cfg.border} hover:bg-white/[0.015] transition-colors`}>
+                        <span className="flex-shrink-0 font-mono text-xs text-slate-600 tabular-nums mt-0.5">{msToTime(r.start)}</span>
+                        {cfg.icon}
+                        <div className="min-w-0">
+                          {r.speaker && <span className="text-xs font-bold text-brand-400 mr-1.5">{r.speaker}:</span>}
+                          <span className={`text-xs leading-relaxed ${cfg.text}`}>{r.text}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })(),
         },
         {
           key: 'transcript',

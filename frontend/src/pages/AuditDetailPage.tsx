@@ -108,6 +108,8 @@ export default function AuditDetailPage() {
     excelUrl: auditDetail.evaluation.excel_filename,
     dataWarnings: auditDetail.evaluation.openai_response?.dataWarnings || [],
     supervisorComments: auditDetail.evaluation.supervisor_comments ?? {},
+    sentimentResults: (auditDetail.transcription as any)?.assemblyai_response?.sentiment_analysis_results || [],
+    sentimentSummary: (auditDetail.transcription as any)?.assemblyai_response?.sentiment_summary || null,
   };
 
   return (

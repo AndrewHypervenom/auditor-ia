@@ -17,6 +17,7 @@ import { evaluatorService } from './services/evaluator.service.js';
 import { excelService } from './services/excel.service.js';
 import { databaseService } from './services/database.service.js';
 import { costCalculatorService } from './services/cost-calculator.service.js';
+import { buildSentimentSummary } from './utils/sentiment.js';
 import { authenticateUser, requireAdmin, requireAdminOrAnalyst, requireAdminOrSupervisor } from './middleware/auth.middleware.js';
 import { checkUsageLimits } from './middleware/usage-limit.middleware.js';
 import { gpfTokenService } from './services/gpf-token.service.js';
@@ -444,6 +445,33 @@ app.post('/api/evaluate',
  words: transcription.words?.length
  });
 
+ // 2b. Análisis de sentimientos
+ // AssemblyAI solo soporta sentimientos nativos en inglés; para ES/PT
+ // se calculan con OpenAI sobre las utterances.
+ progressBroadcaster.progress(sseClientId, 'transcription', 35, 'Analizando sentimientos...');
+
+ let sentimentResults = transcription.sentiment_analysis_results || [];
+ let sentimentProvider: 'assemblyai' | 'openai' = 'assemblyai';
+ let sentimentUsage = { inputTokens: 0, outputTokens: 0 };
+
+ if (sentimentResults.length === 0 && (transcription.utterances?.length || 0) > 0) {
+ const gptSentiment = await openAIService.analyzeSentiment(transcription.utterances);
+ sentimentResults = gptSentiment.results;
+ sentimentUsage = gptSentiment.usage;
+ sentimentProvider = 'openai';
+ }
+
+ const sentimentSummary = buildSentimentSummary(sentimentResults, sentimentProvider);
+
+ if (sentimentSummary) {
+ logger.success(' Sentiment analysis completed', {
+ provider: sentimentProvider,
+ overall: sentimentSummary.overall,
+ positivas: sentimentSummary.positive,
+ negativas: sentimentSummary.negative
+ });
+ }
+
  // 3. Analizar imágenes con OpenAI
  progressBroadcaster.progress(sseClientId, 'analysis', 50, 'Analizando imágenes...');
 
@@ -490,8 +518,9 @@ app.post('/api/evaluate',
  imageFiles.length,
  imgInputTokens,
  imgOutputTokens,
- evaluation.usage?.inputTokens || 0,
- evaluation.usage?.outputTokens || 0
+ (evaluation.usage?.inputTokens || 0) + sentimentUsage.inputTokens,
+ (evaluation.usage?.outputTokens || 0) + sentimentUsage.outputTokens,
+ sentimentProvider === 'assemblyai' && sentimentResults.length > 0
  );
 
  logger.info(' Costs calculated:', costs);
@@ -508,7 +537,12 @@ app.post('/api/evaluate',
  excelBase64: excelBase64,
  processingTimeMs: Date.now() - startTime,
  costs,
- companyId: req.user!.company_id ?? null
+ companyId: req.user!.company_id ?? null,
+ audioDuration: transcription.audio_duration ?? null,
+ transcriptionConfidence: transcription.confidence ?? null,
+ languageCode: transcription.language_code,
+ sentimentResults,
+ sentimentSummary
  });
 
  logger.success(' Audit completed successfully', {
@@ -1582,7 +1616,7 @@ app.post('/api/admin/call-types-config', authenticateUser, requireAdminOrAnalyst
     if (!name) {
       return res.status(400).json({ error: 'name es requerido' });
     }
-    const item = await databaseService.createCallTypeConfig({ name, modes, is_active, display_order });
+    const item = await databaseService.createCallTypeConfig({ name, modes, is_active, display_order, company_id: req.user!.company_id ?? undefined });
     // Clonar la configuración base (criterios + scripts) desde otro call_type si se solicita
     if (clone_from) {
       try {
@@ -1920,7 +1954,8 @@ app.get('/api/gpf/attentions', authenticateUser, requireAdminOrAnalyst, async (r
   attentions.map((a: any) => ({
    calificacion: (a['Calificación'] || '').trim(),
    subcalificacion: (a['Sub-calificación'] || '').trim()
-  }))
+  })),
+  req.user!.company_id ?? undefined
  ).catch((syncError: any) => logger.warn('syncCallTypesFromGpf falló:', syncError.message));
 
  res.json({ attentions, count: attentions.length });

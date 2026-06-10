@@ -2,7 +2,7 @@
 
 import OpenAI from 'openai';
 import { logger } from '../utils/logger.js';
-import type { ImageAnalysis } from '../types/index.js';
+import type { ImageAnalysis, SentimentResult, TranscriptWord } from '../types/index.js';
 import * as fs from 'fs';
 import { getDatabaseService } from './database.service.js';
 
@@ -162,6 +162,99 @@ class OpenAIService {
  } catch (error: any) {
  logger.warn('[OPENAI] Post-corrección falló, usando texto original', { error: error.message });
  return text;
+ }
+ }
+
+ /**
+ * Análisis de sentimientos por frase para idiomas no soportados por
+ * AssemblyAI Sentiment Analysis (que solo cubre inglés). Devuelve el mismo
+ * formato que sentiment_analysis_results de AssemblyAI.
+ */
+ async analyzeSentiment(utterances: TranscriptWord[]): Promise<{
+ results: SentimentResult[];
+ usage: { inputTokens: number; outputTokens: number };
+ }> {
+ const emptyUsage = { inputTokens: 0, outputTokens: 0 };
+ if (!utterances || utterances.length === 0) {
+ return { results: [], usage: emptyUsage };
+ }
+
+ // Limitar a 400 utterances para mantener el prompt acotado
+ const items = utterances.slice(0, 400);
+
+ try {
+ logger.info('[OPENAI] Iniciando análisis de sentimientos', { frases: items.length });
+
+ const numberedList = items
+ .map((u, i) => `${i}|${u.speaker}|${u.text}`)
+ .join('\n');
+
+ const response = await this.client.chat.completions.create({
+ model: 'gpt-5.4-mini',
+ temperature: 0,
+ seed: 42,
+ response_format: { type: 'json_object' },
+ messages: [
+ {
+ role: 'system',
+ content: `Eres un analista de sentimientos para llamadas de call center bancario en español/portugués.
+Recibirás frases de una llamada en formato "indice|hablante|texto" (una por línea).
+Clasifica el sentimiento de CADA frase desde la perspectiva emocional del hablante:
+- POSITIVE: amabilidad, satisfacción, agradecimiento, acuerdo, alivio
+- NEGATIVE: molestia, frustración, queja, preocupación, rechazo, urgencia ansiosa
+- NEUTRAL: información factual, preguntas operativas, protocolo estándar
+
+Responde ÚNICAMENTE con JSON válido:
+{"sentiments": [{"i": 0, "s": "NEUTRAL", "c": 0.95}, ...]}
+donde "i" es el índice, "s" el sentimiento y "c" la confianza (0-1).
+Incluye TODOS los índices, en orden.`
+ },
+ { role: 'user', content: numberedList }
+ ]
+ });
+
+ const raw = response.choices[0]?.message?.content?.trim() ?? '{}';
+ const parsed = JSON.parse(raw);
+ const sentiments: Array<{ i: number; s: string; c: number }> = parsed.sentiments || [];
+
+ const validSentiments = new Set(['POSITIVE', 'NEUTRAL', 'NEGATIVE']);
+ const byIndex = new Map<number, { s: string; c: number }>();
+ for (const s of sentiments) {
+ if (typeof s.i === 'number' && validSentiments.has(s.s)) {
+ byIndex.set(s.i, { s: s.s, c: typeof s.c === 'number' ? s.c : 0.5 });
+ }
+ }
+
+ const results: SentimentResult[] = items.map((u, i) => {
+ const match = byIndex.get(i);
+ return {
+ text: u.text,
+ sentiment: (match?.s ?? 'NEUTRAL') as SentimentResult['sentiment'],
+ confidence: match?.c ?? 0.5,
+ speaker: u.speaker ?? null,
+ start: u.start,
+ end: u.end
+ };
+ });
+
+ const usage = {
+ inputTokens: response.usage?.prompt_tokens ?? 0,
+ outputTokens: response.usage?.completion_tokens ?? 0
+ };
+
+ logger.success('[OPENAI] Análisis de sentimientos completado', {
+ frases: results.length,
+ positivas: results.filter(r => r.sentiment === 'POSITIVE').length,
+ negativas: results.filter(r => r.sentiment === 'NEGATIVE').length,
+ tokens: (usage.inputTokens + usage.outputTokens)
+ });
+
+ return { results, usage };
+ } catch (error: any) {
+ logger.warn('[OPENAI] Análisis de sentimientos falló, continuando sin sentimientos', {
+ error: error.message
+ });
+ return { results: [], usage: emptyUsage };
  }
  }
 
@@ -370,6 +463,9 @@ export const openAIService = {
  },
  correctTranscription: async (text: string) => {
  return getOpenAIService().correctTranscription(text);
+ },
+ analyzeSentiment: async (utterances: TranscriptWord[]) => {
+ return getOpenAIService().analyzeSentiment(utterances);
  },
  generateCriterionPrompt: async (description: string, topic: string, callType: string) => {
  return getOpenAIService().generateCriterionPrompt(description, topic, callType);

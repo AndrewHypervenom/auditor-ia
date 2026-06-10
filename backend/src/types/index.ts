@@ -39,6 +39,32 @@ export interface TranscriptWord {
 }
 
 /**
+ * Resultado de análisis de sentimiento por frase
+ * Formato compatible con sentiment_analysis_results de AssemblyAI
+ */
+export interface SentimentResult {
+ text: string;
+ sentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
+ confidence: number; // 0-1
+ speaker: string | null;
+ start: number; // milisegundos
+ end: number; // milisegundos
+}
+
+/**
+ * Resumen agregado de sentimientos de la llamada
+ */
+export interface SentimentSummary {
+ positive: number;
+ neutral: number;
+ negative: number;
+ total: number;
+ overall: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
+ bySpeaker: Record<string, { positive: number; neutral: number; negative: number; overall: string }>;
+ provider: 'assemblyai' | 'openai';
+}
+
+/**
  * Resultado de la transcripción
  */
 export interface TranscriptResult {
@@ -48,6 +74,8 @@ export interface TranscriptResult {
  words?: TranscriptWord[]; // Array opcional de palabras
  audio_duration?: number; // Duración del audio en segundos
  confidence?: number; // Confianza de la transcripción (0-1)
+ language_code?: string; // Idioma detectado/usado en la transcripción
+ sentiment_analysis_results?: SentimentResult[]; // Sentimientos por frase (AssemblyAI, solo inglés)
 }
 
 /**

@@ -55,6 +55,27 @@ export interface EvaluationResult {
   failedCriticalCriteria?: string[];
   dataWarnings?: string[];
   supervisorComments?: Record<string, string>;
+  sentimentResults?: SentimentResult[];
+  sentimentSummary?: SentimentSummary | null;
+}
+
+export interface SentimentResult {
+  text: string;
+  sentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
+  confidence: number;
+  speaker: string | null;
+  start: number; // milisegundos
+  end: number;   // milisegundos
+}
+
+export interface SentimentSummary {
+  positive: number;
+  neutral: number;
+  negative: number;
+  total: number;
+  overall: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
+  bySpeaker: Record<string, { positive: number; neutral: number; negative: number; overall: string }>;
+  provider: 'assemblyai' | 'openai';
 }
 
 export interface KeyMoment {
