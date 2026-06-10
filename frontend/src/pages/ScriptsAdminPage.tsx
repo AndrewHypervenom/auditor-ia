@@ -719,7 +719,7 @@ function CriteriaTab() {
       </div>
 
       {/* Selector de call type + Stat Chips + Botón IA */}
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+      <div className="mb-4 space-y-3">
         <CallTypeSelectorShared selected={selectedCallType} onChange={setSelectedCallType} />
 
         <div className="flex items-center gap-2 flex-wrap">
