@@ -391,6 +391,20 @@ class BatchService {
             .update({ status: 'processing', transcript_text: finalTranscriptText.substring(0, 100_000) })
             .eq('id', item.id);
 
+          // Snapshot de criterios: processBatchResults debe parsear con EXACTAMENTE
+          // los criterios usados para armar el prompt. Si los criterios se editan en BD
+          // entre la fase 1 y la fase 2 (horas después), sin snapshot se pierden
+          // las calificaciones del modelo.
+          const { error: snapErr } = await supabaseAdmin
+            .from('batch_items')
+            .update({ criteria_snapshot: criteria })
+            .eq('id', item.id);
+          if (snapErr) {
+            logger.warn('Batch: no se pudo guardar criteria_snapshot — ¿falta la columna en batch_items? Se usarán los criterios vigentes al procesar resultados', {
+              itemId: item.id, error: snapErr.message,
+            });
+          }
+
         } catch (itemErr: any) {
           // Remove any image requests already added for this item (no eval was added, they'd be orphaned)
           const imgPrefix = `${item.id}__img__`;
@@ -593,7 +607,11 @@ class BatchService {
           }
         }
 
-        const itemCriteria = await databaseService.getCriteriaForCallType(resolvedCallType, subCalificacion || undefined);
+        // Usar el snapshot de criterios congelado al armar el prompt (fase 1);
+        // solo consultar la BD si el snapshot no existe (lotes anteriores a esta función)
+        const itemCriteria = (Array.isArray(item.criteria_snapshot) && item.criteria_snapshot.length > 0)
+          ? item.criteria_snapshot
+          : await databaseService.getCriteriaForCallType(resolvedCallType, subCalificacion || undefined);
         const metadata = {
           ...gpfDataService.normalizeMetadata(attentionObject, item.gpf_attention_id),
           excelType: item.gpf_excel_type as 'INBOUND' | 'MONITOREO',
@@ -869,21 +887,27 @@ REGLA CRÍTICA: Los campos "block" y "topic" deben ser EXACTAMENTE iguales a los
   }
 
   private parseBatchEvalResult(rawEval: any, criteria: any[]): any {
+    const norm = (s: any) => String(s ?? '').toLowerCase().trim();
+
     const topicCriticalityMap = new Map<string, string>(
       criteria.flatMap((block: any) =>
-        (block.topics || []).map((t: any) => [t.topic, t.criticality || '-'])
+        (block.topics || []).map((t: any) => [norm(t.topic), t.criticality || '-'])
       )
     );
 
-    // Map de block|||topic → resultado de OpenAI
+    // Map de block|||topic → resultado de OpenAI (claves normalizadas para
+    // tolerar diferencias de mayúsculas/espacios en la respuesta del modelo)
     const aiResultMap = new Map<string, any>();
+    const aiByTopic = new Map<string, any>();
     const evaluations = rawEval.evaluations ?? rawEval.evaluacion ?? rawEval.evaluaciones ?? [];
     if (Array.isArray(evaluations)) {
       for (const ev of evaluations) {
-        aiResultMap.set(`${ev.block}|||${ev.topic}`, ev);
+        aiResultMap.set(`${norm(ev.block)}|||${norm(ev.topic)}`, ev);
+        if (!aiByTopic.has(norm(ev.topic))) aiByTopic.set(norm(ev.topic), ev);
       }
     }
 
+    const consumed = new Set<any>();
     const detailedScores = criteria.flatMap((block: any) =>
       (block.topics || [])
         .filter((t: any) => t.applies)
@@ -899,16 +923,38 @@ REGLA CRÍTICA: Los campos "block" y "topic" deben ser EXACTAMENTE iguales a los
               requiresManualReview: true,
             };
           }
-          const ai = aiResultMap.get(`${block.blockName}|||${t.topic}`);
+          const ai = aiResultMap.get(`${norm(block.blockName)}|||${norm(t.topic)}`)
+            ?? aiByTopic.get(norm(t.topic));
+          if (ai) consumed.add(ai);
           return {
             criterion: `[${block.blockName}] ${t.topic}`,
             score: ai?.score ?? 0,
             maxScore: ai?.max_score ?? maxScore,
             observations: ai?.justification ?? (ai ? '' : 'No evaluado por el modelo'),
-            criticality: topicCriticalityMap.get(t.topic) || '-',
+            criticality: topicCriticalityMap.get(norm(t.topic)) || '-',
           };
         })
     ).filter(Boolean);
+
+    // Nunca descartar calificaciones del modelo: si una evaluación no hizo match
+    // con los criterios (p. ej. el criterio fue editado/desactivado entre fases),
+    // se conserva igualmente para que el auditor la vea.
+    if (Array.isArray(evaluations)) {
+      for (const ev of evaluations) {
+        if (!consumed.has(ev) && ev?.topic) {
+          logger.warn('Batch: evaluación del modelo sin criterio coincidente — se conserva', {
+            block: ev.block, topic: ev.topic,
+          });
+          detailedScores.push({
+            criterion: `[${ev.block || 'Sin bloque'}] ${ev.topic}`,
+            score: ev.score ?? 0,
+            maxScore: ev.max_score ?? 0,
+            observations: ev.justification ?? '',
+            criticality: topicCriticalityMap.get(norm(ev.topic)) || '-',
+          });
+        }
+      }
+    }
 
     const totalScore = rawEval.total_score ?? rawEval.totalScore ??
       detailedScores.reduce((s: number, d: any) => s + (d?.score ?? 0), 0);

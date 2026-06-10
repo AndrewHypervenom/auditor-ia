@@ -101,31 +101,6 @@ class EvaluatorService {
  totalInputTokens += evalTokens.input;
  totalOutputTokens += evalTokens.output;
 
- // PASO 4b: Verificar si algún criterio crítico obtuvo 0
- const criticalTopics = criteria.flatMap(block =>
- block.topics
- .filter(t => t.applies && t.criticality === 'Crítico' && typeof t.points === 'number')
- .map(t => t.topic)
- );
-
- const failedCriticalCriteria: string[] = (evaluation.evaluations as any[])
- .filter(ev => criticalTopics.includes(ev.topic) && ev.score === 0)
- .map(ev => ev.topic);
-
- const criticalFailure = failedCriticalCriteria.length > 0;
- if (criticalFailure) {
- evaluation.percentage = 0;
- evaluation.total_score = 0;
- logger.warn('Critical failure detected — result forced to 0', { failedCriticalCriteria });
- }
-
- logger.success('Evaluation completed with enhanced matching', {
- totalScore: evaluation.total_score,
- percentage: evaluation.percentage,
- criticalFailure,
- tokensUsed: `${evalTokens.input} input + ${evalTokens.output} output`
- });
-
  // Mapa de criticidad por nombre de tópico (para incluirlo en detailedScores)
  const topicCriticalityMap = new Map<string, string>(
  criteria.flatMap(block =>
@@ -133,11 +108,12 @@ class EvaluatorService {
  )
  );
 
- // Transformar a formato de respuesta — en el orden original de criterios de la BD
- const aiResultMap = new Map<string, any>();
- for (const ev of evaluation.evaluations as any[]) {
-   aiResultMap.set(`${ev.block}|||${ev.topic}`, ev);
- }
+ // Transformar a formato de respuesta — en el orden original de criterios de la BD.
+ // Matching TOLERANTE: el modelo puede devolver block/topic con diferencias de
+ // mayúsculas, espacios o recortes; un criterio jamás se descarta por eso.
+ const evaluationsArr: any[] = Array.isArray(evaluation.evaluations) ? evaluation.evaluations
+   : Array.isArray((evaluation as any).evaluaciones) ? (evaluation as any).evaluaciones : [];
+ const matcher = this.createAiResultMatcher(evaluationsArr);
  const manualMap = new Map<string, any>();
  for (const m of manualTopics) {
    manualMap.set(m.criterion, m);
@@ -147,24 +123,74 @@ class EvaluatorService {
    block.topics
      .filter((t: any) => t.applies || t.requiresManualReview)
      .map((t: any) => {
-       const manualKey = `[${block.blockName}] ${t.topic}`;
+       const criterionKey = `[${block.blockName}] ${t.topic}`;
        if (t.requiresManualReview) {
-         return manualMap.get(manualKey) ?? null;
+         return manualMap.get(criterionKey) ?? null;
        }
-       const ai = aiResultMap.get(`${block.blockName}|||${t.topic}`);
+       const maxScore = t.points === 'n/a' ? 0 : (t.points as number ?? 0);
+       const ai = matcher.match(block.blockName, t.topic);
        if (ai) {
          return {
-           criterion: `[${ai.block}] ${ai.topic}`,
-           score: ai.score,
-           maxScore: ai.max_score,
-           observations: ai.justification,
-           criticality: topicCriticalityMap.get(ai.topic) || '-',
+           // Usar el nombre de la BD (no el del modelo): el visor reordena por esta clave
+           criterion: criterionKey,
+           score: ai.score ?? 0,
+           maxScore: ai.max_score ?? maxScore,
+           observations: ai.justification ?? '',
+           criticality: topicCriticalityMap.get(t.topic) || '-',
          };
        }
-       return null;
+       logger.warn('Criterio sin evaluación del modelo — se conserva en 0', { block: block.blockName, topic: t.topic });
+       return {
+         criterion: criterionKey,
+         score: 0,
+         maxScore,
+         observations: 'No evaluado por el modelo — asigna el puntaje manualmente.',
+         criticality: topicCriticalityMap.get(t.topic) || '-',
+       };
      })
      .filter(Boolean)
- ) as Array<{ criterion: string; score: number; maxScore: number; observations: string; criticality: string }>;
+ ) as Array<{ criterion: string; score: number; maxScore: number; observations: string; criticality: string; requiresManualReview?: boolean }>;
+
+ // Conservar evaluaciones del modelo que no coincidieron con ningún criterio de la BD
+ for (const ev of evaluationsArr) {
+   if (!matcher.consumed.has(ev) && ev?.topic) {
+     logger.warn('Evaluación del modelo sin criterio coincidente — se conserva', { block: ev.block, topic: ev.topic });
+     detailedScores.push({
+       criterion: `[${ev.block || 'Sin bloque'}] ${ev.topic}`,
+       score: ev.score ?? 0,
+       maxScore: ev.max_score ?? 0,
+       observations: ev.justification ?? '',
+       criticality: '-',
+     });
+   }
+ }
+
+ // PASO 4b: Verificar si algún criterio crítico obtuvo 0 (sobre los scores ya matcheados;
+ // los criterios sin evaluación del modelo no cuentan como fallo crítico)
+ const failedCriticalCriteria: string[] = detailedScores
+   .filter((d: any) => !d.requiresManualReview && d.criticality === 'Crítico' && d.maxScore > 0 && d.score === 0
+     && !String(d.observations).startsWith('No evaluado por el modelo'))
+   .map((d: any) => d.criterion);
+
+ const criticalFailure = failedCriticalCriteria.length > 0;
+
+ // Totales consistentes con los criterios guardados (no los que reporta el modelo)
+ const computedTotal = detailedScores.reduce((s: number, d: any) => s + (d.score ?? 0), 0);
+ const computedMax = detailedScores.reduce((s: number, d: any) => s + (d.maxScore ?? 0), 0);
+ evaluation.total_score = computedTotal;
+ evaluation.max_possible_score = computedMax;
+ evaluation.percentage = criticalFailure ? 0 : (computedMax > 0 ? (computedTotal / computedMax) * 100 : 0);
+ if (criticalFailure) {
+   logger.warn('Critical failure detected — result forced to 0', { failedCriticalCriteria });
+ }
+
+ logger.success('Evaluation completed with enhanced matching', {
+ totalScore: evaluation.total_score,
+ percentage: evaluation.percentage,
+ criticalFailure,
+ criteriaCount: detailedScores.length,
+ tokensUsed: `${evalTokens.input} input + ${evalTokens.output} output`
+ });
 
  const keyMoments: Array<{
  timestamp: string;
@@ -205,6 +231,43 @@ class EvaluatorService {
  logger.error('Error in evaluation', error);
  throw error;
  }
+ }
+
+ /**
+  * Matching tolerante entre las evaluaciones devueltas por el modelo y los
+  * criterios de la BD. Normaliza mayúsculas/espacios y tolera recortes de
+  * nombres largos. Lleva registro de las evaluaciones ya consumidas para
+  * poder conservar las que no hicieron match.
+  */
+ private createAiResultMatcher(evaluations: any[]) {
+   const norm = (s: any) => String(s ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
+   const byBlockTopic = new Map<string, any>();
+   const byTopic = new Map<string, any>();
+   for (const ev of evaluations) {
+     const key = `${norm(ev.block)}|||${norm(ev.topic)}`;
+     if (!byBlockTopic.has(key)) byBlockTopic.set(key, ev);
+     const tkey = norm(ev.topic);
+     if (tkey && !byTopic.has(tkey)) byTopic.set(tkey, ev);
+   }
+   const consumed = new Set<any>();
+   const match = (blockName: string, topic: string): any | null => {
+     const exact = byBlockTopic.get(`${norm(blockName)}|||${norm(topic)}`) ?? byTopic.get(norm(topic));
+     if (exact) { consumed.add(exact); return exact; }
+     // Contención: nombres largos que el modelo recorta o amplía
+     const nt = norm(topic);
+     if (nt.length >= 12) {
+       for (const ev of evaluations) {
+         if (consumed.has(ev)) continue;
+         const et = norm(ev.topic);
+         if (et.length >= 12 && (et.includes(nt) || nt.includes(et))) {
+           consumed.add(ev);
+           return ev;
+         }
+       }
+     }
+     return null;
+   };
+   return { match, consumed };
  }
 
  /**
@@ -261,36 +324,44 @@ class EvaluatorService {
      auditInput,
    );
 
-   const criticalTopics = criteria.flatMap(block =>
-     block.topics
-       .filter(t => t.applies && t.criticality === 'Crítico' && typeof t.points === 'number')
-       .map(t => t.topic)
-   );
-   const failedCriticalCriteria = (evaluation.evaluations as any[])
-     .filter(ev => criticalTopics.includes(ev.topic) && ev.score === 0)
-     .map(ev => ev.topic);
-   const criticalFailure = failedCriticalCriteria.length > 0;
-   if (criticalFailure) { evaluation.percentage = 0; evaluation.total_score = 0; }
-
    const topicCriticalityMap = new Map<string, string>(
      criteria.flatMap(block => block.topics.map(t => [t.topic, t.criticality || '-']))
    );
-   const aiResultMap = new Map<string, any>();
-   for (const ev of evaluation.evaluations as any[]) {
-     aiResultMap.set(`${ev.block}|||${ev.topic}`, ev);
-   }
+   const evaluationsArr: any[] = Array.isArray(evaluation.evaluations) ? evaluation.evaluations
+     : Array.isArray((evaluation as any).evaluaciones) ? (evaluation as any).evaluaciones : [];
+   const matcher = this.createAiResultMatcher(evaluationsArr);
    const manualMap = new Map<string, any>();
    for (const m of manualTopics) manualMap.set(m.criterion, m);
 
    const detailedScores = criteria.flatMap(block =>
-     block.topics.filter((t: any) => t.applies).map((t: any) => {
-       const manualKey = `[${block.blockName}] ${t.topic}`;
-       if (t.requiresManualReview) return manualMap.get(manualKey) ?? null;
-       const ai = aiResultMap.get(`${block.blockName}|||${t.topic}`);
-       if (ai) return { criterion: `[${ai.block}] ${ai.topic}`, score: ai.score, maxScore: ai.max_score, observations: ai.justification, criticality: topicCriticalityMap.get(ai.topic) || '-' };
-       return null;
+     block.topics.filter((t: any) => t.applies || t.requiresManualReview).map((t: any) => {
+       const criterionKey = `[${block.blockName}] ${t.topic}`;
+       if (t.requiresManualReview) return manualMap.get(criterionKey) ?? null;
+       const maxScore = t.points === 'n/a' ? 0 : (t.points as number ?? 0);
+       const ai = matcher.match(block.blockName, t.topic);
+       if (ai) return { criterion: criterionKey, score: ai.score ?? 0, maxScore: ai.max_score ?? maxScore, observations: ai.justification ?? '', criticality: topicCriticalityMap.get(t.topic) || '-' };
+       return { criterion: criterionKey, score: 0, maxScore, observations: 'No evaluado por el modelo — asigna el puntaje manualmente.', criticality: topicCriticalityMap.get(t.topic) || '-' };
      }).filter(Boolean)
-   ) as Array<{ criterion: string; score: number; maxScore: number; observations: string; criticality: string }>;
+   ) as Array<{ criterion: string; score: number; maxScore: number; observations: string; criticality: string; requiresManualReview?: boolean }>;
+
+   // Conservar evaluaciones del modelo sin criterio coincidente
+   for (const ev of evaluationsArr) {
+     if (!matcher.consumed.has(ev) && ev?.topic) {
+       detailedScores.push({ criterion: `[${ev.block || 'Sin bloque'}] ${ev.topic}`, score: ev.score ?? 0, maxScore: ev.max_score ?? 0, observations: ev.justification ?? '', criticality: '-' });
+     }
+   }
+
+   const failedCriticalCriteria: string[] = detailedScores
+     .filter((d: any) => !d.requiresManualReview && d.criticality === 'Crítico' && d.maxScore > 0 && d.score === 0
+       && !String(d.observations).startsWith('No evaluado por el modelo'))
+     .map((d: any) => d.criterion);
+   const criticalFailure = failedCriticalCriteria.length > 0;
+
+   const computedTotal = detailedScores.reduce((s: number, d: any) => s + (d.score ?? 0), 0);
+   const computedMax = detailedScores.reduce((s: number, d: any) => s + (d.maxScore ?? 0), 0);
+   evaluation.total_score = computedTotal;
+   evaluation.max_possible_score = computedMax;
+   evaluation.percentage = criticalFailure ? 0 : (computedMax > 0 ? (computedTotal / computedMax) * 100 : 0);
 
    const keyMoments = (evaluation.key_moments || []).map((m: any) => ({ timestamp: m.timestamp, type: m.event, description: m.description }));
 
