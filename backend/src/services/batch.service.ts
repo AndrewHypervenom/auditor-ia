@@ -10,6 +10,7 @@ import { assemblyAIService } from './assemblyai.service.js';
 import { openAIService } from './openai.service.js';
 import { downloadImagesToTemp } from '../utils/image-downloader.js';
 import { buildSyntheticTranscript } from '../utils/synthetic-transcript.js';
+import { buildSentimentSummary } from '../utils/sentiment.js';
 import { excelService } from './excel.service.js';
 import { costCalculatorService } from './cost-calculator.service.js';
 import { getDatabaseService } from './database.service.js';
@@ -300,6 +301,38 @@ class BatchService {
                   const audioText = corrected || rawTranscript.text;
                   finalTranscriptText = `${audioText}\n\n--- DATOS ESTRUCTURADOS GPF ---\n${syntheticTranscript.text}`;
                   logger.success('Batch: audio transcribed', { itemId: item.id, length: finalTranscriptText.length });
+
+                  // Sentimientos: nativos AssemblyAI (EN) o GPT (ES/PT), igual que el flujo en tiempo real.
+                  // Se calculan aquí porque las utterances no sobreviven hasta processBatchResults.
+                  try {
+                    let sentimentResults = rawTranscript.sentiment_analysis_results || [];
+                    let sentimentProvider: 'assemblyai' | 'openai' = 'assemblyai';
+                    if (sentimentResults.length === 0 && (rawTranscript.utterances?.length || 0) > 0) {
+                      const gptSentiment = await openAIService.analyzeSentiment(rawTranscript.utterances);
+                      sentimentResults = gptSentiment.results;
+                      sentimentProvider = 'openai';
+                    }
+                    if (sentimentResults.length > 0) {
+                      const sentimentSummary = buildSentimentSummary(sentimentResults, sentimentProvider);
+                      const { error: sentErr } = await supabaseAdmin
+                        .from('batch_items')
+                        .update({ sentiment_results: sentimentResults, sentiment_summary: sentimentSummary })
+                        .eq('id', item.id);
+                      if (sentErr) {
+                        logger.warn('Batch: no se pudieron guardar sentimientos — ¿faltan las columnas sentiment_results/sentiment_summary en batch_items?', {
+                          itemId: item.id, error: sentErr.message,
+                        });
+                      } else {
+                        logger.success('Batch: sentiment analysis saved', {
+                          itemId: item.id, provider: sentimentProvider, frases: sentimentResults.length,
+                        });
+                      }
+                    }
+                  } catch (sentErr: any) {
+                    logger.warn('Batch: análisis de sentimientos falló, continuando sin sentimientos', {
+                      itemId: item.id, error: sentErr.message,
+                    });
+                  }
                 }
               } else {
                 logger.warn('Batch: audio download failed', { itemId: item.id, status: audioResponse.status });
@@ -610,6 +643,8 @@ class BatchService {
           excelBase64,
           processingTimeMs: 0,
           costs,
+          sentimentResults: item.sentiment_results || [],
+          sentimentSummary: item.sentiment_summary || null,
         });
 
         // Actualizar batch_item con audit_id
