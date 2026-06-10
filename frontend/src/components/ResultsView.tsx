@@ -87,6 +87,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
   );
   const [sentimentSummary, setSentimentSummary] = useState<any>(result?.sentimentSummary ?? null);
   const [generatingSentiment, setGeneratingSentiment] = useState(false);
+  const [sentimentFilter, setSentimentFilter] = useState<'all' | 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE'>('all');
 
   const handleGenerateSentiment = async () => {
     if (!auditId || generatingSentiment) return;
@@ -1097,66 +1098,149 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
               );
             }
             const pct = (n: number, total: number) => total > 0 ? Math.round((n / total) * 100) : 0;
-            const sentimentCfg = (s: string) => s === 'POSITIVE'
-              ? { icon: <Smile className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />, border: 'border-l-green-500/60', text: 'text-slate-300' }
-              : s === 'NEGATIVE'
-                ? { icon: <Frown className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />, border: 'border-l-red-500/60', text: 'text-slate-300' }
-                : { icon: <Meh className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />, border: 'border-l-slate-600/40', text: 'text-slate-500' };
             const msToTime = (ms: number) => {
               const totalSec = Math.floor(ms / 1000);
               return `${String(Math.floor(totalSec / 60)).padStart(2, '0')}:${String(totalSec % 60).padStart(2, '0')}`;
             };
+            const speakerColor = (sp: string | null) => sp === 'A'
+              ? 'bg-cyan-500/15 text-cyan-300 border-cyan-700/40'
+              : 'bg-violet-500/15 text-violet-300 border-violet-700/40';
+            const filtered = sentimentFilter === 'all' ? results : results.filter((r: any) => r.sentiment === sentimentFilter);
+
             return (
               <div className="border-t border-dark-border">
                 {summary && (
-                  <div className="px-4 py-3 border-b border-dark-border/60 space-y-3">
-                    {/* Barra de distribución */}
-                    <div>
-                      <div className="flex h-2 rounded-full overflow-hidden bg-dark-bg/60">
-                        {summary.positive > 0 && <div className="bg-green-500/70" style={{ width: `${pct(summary.positive, summary.total)}%` }} />}
-                        {summary.neutral > 0 && <div className="bg-slate-600/70" style={{ width: `${pct(summary.neutral, summary.total)}%` }} />}
-                        {summary.negative > 0 && <div className="bg-red-500/70" style={{ width: `${pct(summary.negative, summary.total)}%` }} />}
+                  <div className="px-4 py-4 border-b border-dark-border/60 space-y-4">
+                    {/* Tarjetas de resumen */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {(() => {
+                        const overallCfg = summary.overall === 'POSITIVE'
+                          ? { cls: 'border-green-700/30 bg-green-500/[0.06]', txt: 'text-green-400', label: 'Positivo', icon: <Smile className="w-5 h-5 text-green-400" /> }
+                          : summary.overall === 'NEGATIVE'
+                            ? { cls: 'border-red-700/30 bg-red-500/[0.06]', txt: 'text-red-400', label: 'Negativo', icon: <Frown className="w-5 h-5 text-red-400" /> }
+                            : { cls: 'border-slate-600/30 bg-slate-500/[0.06]', txt: 'text-slate-300', label: 'Neutral', icon: <Meh className="w-5 h-5 text-slate-400" /> };
+                        return (
+                          <div className={`rounded-xl border px-3 py-2.5 flex items-center gap-2.5 ${overallCfg.cls}`}>
+                            {overallCfg.icon}
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Tono general</p>
+                              <p className={`text-sm font-bold ${overallCfg.txt}`}>{overallCfg.label}</p>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      <div className="rounded-xl border border-dark-border bg-white/[0.015] px-3 py-2.5 flex items-center gap-2.5">
+                        <Smile className="w-5 h-5 text-green-400" />
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Positivas</p>
+                          <p className="text-sm font-bold text-slate-200">{summary.positive} <span className="text-xs font-medium text-slate-500">({pct(summary.positive, summary.total)}%)</span></p>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-4 mt-2 text-xs">
-                        <span className="flex items-center gap-1.5 text-green-400">
-                          <Smile className="w-3.5 h-3.5" /> {summary.positive} ({pct(summary.positive, summary.total)}%)
-                        </span>
-                        <span className="flex items-center gap-1.5 text-slate-400">
-                          <Meh className="w-3.5 h-3.5" /> {summary.neutral} ({pct(summary.neutral, summary.total)}%)
-                        </span>
-                        <span className="flex items-center gap-1.5 text-red-400">
-                          <Frown className="w-3.5 h-3.5" /> {summary.negative} ({pct(summary.negative, summary.total)}%)
-                        </span>
+                      <div className="rounded-xl border border-dark-border bg-white/[0.015] px-3 py-2.5 flex items-center gap-2.5">
+                        <Meh className="w-5 h-5 text-slate-400" />
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Neutrales</p>
+                          <p className="text-sm font-bold text-slate-200">{summary.neutral} <span className="text-xs font-medium text-slate-500">({pct(summary.neutral, summary.total)}%)</span></p>
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-dark-border bg-white/[0.015] px-3 py-2.5 flex items-center gap-2.5">
+                        <Frown className="w-5 h-5 text-red-400" />
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Negativas</p>
+                          <p className="text-sm font-bold text-slate-200">{summary.negative} <span className="text-xs font-medium text-slate-500">({pct(summary.negative, summary.total)}%)</span></p>
+                        </div>
                       </div>
                     </div>
-                    {/* Resumen por hablante */}
-                    <div className="flex flex-wrap gap-2">
-                      {Object.entries(summary.bySpeaker).map(([speaker, s]) => {
-                        const cls = s.overall === 'POSITIVE'
-                          ? 'bg-green-500/10 text-green-400 border-green-700/30'
-                          : s.overall === 'NEGATIVE'
-                            ? 'bg-red-500/10 text-red-400 border-red-700/30'
-                            : 'bg-slate-500/10 text-slate-400 border-slate-600/30';
+
+                    {/* Evolución cronológica de la llamada */}
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1.5">Evolución de la llamada</p>
+                      <div className="flex h-2.5 rounded-full overflow-hidden bg-dark-bg/60 gap-px">
+                        {results.map((r: any, i: number) => (
+                          <div
+                            key={i}
+                            title={`${msToTime(r.start)} · ${r.speaker ? `Hablante ${r.speaker} · ` : ''}${r.sentiment === 'POSITIVE' ? 'Positivo' : r.sentiment === 'NEGATIVE' ? 'Negativo' : 'Neutral'}`}
+                            className={`flex-1 ${r.sentiment === 'POSITIVE' ? 'bg-green-500/80' : r.sentiment === 'NEGATIVE' ? 'bg-red-500/80' : 'bg-slate-600/50'}`}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex justify-between mt-1 text-[10px] text-slate-600 font-mono">
+                        <span>{msToTime(results[0]?.start ?? 0)}</span>
+                        <span>{msToTime(results[results.length - 1]?.end ?? results[results.length - 1]?.start ?? 0)}</span>
+                      </div>
+                    </div>
+
+                    {/* Por hablante */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {Object.entries(summary.bySpeaker).map(([speaker, s]: [string, any]) => {
+                        const sTotal = s.positive + s.neutral + s.negative;
                         return (
-                          <span key={speaker} className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium border ${cls}`}>
-                            Hablante {speaker}: +{s.positive} / −{s.negative}
-                          </span>
+                          <div key={speaker} className="rounded-xl border border-dark-border bg-white/[0.015] px-3 py-2.5">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className={`w-6 h-6 rounded-full border flex items-center justify-center text-xs font-bold ${speakerColor(speaker)}`}>
+                                {speaker || '?'}
+                              </span>
+                              <span className="text-xs font-semibold text-slate-300">Hablante {speaker || '?'}</span>
+                              <span className="ml-auto text-[11px] font-medium">
+                                <span className="text-green-400">+{s.positive}</span>
+                                <span className="text-slate-600 mx-1">·</span>
+                                <span className="text-red-400">−{s.negative}</span>
+                              </span>
+                            </div>
+                            <div className="flex h-1.5 rounded-full overflow-hidden bg-dark-bg/60">
+                              {s.positive > 0 && <div className="bg-green-500/70" style={{ width: `${pct(s.positive, sTotal)}%` }} />}
+                              {s.neutral > 0 && <div className="bg-slate-600/60" style={{ width: `${pct(s.neutral, sTotal)}%` }} />}
+                              {s.negative > 0 && <div className="bg-red-500/70" style={{ width: `${pct(s.negative, sTotal)}%` }} />}
+                            </div>
+                          </div>
                         );
                       })}
                     </div>
                   </div>
                 )}
-                {/* Lista de frases con sentimiento */}
-                <div className="max-h-80 overflow-y-auto divide-y divide-dark-border/40">
-                  {results.map((r, i) => {
-                    const cfg = sentimentCfg(r.sentiment);
+
+                {/* Filtros */}
+                <div className="px-4 py-2 border-b border-dark-border/60 flex items-center gap-1.5 flex-wrap">
+                  {([
+                    { key: 'all', label: `Todas (${results.length})`, active: 'bg-brand-500/15 text-brand-300 border-brand-700/40' },
+                    { key: 'POSITIVE', label: `Positivas (${results.filter((r: any) => r.sentiment === 'POSITIVE').length})`, active: 'bg-green-500/15 text-green-300 border-green-700/40' },
+                    { key: 'NEUTRAL', label: `Neutrales (${results.filter((r: any) => r.sentiment === 'NEUTRAL').length})`, active: 'bg-slate-500/20 text-slate-300 border-slate-500/40' },
+                    { key: 'NEGATIVE', label: `Negativas (${results.filter((r: any) => r.sentiment === 'NEGATIVE').length})`, active: 'bg-red-500/15 text-red-300 border-red-700/40' },
+                  ] as const).map(f => (
+                    <button
+                      key={f.key}
+                      onClick={() => setSentimentFilter(f.key as any)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                        sentimentFilter === f.key ? f.active : 'border-dark-border text-slate-500 hover:text-slate-300 hover:border-slate-600'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Conversación estilo chat */}
+                <div className="max-h-96 overflow-y-auto px-4 py-3 space-y-2">
+                  {filtered.length === 0 && (
+                    <p className="text-xs text-slate-600 text-center py-4">No hay frases con este sentimiento.</p>
+                  )}
+                  {filtered.map((r: any, i: number) => {
+                    const cfg = r.sentiment === 'POSITIVE'
+                      ? { icon: <Smile className="w-3.5 h-3.5 text-green-400" />, bubble: 'border-green-700/30 bg-green-500/[0.05]', text: 'text-slate-200' }
+                      : r.sentiment === 'NEGATIVE'
+                        ? { icon: <Frown className="w-3.5 h-3.5 text-red-400" />, bubble: 'border-red-700/30 bg-red-500/[0.05]', text: 'text-slate-200' }
+                        : { icon: <Meh className="w-3.5 h-3.5 text-slate-500" />, bubble: 'border-dark-border bg-white/[0.01]', text: 'text-slate-400' };
                     return (
-                      <div key={i} className={`flex items-start gap-2.5 px-4 py-2 border-l-2 ${cfg.border} hover:bg-white/[0.015] transition-colors`}>
-                        <span className="flex-shrink-0 font-mono text-xs text-slate-600 tabular-nums mt-0.5">{msToTime(r.start)}</span>
-                        {cfg.icon}
-                        <div className="min-w-0">
-                          {r.speaker && <span className="text-xs font-bold text-brand-400 mr-1.5">{r.speaker}:</span>}
-                          <span className={`text-xs leading-relaxed ${cfg.text}`}>{r.text}</span>
+                      <div key={i} className="flex items-start gap-2">
+                        <span className={`flex-shrink-0 w-6 h-6 rounded-full border flex items-center justify-center text-[10px] font-bold mt-0.5 ${speakerColor(r.speaker)}`}>
+                          {r.speaker || '?'}
+                        </span>
+                        <div className={`min-w-0 flex-1 rounded-lg border px-3 py-1.5 ${cfg.bubble}`}>
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="font-mono text-[10px] text-slate-600 tabular-nums">{msToTime(r.start)}</span>
+                            {cfg.icon}
+                          </div>
+                          <p className={`text-xs leading-relaxed ${cfg.text}`}>{r.text}</p>
                         </div>
                       </div>
                     );

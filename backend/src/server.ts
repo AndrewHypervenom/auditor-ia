@@ -2539,6 +2539,10 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
  let finalTranscript = syntheticTranscript;
  let audioDurationSeconds = 0;
  let audioOnlyTranscriptText: string | null = null; // solo la transcripción de AssemblyAI, sin datos GPF
+ let gpfUtterances: any[] = []; // utterances reales del audio (para sentimientos)
+ let gpfNativeSentiment: any[] = []; // sentimientos nativos de AssemblyAI (solo EN)
+ let gpfLanguageCode: string | undefined;
+ let gpfTranscriptionConfidence: number | null = null;
 
  try {
  logger.info('[PASO 5] Solicitando URL de audio a GPF...', { attentionId, env });
@@ -2618,6 +2622,10 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
  : transcriptionResultRaw;
  if (transcriptionResult?.text) {
  audioOnlyTranscriptText = transcriptionResult.text; // guardar solo el audio para mostrar en UI
+ gpfUtterances = transcriptionResult.utterances || [];
+ gpfNativeSentiment = transcriptionResult.sentiment_analysis_results || [];
+ gpfLanguageCode = transcriptionResult.language_code;
+ gpfTranscriptionConfidence = transcriptionResult.confidence ?? null;
  // Combinar transcript real de audio + datos estructurados GPF
  // para que el evaluador tenga TODO el contexto disponible
  const combinedText = `${transcriptionResult.text}\n\n--- DATOS ESTRUCTURADOS GPF ---\n${syntheticTranscript.text}`;
@@ -2653,6 +2661,34 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
  });
  progressBroadcaster.progress(sseClientId, 'audio', 72,
  `[AUDIO] ERROR: ${audioError.message || 'fallo al obtener audio'}`);
+ }
+
+ // ── 5b. Análisis de sentimientos (automático en cada llamada con audio) ──
+ // AssemblyAI solo soporta sentimientos nativos en inglés; para ES/PT se
+ // calculan con OpenAI sobre las utterances reales del audio.
+ let sentimentResults: any[] = gpfNativeSentiment;
+ let sentimentProvider: 'assemblyai' | 'openai' = 'assemblyai';
+ let sentimentUsage = { inputTokens: 0, outputTokens: 0 };
+
+ if (sentimentResults.length === 0 && gpfUtterances.length > 0) {
+ progressBroadcaster.progress(sseClientId, 'audio', 73, '[AUDIO] Analizando sentimientos de la llamada...');
+ try {
+ const gptSentiment = await openAIService.analyzeSentiment(gpfUtterances);
+ sentimentResults = gptSentiment.results;
+ sentimentUsage = gptSentiment.usage;
+ sentimentProvider = 'openai';
+ } catch (sentErr: any) {
+ logger.warn('[PASO 5b] Análisis de sentimientos falló, continuando sin sentimientos', { error: sentErr.message });
+ }
+ }
+
+ const sentimentSummary = buildSentimentSummary(sentimentResults, sentimentProvider);
+ if (sentimentSummary) {
+ logger.success('[PASO 5b] Sentimientos analizados', {
+ provider: sentimentProvider,
+ overall: sentimentSummary.overall,
+ frases: sentimentResults.length
+ });
  }
 
  // ── 6. Evaluate ──────────────────────────────────────────────────────────
@@ -2744,12 +2780,13 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
  const imgInputTokensGpf = imageAnalyses.reduce((s: number, img: any) => s + (img.usage?.input_tokens || 0), 0);
  const imgOutputTokensGpf = imageAnalyses.reduce((s: number, img: any) => s + (img.usage?.output_tokens || 0), 0);
  const costs = costCalculatorService.calculateTotalCost(
- audioDurationSeconds / 60,
+ audioDurationSeconds, // en segundos (calculateAssemblyAICost divide entre 60 internamente)
  localPaths.length,
  imgInputTokensGpf,
  imgOutputTokensGpf,
- evaluation.usage?.inputTokens || 0,
- evaluation.usage?.outputTokens || 0
+ (evaluation.usage?.inputTokens || 0) + sentimentUsage.inputTokens,
+ (evaluation.usage?.outputTokens || 0) + sentimentUsage.outputTokens,
+ sentimentProvider === 'assemblyai' && sentimentResults.length > 0
  );
 
  // Adjuntar advertencias de calidad de datos al resultado
@@ -2769,7 +2806,12 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
  excelBase64,
  processingTimeMs: Date.now() - startTime,
  costs,
- companyId: req.user!.company_id ?? null
+ companyId: req.user!.company_id ?? null,
+ audioDuration: audioDurationSeconds || null,
+ transcriptionConfidence: gpfTranscriptionConfidence,
+ languageCode: gpfLanguageCode,
+ sentimentResults,
+ sentimentSummary
  });
 
  logger.success(' GPF audit completed', {
