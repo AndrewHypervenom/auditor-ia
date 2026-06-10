@@ -188,7 +188,9 @@ export default function NewAuditPage() {
  };
 
  // Unique values for selects (derived from loaded attentions)
- const uniqueCalificaciones = ['FRAUDE/ROEXT', 'TH CONFIRMA MOVIMIENTOS'];
+ const uniqueCalificaciones = useMemo(() => {
+ return [...new Set(attentions.map((a) => getAttentionCalificacion(a).trim()).filter(Boolean))].sort();
+ }, [attentions]);
  const uniqueSubcals = useMemo(() => {
  const base = filterCalificacion
  ? attentions.filter((a) => getAttentionCalificacion(a).trim().toLowerCase() === filterCalificacion.trim().toLowerCase())
@@ -199,8 +201,6 @@ export default function NewAuditPage() {
  // Filtered list
  const filteredAttentions = useMemo(() => {
  return attentions.filter((a) => {
- const calNorm = getAttentionCalificacion(a).trim().toLowerCase();
- if (!calNorm.includes("fraude") && !calNorm.includes("th confirma")) return false;
  if (filterAgent && !getAttentionExecutive(a).toLowerCase().includes(filterAgent.toLowerCase())) return false;
  if (filterClient) {
  const term = filterClient.toLowerCase();

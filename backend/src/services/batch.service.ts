@@ -314,7 +314,7 @@ class BatchService {
           const calificacion = attentionObject['Calificación'] || '';
           const subCalificacion = attentionObject['Sub-calificación'] || '';
           if (calificacion && !resolvedCallType) {
-            const direct = databaseService.resolveCallTypeFromText(calificacion);
+            const direct = await databaseService.resolveCallTypeFromText(calificacion);
             if (direct) {
               resolvedCallType = direct;
             } else {
@@ -549,7 +549,7 @@ class BatchService {
         const calificacion = attentionObject['Calificación'] || '';
         const subCalificacion = attentionObject['Sub-calificación'] || '';
         if (calificacion && !resolvedCallType) {
-          const direct = databaseService.resolveCallTypeFromText(calificacion);
+          const direct = await databaseService.resolveCallTypeFromText(calificacion);
           if (direct) {
             resolvedCallType = direct;
           } else {

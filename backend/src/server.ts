@@ -1578,11 +1578,19 @@ app.get('/api/admin/call-types-config', authenticateUser, requireAdminOrAnalyst,
 
 app.post('/api/admin/call-types-config', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
-    const { name, modes, is_active, display_order } = req.body;
+    const { name, modes, is_active, display_order, clone_from } = req.body;
     if (!name) {
       return res.status(400).json({ error: 'name es requerido' });
     }
     const item = await databaseService.createCallTypeConfig({ name, modes, is_active, display_order });
+    // Clonar la configuración base (criterios + scripts) desde otro call_type si se solicita
+    if (clone_from) {
+      try {
+        await databaseService.cloneCallTypeData(clone_from, item.name);
+      } catch (cloneError: any) {
+        logger.warn(`No se pudo clonar configuración de "${clone_from}" a "${item.name}":`, cloneError.message);
+      }
+    }
     res.status(201).json(item);
   } catch (error: any) {
     logger.error('Error creating call_type_config:', error);
@@ -1905,6 +1913,16 @@ app.get('/api/gpf/attentions', authenticateUser, requireAdminOrAnalyst, async (r
  const dateTo   = req.query.date_to   as string | undefined;
  const token = await gpfTokenService.getTokenWithRetry(env);
  const attentions = await gpfDataService.getAttentions(env, token, dateFrom, dateTo);
+
+ // Auto-registrar calificaciones/subcalificaciones nuevas de GPF (en segundo plano,
+ // no bloquea la respuesta): crea call types con config base clonada y plantilla.
+ void databaseService.syncCallTypesFromGpf(
+  attentions.map((a: any) => ({
+   calificacion: (a['Calificación'] || '').trim(),
+   subcalificacion: (a['Sub-calificación'] || '').trim()
+  }))
+ ).catch((syncError: any) => logger.warn('syncCallTypesFromGpf falló:', syncError.message));
+
  res.json({ attentions, count: attentions.length });
  } catch (error: any) {
  logger.error('Error fetching GPF attentions:', error);
@@ -2264,7 +2282,7 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
  const subCalificacion = (attentionObject || {})['Sub-calificación'] || '';
  if (calificacion) {
    // Intento 1: resolver directamente desde el texto (ej. "TH Confirma Movimientos" → "TH CONFIRMA")
-   const directCallType = databaseService.resolveCallTypeFromText(calificacion);
+   const directCallType = await databaseService.resolveCallTypeFromText(calificacion);
    if (directCallType) {
      metadata.callType = directCallType;
      logger.info('[PASO 1] callType resuelto por texto directo', { calificacion, directCallType });

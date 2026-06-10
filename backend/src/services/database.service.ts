@@ -728,15 +728,31 @@ class DatabaseService {
     return callType;
   }
 
-  /** Resuelve el call_type directamente desde el texto de la calificación, sin consultar la BD.
-   *  Retorna el tipo normalizado ('FRAUDE', 'TH CONFIRMA') si el texto lo contiene,
-   *  o null si no hay coincidencia con ningún tipo conocido.
+  /** Resuelve el call_type desde el texto de la calificación.
+   *  Primero aplica las reglas de texto conocidas ('FRAUDE', 'TH CONFIRMA') y luego
+   *  compara dinámicamente contra los tipos activos en call_types_config (con caché),
+   *  de modo que cualquier calificación nueva de GPF configurada en el admin funcione.
+   *  Retorna null si no hay coincidencia con ningún tipo configurado.
    *  Nota: MONITOREO es un modo (INBOUND vs OUTBOUND), no un call_type.
    */
-  resolveCallTypeFromText(text: string): string | null {
+  async resolveCallTypeFromText(text: string): Promise<string | null> {
     const normalized = this.normalizeCallTypeForDB(text);
-    const KNOWN_TYPES = ['FRAUDE', 'TH CONFIRMA'];
-    return KNOWN_TYPES.includes(normalized) ? normalized : null;
+    if (normalized === 'FRAUDE' || normalized === 'TH CONFIRMA') return normalized;
+
+    // Comparación flexible: mayúsculas, sin acentos, coincidencia por inclusión
+    const strip = (s: string) => s.toUpperCase().trim()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const target = strip(text);
+    if (!target) return null;
+
+    const types = (await this.getCallTypesConfig()).filter((t: any) => t.is_active !== false);
+    const exact = types.find((t: any) => strip(t.name) === target);
+    if (exact) return exact.name;
+    const partial = types.find((t: any) => {
+      const name = strip(t.name);
+      return target.includes(name) || name.includes(target);
+    });
+    return partial ? partial.name : null;
   }
 
   async getCriteriaForCallType(callType: string, subCalificacion?: string, companyId?: string): Promise<any[]> {
@@ -759,6 +775,12 @@ class DatabaseService {
       throw new Error(`Error al cargar bloques de criterios desde la BD: ${blocksError.message}`);
     }
     if (!blocks || blocks.length === 0) {
+      // Info de base compartida: si el call_type aún no tiene criterios propios,
+      // usar los criterios base de FRAUDE para que la evaluación siempre funcione.
+      if (normalized !== 'FRAUDE') {
+        logger.warn(`getCriteriaForCallType: sin bloques para "${normalized}" — usando criterios base compartidos (FRAUDE)`, { original: callType });
+        return this.getCriteriaForCallType('FRAUDE', subCalificacion, companyId);
+      }
       throw new Error(`No hay bloques activos en la BD para call_type: "${normalized}" (original: "${callType}")`);
     }
 
@@ -1439,6 +1461,184 @@ class DatabaseService {
   }
 
   /**
+   * Clona la configuración base (bloques de criterios + criterios + scripts)
+   * de un call_type existente hacia uno nuevo, para que arranque con la
+   * info de base compartida y sea editable de forma independiente.
+   * Es idempotente: si el destino ya tiene bloques, no hace nada.
+   */
+  async cloneCallTypeData(fromCallType: string, toCallType: string): Promise<void> {
+    if (!fromCallType || !toCallType || fromCallType === toCallType) return;
+
+    // No clonar si el destino ya tiene bloques propios
+    const { data: existing } = await supabaseAdmin
+      .from('evaluation_blocks')
+      .select('id')
+      .eq('call_type', toCallType)
+      .limit(1);
+    if (existing && existing.length > 0) {
+      logger.info(`cloneCallTypeData: "${toCallType}" ya tiene bloques, no se clona`);
+      return;
+    }
+
+    // 1. Clonar bloques de criterios
+    const { data: blocks, error: blocksError } = await supabaseAdmin
+      .from('evaluation_blocks')
+      .select('*')
+      .eq('call_type', fromCallType);
+    if (blocksError) throw blocksError;
+
+    for (const block of (blocks || [])) {
+      const { id: oldBlockId, created_at, updated_at, ...blockFields } = block;
+      const { data: newBlock, error: insertBlockError } = await supabaseAdmin
+        .from('evaluation_blocks')
+        .insert({ ...blockFields, call_type: toCallType })
+        .select('id')
+        .single();
+      if (insertBlockError) throw insertBlockError;
+
+      const { data: criteria, error: criteriaError } = await supabaseAdmin
+        .from('evaluation_criteria')
+        .select('*')
+        .eq('block_id', oldBlockId);
+      if (criteriaError) throw criteriaError;
+
+      if (criteria && criteria.length > 0) {
+        const newCriteria = criteria.map((c: any) => {
+          const { id, created_at: ca, updated_at: ua, ...fields } = c;
+          return { ...fields, block_id: newBlock.id };
+        });
+        const { error: insertCriteriaError } = await supabaseAdmin
+          .from('evaluation_criteria')
+          .insert(newCriteria);
+        if (insertCriteriaError) throw insertCriteriaError;
+      }
+    }
+
+    // 2. Clonar scripts de agentes
+    const { data: scripts, error: scriptsError } = await supabaseAdmin
+      .from('call_scripts')
+      .select('*')
+      .eq('call_type', fromCallType);
+    if (scriptsError) throw scriptsError;
+
+    if (scripts && scripts.length > 0) {
+      const newScripts = scripts.map((s: any) => {
+        const { id, created_at, updated_at, ...fields } = s;
+        return { ...fields, call_type: toCallType };
+      });
+      const { error: insertScriptsError } = await supabaseAdmin
+        .from('call_scripts')
+        .insert(newScripts);
+      if (insertScriptsError) throw insertScriptsError;
+    }
+
+    this.invalidateCriteriaCache();
+    this.invalidateScriptsCache();
+    logger.success(`cloneCallTypeData: configuración base clonada de "${fromCallType}" → "${toCallType}"`, {
+      bloques: blocks?.length ?? 0,
+      scripts: scripts?.length ?? 0
+    });
+  }
+
+  /**
+   * Sincroniza las calificaciones/subcalificaciones observadas en GPF con la
+   * configuración del sistema: cada calificación nueva se registra como call_type
+   * (clonando la config base de FRAUDE) y sus subcalificaciones se agregan a la
+   * plantilla GPF para que aparezcan en el admin y todo funcione de inmediato.
+   */
+  async syncCallTypesFromGpf(entries: Array<{ calificacion: string; subcalificacion: string }>): Promise<void> {
+    // Agrupar subcalificaciones por calificación (limpias y únicas)
+    const byCal = new Map<string, Set<string>>();
+    for (const e of entries) {
+      const cal = (e.calificacion || '').trim();
+      if (!cal) continue;
+      if (!byCal.has(cal)) byCal.set(cal, new Set());
+      const sub = (e.subcalificacion || '').trim();
+      if (sub) byCal.get(cal)!.add(sub);
+    }
+    if (byCal.size === 0) return;
+
+    const existingTypes = await this.getCallTypesConfig();
+    const maxOrder = existingTypes.reduce((m: number, t: any) => Math.max(m, t.display_order ?? 0), 0);
+    let nextOrder = maxOrder + 1;
+
+    for (const [calificacion, subcals] of byCal) {
+      // ¿Ya se resuelve a un tipo configurado (por texto o por plantilla)?
+      const resolved = await this.resolveCallTypeFromText(calificacion)
+        ?? await this.getCallTypeFromPlantilla(calificacion);
+      const callTypeName = resolved ?? calificacion.toUpperCase();
+
+      if (!resolved) {
+        // Registrar la calificación nueva como call_type editable en el admin
+        try {
+          await this.createCallTypeConfig({
+            name: callTypeName,
+            modes: ['INBOUND', 'MONITOREO'],
+            is_active: true,
+            display_order: nextOrder++
+          });
+          logger.info(`syncCallTypesFromGpf: calificación nueva registrada → "${callTypeName}"`);
+        } catch (err: any) {
+          // Carrera o duplicado: continuar sin fallar
+          logger.warn(`syncCallTypesFromGpf: no se pudo crear "${callTypeName}": ${err.message}`);
+          continue;
+        }
+
+        // Clonar criterios y scripts base (info compartida) para que sea editable
+        try {
+          await this.cloneCallTypeData('FRAUDE', callTypeName);
+        } catch (err: any) {
+          logger.warn(`syncCallTypesFromGpf: error clonando base para "${callTypeName}": ${err.message}`);
+        }
+      }
+
+      // Asegurar que las subcalificaciones observadas existan en la plantilla GPF
+      if (subcals.size === 0) continue;
+      try {
+        const { data: plantillaRows } = await supabaseAdmin
+          .from('plantilla_gpf')
+          .select('categoria, tipo_cierre, mode, categoria_orden, tipo_orden')
+          .eq('call_type', callTypeName);
+
+        const normalize = (s: string) => s.toUpperCase().trim()
+          .normalize('NFD').replace(/[̀-ͯ]/g, '');
+        const existingPairs = new Set(
+          (plantillaRows || []).map((r: any) => `${r.mode}|||${normalize(r.tipo_cierre)}`)
+        );
+        const categoriaOrden = (plantillaRows || []).find((r: any) => normalize(r.categoria) === normalize(calificacion))?.categoria_orden
+          ?? ((plantillaRows || []).reduce((m: number, r: any) => Math.max(m, r.categoria_orden ?? 0), 0) + 1);
+        let tipoOrden = (plantillaRows || []).reduce((m: number, r: any) => Math.max(m, r.tipo_orden ?? 0), 0) + 1;
+
+        const newRows: any[] = [];
+        for (const sub of subcals) {
+          for (const mode of ['INBOUND', 'MONITOREO']) {
+            if (existingPairs.has(`${mode}|||${normalize(sub)}`)) continue;
+            newRows.push({
+              categoria: calificacion.toUpperCase(),
+              tipo_cierre: sub.toUpperCase(),
+              descripcion: '',
+              categoria_orden: categoriaOrden,
+              tipo_orden: tipoOrden,
+              call_type: callTypeName,
+              mode
+            });
+          }
+          tipoOrden++;
+        }
+        if (newRows.length > 0) {
+          const { error: plantillaError } = await supabaseAdmin
+            .from('plantilla_gpf')
+            .insert(newRows);
+          if (plantillaError) throw plantillaError;
+          logger.info(`syncCallTypesFromGpf: ${newRows.length} subcalificaciones agregadas a plantilla para "${callTypeName}"`);
+        }
+      } catch (err: any) {
+        logger.warn(`syncCallTypesFromGpf: error sincronizando plantilla de "${callTypeName}": ${err.message}`);
+      }
+    }
+  }
+
+  /**
    * Registrar actividad de auditorÃ­a
    */
   async logAuditActivity(
@@ -1702,6 +1902,8 @@ export const databaseService = {
   createCallTypeConfig: (payload: Parameters<DatabaseService['createCallTypeConfig']>[0]) => getDatabaseService().createCallTypeConfig(payload),
   updateCallTypeConfig: (id: string, payload: Parameters<DatabaseService['updateCallTypeConfig']>[1]) => getDatabaseService().updateCallTypeConfig(id, payload),
   deleteCallTypeConfig: (id: string) => getDatabaseService().deleteCallTypeConfig(id),
+  cloneCallTypeData: (fromCallType: string, toCallType: string) => getDatabaseService().cloneCallTypeData(fromCallType, toCallType),
+  syncCallTypesFromGpf: (entries: Array<{ calificacion: string; subcalificacion: string }>) => getDatabaseService().syncCallTypesFromGpf(entries),
   // Scripts dinámicos
   getScriptsForCallType: (callType: string, companyId?: string) => getDatabaseService().getScriptsForCallType(callType, companyId),
   getAllScripts: (companyId?: string) => getDatabaseService().getAllScripts(companyId),

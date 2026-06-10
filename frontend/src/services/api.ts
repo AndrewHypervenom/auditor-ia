@@ -882,7 +882,7 @@ export const callTypesConfigService = {
     const response = await api.get('/admin/call-types-config');
     return response.data as CallTypeConfig[];
   },
-  async create(payload: Pick<CallTypeConfig, 'name'> & Partial<Pick<CallTypeConfig, 'modes' | 'is_active' | 'display_order'>>): Promise<CallTypeConfig> {
+  async create(payload: Pick<CallTypeConfig, 'name'> & Partial<Pick<CallTypeConfig, 'modes' | 'is_active' | 'display_order'>> & { clone_from?: string }): Promise<CallTypeConfig> {
     const response = await api.post('/admin/call-types-config', payload);
     return response.data as CallTypeConfig;
   },

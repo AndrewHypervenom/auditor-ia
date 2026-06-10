@@ -65,37 +65,7 @@ import PlantillaGPFTab from '../components/PlantillaGPFTab';
 import ModeSelector, { type AdminMode } from '../components/ModeSelector';
 import CallTypeSelectorShared from '../components/CallTypeSelector';
 import { useCallTypesConfig } from '../hooks/useCallTypesConfig';
-
-// ─── Subcalificaciones fijas por tipo de llamada ────────────────────────────
-
-const SUBCALIFICACIONES_POR_CALL_TYPE: Record<string, string[]> = {
-  FRAUDE: [
-    'INTERNET',
-    'PRIMERAS PARTES',
-    'ROBADA/EXTRAVIADA',
-    'ROBO DE IDENTIDAD',
-    'TARJETA NO ENTREGADA (NUEVA REPOSICION)',
-  ],
-  'TH CONFIRMA': [
-    'BLOQUEO BLKI',
-    'BLOQUEO BLKT',
-    'BLOQUEO MATCH',
-    'BLOQUEO PREVENTIVO (P)/SE LIBERA TARJETA',
-    'EXCEDIO LIMITE DE CREDITO',
-    'INGRESO INCORRECTO CVV2',
-    'MSI NO PERMITIDO',
-    'SIN REGISTRO EN FALCON/VCAS/VISION',
-    'VCAS/VRM',
-  ],
-};
-
-function getSubcalificacionesForCallType(callType: string): string[] {
-  const upper = callType.toUpperCase();
-  for (const [key, list] of Object.entries(SUBCALIFICACIONES_POR_CALL_TYPE)) {
-    if (upper.includes(key)) return list;
-  }
-  return [];
-}
+import { useSubcalificaciones } from '../hooks/useSubcalificaciones';
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -832,7 +802,7 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(block.block_name);
   const [drawerCriteria, setDrawerCriteria] = useState<CriteriaItem | null>(null);
-  const availableTipoCierres = getSubcalificacionesForCallType(block.call_type);
+  const availableTipoCierres = useSubcalificaciones(block.call_type);
   const [selectedTipoCierre, setSelectedTipoCierre] = useState<string | null>(null);
 
   const criteria = (block.criteria || []).sort((a, b) => a.criteria_order - b.criteria_order);
@@ -4483,6 +4453,7 @@ function CallTypesTab() {
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
   const [newModes, setNewModes] = useState<string[]>(['INBOUND', 'MONITOREO']);
+  const [cloneFrom, setCloneFrom] = useState('');
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -4504,6 +4475,14 @@ function CallTypesTab() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Por defecto, sugerir copiar la configuración base del primer tipo activo
+  useEffect(() => {
+    if (showAdd && !cloneFrom && items.length > 0) {
+      const base = items.find(i => i.is_active !== false);
+      if (base) setCloneFrom(base.name);
+    }
+  }, [showAdd, cloneFrom, items]);
+
   const handleAdd = async () => {
     if (!newName.trim() || newModes.length === 0) {
       toast.error('Nombre y al menos un modo son requeridos');
@@ -4511,10 +4490,17 @@ function CallTypesTab() {
     }
     setSaving(true);
     try {
-      await callTypesConfigService.create({ name: newName.trim().toUpperCase(), modes: newModes });
-      toast.success('Tipo de llamada creado');
+      await callTypesConfigService.create({
+        name: newName.trim().toUpperCase(),
+        modes: newModes,
+        ...(cloneFrom ? { clone_from: cloneFrom } : {}),
+      });
+      toast.success(cloneFrom
+        ? `Calificación creada con la configuración base de ${cloneFrom}`
+        : 'Tipo de llamada creado');
       setNewName('');
       setNewModes(['INBOUND', 'MONITOREO']);
+      setCloneFrom('');
       setShowAdd(false);
       load();
     } catch {
@@ -4647,6 +4633,23 @@ function CallTypesTab() {
                 );
               })}
             </div>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Copiar configuración base desde (criterios y scripts)</label>
+            <select
+              value={cloneFrom}
+              onChange={e => setCloneFrom(e.target.value)}
+              className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200
+                         focus:outline-none focus:border-teal-500/50 cursor-pointer"
+            >
+              <option value="">No copiar — empezar desde cero</option>
+              {items.filter(i => i.is_active !== false).map(i => (
+                <option key={i.id} value={i.name}>{i.name}</option>
+              ))}
+            </select>
+            <p className="text-[11px] text-slate-500 mt-1">
+              La nueva calificación arranca con la info de base compartida y luego puedes editarla de forma independiente.
+            </p>
           </div>
           <div className="flex gap-2 justify-end">
             <button

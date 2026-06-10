@@ -34,37 +34,7 @@ import {
 import ModeSelector, { type AdminMode } from '../components/ModeSelector';
 import CallTypeSelectorShared from '../components/CallTypeSelector';
 import { useCallTypesConfig } from '../hooks/useCallTypesConfig';
-
-// ─── Subcalificaciones fijas por tipo de llamada ─────────────
-
-const SUBCALIFICACIONES_POR_CALL_TYPE: Record<string, string[]> = {
-  FRAUDE: [
-    'INTERNET',
-    'PRIMERAS PARTES',
-    'ROBADA/EXTRAVIADA',
-    'ROBO DE IDENTIDAD',
-    'TARJETA NO ENTREGADA (NUEVA REPOSICION)',
-  ],
-  'TH CONFIRMA': [
-    'BLOQUEO BLKI',
-    'BLOQUEO BLKT',
-    'BLOQUEO MATCH',
-    'BLOQUEO PREVENTIVO (P)/SE LIBERA TARJETA',
-    'EXCEDIO LIMITE DE CREDITO',
-    'INGRESO INCORRECTO CVV2',
-    'MSI NO PERMITIDO',
-    'SIN REGISTRO EN FALCON/VCAS/VISION',
-    'VCAS/VRM',
-  ],
-};
-
-function getSubcalificacionesForCallType(callType: string): string[] {
-  const upper = callType.toUpperCase();
-  for (const [key, list] of Object.entries(SUBCALIFICACIONES_POR_CALL_TYPE)) {
-    if (upper.includes(key)) return list;
-  }
-  return [];
-}
+import { useSubcalificaciones } from '../hooks/useSubcalificaciones';
 
 function getOverrideValue<K extends keyof CriteriaItemOverride>(
   item: CriteriaItem,
@@ -364,10 +334,15 @@ function CriteriaRefTab() {
 
 function CriteriaBlockReadCard({ block, onUpdate }: { block: CriteriaBlock; onUpdate: () => void }) {
   const [expanded, setExpanded] = useState(false);
-  const availableTipoCierres = getSubcalificacionesForCallType(block.call_type);
-  const [selectedTipoCierre, setSelectedTipoCierre] = useState<string | null>(
-    availableTipoCierres[0] ?? null
-  );
+  const availableTipoCierres = useSubcalificaciones(block.call_type);
+  const [selectedTipoCierre, setSelectedTipoCierre] = useState<string | null>(null);
+
+  // Seleccionar la primera subcalificación en cuanto cargue la lista
+  useEffect(() => {
+    if (selectedTipoCierre === null && availableTipoCierres.length > 0) {
+      setSelectedTipoCierre(availableTipoCierres[0]);
+    }
+  }, [availableTipoCierres, selectedTipoCierre]);
 
   const criteria = (block.criteria || []).sort((a, b) => a.criteria_order - b.criteria_order);
   const blockPoints = criteria.filter((c) => c.applies && c.points !== null).reduce((s, c) => s + (c.points ?? 0), 0);
