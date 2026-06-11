@@ -657,8 +657,8 @@ export default function ReportsPage() {
  <Activity className="w-5 h-5 text-brand-400" />
  </div>
  <div>
- <h2 className="text-2xl font-bold text-white">Resumen General</h2>
- <p className="text-slate-400 text-sm mt-0.5">Dashboard de métricas y análisis</p>
+ <h2 className="text-2xl font-bold text-white">{t('reportsPage.generalSummary')}</h2>
+ <p className="text-slate-400 text-sm mt-0.5">{t('reportsPage.subtitle')}</p>
  </div>
  </div>
  <div className="flex items-center gap-3">
@@ -708,7 +708,7 @@ export default function ReportsPage() {
  <TrendingUp className="w-3.5 h-3.5 text-green-400" />
  <span className="text-green-400 font-semibold">+12%</span>
  </div>
- <span>vs mes anterior</span>
+ <span>{t('reportsPage.vsLastMonth')}</span>
  </div>
  </div>
  </div>
@@ -1101,7 +1101,7 @@ export default function ReportsPage() {
  <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/5 to-green-600/5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
  <div className="relative p-6 bg-slate-800/50 border border-emerald-500/30 rounded-xl hover:border-emerald-400/60 transition-all duration-300 transform hover:-translate-y-1">
  <div className="flex items-center justify-between mb-3">
- <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">Costo Total</span>
+ <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">{t('reportsPage.costTotal')}</span>
  <div className="p-2 bg-emerald-500/20 rounded-lg group-hover:bg-emerald-500/30 transition-colors duration-200">
  <DollarSign className="w-5 h-5 text-emerald-400" />
  </div>
@@ -1125,7 +1125,7 @@ export default function ReportsPage() {
  <div className="absolute inset-0 bg-gradient-to-br from-brand-900/30 to-cyan-600/5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
  <div className="relative p-6 bg-slate-800/50 border border-brand-700/40 rounded-xl hover:border-brand-500/50/60 transition-all duration-300 transform hover:-translate-y-1">
  <div className="flex items-center justify-between mb-3">
- <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">Costo Promedio</span>
+ <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">{t('reportsPage.costAverage')}</span>
  <div className="p-2 bg-brand-500/10 rounded-lg group-hover:bg-brand-500/30 transition-colors duration-200">
  <Activity className="w-5 h-5 text-brand-400" />
  </div>
@@ -1136,7 +1136,7 @@ export default function ReportsPage() {
  <div className="flex items-center gap-1.5 text-xs">
  <TrendingDown className="w-3.5 h-3.5 text-green-400" />
  <span className="text-green-400 font-semibold">-8%</span>
- <span className="text-slate-500">vs anterior</span>
+ <span className="text-slate-500">{t('reportsPage.vsPrev')}</span>
  </div>
  </div>
  </div>
@@ -1145,7 +1145,7 @@ export default function ReportsPage() {
  <div className="absolute inset-0 bg-gradient-to-br from-brand-900/20 to-brand-800/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
  <div className="relative p-6 bg-slate-800/50 border border-brand-700/40 rounded-xl hover:border-brand-500/50 transition-all duration-300 transform hover:-translate-y-1">
  <div className="flex items-center justify-between mb-3">
- <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">Eficiencia</span>
+ <span className="text-slate-400 text-sm font-semibold uppercase tracking-wide">{t('reportsPage.efficiency')}</span>
  <div className="p-2 bg-brand-500/10 rounded-lg group-hover:bg-brand-500/20 transition-colors duration-200">
  <Zap className="w-5 h-5 text-brand-400" />
  </div>
@@ -1155,7 +1155,7 @@ export default function ReportsPage() {
  </div>
  <div className="flex items-center gap-1.5 text-xs">
  <Target className="w-3.5 h-3.5 text-brand-400" />
- <span className="text-slate-500">Costo/Score ratio</span>
+ <span className="text-slate-500">{t('reportsPage.costScoreRatio')}</span>
  </div>
  </div>
  </div>

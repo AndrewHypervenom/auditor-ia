@@ -247,7 +247,7 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Brain className="w-5 h-5 text-brand-400" />
-                <span className="text-sm text-slate-400">GPT-4o — Análisis de auditorías</span>
+                <span className="text-sm text-slate-400">{t('settingsPage.gptDesc')}</span>
               </div>
               <button
                 onClick={() => testConnection('openai')}
@@ -284,7 +284,7 @@ export default function SettingsPage() {
               </div>
               <div className="flex items-start gap-2 text-xs text-slate-500">
                 <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <p>Obtén tu API key en <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">platform.openai.com</a></p>
+                <p>{t('settingsPage.getKeyAt')} <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">platform.openai.com</a></p>
               </div>
             </div>
           </div>
@@ -297,7 +297,7 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Mic className="w-5 h-5 text-brand-400" />
-                <span className="text-sm text-slate-400">Transcripción de llamadas</span>
+                <span className="text-sm text-slate-400">{t('settingsPage.assemblyDesc')}</span>
               </div>
               <button
                 onClick={() => testConnection('assemblyai')}
@@ -334,7 +334,7 @@ export default function SettingsPage() {
               </div>
               <div className="flex items-start gap-2 text-xs text-slate-500">
                 <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <p>Obtén tu API key en <a href="https://www.assemblyai.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">assemblyai.com/dashboard</a></p>
+                <p>{t('settingsPage.getKeyAt')} <a href="https://www.assemblyai.com/dashboard" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">assemblyai.com/dashboard</a></p>
               </div>
             </div>
           </div>
@@ -347,7 +347,7 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Database className="w-5 h-5 text-brand-400" />
-                <span className="text-sm text-slate-400">Base de datos y autenticación</span>
+                <span className="text-sm text-slate-400">{t('settingsPage.supabaseDesc')}</span>
               </div>
               <button
                 onClick={() => testConnection('supabase')}

@@ -1,18 +1,20 @@
 import { ArrowLeft } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface BackButtonProps {
   onClick: () => void;
   label?: string;
 }
 
-export default function BackButton({ onClick, label = 'Volver' }: BackButtonProps) {
+export default function BackButton({ onClick, label }: BackButtonProps) {
+  const { t } = useTranslation();
   return (
     <button
       onClick={onClick}
       className="btn-ghost flex items-center gap-2"
     >
       <ArrowLeft className="w-5 h-5" />
-      {label}
+      {label ?? t('common.back')}
     </button>
   );
 }

@@ -80,6 +80,7 @@ export interface Audit {
  max_possible_score: number;
  percentage: number;
  excel_filename: string;
+ detailed_scores?: any[];
  }>;
  api_costs: APICostsDB[];
 }

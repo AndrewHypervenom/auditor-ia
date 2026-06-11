@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import AppHeader from '../components/AppHeader';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -81,6 +82,7 @@ function groupByCallType<T extends { call_type: string }>(items: T[]): Record<st
 // ─── Componente principal ────────────────────────────────────
 
 export default function ScriptsAdminPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
@@ -90,37 +92,37 @@ export default function ScriptsAdminPage() {
     {
       key: 'criteria' as const,
       icon: ClipboardList,
-      label: 'Criterios de Evaluación',
-      description: 'Rúbricas y ponderaciones',
+      label: t('reference.tabCriteria'),
+      description: t('reference.tabCriteriaDesc'),
       color: 'purple',
     },
     {
       key: 'scripts' as const,
       icon: BookOpen,
-      label: 'Scripts de Agentes',
-      description: 'Guiones y frases por paso',
+      label: t('reference.tabScripts'),
+      description: t('reference.tabScriptsDesc'),
       color: 'blue',
     },
     {
       key: 'plantilla' as const,
       icon: Table,
-      label: 'Plantilla Cierre de GPF',
-      description: 'Calificación y Sub-calificación',
+      label: t('reference.tabPlantilla'),
+      description: t('reference.tabPlantillaDesc'),
       color: 'teal',
     },
     {
       key: 'ai_prompts' as const,
       icon: Brain,
-      label: 'Comportamiento IA',
-      description: 'Prompts de análisis y evaluación',
+      label: t('scriptsAdmin.tabAi'),
+      description: t('scriptsAdmin.tabAiDesc'),
       color: 'amber',
       adminOnly: true,
     },
     {
       key: 'bines' as const,
       icon: CreditCard,
-      label: 'Bines',
-      description: 'Referencia BINs bancarios',
+      label: t('reference.tabBines'),
+      description: t('reference.tabBinesDesc'),
       color: 'rose',
     },
   ];
@@ -129,12 +131,12 @@ export default function ScriptsAdminPage() {
 
   return (
     <div className="min-h-screen text-white">
-      <AppHeader showBack onBack={() => navigate('/dashboard')} title="Criterios, Scripts y Plantilla GPF" />
+      <AppHeader showBack onBack={() => navigate('/dashboard')} title={t('reference.pageTitle')} />
       <div className="max-w-5xl mx-auto px-6 py-6">
 
         {/* ── Description ── */}
         <p className="mb-4 text-sm text-slate-400 leading-relaxed">
-          Configura todo lo que define cómo opera el sistema: criterios de calificación, scripts de agentes, plantilla de cierre GPF{isAdmin ? ' y el comportamiento de la IA' : ''}.
+          {isAdmin ? t('scriptsAdmin.introAdmin') : t('scriptsAdmin.intro')}
         </p>
 
 
@@ -251,6 +253,7 @@ export default function ScriptsAdminPage() {
 // ─── Tab: Scripts ────────────────────────────────────────────
 
 function ScriptsTab() {
+  const { t } = useTranslation();
   const [scripts, setScripts] = useState<ScriptStep[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<AdminMode>('INBOUND');
@@ -270,11 +273,11 @@ function ScriptsTab() {
       const data = await scriptsService.getAll();
       setScripts(data);
     } catch {
-      toast.error('Error al cargar scripts');
+      toast.error(t('reference.scriptsLoadError'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -290,14 +293,14 @@ function ScriptsTab() {
         call_type: selectedCallType,
         mode,
         step_key: `paso_${newOrder}`,
-        step_label: 'Nuevo paso',
+        step_label: t('scriptsAdmin.newStepDefault'),
         step_order: newOrder,
-        lines: ['Nueva frase del script'],
+        lines: [t('scriptsAdmin.newLineDefault')],
       });
-      toast.success('Paso agregado');
+      toast.success(t('scriptsAdmin.stepAdded'));
       load();
     } catch {
-      toast.error('Error al agregar paso');
+      toast.error(t('scriptsAdmin.stepAddError'));
     }
   };
 
@@ -328,12 +331,12 @@ function ScriptsTab() {
         {currentSteps.length === 0 && (
           <EmptyState
             icon={<BookOpen size={28} className="text-slate-600" />}
-            title="Sin pasos definidos"
-            description={`Agrega el primer paso para ${selectedCallType}`}
+            title={t('reference.noSteps')}
+            description={t('scriptsAdmin.addFirstStep', { callType: selectedCallType })}
           />
         )}
 
-        <AddButton onClick={handleAddStep} label="Agregar paso" />
+        <AddButton onClick={handleAddStep} label={t('scriptsAdmin.addStep')} />
       </div>
     </div>
   );
@@ -348,6 +351,7 @@ interface ScriptStepCardProps {
 }
 
 function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelValue, setLabelValue] = useState(step.step_label);
@@ -363,10 +367,10 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
         step_label: newLabel ?? labelValue,
         lines: newLines ?? lines,
       });
-      toast.success('Guardado');
+      toast.success(t('plantilla.saved'));
       onUpdate();
     } catch {
-      toast.error('Error al guardar');
+      toast.error(t('plantilla.saveError'));
     } finally {
       setSaving(false);
     }
@@ -385,13 +389,13 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
   };
 
   const handleDeleteStep = async () => {
-    if (!confirm(`¿Eliminar el paso "${step.step_label}"? También se eliminarán todas sus frases.`)) return;
+    if (!confirm(t('scriptsAdmin.deleteStepConfirm', { name: step.step_label }))) return;
     try {
       await scriptsService.remove(step.id);
-      toast.success('Paso eliminado');
+      toast.success(t('scriptsAdmin.stepDeleted'));
       onUpdate();
     } catch {
-      toast.error('Error al eliminar');
+      toast.error(t('plantilla.deleteError'));
     }
   };
 
@@ -401,10 +405,10 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
   };
 
   const handleAddLine = () => {
-    const newLines = [...lines, 'Nueva frase'];
+    const newLines = [...lines, t('scriptsAdmin.newPhraseDefault')];
     setLines(newLines);
     setEditingLineIdx(newLines.length - 1);
-    setLineValue('Nueva frase');
+    setLineValue(t('scriptsAdmin.newPhraseDefault'));
   };
 
   const handleEditLine = (idx: number) => {
@@ -487,7 +491,7 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
         {/* Badge frases */}
         <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-slate-800/60 border border-slate-700/40
                          text-slate-400 text-xs tabular-nums">
-          {lines.length} {lines.length === 1 ? 'frase' : 'frases'}
+          {t('reference.phrasesCount', { count: lines.length })}
         </span>
 
         {/* Acciones (hover) */}
@@ -500,7 +504,7 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
             disabled={step.step_order <= 1}
             className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-slate-700/50
                        disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-150"
-            title="Subir"
+            title={t('scriptsAdmin.moveUp')}
           >
             <ChevronDown size={14} className="rotate-180" />
           </button>
@@ -509,7 +513,7 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
             disabled={step.step_order >= totalSteps}
             className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-slate-700/50
                        disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-150"
-            title="Bajar"
+            title={t('scriptsAdmin.moveDown')}
           >
             <ChevronDown size={14} />
           </button>
@@ -517,7 +521,7 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
             onClick={() => setEditingLabel(true)}
             className="p-2 rounded-xl text-slate-500 hover:text-brand-400 hover:bg-brand-500/10
                        transition-all duration-150"
-            title="Renombrar"
+            title={t('scriptsAdmin.rename')}
           >
             <Pencil size={14} />
           </button>
@@ -525,7 +529,7 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
             onClick={handleDeleteStep}
             className="p-2 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10
                        transition-all duration-150"
-            title="Eliminar paso"
+            title={t('scriptsAdmin.deleteStep')}
           >
             <Trash2 size={14} />
           </button>
@@ -544,7 +548,7 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
           {saving && (
             <p className="flex items-center gap-2 text-xs text-brand-400/80 mb-3">
               <Loader2 size={12} className="animate-spin" />
-              Guardando...
+              {t('common.saving')}
             </p>
           )}
 
@@ -573,14 +577,14 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
                                  border border-brand-700/40 text-brand-300 text-xs font-medium
                                  hover:bg-brand-500/30 transition-all duration-150"
                     >
-                      <Check size={12} /> Guardar
+                      <Check size={12} /> {t('common.save')}
                     </button>
                     <button
                       onClick={() => setEditingLineIdx(null)}
                       className="px-3 py-1.5 rounded-xl text-slate-400 text-xs font-medium
                                  hover:text-slate-200 hover:bg-slate-800/60 transition-all duration-150"
                     >
-                      Cancelar
+                      {t('common.cancel')}
                     </button>
                   </div>
                 </div>
@@ -634,7 +638,7 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
                        transition-all duration-200 text-sm"
           >
             <Plus size={14} />
-            Agregar frase
+            {t('scriptsAdmin.addPhrase')}
           </button>
         </div>
       </div>
@@ -645,6 +649,7 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
 // ─── Tab: Criterios ──────────────────────────────────────────
 
 function CriteriaTab() {
+  const { t } = useTranslation();
   const [blocks, setBlocks] = useState<CriteriaBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<AdminMode>('INBOUND');
@@ -665,11 +670,11 @@ function CriteriaTab() {
       const data = await criteriaService.getAll();
       setBlocks(data);
     } catch {
-      toast.error('Error al cargar criterios');
+      toast.error(t('reference.criteriaLoadError'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -699,13 +704,13 @@ function CriteriaTab() {
       await criteriaService.createBlock({
         call_type: selectedCallType,
         mode,
-        block_name: 'Nuevo bloque',
+        block_name: t('scriptsAdmin.newBlockDefault'),
         block_order: newOrder,
       });
-      toast.success('Bloque agregado');
+      toast.success(t('scriptsAdmin.blockAdded'));
       load();
     } catch {
-      toast.error('Error al agregar bloque');
+      toast.error(t('scriptsAdmin.blockAddError'));
     }
   };
 
@@ -724,8 +729,8 @@ function CriteriaTab() {
 
         <div className="flex items-center gap-2 flex-wrap">
           <StatChip icon={BarChart2} label={`${totalPoints} pts`} color="blue" />
-          <StatChip icon={AlertTriangle} label={`${criticalCount} críticos`} color="red" />
-          <StatChip icon={ListChecks} label={`${totalCriteria} criterios`} color="green" />
+          <StatChip icon={AlertTriangle} label={t('resultsView.criticalCount', { count: criticalCount })} color="red" />
+          <StatChip icon={ListChecks} label={t('resultsView.criteriaCount', { count: totalCriteria })} color="green" />
           <button
             onClick={() => setShowAiGenerator(true)}
             disabled={!selectedCallType}
@@ -734,7 +739,7 @@ function CriteriaTab() {
                        hover:bg-purple-500/25 disabled:opacity-40 transition-all duration-150"
           >
             <Wand2 size={12} />
-            Generar con IA
+            {t('scriptsAdmin.generateWithAi')}
           </button>
         </div>
       </div>
@@ -756,12 +761,12 @@ function CriteriaTab() {
         {currentBlocks.length === 0 && (
           <EmptyState
             icon={<ClipboardList size={28} className="text-slate-600" />}
-            title="Sin bloques definidos"
-            description={`Agrega el primer bloque de criterios para ${selectedCallType}`}
+            title={t('scriptsAdmin.noBlocks')}
+            description={t('scriptsAdmin.addFirstBlock', { callType: selectedCallType })}
           />
         )}
 
-        <AddButton onClick={handleAddBlock} label="Agregar bloque" />
+        <AddButton onClick={handleAddBlock} label={t('scriptsAdmin.addBlock')} />
       </div>
     </div>
   );
@@ -798,6 +803,7 @@ interface CriteriaBlockCardProps {
 }
 
 function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(block.block_name);
@@ -814,10 +820,10 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
     setEditingName(false);
     try {
       await criteriaService.updateBlock(block.id, { block_name: nameValue });
-      toast.success('Bloque actualizado');
+      toast.success(t('scriptsAdmin.blockUpdated'));
       onUpdate();
     } catch {
-      toast.error('Error al actualizar bloque');
+      toast.error(t('scriptsAdmin.blockUpdateError'));
       setNameValue(block.block_name);
     }
   };
@@ -828,13 +834,13 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
   };
 
   const handleDeleteBlock = async () => {
-    if (!confirm(`¿Eliminar el bloque "${block.block_name}" y todos sus criterios?`)) return;
+    if (!confirm(t('scriptsAdmin.deleteBlockConfirm', { name: block.block_name }))) return;
     try {
       await criteriaService.removeBlock(block.id);
-      toast.success('Bloque eliminado');
+      toast.success(t('scriptsAdmin.blockDeleted'));
       onUpdate();
     } catch {
-      toast.error('Error al eliminar bloque');
+      toast.error(t('scriptsAdmin.blockDeleteError'));
     }
   };
 
@@ -843,7 +849,7 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
     try {
       const newItem = await criteriaService.createCriteria({
         block_id: block.id,
-        topic: 'Nuevo criterio',
+        topic: t('scriptsAdmin.newCriterionDefault'),
         criticality: '-',
         points: 5,
         applies: true,
@@ -855,7 +861,7 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
       onUpdate();
       setDrawerCriteria(newItem);
     } catch {
-      toast.error('Error al agregar criterio');
+      toast.error(t('scriptsAdmin.criterionAddError'));
     }
   };
 
@@ -913,10 +919,10 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full
                              bg-red-500/10 border border-red-500/15 text-red-300 text-xs font-medium">
               <AlertTriangle size={10} />
-              {criticalCount} crítico{criticalCount > 1 ? 's' : ''}
+              {t('resultsView.criticalCount', { count: criticalCount })}
             </span>
           )}
-          <span className="text-slate-500 text-xs tabular-nums">{appliedCount} criterios</span>
+          <span className="text-slate-500 text-xs tabular-nums">{t('resultsView.criteriaCount', { count: appliedCount })}</span>
         </div>
 
         {/* Acciones (hover) */}
@@ -955,7 +961,7 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
           <div className="px-5 pt-3 pb-3 border-b border-slate-800/40">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mr-1 flex-shrink-0">
-                Subcalificación
+                {t('scriptsAdmin.subQualificationLabel')}
               </span>
               <button
                 onClick={() => setSelectedTipoCierre(null)}
@@ -965,7 +971,7 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
                     : 'bg-slate-800/40 border-slate-700/40 text-slate-500 hover:text-slate-300'
                 }`}
               >
-                Base
+                {t('scriptsAdmin.base')}
               </button>
               {availableTipoCierres.map(tc => {
                 const isSelected = selectedTipoCierre === tc;
@@ -974,7 +980,7 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
                   <button
                     key={tc}
                     onClick={() => setSelectedTipoCierre(isSelected ? null : tc)}
-                    title={hasOverride ? 'Tiene configuración personalizada' : 'Sin configuración específica — usa la base'}
+                    title={hasOverride ? t('scriptsAdmin.hasCustomConfig') : t('scriptsAdmin.noCustomConfig')}
                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-all duration-150 ${
                       isSelected
                         ? 'bg-teal-500/15 border-teal-500/30 text-teal-300'
@@ -991,7 +997,7 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
             </div>
             {selectedTipoCierre && (
               <p className="text-[11px] text-teal-400/80 mt-2">
-                Configuración específica para: <strong className="text-teal-400">{selectedTipoCierre}</strong>
+                {t('scriptsAdmin.specificConfigFor')} <strong className="text-teal-400">{selectedTipoCierre}</strong>
               </p>
             )}
           </div>
@@ -1003,22 +1009,22 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
               <thead>
                 <tr className="border-b border-slate-800/60 bg-slate-950/70 backdrop-blur-sm">
                   <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-widest text-slate-500">
-                    Criterio
+                    {t('reference.colCriterion')}
                   </th>
                   <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-16">
-                    Pts
+                    {t('reference.colPts')}
                   </th>
                   <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-24">
-                    Criticidad
+                    {t('reference.colCriticality')}
                   </th>
                   <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-16">
-                    Activo
+                    {t('scriptsAdmin.colActive')}
                   </th>
                   <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-amber-600/70 w-24">
-                    Rev. Manual
+                    {t('scriptsAdmin.colManualReview')}
                   </th>
                   <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-32">
-                    Acciones
+                    {t('common.actions')}
                   </th>
                 </tr>
               </thead>
@@ -1043,7 +1049,7 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
             className="flex items-center gap-2 text-sm text-slate-500 hover:text-brand-400 transition-colors duration-150"
           >
             <Plus size={14} />
-            Agregar criterio
+            {t('scriptsAdmin.addCriterion')}
           </button>
         </div>
       </div>
@@ -1081,6 +1087,7 @@ function getOverrideValue<K extends keyof CriteriaItemOverride>(
 }
 
 function CriteriaViewRow({ item, onEdit, onUpdate, selectedTipoCierre }: CriteriaRowProps) {
+  const { t } = useTranslation();
   const [wtlfExpanded, setWtlfExpanded] = useState(false);
 
   const effectiveApplies = getOverrideValue(item, selectedTipoCierre, 'applies', item.applies)!;
@@ -1090,13 +1097,13 @@ function CriteriaViewRow({ item, onEdit, onUpdate, selectedTipoCierre }: Criteri
   const hasOverride = selectedTipoCierre && !!item.tipo_cierre_overrides?.[selectedTipoCierre];
 
   const handleDelete = async () => {
-    if (!confirm(`¿Eliminar el criterio "${item.topic}"?`)) return;
+    if (!confirm(t('scriptsAdmin.deleteCriterionConfirm', { name: item.topic }))) return;
     try {
       await criteriaService.removeCriteria(item.id);
-      toast.success('Criterio eliminado');
+      toast.success(t('scriptsAdmin.criterionDeleted'));
       onUpdate();
     } catch {
-      toast.error('Error al eliminar criterio');
+      toast.error(t('scriptsAdmin.criterionDeleteError'));
     }
   };
 
@@ -1110,7 +1117,7 @@ function CriteriaViewRow({ item, onEdit, onUpdate, selectedTipoCierre }: Criteri
       }
       onUpdate();
     } catch {
-      toast.error('Error al actualizar');
+      toast.error(t('reference.updateError'));
     }
   };
 
@@ -1124,7 +1131,7 @@ function CriteriaViewRow({ item, onEdit, onUpdate, selectedTipoCierre }: Criteri
       }
       onUpdate();
     } catch {
-      toast.error('Error al actualizar');
+      toast.error(t('reference.updateError'));
     }
   };
 
@@ -1147,7 +1154,7 @@ function CriteriaViewRow({ item, onEdit, onUpdate, selectedTipoCierre }: Criteri
                                  whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] font-medium
                                  bg-slate-800 border border-slate-700/60 text-slate-200 shadow-lg
                                  opacity-0 group-hover/sbadge:opacity-100 transition-opacity duration-150 z-50">
-                  Config. específica para <strong className="text-teal-400">{selectedTipoCierre}</strong>
+                  {t('reference.specificConfigFor')} <strong className="text-teal-400">{selectedTipoCierre}</strong>
                   <span className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0
                                    border-x-4 border-x-transparent border-t-4 border-t-slate-700/60" />
                 </span>
@@ -1165,7 +1172,7 @@ function CriteriaViewRow({ item, onEdit, onUpdate, selectedTipoCierre }: Criteri
                   className="self-start text-[11px] text-slate-600 hover:text-slate-400 transition-colors duration-150 flex items-center gap-0.5"
                 >
                   <ChevronDown size={11} className={`transition-transform duration-200 ${wtlfExpanded ? 'rotate-180' : ''}`} />
-                  {wtlfExpanded ? 'Ver menos' : 'Ver más'}
+                  {wtlfExpanded ? t('common.showLess') : t('common.showMore')}
                 </button>
               )}
             </div>
@@ -1174,7 +1181,7 @@ function CriteriaViewRow({ item, onEdit, onUpdate, selectedTipoCierre }: Criteri
             <div className="flex gap-1 mt-1 flex-wrap">
               {effectiveValidation.map(src => {
                 const isSpecificImg = src.startsWith('imagenes:');
-                const label = src === 'gpf' ? 'GPF' : src === 'llamada' ? 'Llamada' : isSpecificImg ? src.slice(9) : 'Imágenes';
+                const label = src === 'gpf' ? 'GPF' : src === 'llamada' ? t('scriptsAdmin.sourceCall') : isSpecificImg ? src.slice(9) : t('scriptsAdmin.sourceImages');
                 const color = src === 'gpf'
                   ? 'bg-blue-900/40 text-blue-300 border-blue-700/40'
                   : src === 'llamada'
@@ -1209,7 +1216,7 @@ function CriteriaViewRow({ item, onEdit, onUpdate, selectedTipoCierre }: Criteri
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full
                            bg-red-500/10 border border-red-500/15 text-red-300 text-xs font-medium">
             <AlertTriangle size={10} />
-            Crítico
+            {t('resultsView.criticalBadge')}
           </span>
         ) : (
           <span className="text-slate-700 text-sm">—</span>
@@ -1220,7 +1227,7 @@ function CriteriaViewRow({ item, onEdit, onUpdate, selectedTipoCierre }: Criteri
       <td className="py-3 px-3 text-center">
         <button
           onClick={handleToggleApplies}
-          title={effectiveApplies ? 'Deshabilitar' : 'Habilitar'}
+          title={effectiveApplies ? t('scriptsAdmin.disable') : t('scriptsAdmin.enable')}
           className="toggle-track mx-auto"
           style={{ backgroundColor: effectiveApplies ? 'rgba(59,130,246,0.5)' : '' }}
         >
@@ -1238,7 +1245,7 @@ function CriteriaViewRow({ item, onEdit, onUpdate, selectedTipoCierre }: Criteri
       <td className="py-3 px-3 text-center">
         <button
           onClick={handleToggleManualReview}
-          title={effectiveManual ? 'Quitar validación manual' : 'Marcar como validación manual'}
+          title={effectiveManual ? t('scriptsAdmin.removeManualReview') : t('scriptsAdmin.markManualReview')}
           className="toggle-track mx-auto"
           style={{ backgroundColor: effectiveManual ? 'rgba(245,158,11,0.5)' : '' }}
         >
@@ -1262,7 +1269,7 @@ function CriteriaViewRow({ item, onEdit, onUpdate, selectedTipoCierre }: Criteri
                        transition-all duration-150"
           >
             <Pencil size={11} />
-            Configurar
+            {t('scriptsAdmin.configure')}
           </button>
           <button
             onClick={handleDelete}
@@ -1287,6 +1294,7 @@ interface CriteriaEditRowProps {
 }
 
 function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: CriteriaEditRowProps) {
+  const { t } = useTranslation();
   const existingOverride = selectedTipoCierre ? item.tipo_cierre_overrides?.[selectedTipoCierre] : undefined;
   const isSubcalMode = !!selectedTipoCierre;
 
@@ -1323,10 +1331,10 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
           validation_source: validationSource,
         });
       }
-      toast.success('Criterio actualizado');
+      toast.success(t('scriptsAdmin.criterionUpdated'));
       onSave();
     } catch {
-      toast.error('Error al guardar criterio');
+      toast.error(t('scriptsAdmin.criterionSaveError'));
     } finally {
       setSaving(false);
     }
@@ -1339,10 +1347,10 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
       const newOverrides = { ...(item.tipo_cierre_overrides || {}) };
       delete newOverrides[selectedTipoCierre];
       await criteriaService.updateCriteria(item.id, { tipo_cierre_overrides: newOverrides });
-      toast.success('Configuración reseteada a base');
+      toast.success(t('scriptsAdmin.configReset'));
       onSave();
     } catch {
-      toast.error('Error al resetear');
+      toast.error(t('scriptsAdmin.resetError'));
     } finally {
       setSaving(false);
     }
@@ -1358,10 +1366,10 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
             <div className="flex items-center justify-between px-3 py-2 rounded-xl
                             bg-teal-500/10 border border-teal-500/20">
               <span className="text-xs text-teal-300 font-medium">
-                Configurando para subcalificación: <strong>{selectedTipoCierre}</strong>
+                {t('scriptsAdmin.configuringForSubqual')} <strong>{selectedTipoCierre}</strong>
                 {existingOverride
-                  ? ' · Tiene configuración específica'
-                  : ' · Usando configuración base'}
+                  ? ` · ${t('scriptsAdmin.hasSpecificConfig')}`
+                  : ` · ${t('scriptsAdmin.usingBaseConfig')}`}
               </span>
               {existingOverride && (
                 <button
@@ -1371,7 +1379,7 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
                   className="text-[11px] text-slate-400 hover:text-rose-400 transition-colors flex items-center gap-1"
                 >
                   <RotateCcw size={11} />
-                  Resetear a base
+                  {t('scriptsAdmin.resetToBase')}
                 </button>
               )}
             </div>
@@ -1382,7 +1390,7 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
             <>
               <div>
                 <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
-                  Criterio (tema)
+                  {t('scriptsAdmin.criterionTopic')}
                 </label>
                 <textarea
                   value={topic}
@@ -1397,12 +1405,12 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
-                    Puntos (o "n/a")
+                    {t('scriptsAdmin.pointsLabel')}
                   </label>
                   <input
                     value={points}
                     onChange={(e) => setPoints(e.target.value)}
-                    placeholder="5 o n/a"
+                    placeholder={t('scriptsAdmin.phPointsExample')}
                     className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2
                                text-sm text-white focus:outline-none focus:border-brand-700/60
                                focus:ring-1 focus:ring-brand-500/20"
@@ -1410,7 +1418,7 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
-                    Criticidad
+                    {t('reference.colCriticality')}
                   </label>
                   <select
                     value={criticality}
@@ -1419,7 +1427,7 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
                                text-sm text-white focus:outline-none focus:border-brand-700/60"
                   >
                     <option value="-">—</option>
-                    <option value="Crítico">Crítico</option>
+                    <option value="Crítico">{t('resultsView.criticalBadge')}</option>
                   </select>
                 </div>
               </div>
@@ -1442,19 +1450,19 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
                 }}
               />
             </button>
-            <span className="text-sm text-slate-300 font-medium">Aplica{isSubcalMode ? ` para ${selectedTipoCierre}` : ''}</span>
+            <span className="text-sm text-slate-300 font-medium">{t('reference.colApplies')}{isSubcalMode ? ` ${t('scriptsAdmin.forLabel')} ${selectedTipoCierre}` : ''}</span>
           </div>
 
           {/* Qué buscar */}
           <div>
             <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
-              Qué buscar (instrucciones para la IA){isSubcalMode ? ` — ${selectedTipoCierre}` : ''}
+              {t('scriptsAdmin.whatToLookFor')}{isSubcalMode ? ` — ${selectedTipoCierre}` : ''}
             </label>
             <textarea
               value={whatToLookFor}
               onChange={(e) => setWhatToLookFor(e.target.value)}
               rows={6}
-              placeholder="Describe dónde y qué debe buscar la IA para evaluar este criterio..."
+              placeholder={t('scriptsAdmin.wtlfPlaceholder')}
               className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2
                          text-sm text-white resize-y focus:outline-none focus:border-brand-700/60
                          focus:ring-1 focus:ring-brand-500/20"
@@ -1464,7 +1472,7 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
           {/* Validar en */}
           <div>
             <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
-              Validar en
+              {t('scriptsAdmin.validateIn')}
             </label>
             <div className="flex gap-4">
               {(['gpf', 'imagenes', 'llamada'] as const).map(src => (
@@ -1482,7 +1490,7 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
                   <span className={`text-sm font-medium ${
                     src === 'gpf' ? 'text-blue-300' : src === 'imagenes' ? 'text-brand-300' : 'text-amber-300'
                   }`}>
-                    {src === 'gpf' ? 'GPF' : src === 'imagenes' ? 'Imágenes' : 'Llamada'}
+                    {src === 'gpf' ? 'GPF' : src === 'imagenes' ? t('scriptsAdmin.sourceImages') : t('scriptsAdmin.sourceCall')}
                   </span>
                 </label>
               ))}
@@ -1499,7 +1507,7 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
                          hover:bg-brand-500/30 disabled:opacity-50 transition-all duration-150"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              {saving ? 'Guardando...' : 'Guardar cambios'}
+              {saving ? t('common.saving') : t('scripts.saveChanges')}
             </button>
             <button
               onClick={onCancel}
@@ -1508,7 +1516,7 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
                          hover:text-slate-200 hover:bg-slate-800/60 disabled:opacity-50
                          transition-all duration-150"
             >
-              Cancelar
+              {t('common.cancel')}
             </button>
           </div>
         </div>
@@ -1534,6 +1542,7 @@ interface ImageAnalyticsBannerProps {
 const NOISE_SYSTEM_NAMES = new Set(['multiple', 'desconocido', 'unknown', 'none', 'n/a', '', 'null']);
 
 function ImageAnalyticsBanner({ onQuickEdit }: ImageAnalyticsBannerProps) {
+  const { t } = useTranslation();
   const [data, setData] = useState<ImageAnalyticsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
@@ -1572,8 +1581,8 @@ function ImageAnalyticsBanner({ onQuickEdit }: ImageAnalyticsBannerProps) {
           <div className="w-6 h-6 rounded-lg bg-purple-500/15 border border-purple-500/20 flex items-center justify-center">
             <BarChart size={12} className="text-purple-400" />
           </div>
-          <span className="text-sm font-semibold text-slate-200">Sistemas más usados en auditorías</span>
-          <span className="text-xs text-slate-500">({data.length} detectados)</span>
+          <span className="text-sm font-semibold text-slate-200">{t('scriptsAdmin.mostUsedSystems')}</span>
+          <span className="text-xs text-slate-500">({t('scriptsAdmin.detectedCount', { count: data.length })})</span>
         </div>
         <ChevronDown size={15} className={`text-slate-500 transition-transform duration-200 ${collapsed ? '' : 'rotate-180'}`} />
       </button>
@@ -1616,7 +1625,7 @@ function ImageAnalyticsBanner({ onQuickEdit }: ImageAnalyticsBannerProps) {
                                  hover:border-brand-700/20 transition-all duration-150"
                     >
                       <Pencil size={10} />
-                      Editar
+                      {t('common.edit')}
                     </button>
                   </div>
                 </div>
@@ -1624,10 +1633,10 @@ function ImageAnalyticsBanner({ onQuickEdit }: ImageAnalyticsBannerProps) {
             })}
           </div>
           {data.length > 8 && (
-            <p className="text-[11px] text-slate-600 mt-3 text-center">+{data.length - 8} sistemas más</p>
+            <p className="text-[11px] text-slate-600 mt-3 text-center">{t('scriptsAdmin.moreSystems', { count: data.length - 8 })}</p>
           )}
           <p className="text-[10px] text-slate-700 mt-3">
-            Basado en las últimas auditorías completadas · Confianza = qué tan segura está la IA de su detección
+            {t('scriptsAdmin.analyticsHint')}
           </p>
         </div>
       )}
@@ -1645,6 +1654,7 @@ interface AiCriteriaGeneratorDrawerProps {
 }
 
 function AiCriteriaGeneratorDrawer({ callType, mode, onClose, onImported }: AiCriteriaGeneratorDrawerProps) {
+  const { t } = useTranslation();
   const [description, setDescription] = useState('');
   const [generating, setGenerating] = useState(false);
   const [preview, setPreview] = useState<GeneratedBlock[]>([]);
@@ -1669,7 +1679,7 @@ function AiCriteriaGeneratorDrawer({ callType, mode, onClose, onImported }: AiCr
       setGpfCategories(categories);
       setGpfTotal(total_attentions);
     } catch (e: any) {
-      setGpfError(e?.response?.data?.error || 'Error al conectar con GPF');
+      setGpfError(e?.response?.data?.error || t('scriptsAdmin.gpfConnectError'));
     } finally {
       setGpfLoading(false);
     }
@@ -1699,7 +1709,7 @@ function AiCriteriaGeneratorDrawer({ callType, mode, onClose, onImported }: AiCr
       });
       setSelected(sel);
     } catch {
-      toast.error('Error al generar criterios');
+      toast.error(t('scriptsAdmin.generateError'));
     } finally {
       setGenerating(false);
     }
@@ -1729,13 +1739,13 @@ function AiCriteriaGeneratorDrawer({ callType, mode, onClose, onImported }: AiCr
         const block = preview[bi];
         const selectedCriteria = block.criteria.filter((_, ci) => selected[bi]?.[ci]);
         if (selectedCriteria.length === 0) continue;
-        setImportProgress(`Creando bloque "${block.block_name}"...`);
+        setImportProgress(t('scriptsAdmin.creatingBlock', { name: block.block_name }));
         const newBlock = await criteriaService.createBlock({
           call_type: callType, mode, block_name: block.block_name, block_order: blockOrder++,
         });
         for (let ci = 0; ci < selectedCriteria.length; ci++) {
           const c = selectedCriteria[ci];
-          setImportProgress(`Importando criterio ${ci + 1}/${selectedCriteria.length} de "${block.block_name}"...`);
+          setImportProgress(t('scriptsAdmin.importingCriterion', { current: ci + 1, total: selectedCriteria.length, name: block.block_name }));
           await criteriaService.createCriteria({
             block_id: newBlock.id,
             topic: c.topic,
@@ -1749,11 +1759,11 @@ function AiCriteriaGeneratorDrawer({ callType, mode, onClose, onImported }: AiCr
           });
         }
       }
-      toast.success(`✅ ${selectedCount} criterios importados correctamente`);
+      toast.success(t('scriptsAdmin.criteriaImported', { count: selectedCount }));
       onImported();
       onClose();
     } catch {
-      toast.error('Error al importar criterios');
+      toast.error(t('scriptsAdmin.importError'));
     } finally {
       setImporting(false);
       setImportProgress('');
@@ -1762,7 +1772,7 @@ function AiCriteriaGeneratorDrawer({ callType, mode, onClose, onImported }: AiCr
 
   const sourceChip = (src: string) => {
     const isImg = src === 'imagenes' || src.startsWith('imagenes:');
-    const label = src === 'gpf' ? 'GPF' : src === 'llamada' ? 'Llamada' : src.startsWith('imagenes:') ? src.slice(9) : 'Imgs';
+    const label = src === 'gpf' ? 'GPF' : src === 'llamada' ? t('scriptsAdmin.sourceCall') : src.startsWith('imagenes:') ? src.slice(9) : 'Imgs';
     const color = src === 'gpf' ? 'bg-blue-500/15 text-blue-300 border-blue-500/20'
       : src === 'llamada' ? 'bg-amber-500/15 text-amber-300 border-amber-500/20'
       : 'bg-brand-500/15 text-brand-300 border-brand-700/20';
@@ -1783,7 +1793,7 @@ function AiCriteriaGeneratorDrawer({ callType, mode, onClose, onImported }: AiCr
               <Wand2 size={15} className="text-purple-400" />
             </div>
             <div>
-              <h2 className="text-white font-semibold text-sm">Generar criterios con IA</h2>
+              <h2 className="text-white font-semibold text-sm">{t('scriptsAdmin.generateCriteriaTitle')}</h2>
               <p className="text-[11px] text-slate-500">{callType} · {mode}</p>
             </div>
           </div>
@@ -1808,8 +1818,8 @@ function AiCriteriaGeneratorDrawer({ callType, mode, onClose, onImported }: AiCr
                 <div className="w-6 h-6 rounded-lg bg-teal-500/15 border border-teal-500/20 flex items-center justify-center">
                   <Eye size={12} className="text-teal-400" />
                 </div>
-                <span className="text-sm font-semibold text-teal-300">Buscar categorías en GPF</span>
-                <span className="text-[11px] text-teal-500/70">Importa directamente desde casos reales</span>
+                <span className="text-sm font-semibold text-teal-300">{t('scriptsAdmin.searchGpfCategories')}</span>
+                <span className="text-[11px] text-teal-500/70">{t('scriptsAdmin.importFromRealCases')}</span>
               </div>
               <ChevronDown size={14} className={`text-teal-500 transition-transform duration-200 ${gpfOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -1829,7 +1839,7 @@ function AiCriteriaGeneratorDrawer({ callType, mode, onClose, onImported }: AiCr
                             : 'text-slate-500 hover:text-slate-300'
                         }`}
                       >
-                        {env === 'prod' ? 'Producción' : 'Pruebas'}
+                        {env === 'prod' ? t('scriptsAdmin.prodEnv') : t('scriptsAdmin.testEnv')}
                       </button>
                     ))}
                   </div>
@@ -1842,10 +1852,10 @@ function AiCriteriaGeneratorDrawer({ callType, mode, onClose, onImported }: AiCr
                                hover:bg-teal-500/25 disabled:opacity-50 transition-all duration-150"
                   >
                     {gpfLoading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                    {gpfLoading ? 'Buscando...' : 'Buscar'}
+                    {gpfLoading ? t('scriptsAdmin.searching') : t('common.search')}
                   </button>
                   {gpfTotal > 0 && (
-                    <span className="text-[11px] text-slate-500">{gpfTotal} casos analizados</span>
+                    <span className="text-[11px] text-slate-500">{t('scriptsAdmin.casesAnalyzed', { count: gpfTotal })}</span>
                   )}
                 </div>
 
@@ -1873,9 +1883,9 @@ function AiCriteriaGeneratorDrawer({ callType, mode, onClose, onImported }: AiCr
                           )}
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className="text-xs text-slate-500 tabular-nums">{cat.count} casos</span>
+                          <span className="text-xs text-slate-500 tabular-nums">{t('scriptsAdmin.casesCount', { count: cat.count })}</span>
                           <span className="text-[10px] font-medium text-teal-400 opacity-0 group-hover/cat:opacity-100 transition-opacity">
-                            Usar →
+                            {t('scriptsAdmin.useArrow')}
                           </span>
                         </div>
                       </button>
@@ -1885,7 +1895,7 @@ function AiCriteriaGeneratorDrawer({ callType, mode, onClose, onImported }: AiCr
 
                 {!gpfLoading && gpfCategories.length === 0 && !gpfError && (
                   <p className="text-xs text-slate-500 text-center py-2">
-                    Haz clic en "Buscar" para cargar las categorías disponibles en GPF
+                    {t('scriptsAdmin.clickSearchHint')}
                   </p>
                 )}
               </div>
@@ -1895,14 +1905,14 @@ function AiCriteriaGeneratorDrawer({ callType, mode, onClose, onImported }: AiCr
           {/* Descripción */}
           <div className="px-6 py-5 border-b border-slate-800/40">
             <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-200 mb-2">
-              ¿Qué debe evaluar este tipo de llamada?
-              <InfoTooltip text="Describe en tus palabras qué hace el agente en este tipo de llamada y qué quieres verificar." />
+              {t('scriptsAdmin.whatToEvaluate')}
+              <InfoTooltip text={t('scriptsAdmin.whatToEvaluateTooltip')} />
             </label>
             <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
               rows={4}
-              placeholder={`Ej: En llamadas de ${callType} el agente debe verificar la identidad del cliente, revisar las transacciones sospechosas en FALCON y VCAS, bloquear la tarjeta si hay fraude confirmado, crear un folio de bonificación y explicar el proceso al cliente...`}
+              placeholder={t('scriptsAdmin.descriptionPlaceholder', { callType })}
               className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3.5 py-3
                          text-sm text-white resize-none focus:outline-none focus:border-purple-600/60
                          focus:ring-1 focus:ring-purple-500/20 placeholder:text-slate-600 transition-colors"
@@ -1915,8 +1925,8 @@ function AiCriteriaGeneratorDrawer({ callType, mode, onClose, onImported }: AiCr
                          hover:bg-purple-500/25 disabled:opacity-50 transition-all duration-150"
             >
               {generating
-                ? <><Loader2 size={14} className="animate-spin" /> Analizando y generando criterios...</>
-                : <><Wand2 size={14} /> Generar criterios con IA</>}
+                ? <><Loader2 size={14} className="animate-spin" /> {t('scriptsAdmin.analyzingGenerating')}</>
+                : <><Wand2 size={14} /> {t('scriptsAdmin.generateCriteriaTitle')}</>}
             </button>
           </div>
 
@@ -1925,9 +1935,9 @@ function AiCriteriaGeneratorDrawer({ callType, mode, onClose, onImported }: AiCr
             <div className="px-6 py-4 space-y-3 animate-fadeIn">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-slate-200">
-                  Vista previa — {preview.length} bloques generados
+                  {t('scriptsAdmin.previewBlocks', { count: preview.length })}
                 </p>
-                <span className="text-xs text-slate-500">{selectedCount} criterios seleccionados</span>
+                <span className="text-xs text-slate-500">{t('scriptsAdmin.criteriaSelected', { count: selectedCount })}</span>
               </div>
 
               {preview.map((block, bi) => {
@@ -1944,7 +1954,7 @@ function AiCriteriaGeneratorDrawer({ callType, mode, onClose, onImported }: AiCr
                         className="w-3.5 h-3.5 accent-purple-500 cursor-pointer"
                       />
                       <span className="flex-1 text-sm font-semibold text-white">{block.block_name}</span>
-                      <span className="text-xs text-slate-500">{blockSelectedCount}/{block.criteria.length} criterios</span>
+                      <span className="text-xs text-slate-500">{blockSelectedCount}/{block.criteria.length} {t('scriptsAdmin.criteriaWord')}</span>
                     </div>
                     {/* Criteria list */}
                     <div className="divide-y divide-slate-800/40">
@@ -1969,7 +1979,7 @@ function AiCriteriaGeneratorDrawer({ callType, mode, onClose, onImported }: AiCr
                               <div className="flex items-start gap-2 flex-wrap">
                                 <span className={`text-sm leading-snug ${isOn ? 'text-slate-200' : 'text-slate-500'}`}>{c.topic}</span>
                                 {c.criticality === 'Crítico' && (
-                                  <span className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/15 border border-red-500/20 text-red-300">CRÍTICO</span>
+                                  <span className="flex-shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/15 border border-red-500/20 text-red-300">{t('scriptsAdmin.criticalUpper')}</span>
                                 )}
                               </div>
                               <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -2008,14 +2018,14 @@ function AiCriteriaGeneratorDrawer({ callType, mode, onClose, onImported }: AiCr
                            hover:bg-purple-500/30 disabled:opacity-50 transition-all duration-150"
               >
                 {importing ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                {importing ? 'Importando...' : `Importar ${selectedCount} criterios`}
+                {importing ? t('scriptsAdmin.importing') : t('scriptsAdmin.importCount', { count: selectedCount })}
               </button>
               <button
                 onClick={() => { setPreview([]); setDescription(''); }}
                 disabled={importing}
                 className="px-4 py-2.5 rounded-xl text-slate-400 text-sm hover:text-white hover:bg-slate-800/60 transition-all disabled:opacity-50"
               >
-                Limpiar
+                {t('scriptsAdmin.clear')}
               </button>
             </div>
           </div>
@@ -2050,6 +2060,7 @@ interface AiPromptAssistantProps {
 }
 
 function AiPromptAssistant({ currentTopic, callType, onUse }: AiPromptAssistantProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState('');
   const [generating, setGenerating] = useState(false);
@@ -2067,7 +2078,7 @@ function AiPromptAssistant({ currentTopic, callType, onUse }: AiPromptAssistantP
       });
       setResult(prompt);
     } catch {
-      toast.error('Error al generar instrucción con IA');
+      toast.error(t('scriptsAdmin.instructionGenError'));
     } finally {
       setGenerating(false);
     }
@@ -2081,20 +2092,20 @@ function AiPromptAssistant({ currentTopic, callType, onUse }: AiPromptAssistantP
         className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-brand-400 transition-colors duration-150"
       >
         <Sparkles size={12} />
-        {open ? 'Ocultar asistente' : 'Generar con IA'}
+        {open ? t('scriptsAdmin.hideAssistant') : t('scriptsAdmin.generateWithAi')}
         <ChevronDown size={11} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
         <div className="mt-3 p-4 rounded-xl bg-slate-900/60 border border-slate-700/40 animate-fadeIn space-y-3">
           <p className="text-xs text-slate-400">
-            Describe en tus propias palabras qué debe verificar la IA y generamos la instrucción técnica.
+            {t('scriptsAdmin.assistantHint')}
           </p>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
-            placeholder="Ej: El agente debe verificar que la cuenta aparezca como bloqueada en el sistema VCAS..."
+            placeholder={t('scriptsAdmin.assistantPlaceholder')}
             className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl px-3 py-2
                        text-xs text-white resize-none focus:outline-none focus:border-brand-600/60
                        placeholder:text-slate-600 transition-colors"
@@ -2108,12 +2119,12 @@ function AiPromptAssistant({ currentTopic, callType, onUse }: AiPromptAssistantP
                        hover:bg-brand-500/25 disabled:opacity-50 transition-all duration-150"
           >
             {generating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-            {generating ? 'Generando...' : 'Generar instrucción'}
+            {generating ? t('reports.generating') : t('scriptsAdmin.generateInstruction')}
           </button>
 
           {result && (
             <div className="animate-fadeIn space-y-2">
-              <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Instrucción generada</p>
+              <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">{t('scriptsAdmin.instructionGenerated')}</p>
               <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl px-3.5 py-3">
                 <p className="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">{result}</p>
               </div>
@@ -2125,7 +2136,7 @@ function AiPromptAssistant({ currentTopic, callType, onUse }: AiPromptAssistantP
                            hover:bg-green-500/25 transition-all duration-150"
               >
                 <Check size={12} />
-                Usar esta instrucción
+                {t('scriptsAdmin.useInstruction')}
               </button>
             </div>
           )}
@@ -2146,6 +2157,7 @@ interface CriteriaEditDrawerProps {
 }
 
 function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, onClose }: CriteriaEditDrawerProps) {
+  const { t } = useTranslation();
   const existingOverride = selectedTipoCierre ? item.tipo_cierre_overrides?.[selectedTipoCierre] : undefined;
   const isSubcalMode = !!selectedTipoCierre;
 
@@ -2218,10 +2230,10 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
           validation_source: validationSource,
         });
       }
-      toast.success('Criterio actualizado');
+      toast.success(t('scriptsAdmin.criterionUpdated'));
       onSave();
     } catch {
-      toast.error('Error al guardar criterio');
+      toast.error(t('scriptsAdmin.criterionSaveError'));
     } finally {
       setSaving(false);
     }
@@ -2234,10 +2246,10 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
       const newOverrides = { ...(item.tipo_cierre_overrides || {}) };
       delete newOverrides[selectedTipoCierre];
       await criteriaService.updateCriteria(item.id, { tipo_cierre_overrides: newOverrides });
-      toast.success('Configuración reseteada a base');
+      toast.success(t('scriptsAdmin.configReset'));
       onSave();
     } catch {
-      toast.error('Error al resetear');
+      toast.error(t('scriptsAdmin.resetError'));
     } finally {
       setSaving(false);
     }
@@ -2261,12 +2273,12 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
               <div className="w-7 h-7 rounded-lg bg-brand-500/15 border border-brand-700/20 flex items-center justify-center flex-shrink-0">
                 <Pencil size={12} className="text-brand-400" />
               </div>
-              <h2 className="text-white font-semibold text-sm">Configurar criterio</h2>
+              <h2 className="text-white font-semibold text-sm">{t('scriptsAdmin.configureCriterion')}</h2>
             </div>
             {isSubcalMode && (
               <div className="flex items-center gap-1.5 mt-1.5 ml-9">
                 <span className="w-1.5 h-1.5 rounded-full bg-teal-400 flex-shrink-0" />
-                <p className="text-[11px] text-teal-400">Subcalificación: <strong>{selectedTipoCierre}</strong></p>
+                <p className="text-[11px] text-teal-400">{t('reference.subQualification')} <strong>{selectedTipoCierre}</strong></p>
               </div>
             )}
           </div>
@@ -2282,7 +2294,7 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
         {isSubcalMode && existingOverride && (
           <div className="mx-6 mt-4 flex items-center justify-between px-3.5 py-2.5 rounded-xl
                           bg-teal-500/10 border border-teal-500/20">
-            <span className="text-xs text-teal-300">Configuración específica para <strong>{selectedTipoCierre}</strong></span>
+            <span className="text-xs text-teal-300">{t('scriptsAdmin.specificConfigFor2')} <strong>{selectedTipoCierre}</strong></span>
             <button
               type="button"
               onClick={handleResetOverride}
@@ -2290,7 +2302,7 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
               className="text-[11px] text-slate-400 hover:text-rose-400 transition-colors flex items-center gap-1 disabled:opacity-50"
             >
               <RotateCcw size={11} />
-              Resetear a base
+              {t('scriptsAdmin.resetToBase')}
             </button>
           </div>
         )}
@@ -2302,14 +2314,14 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
           {!isSubcalMode && (
             <div>
               <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-200 mb-2">
-                ¿Qué verifica este criterio?
-                <InfoTooltip text="Nombre o descripción del criterio. Define lo que el agente debe cumplir." />
+                {t('scriptsAdmin.whatVerifies')}
+                <InfoTooltip text={t('scriptsAdmin.whatVerifiesTooltip')} />
               </label>
               <textarea
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 rows={2}
-                placeholder="Ej: El agente verifica la identidad del cliente antes de dar información..."
+                placeholder={t('scriptsAdmin.topicPlaceholder')}
                 className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3.5 py-2.5
                            text-sm text-white resize-none focus:outline-none focus:border-brand-600/60
                            focus:ring-1 focus:ring-brand-500/20 placeholder:text-slate-600 transition-colors"
@@ -2322,13 +2334,13 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-200 mb-2">
-                  Puntos
-                  <InfoTooltip text="Valor en puntos de este criterio. Escribe 'n/a' si no tiene puntaje." />
+                  {t('scripts.points')}
+                  <InfoTooltip text={t('scriptsAdmin.pointsTooltip')} />
                 </label>
                 <input
                   value={points}
                   onChange={(e) => setPoints(e.target.value)}
-                  placeholder="5 o n/a"
+                  placeholder={t('scriptsAdmin.phPointsExample')}
                   className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3.5 py-2.5
                              text-sm text-white focus:outline-none focus:border-brand-600/60
                              focus:ring-1 focus:ring-brand-500/20 placeholder:text-slate-600 transition-colors"
@@ -2336,8 +2348,8 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
               </div>
               <div>
                 <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-200 mb-2">
-                  ¿Es crítico?
-                  <InfoTooltip text="Si falla un criterio crítico, la llamada puede reprobarse aunque el puntaje total sea alto." />
+                  {t('scriptsAdmin.isCritical')}
+                  <InfoTooltip text={t('scriptsAdmin.isCriticalTooltip')} />
                 </label>
                 <div className="flex gap-2">
                   <button
@@ -2350,7 +2362,7 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
                     }`}
                   >
                     <AlertTriangle size={13} />
-                    Sí
+                    {t('common.yes')}
                   </button>
                   <button
                     type="button"
@@ -2361,7 +2373,7 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
                         : 'bg-slate-900/60 border-slate-700/60 text-slate-500 hover:text-slate-300'
                     }`}
                   >
-                    No
+                    {t('common.no')}
                   </button>
                 </div>
               </div>
@@ -2392,12 +2404,12 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
             <div>
               <div className="flex items-center gap-1.5">
                 <p className="text-sm font-semibold text-slate-200">
-                  {applies ? 'Aplica' : 'No aplica'}{isSubcalMode ? ` para ${selectedTipoCierre}` : ''}
+                  {applies ? t('scriptsAdmin.applies') : t('scriptsAdmin.notApplies')}{isSubcalMode ? ` ${t('scriptsAdmin.forLabel')} ${selectedTipoCierre}` : ''}
                 </p>
-                <InfoTooltip text="Desactivado = la IA ignora este criterio en las auditorías automáticas." />
+                <InfoTooltip text={t('scriptsAdmin.appliesTooltip')} />
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                {applies ? 'La IA evaluará este criterio en las auditorías' : 'La IA ignorará este criterio'}
+                {applies ? t('scriptsAdmin.aiWillEvaluate') : t('scriptsAdmin.aiWillIgnore')}
               </p>
             </div>
           </div>
@@ -2405,8 +2417,8 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
           {/* Dónde verificar */}
           <div>
             <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-200 mb-3">
-              ¿Dónde lo verifica la IA?
-              <InfoTooltip text="Selecciona qué material debe revisar la IA para evaluar este criterio." />
+              {t('scriptsAdmin.whereVerifies')}
+              <InfoTooltip text={t('scriptsAdmin.whereVerifiesTooltip')} />
             </label>
             <div className="flex gap-2">
               {/* GPF */}
@@ -2418,7 +2430,7 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
                       active ? 'bg-blue-500/15 border-blue-500/30 text-blue-300' : 'bg-slate-900/60 border-slate-700/60 text-slate-500 hover:text-blue-300 hover:border-blue-500/20'
                     }`}>
                     <span className="text-sm font-bold">GPF</span>
-                    <span className={`text-[10px] font-normal leading-tight ${active ? 'opacity-80' : 'opacity-50'}`}>Registro GPF</span>
+                    <span className={`text-[10px] font-normal leading-tight ${active ? 'opacity-80' : 'opacity-50'}`}>{t('scriptsAdmin.gpfRecord')}</span>
                     {active && <Check size={12} className="mt-0.5" />}
                   </button>
                 );
@@ -2428,9 +2440,9 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
                 className={`flex-1 flex flex-col items-center gap-1 py-3 px-2 rounded-xl border text-xs font-semibold transition-all duration-150 ${
                   hasImages ? 'bg-brand-500/15 border-brand-700/30 text-brand-300' : 'bg-slate-900/60 border-slate-700/60 text-slate-500 hover:text-brand-300 hover:border-brand-700/20'
                 }`}>
-                <span className="text-sm font-bold">Imágenes</span>
+                <span className="text-sm font-bold">{t('scriptsAdmin.sourceImages')}</span>
                 <span className={`text-[10px] font-normal leading-tight text-center ${hasImages ? 'opacity-80' : 'opacity-50'}`}>
-                  {specificSystems.length > 0 ? specificSystems.join(', ') : 'Capturas de pantalla'}
+                  {specificSystems.length > 0 ? specificSystems.join(', ') : t('scriptsAdmin.screenshots')}
                 </span>
                 {hasImages && <Check size={12} className="mt-0.5" />}
               </button>
@@ -2442,8 +2454,8 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
                     className={`flex-1 flex flex-col items-center gap-1 py-3 px-2 rounded-xl border text-xs font-semibold transition-all duration-150 ${
                       active ? 'bg-amber-500/15 border-amber-500/30 text-amber-300' : 'bg-slate-900/60 border-slate-700/60 text-slate-500 hover:text-amber-300 hover:border-amber-500/20'
                     }`}>
-                    <span className="text-sm font-bold">Llamada</span>
-                    <span className={`text-[10px] font-normal leading-tight ${active ? 'opacity-80' : 'opacity-50'}`}>Transcripción audio</span>
+                    <span className="text-sm font-bold">{t('scriptsAdmin.sourceCall')}</span>
+                    <span className={`text-[10px] font-normal leading-tight ${active ? 'opacity-80' : 'opacity-50'}`}>{t('scriptsAdmin.audioTranscript')}</span>
                     {active && <Check size={12} className="mt-0.5" />}
                   </button>
                 );
@@ -2455,10 +2467,10 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
               <div className="mt-3 p-3.5 rounded-xl bg-slate-900/60 border border-brand-700/20 animate-fadeIn">
                 <div className="flex items-center justify-between mb-2.5">
                   <p className="text-[11px] font-semibold text-brand-400 uppercase tracking-wider">
-                    ¿Qué imágenes verificar?
+                    {t('scriptsAdmin.whichImages')}
                   </p>
                   {specificSystems.length === 0 && (
-                    <span className="text-[10px] text-slate-600">Sin selección = todas las imágenes</span>
+                    <span className="text-[10px] text-slate-600">{t('scriptsAdmin.noSelectionAllImages')}</span>
                   )}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -2484,7 +2496,7 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
                 </div>
                 {specificSystems.length > 0 && (
                   <p className="text-[10px] text-slate-600 mt-2">
-                    La IA buscará evidencia específicamente en: <strong className="text-slate-500">{specificSystems.join(', ')}</strong>
+                    {t('scriptsAdmin.aiWillSearchIn')} <strong className="text-slate-500">{specificSystems.join(', ')}</strong>
                   </p>
                 )}
               </div>
@@ -2494,14 +2506,14 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
           {/* Instrucción para la IA */}
           <div>
             <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-200 mb-2">
-              Instrucción para la IA
-              <InfoTooltip text="Describe exactamente qué debe buscar la IA para decidir si el agente cumplió este criterio." />
+              {t('scriptsAdmin.aiInstruction')}
+              <InfoTooltip text={t('scriptsAdmin.aiInstructionTooltip')} />
             </label>
             <textarea
               value={whatToLookFor}
               onChange={(e) => setWhatToLookFor(e.target.value)}
               rows={6}
-              placeholder="Ej: En la captura de VCAS, verifica que el campo Account State muestre el valor BLOCKED..."
+              placeholder={t('scriptsAdmin.aiInstructionPlaceholder')}
               className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3.5 py-2.5
                          text-sm text-white resize-y focus:outline-none focus:border-brand-600/60
                          focus:ring-1 focus:ring-brand-500/20 placeholder:text-slate-600 transition-colors"
@@ -2525,7 +2537,7 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
                        hover:bg-brand-500/25 disabled:opacity-50 transition-all duration-150"
           >
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-            {saving ? 'Guardando...' : 'Guardar cambios'}
+            {saving ? t('common.saving') : t('scripts.saveChanges')}
           </button>
           <button
             onClick={onClose}
@@ -2534,7 +2546,7 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
                        hover:text-slate-200 hover:bg-slate-800/60 disabled:opacity-50
                        border border-transparent hover:border-slate-700/60 transition-all duration-150"
           >
-            Cancelar
+            {t('common.cancel')}
           </button>
         </div>
       </div>
@@ -2614,6 +2626,7 @@ function SkeletonLoader() {
 // ─── Tab: Comportamiento IA (AI Prompts) ─────────────────────
 
 function AiPromptsTab() {
+  const { t } = useTranslation();
   const [prompts, setPrompts] = useState<AiPrompt[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<AdminMode>('INBOUND');
@@ -2632,11 +2645,11 @@ function AiPromptsTab() {
       const data = await promptsService.getAll();
       setPrompts(data);
     } catch {
-      toast.error('Error al cargar prompts de IA');
+      toast.error(t('scriptsAdmin.promptsLoadError'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -2655,18 +2668,17 @@ function AiPromptsTab() {
       {filteredPrompts.length === 0 ? (
         <EmptyState
           icon={<Brain size={28} className="text-slate-600" />}
-          title="Sin prompts configurados"
+          title={t('scriptsAdmin.noPrompts')}
           description={
             mode === 'MONITOREO'
-              ? 'No hay prompts para Monitoreo aún. Crea registros en BD con call_type = MONITOREO.'
-              : 'Ejecuta "Cargar datos predeterminados" para inicializar los prompts desde los archivos estáticos.'
+              ? t('scriptsAdmin.noPromptsMonitoring')
+              : t('scriptsAdmin.noPromptsHint')
           }
         />
       ) : (
         <>
           <p className="text-xs text-slate-500 leading-relaxed">
-            Estos son los prompts enviados a la IA en cada etapa del proceso de auditoría.
-            Edítalos con cuidado — afectan directamente cómo la IA analiza imágenes, evalúa llamadas y corrige transcripciones.
+            {t('scriptsAdmin.promptsIntro')}
           </p>
           {filteredPrompts.map((prompt) => (
             <PromptEditor key={prompt.id} prompt={prompt} onUpdate={load} />
@@ -2685,6 +2697,7 @@ interface PromptEditorProps {
 }
 
 function PromptEditor({ prompt, onUpdate }: PromptEditorProps) {
+  const { t } = useTranslation();
   const [content, setContent] = useState(prompt.content);
   const [expanded, setExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -2694,10 +2707,10 @@ function PromptEditor({ prompt, onUpdate }: PromptEditorProps) {
     setSaving(true);
     try {
       await promptsService.update(prompt.id, { content });
-      toast.success('Prompt actualizado');
+      toast.success(t('scriptsAdmin.promptUpdated'));
       onUpdate();
     } catch {
-      toast.error('Error al guardar prompt');
+      toast.error(t('scriptsAdmin.promptSaveError'));
     } finally {
       setSaving(false);
     }
@@ -2728,7 +2741,7 @@ function PromptEditor({ prompt, onUpdate }: PromptEditorProps) {
         </div>
         <div className="flex items-center gap-3 flex-shrink-0 ml-3">
           {isDirty && (
-            <span className="text-xs text-amber-400 font-medium">Cambios sin guardar</span>
+            <span className="text-xs text-amber-400 font-medium">{t('scriptsAdmin.unsavedChanges')}</span>
           )}
           <span className="text-xs text-slate-600 font-mono tabular-nums">
             {content.length.toLocaleString()} car.
@@ -2753,7 +2766,7 @@ function PromptEditor({ prompt, onUpdate }: PromptEditorProps) {
                          focus:outline-none focus:border-amber-700/50 focus:ring-1 focus:ring-amber-700/30
                          placeholder:text-slate-600"
               spellCheck={false}
-              placeholder="Escribe el prompt de sistema aquí..."
+              placeholder={t('scriptsAdmin.promptPlaceholder')}
             />
           </div>
           <div className="flex items-center gap-2 mt-3 justify-end">
@@ -2764,7 +2777,7 @@ function PromptEditor({ prompt, onUpdate }: PromptEditorProps) {
                          text-slate-400 hover:text-slate-200 border border-slate-700/50 hover:border-slate-600
                          transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <RotateCcw size={12} /> Descartar
+              <RotateCcw size={12} /> {t('resultsView.discard')}
             </button>
             <button
               onClick={handleSave}
@@ -2775,7 +2788,7 @@ function PromptEditor({ prompt, onUpdate }: PromptEditorProps) {
                          disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-              Guardar
+              {t('common.save')}
             </button>
           </div>
         </div>
@@ -2820,6 +2833,7 @@ function SubTabToggle({
 // ── Wrapper: Scripts ──────────────────────────────────────────
 
 function ScriptsTabWrapper() {
+  const { t } = useTranslation();
   const [subTab, setSubTab] = useState<'guiones' | 'vocabulario'>('guiones');
   return (
     <div>
@@ -2827,8 +2841,8 @@ function ScriptsTabWrapper() {
         activeSubTab={subTab}
         onChange={(v) => setSubTab(v as 'guiones' | 'vocabulario')}
         options={[
-          { key: 'guiones',     label: 'Guiones',                    icon: <BookOpen size={14} /> },
-          { key: 'vocabulario', label: 'Vocabulario de Transcripción', icon: <Volume2 size={14} /> },
+          { key: 'guiones',     label: t('scriptsAdmin.subTabGuides'),     icon: <BookOpen size={14} /> },
+          { key: 'vocabulario', label: t('scriptsAdmin.subTabVocabulary'), icon: <Volume2 size={14} /> },
         ]}
       />
       {subTab === 'guiones' ? <ScriptsTab /> : <VocabularioTab />}
@@ -2839,6 +2853,7 @@ function ScriptsTabWrapper() {
 // ── Wrapper: Criterios ────────────────────────────────────────
 
 function CriteriaTabWrapper() {
+  const { t } = useTranslation();
   const [subTab, setSubTab] = useState<'criterios' | 'sistemas'>('criterios');
   return (
     <div>
@@ -2846,8 +2861,8 @@ function CriteriaTabWrapper() {
         activeSubTab={subTab}
         onChange={(v) => setSubTab(v as 'criterios' | 'sistemas')}
         options={[
-          { key: 'criterios', label: 'Criterios de Evaluación', icon: <ClipboardList size={14} /> },
-          { key: 'sistemas',  label: 'Sistemas de Imagen',       icon: <Monitor size={14} /> },
+          { key: 'criterios', label: t('reference.tabCriteria'),          icon: <ClipboardList size={14} /> },
+          { key: 'sistemas',  label: t('scriptsAdmin.subTabImageSystems'), icon: <Monitor size={14} /> },
         ]}
       />
       {subTab === 'criterios' ? <CriteriaTab /> : <ImageSystemsTab />}
@@ -2858,6 +2873,7 @@ function CriteriaTabWrapper() {
 // ── Wrapper: Plantilla GPF ────────────────────────────────────
 
 function PlantillaTabWrapper() {
+  const { t } = useTranslation();
   const [subTab, setSubTab] = useState<'plantilla' | 'tipos'>('plantilla');
   return (
     <div>
@@ -2865,8 +2881,8 @@ function PlantillaTabWrapper() {
         activeSubTab={subTab}
         onChange={(v) => setSubTab(v as 'plantilla' | 'tipos')}
         options={[
-          { key: 'plantilla', label: 'Plantilla de Cierre GPF', icon: <Table size={14} /> },
-          { key: 'tipos',     label: 'Tipos de Llamada',         icon: <PhoneCall size={14} /> },
+          { key: 'plantilla', label: t('reference.tabPlantilla'),      icon: <Table size={14} /> },
+          { key: 'tipos',     label: t('scriptsAdmin.subTabCallTypes'), icon: <PhoneCall size={14} /> },
         ]}
       />
       {subTab === 'plantilla' ? <PlantillaGPFTab /> : <CallTypesTab />}
@@ -2878,28 +2894,30 @@ function PlantillaTabWrapper() {
 // VOCABULARIO DE TRANSCRIPCIÓN
 // ═══════════════════════════════════════════════════════════════
 
-const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
-  banco:              { label: 'Banco / Tarjetas',       color: 'bg-blue-500/15 text-blue-300 border-blue-500/30' },
-  sistemas:           { label: 'Sistemas Bancarios',      color: 'bg-purple-500/15 text-purple-300 border-purple-500/30' },
-  terminos_bancarios: { label: 'Términos Bancarios',      color: 'bg-brand-500/15 text-brand-300 border-brand-500/30' },
-  comercios:          { label: 'Comercios',               color: 'bg-orange-500/15 text-orange-300 border-orange-500/30' },
-  codigos_bloqueo:    { label: 'Códigos de Bloqueo',      color: 'bg-red-500/15 text-red-300 border-red-500/30' },
-  nombres:            { label: 'Apellidos',               color: 'bg-pink-500/15 text-pink-300 border-pink-500/30' },
-  ciudades:           { label: 'Ciudades',                color: 'bg-teal-500/15 text-teal-300 border-teal-500/30' },
-  call_center:        { label: 'Call Center',             color: 'bg-slate-500/15 text-slate-300 border-slate-500/30' },
-  frases:             { label: 'Frases',                  color: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30' },
+const CATEGORY_LABELS: Record<string, { labelKey: string; color: string }> = {
+  banco:              { labelKey: 'scriptsAdmin.catBank',         color: 'bg-blue-500/15 text-blue-300 border-blue-500/30' },
+  sistemas:           { labelKey: 'scriptsAdmin.catSystems',      color: 'bg-purple-500/15 text-purple-300 border-purple-500/30' },
+  terminos_bancarios: { labelKey: 'scriptsAdmin.catBankTerms',    color: 'bg-brand-500/15 text-brand-300 border-brand-500/30' },
+  comercios:          { labelKey: 'scriptsAdmin.catMerchants',    color: 'bg-orange-500/15 text-orange-300 border-orange-500/30' },
+  codigos_bloqueo:    { labelKey: 'scriptsAdmin.catBlockCodes',   color: 'bg-red-500/15 text-red-300 border-red-500/30' },
+  nombres:            { labelKey: 'scriptsAdmin.catLastNames',    color: 'bg-pink-500/15 text-pink-300 border-pink-500/30' },
+  ciudades:           { labelKey: 'scriptsAdmin.catCities',       color: 'bg-teal-500/15 text-teal-300 border-teal-500/30' },
+  call_center:        { labelKey: 'scriptsAdmin.catCallCenter',   color: 'bg-slate-500/15 text-slate-300 border-slate-500/30' },
+  frases:             { labelKey: 'scriptsAdmin.catPhrases',      color: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30' },
 };
 
 function CategoryBadge({ category }: { category: string }) {
-  const meta = CATEGORY_LABELS[category] ?? { label: category, color: 'bg-slate-500/15 text-slate-300 border-slate-500/30' };
+  const { t } = useTranslation();
+  const meta = CATEGORY_LABELS[category];
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${meta.color}`}>
-      {meta.label}
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${meta?.color ?? 'bg-slate-500/15 text-slate-300 border-slate-500/30'}`}>
+      {meta ? t(meta.labelKey) : category}
     </span>
   );
 }
 
 function VocabularioTab() {
+  const { t } = useTranslation();
   const [terms, setTerms] = useState<WordBoostTerm[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -2917,11 +2935,11 @@ function VocabularioTab() {
       const data = await wordBoostService.getAll();
       setTerms(data);
     } catch {
-      toast.error('Error al cargar vocabulario');
+      toast.error(t('scriptsAdmin.vocabLoadError'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -2930,12 +2948,12 @@ function VocabularioTab() {
     setSaving(true);
     try {
       await wordBoostService.create({ term: newTerm.trim(), category: newCategory });
-      toast.success('Término agregado');
+      toast.success(t('scriptsAdmin.termAdded'));
       setNewTerm('');
       setShowAdd(false);
       load();
     } catch {
-      toast.error('Error al agregar término');
+      toast.error(t('scriptsAdmin.termAddError'));
     } finally {
       setSaving(false);
     }
@@ -2946,17 +2964,17 @@ function VocabularioTab() {
       await wordBoostService.update(term.id, { is_active: !term.is_active });
       load();
     } catch {
-      toast.error('Error al actualizar término');
+      toast.error(t('scriptsAdmin.termUpdateError'));
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
       await wordBoostService.remove(id);
-      toast.success('Término eliminado');
+      toast.success(t('scriptsAdmin.termDeleted'));
       load();
     } catch {
-      toast.error('Error al eliminar término');
+      toast.error(t('scriptsAdmin.termDeleteError'));
     }
   };
 
@@ -2964,11 +2982,11 @@ function VocabularioTab() {
     if (!editValue.trim()) return;
     try {
       await wordBoostService.update(id, { term: editValue.trim(), category: editCategory });
-      toast.success('Término actualizado');
+      toast.success(t('scriptsAdmin.termUpdated'));
       setEditingId(null);
       load();
     } catch {
-      toast.error('Error al actualizar término');
+      toast.error(t('scriptsAdmin.termUpdateError'));
     }
   };
 
@@ -2984,8 +3002,8 @@ function VocabularioTab() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm text-slate-400 leading-relaxed">
-            Términos que mejoran la precisión de transcripción de audio (AssemblyAI word boost).
-            <span className="ml-2 text-brand-400 font-medium">{activeCount} activos de {terms.length} total</span>
+            {t('scriptsAdmin.vocabIntro')}
+            <span className="ml-2 text-brand-400 font-medium">{t('scriptsAdmin.activeOfTotal', { active: activeCount, total: terms.length })}</span>
           </p>
         </div>
         <button
@@ -2994,7 +3012,7 @@ function VocabularioTab() {
                      bg-brand-500/10 border border-brand-500/30 text-brand-300
                      hover:bg-brand-500/20 transition-all whitespace-nowrap"
         >
-          <Plus size={14} /> Agregar término
+          <Plus size={14} /> {t('scriptsAdmin.addTerm')}
         </button>
       </div>
 
@@ -3002,18 +3020,18 @@ function VocabularioTab() {
       {showAdd && (
         <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 flex flex-wrap gap-3 items-end">
           <div className="flex-1 min-w-[180px]">
-            <label className="block text-xs text-slate-400 mb-1">Término</label>
+            <label className="block text-xs text-slate-400 mb-1">{t('scriptsAdmin.termLabel')}</label>
             <input
               value={newTerm}
               onChange={e => setNewTerm(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleAdd()}
-              placeholder="ej: Bradescard"
+              placeholder={t('scriptsAdmin.phEgBradescard')}
               className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200
                          focus:outline-none focus:border-brand-500/50 placeholder:text-slate-600"
             />
           </div>
           <div className="min-w-[180px]">
-            <label className="block text-xs text-slate-400 mb-1">Categoría</label>
+            <label className="block text-xs text-slate-400 mb-1">{t('scriptsAdmin.categoryLabel')}</label>
             <select
               value={newCategory}
               onChange={e => setNewCategory(e.target.value)}
@@ -3021,7 +3039,7 @@ function VocabularioTab() {
                          focus:outline-none focus:border-brand-500/50"
             >
               {categories.map(c => (
-                <option key={c} value={c}>{CATEGORY_LABELS[c].label}</option>
+                <option key={c} value={c}>{t(CATEGORY_LABELS[c].labelKey)}</option>
               ))}
             </select>
           </div>
@@ -3034,7 +3052,7 @@ function VocabularioTab() {
                          hover:bg-brand-500/25 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-              Guardar
+              {t('common.save')}
             </button>
             <button
               onClick={() => { setShowAdd(false); setNewTerm(''); }}
@@ -3056,7 +3074,7 @@ function VocabularioTab() {
               : 'bg-slate-800/40 border-slate-700/40 text-slate-500 hover:text-slate-300'
             }`}
         >
-          Todos ({terms.length})
+          {t('common.all')} ({terms.length})
         </button>
         {categories.map(cat => {
           const count = terms.filter(t => t.category === cat).length;
@@ -3071,7 +3089,7 @@ function VocabularioTab() {
                   : 'bg-slate-800/40 border-slate-700/40 text-slate-500 hover:text-slate-300'
                 }`}
             >
-              {CATEGORY_LABELS[cat]?.label ?? cat} ({count})
+              {CATEGORY_LABELS[cat] ? t(CATEGORY_LABELS[cat].labelKey) : cat} ({count})
             </button>
           );
         })}
@@ -3081,18 +3099,18 @@ function VocabularioTab() {
       {filtered.length === 0 ? (
         <EmptyState
           icon={<Volume2 size={28} className="text-slate-600" />}
-          title="Sin términos"
-          description="Agrega términos para mejorar la transcripción"
+          title={t('scriptsAdmin.noTerms')}
+          description={t('scriptsAdmin.noTermsHint')}
         />
       ) : (
         <div className="bg-slate-900/50 border border-slate-700/40 rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-700/40 bg-slate-800/40">
-                <th className="text-left px-4 py-2.5 text-xs font-medium text-slate-400">Término</th>
-                <th className="text-left px-4 py-2.5 text-xs font-medium text-slate-400">Categoría</th>
-                <th className="text-center px-4 py-2.5 text-xs font-medium text-slate-400">Activo</th>
-                <th className="text-right px-4 py-2.5 text-xs font-medium text-slate-400">Acciones</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-slate-400">{t('scriptsAdmin.termLabel')}</th>
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-slate-400">{t('scriptsAdmin.categoryLabel')}</th>
+                <th className="text-center px-4 py-2.5 text-xs font-medium text-slate-400">{t('scriptsAdmin.colActive')}</th>
+                <th className="text-right px-4 py-2.5 text-xs font-medium text-slate-400">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -3126,7 +3144,7 @@ function VocabularioTab() {
                         className="bg-slate-800 border border-slate-600/40 rounded-lg px-2 py-1 text-xs text-slate-200 focus:outline-none"
                       >
                         {categories.map(c => (
-                          <option key={c} value={c}>{CATEGORY_LABELS[c].label}</option>
+                          <option key={c} value={c}>{t(CATEGORY_LABELS[c].labelKey)}</option>
                         ))}
                       </select>
                     ) : (
@@ -3204,6 +3222,7 @@ const SYSTEM_DESCRIPTIONS: Record<string, string> = {
 };
 
 function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: DiscoveredSystemsImporterProps) {
+  const { t } = useTranslation();
   const existingNames = new Set(existingSystems.map(s => s.system_name.toUpperCase()));
   const today = new Date().toLocaleDateString('en-CA');
 
@@ -3268,17 +3287,17 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
       setAttentions(result.attentions || []);
       setAttentionsLoaded(true);
       if ((result.attentions || []).length === 0) {
-        toast('No se encontraron casos en este rango de fechas', { icon: 'ℹ' });
+        toast(t('scriptsAdmin.noCasesInRange'), { icon: 'ℹ' });
       }
     } catch (e: any) {
-      setLoadError(e?.response?.data?.error || 'Error al cargar casos de GPF');
+      setLoadError(e?.response?.data?.error || t('scriptsAdmin.gpfCasesLoadError'));
     } finally {
       setLoadingAttentions(false);
     }
   };
 
   const handleAnalyze = async () => {
-    if (!filterCal) { toast.error('Selecciona una Calificación'); return; }
+    if (!filterCal) { toast.error(t('scriptsAdmin.selectQualification')); return; }
     setAnalyzing(true);
     setCandidates([]);
     setSearchInfo(null);
@@ -3298,11 +3317,11 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
           name: s.name,
           count: s.count,
           selected: !existingNames.has(s.name),
-          description: SYSTEM_DESCRIPTIONS[s.name] || `Sistema ${s.name}`,
+          description: SYSTEM_DESCRIPTIONS[s.name] || t('scriptsAdmin.systemDefaultDesc', { name: s.name }),
         }));
       setCandidates(valid);
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Error al analizar imágenes de GPF');
+      toast.error(e?.response?.data?.error || t('scriptsAdmin.analyzeImagesError'));
     } finally {
       setAnalyzing(false);
     }
@@ -3324,10 +3343,10 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
           display_order: existingSystems.length + i + 1,
         });
       }
-      toast.success(`✅ ${toCreate.length} sistema${toCreate.length !== 1 ? 's' : ''} importado${toCreate.length !== 1 ? 's' : ''}`);
+      toast.success(t('scriptsAdmin.systemsImported', { count: toCreate.length }));
       onCreated();
     } catch {
-      toast.error('Error al importar sistemas');
+      toast.error(t('scriptsAdmin.systemsImportError'));
     } finally {
       setImporting(false);
     }
@@ -3341,7 +3360,7 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
           <div className="w-6 h-6 rounded-lg bg-teal-500/15 border border-teal-500/20 flex items-center justify-center">
             <Eye size={12} className="text-teal-400" />
           </div>
-          <span className="text-sm font-semibold text-teal-300">Descubrir sistemas desde GPF</span>
+          <span className="text-sm font-semibold text-teal-300">{t('scriptsAdmin.discoverSystems')}</span>
         </div>
         <button onClick={onClose} className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800/60 transition-all">
           <X size={14} />
@@ -3352,16 +3371,16 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
 
         {/* Paso 1: Fechas + cargar casos */}
         <div className="space-y-3">
-          <p className="text-xs text-slate-500">Carga los casos de GPF y filtra por tipo de llamada para descubrir qué sistemas de imagen aparecen.</p>
+          <p className="text-xs text-slate-500">{t('scriptsAdmin.discoverHint')}</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Fecha desde</label>
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">{t('newAudit.dateFrom')}</label>
               <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
                 className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-sm text-slate-200
                            focus:outline-none focus:border-teal-500/50" />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Fecha hasta</label>
+              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">{t('newAudit.dateTo')}</label>
               <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
                 className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-sm text-slate-200
                            focus:outline-none focus:border-teal-500/50" />
@@ -3372,12 +3391,12 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
                        bg-slate-800/60 border border-slate-700/60 text-slate-200 text-sm font-semibold
                        hover:bg-slate-800 hover:border-teal-500/30 disabled:opacity-50 transition-all">
             {loadingAttentions ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-            {loadingAttentions ? 'Cargando casos de GPF...' : 'Cargar casos de GPF'}
+            {loadingAttentions ? t('scriptsAdmin.loadingGpfCases') : t('scriptsAdmin.loadGpfCases')}
           </button>
           {loadError && <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{loadError}</p>}
           {attentionsLoaded && (
             <p className="text-[11px] text-slate-500 text-center">
-              {validAttentions.length} caso{validAttentions.length !== 1 ? 's' : ''} de {attentions.length} cargados (FRAUDE / TH CONFIRMA)
+              {t('scriptsAdmin.casesLoadedSummary', { valid: validAttentions.length, total: attentions.length })}
             </p>
           )}
         </div>
@@ -3387,23 +3406,23 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
           <div className="space-y-3 animate-fadeIn pt-1 border-t border-slate-800/50">
             <div className="grid grid-cols-2 gap-3 pt-3">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Calificación</label>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">{t('newAudit.qualification')}</label>
                 <select value={filterCal}
                   onChange={e => { setFilterCal(e.target.value); setFilterSub(''); setCandidates([]); setSearchInfo(null); }}
                   className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2.5 text-sm text-white
                              focus:outline-none focus:border-teal-500/50 cursor-pointer">
-                  <option value="">— Selecciona —</option>
+                  <option value="">{t('scriptsAdmin.selectOption')}</option>
                   {uniqueCalificaciones.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Subcalificación</label>
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">{t('scriptsAdmin.subQualificationLabel')}</label>
                 <select value={filterSub}
                   onChange={e => { setFilterSub(e.target.value); setCandidates([]); setSearchInfo(null); }}
                   disabled={!filterCal || uniqueSubcals.length === 0}
                   className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2.5 text-sm text-white
                              focus:outline-none focus:border-teal-500/50 cursor-pointer disabled:opacity-40">
-                  <option value="">Todas</option>
+                  <option value="">{t('scriptsAdmin.allFem')}</option>
                   {uniqueSubcals.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
@@ -3411,7 +3430,7 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
 
             {filterCal && (
               <p className="text-[11px] text-teal-400/80">
-                {matchingAttentions.length} caso{matchingAttentions.length !== 1 ? 's' : ''} coinciden con el filtro
+                {t('scriptsAdmin.casesMatchFilter', { count: matchingAttentions.length })}
               </p>
             )}
 
@@ -3420,12 +3439,12 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
                          bg-teal-500/20 border border-teal-500/35 text-teal-200 text-sm font-semibold
                          hover:bg-teal-500/30 disabled:opacity-50 transition-all">
               {analyzing
-                ? <><Loader2 size={13} className="animate-spin" /> Analizando imágenes de GPF...</>
-                : <><Eye size={13} /> Analizar imágenes de los {matchingAttentions.length} caso{matchingAttentions.length !== 1 ? 's' : ''}</>}
+                ? <><Loader2 size={13} className="animate-spin" /> {t('scriptsAdmin.analyzingGpfImages')}</>
+                : <><Eye size={13} /> {t('scriptsAdmin.analyzeImagesOf', { count: matchingAttentions.length })}</>}
             </button>
             {analyzing && (
               <p className="text-[11px] text-teal-500/70 text-center animate-pulse">
-                Descargando capturas y analizando con IA · 15–30 segundos
+                {t('scriptsAdmin.downloadingAnalyzing')}
               </p>
             )}
           </div>
@@ -3435,13 +3454,13 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
         {searchInfo && (
           <div className="space-y-1.5 animate-fadeIn">
             <div className="flex items-center gap-2 flex-wrap text-[11px]">
-              <span className="text-slate-500">{searchInfo.total} atencion{searchInfo.total !== 1 ? 'es' : ''} en GPF</span>
-              <span className="text-slate-600">· {searchInfo.cases.length} caso{searchInfo.cases.length !== 1 ? 's' : ''} revisado{searchInfo.cases.length !== 1 ? 's' : ''}</span>
-              {searchInfo.analyzed > 0 && <span className="text-teal-400">· {searchInfo.analyzed} imagen{searchInfo.analyzed !== 1 ? 'es' : ''} analizadas</span>}
+              <span className="text-slate-500">{t('scriptsAdmin.attentionsInGpf', { count: searchInfo.total })}</span>
+              <span className="text-slate-600">· {t('scriptsAdmin.casesChecked', { count: searchInfo.cases.length })}</span>
+              {searchInfo.analyzed > 0 && <span className="text-teal-400">· {t('scriptsAdmin.imagesAnalyzed', { count: searchInfo.analyzed })}</span>}
             </div>
             {searchInfo.cases.length > 0 && (
               <p className="text-[10px] text-slate-700">
-                Casos revisados: {searchInfo.cases.join(', ')}
+                {t('scriptsAdmin.casesCheckedList')} {searchInfo.cases.join(', ')}
               </p>
             )}
             {searchInfo.message && (
@@ -3452,10 +3471,9 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
 
         {candidates.length === 0 && searchInfo && !analyzing && (
           <div className="text-center py-3 space-y-2">
-            <p className="text-slate-400 text-sm">No se encontraron capturas de pantalla</p>
+            <p className="text-slate-400 text-sm">{t('scriptsAdmin.noScreenshots')}</p>
             <p className="text-slate-600 text-xs max-w-xs mx-auto">
-              Los casos de este tipo no tienen imágenes registradas en GPF para ese rango de fechas.
-              Prueba otras fechas o agrega los sistemas manualmente con "Nuevo sistema".
+              {t('scriptsAdmin.noScreenshotsHint')}
             </p>
           </div>
         )}
@@ -3463,10 +3481,10 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
         {candidates.length > 0 && (
           <div className="space-y-2 animate-fadeIn">
             <p className="text-xs font-semibold text-slate-300">
-              Sistemas detectados
+              {t('scriptsAdmin.systemsDetected')}
               {candidates.filter(c => !existingNames.has(c.name)).length > 0 && (
                 <span className="ml-1.5 text-teal-400 font-normal">
-                  · {candidates.filter(c => !existingNames.has(c.name)).length} nuevo{candidates.filter(c => !existingNames.has(c.name)).length !== 1 ? 's' : ''}
+                  · {t('scriptsAdmin.newCount', { count: candidates.filter(c => !existingNames.has(c.name)).length })}
                 </span>
               )}
             </p>
@@ -3484,12 +3502,12 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                         <span className="font-mono font-bold text-sm text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-lg">{c.name}</span>
-                        <span className="text-[11px] text-slate-500">{c.count} imagen{c.count !== 1 ? 'es' : ''}</span>
-                        {already && <span className="text-[10px] text-slate-600 bg-slate-800/60 border border-slate-700/40 px-1.5 py-0.5 rounded-full">Ya configurado</span>}
+                        <span className="text-[11px] text-slate-500">{t('scriptsAdmin.imagesCount', { count: c.count })}</span>
+                        {already && <span className="text-[10px] text-slate-600 bg-slate-800/60 border border-slate-700/40 px-1.5 py-0.5 rounded-full">{t('scriptsAdmin.alreadyConfigured')}</span>}
                       </div>
                       {c.selected && !already && (
                         <input value={c.description} onChange={e => updateDesc(i, e.target.value)}
-                          placeholder="Descripción del sistema..."
+                          placeholder={t('scriptsAdmin.systemDescPlaceholder')}
                           className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-slate-200
                                      focus:outline-none focus:border-teal-500/50 placeholder:text-slate-600" />
                       )}
@@ -3504,7 +3522,7 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
                            bg-teal-500/20 border border-teal-500/35 text-teal-200
                            hover:bg-teal-500/30 disabled:opacity-50 transition-all">
                 {importing ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-                {importing ? 'Importando...' : `Importar ${selectedCount} sistema${selectedCount !== 1 ? 's' : ''}`}
+                {importing ? t('scriptsAdmin.importing') : t('scriptsAdmin.importSystemsCount', { count: selectedCount })}
               </button>
             )}
           </div>
@@ -3519,6 +3537,7 @@ function DiscoveredSystemsImporter({ existingSystems, onCreated, onClose }: Disc
 // ═══════════════════════════════════════════════════════════════
 
 function ImageSystemsTab() {
+  const { t } = useTranslation();
   const [systems, setSystems] = useState<ImageSystem[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -3550,11 +3569,11 @@ function ImageSystemsTab() {
       const data = await imageSystemsService.getAll();
       setSystems(data);
     } catch {
-      toast.error('Error al cargar sistemas de imagen');
+      toast.error(t('scriptsAdmin.systemsLoadError'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -3563,17 +3582,17 @@ function ImageSystemsTab() {
       await imageSystemsService.update(sys.id, { is_active: !sys.is_active });
       load();
     } catch {
-      toast.error('Error al actualizar sistema');
+      toast.error(t('scriptsAdmin.systemUpdateError'));
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
       await imageSystemsService.remove(id);
-      toast.success('Sistema eliminado');
+      toast.success(t('scriptsAdmin.systemDeleted'));
       load();
     } catch {
-      toast.error('Error al eliminar sistema');
+      toast.error(t('scriptsAdmin.systemDeleteError'));
     }
   };
 
@@ -3582,12 +3601,12 @@ function ImageSystemsTab() {
     setSaving(true);
     try {
       await imageSystemsService.update(editingId, editData);
-      toast.success('Sistema actualizado');
+      toast.success(t('scriptsAdmin.systemUpdated'));
       setEditingId(null);
       setEditData({});
       load();
     } catch {
-      toast.error('Error al actualizar sistema');
+      toast.error(t('scriptsAdmin.systemUpdateError'));
     } finally {
       setSaving(false);
     }
@@ -3595,7 +3614,7 @@ function ImageSystemsTab() {
 
   const handleAddSystem = async () => {
     if (!newSystem.system_name.trim() || !newSystem.description.trim()) {
-      toast.error('Nombre y descripción son requeridos');
+      toast.error(t('scriptsAdmin.nameDescRequired'));
       return;
     }
     setSaving(true);
@@ -3607,12 +3626,12 @@ function ImageSystemsTab() {
         fields_schema: [],
         display_order: systems.length + 1,
       });
-      toast.success('Sistema agregado');
+      toast.success(t('scriptsAdmin.systemAdded'));
       setShowAdd(false);
       setNewSystem({ system_name: '', description: '', detection_hints: '' });
       load();
     } catch {
-      toast.error('Error al agregar sistema');
+      toast.error(t('scriptsAdmin.systemAddError'));
     } finally {
       setSaving(false);
     }
@@ -3621,7 +3640,7 @@ function ImageSystemsTab() {
   const handleFieldUpdate = (sysId: string, fields: ImageSystemField[]) => {
     imageSystemsService.update(sysId, { fields_schema: fields })
       .then(() => load())
-      .catch(() => toast.error('Error al actualizar campos'));
+      .catch(() => toast.error(t('scriptsAdmin.fieldsUpdateError')));
   };
 
   if (loading) return <SkeletonLoader />;
@@ -3631,7 +3650,7 @@ function ImageSystemsTab() {
       <ImageAnalyticsBanner onQuickEdit={handleQuickEdit} />
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <p className="text-sm text-slate-400 leading-relaxed flex-1 min-w-[200px]">
-          Sistemas detectados en capturas de pantalla bancarias. Definen qué campos extrae la IA de cada imagen.
+          {t('scriptsAdmin.systemsIntro')}
         </p>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
@@ -3640,7 +3659,7 @@ function ImageSystemsTab() {
                        bg-teal-500/10 border border-teal-500/25 text-teal-300
                        hover:bg-teal-500/20 transition-all whitespace-nowrap"
           >
-            <RefreshCw size={13} /> Importar detectados
+            <RefreshCw size={13} /> {t('scriptsAdmin.importDetected')}
           </button>
           <button
             onClick={() => { setShowAdd(!showAdd); setShowImporter(false); }}
@@ -3648,7 +3667,7 @@ function ImageSystemsTab() {
                        bg-purple-500/10 border border-purple-500/30 text-purple-300
                        hover:bg-purple-500/20 transition-all whitespace-nowrap"
           >
-            <Plus size={14} /> Nuevo sistema
+            <Plus size={14} /> {t('scriptsAdmin.newSystem')}
           </button>
         </div>
       </div>
@@ -3665,35 +3684,35 @@ function ImageSystemsTab() {
       {/* Formulario nuevo sistema */}
       {showAdd && (
         <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 space-y-3">
-          <p className="text-xs font-semibold text-slate-300">Nuevo sistema de imagen</p>
+          <p className="text-xs font-semibold text-slate-300">{t('scriptsAdmin.newImageSystem')}</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Nombre del sistema</label>
+              <label className="block text-xs text-slate-400 mb-1">{t('scriptsAdmin.systemName')}</label>
               <input
                 value={newSystem.system_name}
                 onChange={e => setNewSystem(p => ({ ...p, system_name: e.target.value }))}
-                placeholder="ej: FALCON"
+                placeholder={t('scriptsAdmin.phEgFalcon')}
                 className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200
                            focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
               />
             </div>
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Descripción corta</label>
+              <label className="block text-xs text-slate-400 mb-1">{t('scriptsAdmin.shortDescription')}</label>
               <input
                 value={newSystem.description}
                 onChange={e => setNewSystem(p => ({ ...p, description: e.target.value }))}
-                placeholder="ej: Casos de fraude, números de caso..."
+                placeholder={t('scriptsAdmin.shortDescPlaceholder')}
                 className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200
                            focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
               />
             </div>
           </div>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Pistas de detección (opcional)</label>
+            <label className="block text-xs text-slate-400 mb-1">{t('scriptsAdmin.detectionHints')}</label>
             <input
               value={newSystem.detection_hints}
               onChange={e => setNewSystem(p => ({ ...p, detection_hints: e.target.value }))}
-              placeholder="Texto que aparece en el PASO 1 del prompt de análisis"
+              placeholder={t('scriptsAdmin.detectionHintsPlaceholder')}
               className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200
                          focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
             />
@@ -3703,7 +3722,7 @@ function ImageSystemsTab() {
               onClick={() => setShowAdd(false)}
               className="px-3 py-1.5 rounded-lg text-sm text-slate-400 border border-slate-700/40 hover:text-slate-200 transition-all"
             >
-              Cancelar
+              {t('common.cancel')}
             </button>
             <button
               onClick={handleAddSystem}
@@ -3713,7 +3732,7 @@ function ImageSystemsTab() {
                          hover:bg-purple-500/25 transition-all disabled:opacity-40"
             >
               {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-              Crear sistema
+              {t('scriptsAdmin.createSystem')}
             </button>
           </div>
         </div>
@@ -3726,8 +3745,8 @@ function ImageSystemsTab() {
             <ImageIcon size={24} className="text-slate-600" />
           </div>
           <div className="text-center max-w-sm">
-            <p className="text-slate-300 font-semibold mb-1">Sin sistemas configurados</p>
-            <p className="text-slate-500 text-sm">La IA necesita saber qué pantallas existen para extraer información correctamente.</p>
+            <p className="text-slate-300 font-semibold mb-1">{t('scriptsAdmin.noSystems')}</p>
+            <p className="text-slate-500 text-sm">{t('scriptsAdmin.noSystemsHint')}</p>
           </div>
           <button
             onClick={() => setShowImporter(true)}
@@ -3736,9 +3755,9 @@ function ImageSystemsTab() {
                        hover:bg-teal-500/25 transition-all"
           >
             <RefreshCw size={14} />
-            Importar desde auditorías anteriores
+            {t('scriptsAdmin.importFromPrevious')}
           </button>
-          <p className="text-[11px] text-slate-600">o usa "Nuevo sistema" para agregar uno manualmente</p>
+          <p className="text-[11px] text-slate-600">{t('scriptsAdmin.orUseNewSystem')}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -3788,6 +3807,7 @@ function ImageSystemCard({
   system, expanded, onToggleExpand, editing, editData, onStartEdit, onCancelEdit,
   onSaveEdit, onEditDataChange, onToggleActive, onDelete, onFieldsChange, saving,
 }: ImageSystemCardProps) {
+  const { t } = useTranslation();
   const [newField, setNewField] = useState<ImageSystemField>({ field_name: '', description: '', example: '' });
   const [showAddField, setShowAddField] = useState(false);
   // Asistente IA texto
@@ -3837,7 +3857,7 @@ function ImageSystemCard({
       setEditableFields(result.fields.map(f => ({ ...f, selected: true })));
       setHasResult(true);
     } catch {
-      toast.error('Error al analizar imagen con IA');
+      toast.error(t('scriptsAdmin.analyzeImageError'));
     } finally {
       setImgAnalyzing(false);
     }
@@ -3868,7 +3888,7 @@ function ImageSystemCard({
       .filter(f => f.selected && f.field_name.trim())
       .map(f => ({
         field_name: f.field_name.trim(),
-        description: `${f.description.trim()}${f.how_to_evaluate.trim() ? ` | Evaluar: ${f.how_to_evaluate.trim()}` : ''}`,
+        description: `${f.description.trim()}${f.how_to_evaluate.trim() ? ` | ${t('scriptsAdmin.evaluatePrefix')} ${f.how_to_evaluate.trim()}` : ''}`,
         example: f.example.trim() || undefined,
       }));
     if (toAdd.length > 0) {
@@ -3876,7 +3896,7 @@ function ImageSystemCard({
     }
     setImgOpen(false);
     setHasResult(false);
-    toast.success(`✅ Aplicados: pistas + ${toAdd.length} campo${toAdd.length !== 1 ? 's' : ''}`);
+    toast.success(t('scriptsAdmin.appliedHintsFields', { count: toAdd.length }));
   };
 
   const handleAiGenerate = async () => {
@@ -3887,7 +3907,7 @@ function ImageSystemCard({
       const result = await imageSystemsService.generateHints(system.system_name, aiUserDesc.trim());
       setAiResult(result);
     } catch {
-      toast.error('Error al generar con IA');
+      toast.error(t('scriptsAdmin.aiGenerateError'));
     } finally {
       setAiGenerating(false);
     }
@@ -3922,7 +3942,7 @@ function ImageSystemCard({
           {!editing && (
             <span className="text-slate-400 text-sm truncate">{system.description}</span>
           )}
-          <span className="text-xs text-slate-600 shrink-0">({fields.length} campos)</span>
+          <span className="text-xs text-slate-600 shrink-0">({t('scriptsAdmin.fieldsCount', { count: fields.length })})</span>
         </button>
         {/* Acciones */}
         <div className="flex items-center gap-1 shrink-0">
@@ -3953,7 +3973,7 @@ function ImageSystemCard({
       {editing && (
         <div className="px-4 pb-3 pt-1 border-t border-slate-800/60 space-y-2">
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Descripción</label>
+            <label className="block text-xs text-slate-400 mb-1">{t('common.description')}</label>
             <input
               value={editData.description ?? ''}
               onChange={e => onEditDataChange({ ...editData, description: e.target.value })}
@@ -3962,7 +3982,7 @@ function ImageSystemCard({
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Pistas de detección (PASO 1 del prompt)</label>
+            <label className="block text-xs text-slate-400 mb-1">{t('scriptsAdmin.detectionHintsStep1')}</label>
             <input
               value={(editData.detection_hints as string) ?? ''}
               onChange={e => onEditDataChange({ ...editData, detection_hints: e.target.value })}
@@ -3977,17 +3997,17 @@ function ImageSystemCard({
                 className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-purple-400 transition-colors duration-150"
               >
                 <Sparkles size={12} />
-                {aiOpen ? 'Ocultar asistente' : 'Generar con IA'}
+                {aiOpen ? t('scriptsAdmin.hideAssistant') : t('scriptsAdmin.generateWithAi')}
                 <ChevronDown size={11} className={`transition-transform duration-200 ${aiOpen ? 'rotate-180' : ''}`} />
               </button>
               {aiOpen && (
                 <div className="mt-2 p-3.5 rounded-xl bg-slate-900/60 border border-purple-500/20 animate-fadeIn space-y-2.5">
-                  <p className="text-[11px] text-slate-400">Describe visualmente cómo se ve este sistema en pantalla y qué información muestra.</p>
+                  <p className="text-[11px] text-slate-400">{t('scriptsAdmin.describeSystemVisually')}</p>
                   <textarea
                     value={aiUserDesc}
                     onChange={e => setAiUserDesc(e.target.value)}
                     rows={2}
-                    placeholder={`Ej: ${system.system_name} es una pantalla donde aparece el número de caso, fecha, monto y estado de la cuenta...`}
+                    placeholder={t('scriptsAdmin.systemVisualPlaceholder', { name: system.system_name })}
                     className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-slate-200 resize-none
                                focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
                   />
@@ -4000,12 +4020,12 @@ function ImageSystemCard({
                                hover:bg-purple-500/25 disabled:opacity-50 transition-all duration-150"
                   >
                     {aiGenerating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                    {aiGenerating ? 'Generando...' : 'Generar'}
+                    {aiGenerating ? t('reports.generating') : t('scriptsAdmin.generate')}
                   </button>
                   {aiResult && (
                     <div className="animate-fadeIn space-y-2">
                       <div>
-                        <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mb-1">Pistas de detección generadas</p>
+                        <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mb-1">{t('scriptsAdmin.hintsGenerated')}</p>
                         <div className="bg-slate-800/60 rounded-lg px-3 py-2 border border-slate-700/40">
                           <p className="text-[11px] text-slate-200 leading-relaxed">{aiResult.detection_hints}</p>
                         </div>
@@ -4014,12 +4034,12 @@ function ImageSystemCard({
                           onClick={() => onEditDataChange({ ...editData, detection_hints: aiResult.detection_hints })}
                           className="mt-1.5 flex items-center gap-1 text-[11px] text-green-400 hover:text-green-300 transition-colors"
                         >
-                          <Check size={11} /> Usar estas pistas
+                          <Check size={11} /> {t('scriptsAdmin.useTheseHints')}
                         </button>
                       </div>
                       {aiResult.suggested_fields.length > 0 && (
                         <div>
-                          <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mb-1">Campos sugeridos</p>
+                          <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mb-1">{t('scriptsAdmin.suggestedFields')}</p>
                           <div className="space-y-1">
                             {aiResult.suggested_fields.map((f, i) => (
                               <div key={i} className="flex items-center gap-2 text-[11px]">
@@ -4034,7 +4054,7 @@ function ImageSystemCard({
                             onClick={() => { onFieldsChange(aiResult.suggested_fields); setAiResult(null); setAiOpen(false); }}
                             className="mt-1.5 flex items-center gap-1 text-[11px] text-green-400 hover:text-green-300 transition-colors"
                           >
-                            <Check size={11} /> Agregar estos campos al sistema
+                            <Check size={11} /> {t('scriptsAdmin.addTheseFields')}
                           </button>
                         </div>
                       )}
@@ -4046,7 +4066,7 @@ function ImageSystemCard({
           </div>
           <div className="flex gap-2 justify-end">
             <button onClick={onCancelEdit} className="px-3 py-1.5 rounded-lg text-xs text-slate-400 border border-slate-700/40 hover:text-slate-200 transition-all">
-              Cancelar
+              {t('common.cancel')}
             </button>
             <button
               onClick={onSaveEdit}
@@ -4056,7 +4076,7 @@ function ImageSystemCard({
                          hover:bg-purple-500/25 transition-all disabled:opacity-40"
             >
               {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
-              Guardar
+              {t('common.save')}
             </button>
           </div>
         </div>
@@ -4076,7 +4096,7 @@ function ImageSystemCard({
             >
               <div className="flex items-center gap-2">
                 <Sparkles size={14} className="text-brand-400" />
-                <span className="text-sm font-semibold text-brand-300">Generar campos con una imagen de ejemplo (IA)</span>
+                <span className="text-sm font-semibold text-brand-300">{t('scriptsAdmin.generateFieldsWithImage')}</span>
               </div>
               <ChevronDown size={13} className={`text-brand-500 transition-transform duration-200 ${imgOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -4084,13 +4104,13 @@ function ImageSystemCard({
             {imgOpen && (
               <div className="mt-3 p-4 rounded-xl bg-slate-900/60 border border-brand-700/20 space-y-3 animate-fadeIn">
                 <p className="text-[11px] text-slate-400">
-                  Sube una captura de pantalla de este sistema y describe qué necesitas. La IA genera los campos y las pistas de detección automáticamente.
+                  {t('scriptsAdmin.uploadScreenshotHint')}
                 </p>
 
                 {/* Upload */}
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                    Captura de pantalla
+                    {t('scriptsAdmin.screenshot')}
                   </label>
                   <label className={`flex flex-col items-center justify-center gap-2 w-full py-5 rounded-xl border-2 border-dashed cursor-pointer transition-all duration-150 ${
                     imgFile ? 'border-brand-700/40 bg-brand-500/5' : 'border-slate-700/50 bg-slate-800/30 hover:border-brand-700/30 hover:bg-brand-500/5'
@@ -4100,7 +4120,7 @@ function ImageSystemCard({
                     ) : (
                       <>
                         <ImageIcon size={24} className="text-slate-600" />
-                        <span className="text-xs text-slate-500">Haz clic para subir PNG o JPG</span>
+                        <span className="text-xs text-slate-500">{t('scriptsAdmin.clickToUpload')}</span>
                       </>
                     )}
                     <input type="file" accept="image/png,image/jpeg,image/jpg" className="sr-only" onChange={handleImageSelect} />
@@ -4111,7 +4131,7 @@ function ImageSystemCard({
                       onClick={() => { setImgFile(null); setImgPreview(''); setHasResult(false); }}
                       className="mt-1.5 text-[11px] text-slate-600 hover:text-red-400 transition-colors"
                     >
-                      × Quitar imagen
+                      {t('scriptsAdmin.removeImage')}
                     </button>
                   )}
                 </div>
@@ -4119,13 +4139,13 @@ function ImageSystemCard({
                 {/* Descripción */}
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                    ¿Qué debe extraer la IA?
+                    {t('scriptsAdmin.whatShouldExtract')}
                   </label>
                   <textarea
                     value={imgDesc}
                     onChange={e => setImgDesc(e.target.value)}
                     rows={3}
-                    placeholder={`Ej: En la parte derecha aparece el BLOCK CODE y el estado de la cuenta. Necesito que verifique si está bloqueada y los comentarios del agente...`}
+                    placeholder={t('scriptsAdmin.extractPlaceholder')}
                     className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-xs text-slate-200 resize-none
                                focus:outline-none focus:border-brand-600/50 placeholder:text-slate-600"
                   />
@@ -4140,7 +4160,7 @@ function ImageSystemCard({
                              hover:bg-brand-500/25 disabled:opacity-50 transition-all"
                 >
                   {imgAnalyzing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                  {imgAnalyzing ? 'Analizando imagen con IA...' : 'Analizar y generar campos'}
+                  {imgAnalyzing ? t('scriptsAdmin.analyzingImage') : t('scriptsAdmin.analyzeAndGenerate')}
                 </button>
 
                 {hasResult && (
@@ -4149,7 +4169,7 @@ function ImageSystemCard({
                     {/* Banner editable */}
                     <div className="px-3 py-2 rounded-xl bg-brand-500/10 border border-brand-700/20">
                       <p className="text-[11px] text-brand-300 leading-relaxed">
-                        <strong>Todo es editable.</strong> Revisa, ajusta y desmarca lo que no necesites antes de aplicar.
+                        <strong>{t('scriptsAdmin.allEditable')}</strong> {t('scriptsAdmin.allEditableHint')}
                       </p>
                     </div>
 
@@ -4157,26 +4177,26 @@ function ImageSystemCard({
                     <div>
                       <label className="flex items-center justify-between mb-1.5">
                         <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
-                          Pistas de detección (cómo identificar esta pantalla)
+                          {t('scriptsAdmin.hintsHowToIdentify')}
                         </span>
                         <button
                           type="button"
                           onClick={() => setEditableHints('')}
                           className="text-[10px] text-slate-600 hover:text-red-400 transition-colors"
                         >
-                          Limpiar
+                          {t('scriptsAdmin.clear')}
                         </button>
                       </label>
                       <textarea
                         value={editableHints}
                         onChange={e => setEditableHints(e.target.value)}
                         rows={4}
-                        placeholder="Describe cómo se identifica visualmente esta pantalla..."
+                        placeholder={t('scriptsAdmin.hintsPlaceholder')}
                         className="w-full bg-slate-800/50 border border-slate-700/40 rounded-xl px-3 py-2.5 text-xs text-slate-200 resize-y
                                    focus:outline-none focus:border-brand-600/50 placeholder:text-slate-600 leading-relaxed"
                       />
                       <p className="text-[10px] text-slate-600 mt-1">
-                        Este texto entra al prompt de la IA cuando analiza imágenes reales en auditorías.
+                        {t('scriptsAdmin.hintsFootnote')}
                       </p>
                     </div>
 
@@ -4184,9 +4204,9 @@ function ImageSystemCard({
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
-                          {editableFields.length} campo{editableFields.length !== 1 ? 's' : ''} detectado{editableFields.length !== 1 ? 's' : ''}
+                          {t('scriptsAdmin.fieldsDetected', { count: editableFields.length })}
                           {selectedFieldsCount !== editableFields.length && (
-                            <span className="ml-1 text-brand-400 font-normal normal-case">· {selectedFieldsCount} seleccionado{selectedFieldsCount !== 1 ? 's' : ''}</span>
+                            <span className="ml-1 text-brand-400 font-normal normal-case">· {t('scriptsAdmin.selectedCount', { count: selectedFieldsCount })}</span>
                           )}
                         </span>
                         <div className="flex items-center gap-2">
@@ -4195,7 +4215,7 @@ function ImageSystemCard({
                             onClick={toggleAll}
                             className="text-[10px] text-slate-500 hover:text-brand-400 transition-colors"
                           >
-                            {editableFields.every(f => f.selected) ? 'Desmarcar todos' : 'Seleccionar todos'}
+                            {editableFields.every(f => f.selected) ? t('scriptsAdmin.deselectAll') : t('scriptsAdmin.selectAll')}
                           </button>
                           <span className="text-slate-700">·</span>
                           <button
@@ -4203,7 +4223,7 @@ function ImageSystemCard({
                             onClick={addBlankField}
                             className="flex items-center gap-1 text-[10px] text-purple-400 hover:text-purple-300 transition-colors"
                           >
-                            <Plus size={9} /> Añadir campo
+                            <Plus size={9} /> {t('scriptsAdmin.addField')}
                           </button>
                         </div>
                       </div>
@@ -4235,10 +4255,10 @@ function ImageSystemCard({
                                 >
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className="font-mono text-xs text-purple-300 font-bold truncate">
-                                      {f.field_name || <span className="text-slate-600 italic">sin nombre</span>}
+                                      {f.field_name || <span className="text-slate-600 italic">{t('scriptsAdmin.noName')}</span>}
                                     </span>
                                     {f.example && (
-                                      <span className="text-[10px] text-slate-500 italic truncate">ej: {f.example}</span>
+                                      <span className="text-[10px] text-slate-500 italic truncate">{t('scriptsAdmin.egPrefix')} {f.example}</span>
                                     )}
                                   </div>
                                   {!isExpanded && f.description && (
@@ -4256,7 +4276,7 @@ function ImageSystemCard({
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); removeField(idx); if (expandedField === idx) setExpandedField(null); }}
                                   className="p-1 text-slate-600 hover:text-red-400 transition-colors"
-                                  title="Eliminar campo"
+                                  title={t('scriptsAdmin.deleteField')}
                                 >
                                   <Trash2 size={11} />
                                 </button>
@@ -4268,7 +4288,7 @@ function ImageSystemCard({
                                   <div className="grid grid-cols-2 gap-2">
                                     <div>
                                       <label className="block text-[9px] text-slate-500 font-semibold uppercase tracking-wider mb-1">
-                                        Nombre del campo
+                                        {t('scriptsAdmin.fieldName')}
                                       </label>
                                       <input
                                         value={f.field_name}
@@ -4280,12 +4300,12 @@ function ImageSystemCard({
                                     </div>
                                     <div>
                                       <label className="block text-[9px] text-slate-500 font-semibold uppercase tracking-wider mb-1">
-                                        Ejemplo
+                                        {t('scriptsAdmin.example')}
                                       </label>
                                       <input
                                         value={f.example}
                                         onChange={e => updateField(idx, { example: e.target.value })}
-                                        placeholder="Valor visible"
+                                        placeholder={t('scriptsAdmin.visibleValue')}
                                         className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1.5 text-[11px] text-slate-200
                                                    focus:outline-none focus:border-brand-600/50 placeholder:text-slate-600"
                                       />
@@ -4293,26 +4313,26 @@ function ImageSystemCard({
                                   </div>
                                   <div>
                                     <label className="block text-[9px] text-slate-500 font-semibold uppercase tracking-wider mb-1">
-                                      Descripción (qué representa)
+                                      {t('scriptsAdmin.fieldDescription')}
                                     </label>
                                     <textarea
                                       value={f.description}
                                       onChange={e => updateField(idx, { description: e.target.value })}
                                       rows={2}
-                                      placeholder="Qué significa este campo..."
+                                      placeholder={t('scriptsAdmin.fieldMeaningPlaceholder')}
                                       className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1.5 text-[11px] text-slate-200 resize-none
                                                  focus:outline-none focus:border-brand-600/50 placeholder:text-slate-600"
                                     />
                                   </div>
                                   <div>
                                     <label className="block text-[9px] text-brand-400/80 font-semibold uppercase tracking-wider mb-1">
-                                      ↳ Cómo debe evaluarlo la IA (prompt)
+                                      {t('scriptsAdmin.howToEvaluate')}
                                     </label>
                                     <textarea
                                       value={f.how_to_evaluate}
                                       onChange={e => updateField(idx, { how_to_evaluate: e.target.value })}
                                       rows={3}
-                                      placeholder="Instrucción para la IA evaluadora..."
+                                      placeholder={t('scriptsAdmin.evaluatorInstructionPlaceholder')}
                                       className="w-full bg-slate-900/60 border border-brand-700/25 rounded-lg px-2 py-1.5 text-[11px] text-brand-100 resize-y
                                                  focus:outline-none focus:border-brand-600/50 placeholder:text-slate-600"
                                     />
@@ -4326,7 +4346,7 @@ function ImageSystemCard({
 
                       {editableFields.length === 0 && (
                         <div className="text-center py-4 text-[11px] text-slate-600">
-                          No quedan campos. Haz clic en "+ Añadir campo" para crear uno manual.
+                          {t('scriptsAdmin.noFieldsLeft')}
                         </div>
                       )}
                     </div>
@@ -4341,8 +4361,8 @@ function ImageSystemCard({
                                  hover:bg-green-500/25 disabled:opacity-40 transition-all"
                     >
                       <Check size={13} />
-                      Aplicar al sistema · {selectedFieldsCount} campo{selectedFieldsCount !== 1 ? 's' : ''}
-                      {editableHints.trim() && ' + pistas'}
+                      {t('scriptsAdmin.applyToSystem', { count: selectedFieldsCount })}
+                      {editableHints.trim() && ` ${t('scriptsAdmin.plusHints')}`}
                     </button>
                   </div>
                 )}
@@ -4351,13 +4371,13 @@ function ImageSystemCard({
           </div>
 
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Campos extraídos</p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{t('scriptsAdmin.extractedFields')}</p>
             <button
               onClick={() => setShowAddField(!showAddField)}
               className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium
                          bg-purple-500/10 border border-purple-500/25 text-purple-400 hover:bg-purple-500/20 transition-all"
             >
-              <Plus size={11} /> Agregar campo
+              <Plus size={11} /> {t('scriptsAdmin.addFieldBtn')}
             </button>
           </div>
 
@@ -4374,7 +4394,7 @@ function ImageSystemCard({
               <input
                 value={newField.description}
                 onChange={e => setNewField(p => ({ ...p, description: e.target.value }))}
-                placeholder="Descripción del campo"
+                placeholder={t('scriptsAdmin.fieldDescPlaceholder')}
                 className="bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1.5 text-xs text-slate-200
                            focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
               />
@@ -4382,7 +4402,7 @@ function ImageSystemCard({
                 <input
                   value={newField.example ?? ''}
                   onChange={e => setNewField(p => ({ ...p, example: e.target.value }))}
-                  placeholder="Ejemplo (opcional)"
+                  placeholder={t('scriptsAdmin.exampleOptional')}
                   className="flex-1 bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1.5 text-xs text-slate-200
                              focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
                 />
@@ -4405,15 +4425,15 @@ function ImageSystemCard({
           )}
 
           {fields.length === 0 ? (
-            <p className="text-xs text-slate-600 text-center py-3">Sin campos definidos. Agrega campos para que la IA los extraiga.</p>
+            <p className="text-xs text-slate-600 text-center py-3">{t('scriptsAdmin.noFieldsDefined')}</p>
           ) : (
             <div className="bg-slate-950/40 rounded-lg overflow-hidden border border-slate-800/40">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-slate-800/60 bg-slate-800/30">
-                    <th className="text-left px-3 py-2 text-slate-500 font-medium">Campo</th>
-                    <th className="text-left px-3 py-2 text-slate-500 font-medium">Descripción</th>
-                    <th className="text-left px-3 py-2 text-slate-500 font-medium">Ejemplo</th>
+                    <th className="text-left px-3 py-2 text-slate-500 font-medium">{t('scriptsAdmin.colField')}</th>
+                    <th className="text-left px-3 py-2 text-slate-500 font-medium">{t('common.description')}</th>
+                    <th className="text-left px-3 py-2 text-slate-500 font-medium">{t('scriptsAdmin.example')}</th>
                     <th className="px-3 py-2"></th>
                   </tr>
                 </thead>
@@ -4448,6 +4468,7 @@ function ImageSystemCard({
 // ═══════════════════════════════════════════════════════════════
 
 function CallTypesTab() {
+  const { t } = useTranslation();
   const [items, setItems] = useState<CallTypeConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -4467,11 +4488,11 @@ function CallTypesTab() {
       const data = await callTypesConfigService.getAll();
       setItems(data);
     } catch {
-      toast.error('Error al cargar tipos de llamada');
+      toast.error(t('scriptsAdmin.callTypesLoadError'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -4485,7 +4506,7 @@ function CallTypesTab() {
 
   const handleAdd = async () => {
     if (!newName.trim() || newModes.length === 0) {
-      toast.error('Nombre y al menos un modo son requeridos');
+      toast.error(t('scriptsAdmin.nameModeRequired'));
       return;
     }
     setSaving(true);
@@ -4496,15 +4517,15 @@ function CallTypesTab() {
         ...(cloneFrom ? { clone_from: cloneFrom } : {}),
       });
       toast.success(cloneFrom
-        ? `Calificación creada con la configuración base de ${cloneFrom}`
-        : 'Tipo de llamada creado');
+        ? t('scriptsAdmin.qualCreatedWithBase', { name: cloneFrom })
+        : t('scriptsAdmin.callTypeCreated'));
       setNewName('');
       setNewModes(['INBOUND', 'MONITOREO']);
       setCloneFrom('');
       setShowAdd(false);
       load();
     } catch {
-      toast.error('Error al crear tipo de llamada');
+      toast.error(t('scriptsAdmin.callTypeCreateError'));
     } finally {
       setSaving(false);
     }
@@ -4515,7 +4536,7 @@ function CallTypesTab() {
       await callTypesConfigService.update(item.id, { is_active: !item.is_active });
       load();
     } catch {
-      toast.error('Error al actualizar');
+      toast.error(t('reference.updateError'));
     }
   };
 
@@ -4524,11 +4545,11 @@ function CallTypesTab() {
     setSaving(true);
     try {
       await callTypesConfigService.update(id, { name: editName.trim().toUpperCase(), modes: editModes });
-      toast.success('Tipo actualizado');
+      toast.success(t('scriptsAdmin.typeUpdated'));
       setEditingId(null);
       load();
     } catch {
-      toast.error('Error al actualizar tipo');
+      toast.error(t('scriptsAdmin.typeUpdateError'));
     } finally {
       setSaving(false);
     }
@@ -4537,10 +4558,10 @@ function CallTypesTab() {
   const handleDelete = async (id: string) => {
     try {
       await callTypesConfigService.remove(id);
-      toast.success('Tipo eliminado');
+      toast.success(t('scriptsAdmin.typeDeleted'));
       load();
     } catch {
-      toast.error('Error al eliminar tipo');
+      toast.error(t('scriptsAdmin.typeDeleteError'));
     }
   };
 
@@ -4549,8 +4570,8 @@ function CallTypesTab() {
   };
 
   const MODE_META: Record<string, { label: string; desc: string; color: string }> = {
-    INBOUND:   { label: 'Inbound',   desc: 'Cliente llamó al banco (entrante)',                        color: 'bg-teal-500/10 border-teal-500/30 text-teal-300' },
-    MONITOREO: { label: 'Monitoreo', desc: 'Banco llamó al cliente — Outbound (supervisión de calidad)', color: 'bg-violet-500/10 border-violet-500/30 text-violet-300' },
+    INBOUND:   { label: t('plantilla.inbound'),    desc: t('scriptsAdmin.inboundDesc'),    color: 'bg-teal-500/10 border-teal-500/30 text-teal-300' },
+    MONITOREO: { label: t('plantilla.monitoring'), desc: t('scriptsAdmin.monitoringDesc'), color: 'bg-violet-500/10 border-violet-500/30 text-violet-300' },
   };
 
   if (loading) return <SkeletonLoader />;
@@ -4565,8 +4586,8 @@ function CallTypesTab() {
             <PhoneCall size={14} className="text-teal-400" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-200">Calificación</p>
-            <p className="text-xs text-slate-500 mt-0.5">El tipo de caso según la atención: FRAUDE, TH CONFIRMA, etc. Organiza criterios, scripts y plantilla.</p>
+            <p className="text-xs font-semibold text-slate-200">{t('newAudit.qualification')}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{t('scriptsAdmin.qualificationExplain')}</p>
           </div>
         </div>
         <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-3 flex gap-3 items-start">
@@ -4574,15 +4595,15 @@ function CallTypesTab() {
             <Monitor size={14} className="text-violet-400" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-200">Modo de atención</p>
-            <p className="text-xs text-slate-500 mt-0.5"><span className="text-teal-400 font-medium">Inbound</span> = cliente llamó al banco (entrante). <span className="text-violet-400 font-medium">Monitoreo</span> = banco llamó al cliente, outbound (supervisión de calidad).</p>
+            <p className="text-xs font-semibold text-slate-200">{t('scriptsAdmin.attentionMode')}</p>
+            <p className="text-xs text-slate-500 mt-0.5"><span className="text-teal-400 font-medium">{t('plantilla.inbound')}</span> = {t('scriptsAdmin.inboundExplain')} <span className="text-violet-400 font-medium">{t('plantilla.monitoring')}</span> = {t('scriptsAdmin.monitoringExplain')}</p>
           </div>
         </div>
       </div>
 
       <div className="flex items-center justify-between">
         <p className="text-xs text-slate-500">
-          Cada calificación define en qué modos de atención puede aparecer.
+          {t('scriptsAdmin.callTypesIntro')}
         </p>
         <button
           onClick={() => setShowAdd(!showAdd)}
@@ -4590,32 +4611,32 @@ function CallTypesTab() {
                      bg-teal-500/10 border border-teal-500/30 text-teal-300
                      hover:bg-teal-500/20 transition-all whitespace-nowrap"
         >
-          <Plus size={14} /> Nueva calificación
+          <Plus size={14} /> {t('scriptsAdmin.newQualification')}
         </button>
       </div>
 
       {/* ── Aviso ── */}
       <div className="flex items-center gap-2 text-xs text-amber-400/80 bg-amber-500/5 border border-amber-500/20 rounded-lg px-3 py-2">
         <AlertTriangle size={12} />
-        Cambiar el nombre de una calificación afecta los criterios, scripts y plantilla que ya la usan.
+        {t('scriptsAdmin.renameWarning')}
       </div>
 
       {/* ── Formulario agregar ── */}
       {showAdd && (
         <div className="bg-slate-800/60 border border-teal-500/20 rounded-xl p-4 space-y-4">
-          <p className="text-xs font-semibold text-slate-300">Nueva calificación</p>
+          <p className="text-xs font-semibold text-slate-300">{t('scriptsAdmin.newQualification')}</p>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Nombre de la calificación</label>
+            <label className="block text-xs text-slate-400 mb-1">{t('scriptsAdmin.qualificationName')}</label>
             <input
               value={newName}
               onChange={e => setNewName(e.target.value)}
-              placeholder="ej: FRAUDE INTERNACIONAL"
+              placeholder={t('scriptsAdmin.phEgFraudIntl')}
               className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200
                          focus:outline-none focus:border-teal-500/50 placeholder:text-slate-600"
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-400 mb-2">¿En qué modos de atención aplica?</label>
+            <label className="block text-xs text-slate-400 mb-2">{t('scriptsAdmin.whichModes')}</label>
             <div className="flex gap-2">
               {ALL_MODES.map(m => {
                 const meta = MODE_META[m] ?? { label: m, desc: '', color: 'bg-slate-700/40 border-slate-600/40 text-slate-400' };
@@ -4635,20 +4656,20 @@ function CallTypesTab() {
             </div>
           </div>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Copiar configuración base desde (criterios y scripts)</label>
+            <label className="block text-xs text-slate-400 mb-1">{t('scriptsAdmin.cloneFromLabel')}</label>
             <select
               value={cloneFrom}
               onChange={e => setCloneFrom(e.target.value)}
               className="w-full bg-slate-900/60 border border-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200
                          focus:outline-none focus:border-teal-500/50 cursor-pointer"
             >
-              <option value="">No copiar — empezar desde cero</option>
+              <option value="">{t('scriptsAdmin.noCopyOption')}</option>
               {items.filter(i => i.is_active !== false).map(i => (
                 <option key={i.id} value={i.name}>{i.name}</option>
               ))}
             </select>
             <p className="text-[11px] text-slate-500 mt-1">
-              La nueva calificación arranca con la info de base compartida y luego puedes editarla de forma independiente.
+              {t('scriptsAdmin.cloneHint')}
             </p>
           </div>
           <div className="flex gap-2 justify-end">
@@ -4656,7 +4677,7 @@ function CallTypesTab() {
               onClick={() => setShowAdd(false)}
               className="px-3 py-2 rounded-lg text-sm text-slate-400 border border-slate-700/40 hover:text-slate-200 transition-all"
             >
-              Cancelar
+              {t('common.cancel')}
             </button>
             <button
               onClick={handleAdd}
@@ -4666,7 +4687,7 @@ function CallTypesTab() {
                          hover:bg-teal-500/25 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-              Crear
+              {t('common.create')}
             </button>
           </div>
         </div>
@@ -4676,8 +4697,8 @@ function CallTypesTab() {
       {items.length === 0 ? (
         <EmptyState
           icon={<PhoneCall size={28} className="text-slate-600" />}
-          title="Sin calificaciones configuradas"
-          description="Agrega calificaciones para organizar criterios, scripts y plantilla"
+          title={t('scriptsAdmin.noQualifications')}
+          description={t('scriptsAdmin.noQualificationsHint')}
         />
       ) : (
         <div className="space-y-3">
@@ -4691,7 +4712,7 @@ function CallTypesTab() {
                 /* ── Modo edición ── */
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">Nombre de la calificación</label>
+                    <label className="block text-xs text-slate-400 mb-1">{t('scriptsAdmin.qualificationName')}</label>
                     <input
                       value={editName}
                       onChange={e => setEditName(e.target.value)}
@@ -4700,7 +4721,7 @@ function CallTypesTab() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-slate-400 mb-2">Modos de atención disponibles</label>
+                    <label className="block text-xs text-slate-400 mb-2">{t('scriptsAdmin.availableModes')}</label>
                     <div className="flex gap-2">
                       {ALL_MODES.map(m => {
                         const meta = MODE_META[m] ?? { label: m, desc: '', color: 'bg-slate-700/40 border-slate-600/40 text-slate-400' };
@@ -4724,7 +4745,7 @@ function CallTypesTab() {
                       onClick={() => setEditingId(null)}
                       className="px-3 py-1.5 rounded-lg text-sm text-slate-400 border border-slate-700/40 hover:text-slate-200 transition-all"
                     >
-                      Cancelar
+                      {t('common.cancel')}
                     </button>
                     <button
                       onClick={() => handleSaveEdit(item.id)}
@@ -4734,7 +4755,7 @@ function CallTypesTab() {
                                  hover:bg-brand-500/20 transition-all disabled:opacity-40"
                     >
                       {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
-                      Guardar
+                      {t('common.save')}
                     </button>
                   </div>
                 </div>
@@ -4751,11 +4772,11 @@ function CallTypesTab() {
                         {item.name}
                       </span>
                       {item.is_active === false && (
-                        <span className="text-xs text-slate-600 italic">inactivo</span>
+                        <span className="text-xs text-slate-600 italic">{t('scriptsAdmin.inactiveLower')}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-1">
-                      <button onClick={() => handleToggleActive(item)} className="transition-opacity hover:opacity-80" title={item.is_active !== false ? 'Desactivar' : 'Activar'}>
+                      <button onClick={() => handleToggleActive(item)} className="transition-opacity hover:opacity-80" title={item.is_active !== false ? t('scriptsAdmin.deactivate') : t('scriptsAdmin.activate')}>
                         {item.is_active !== false
                           ? <ToggleRight size={20} className="text-brand-400" />
                           : <ToggleLeft size={20} className="text-slate-600" />
@@ -4764,21 +4785,21 @@ function CallTypesTab() {
                       <button
                         onClick={() => { setEditingId(item.id); setEditName(item.name); setEditModes(item.modes || []); }}
                         className="p-1.5 rounded-lg bg-slate-700/40 border border-slate-600/30 text-slate-400 hover:text-slate-200 transition-all"
-                        title="Editar"
+                        title={t('common.edit')}
                       >
                         <Pencil size={13} />
                       </button>
                       <button
                         onClick={() => handleDelete(item.id)}
                         className="p-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all"
-                        title="Eliminar"
+                        title={t('common.delete')}
                       >
                         <Trash2 size={13} />
                       </button>
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-600 mb-1.5">Modos de atención disponibles</p>
+                    <p className="text-xs text-slate-600 mb-1.5">{t('scriptsAdmin.availableModes')}</p>
                     <div className="flex gap-2">
                       {(item.modes || []).map(m => {
                         const meta = MODE_META[m] ?? { label: m, desc: '', color: 'bg-slate-700/40 border-slate-600/40 text-slate-400' };
@@ -4790,7 +4811,7 @@ function CallTypesTab() {
                         );
                       })}
                       {(item.modes || []).length === 0 && (
-                        <span className="text-xs text-slate-600 italic">Sin modos asignados</span>
+                        <span className="text-xs text-slate-600 italic">{t('scriptsAdmin.noModesAssigned')}</span>
                       )}
                     </div>
                   </div>
@@ -4824,6 +4845,7 @@ const emptyBinForm = {
 };
 
 function BinesAdminTab() {
+  const { t } = useTranslation();
   const [items, setItems] = useState<BinesItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -4837,11 +4859,11 @@ function BinesAdminTab() {
     try {
       setItems(await binesService.getAll());
     } catch {
-      toast.error('Error al cargar bines');
+      toast.error(t('reference.binesLoadError'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -4865,31 +4887,31 @@ function BinesAdminTab() {
     setSaving(true);
     try {
       await binesService.update(editingId, editForm);
-      toast.success('BIN actualizado');
+      toast.success(t('scriptsAdmin.binUpdated'));
       setEditingId(null);
       setEditForm({});
       await load();
     } catch {
-      toast.error('Error al actualizar BIN');
+      toast.error(t('scriptsAdmin.binUpdateError'));
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (item: BinesItem) => {
-    if (!confirm(`¿Eliminar "${item.nombre}" (BIN ${item.bin})?`)) return;
+    if (!confirm(t('scriptsAdmin.binDeleteConfirm', { name: item.nombre, bin: item.bin }))) return;
     try {
       await binesService.remove(item.id);
-      toast.success('BIN eliminado');
+      toast.success(t('scriptsAdmin.binDeleted'));
       await load();
     } catch {
-      toast.error('Error al eliminar BIN');
+      toast.error(t('scriptsAdmin.binDeleteError'));
     }
   };
 
   const handleCreate = async () => {
     if (!newForm.nombre || !newForm.bin || !newForm.socio || !newForm.producto) {
-      toast.error('Nombre, BIN, Socio y Producto son requeridos');
+      toast.error(t('scriptsAdmin.binFieldsRequired'));
       return;
     }
     setSaving(true);
@@ -4907,12 +4929,12 @@ function BinesAdminTab() {
         nombre_comercial: newForm.nombre_comercial || null,
         marca: newForm.marca || null,
       });
-      toast.success('BIN agregado');
+      toast.success(t('scriptsAdmin.binAdded'));
       setShowAdd(false);
       setNewForm({ ...emptyBinForm });
       await load();
     } catch {
-      toast.error('Error al crear BIN');
+      toast.error(t('scriptsAdmin.binCreateError'));
     } finally {
       setSaving(false);
     }
@@ -4929,8 +4951,8 @@ function BinesAdminTab() {
             <CreditCard size={18} className="text-rose-400" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-white">Tabla de BINs Bancarios</p>
-            <p className="text-xs text-slate-500 mt-0.5">{items.length} registros en total</p>
+            <p className="text-sm font-semibold text-white">{t('scriptsAdmin.binsTableTitle')}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{t('scriptsAdmin.recordsTotal', { count: items.length })}</p>
           </div>
         </div>
         <button
@@ -4940,17 +4962,17 @@ function BinesAdminTab() {
                      text-xs font-medium hover:bg-rose-500/20 transition-all duration-150"
         >
           <Plus size={13} />
-          Agregar BIN
+          {t('scriptsAdmin.addBin')}
         </button>
       </div>
 
       {/* Formulario de nuevo BIN */}
       {showAdd && (
         <div className="bg-slate-900/60 border border-rose-700/30 rounded-2xl p-5 space-y-3">
-          <p className="text-sm font-semibold text-rose-300 mb-1">Nuevo BIN</p>
+          <p className="text-sm font-semibold text-rose-300 mb-1">{t('scriptsAdmin.newBin')}</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1">Categoría</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1">{t('scriptsAdmin.categoryLabel')}</label>
               <select
                 value={newForm.categoria}
                 onChange={e => {
@@ -4963,31 +4985,31 @@ function BinesAdminTab() {
               </select>
             </div>
             <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1">Nombre</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1">{t('reference.colName')}</label>
               <input value={newForm.nombre} onChange={e => setNewForm(f => ({ ...f, nombre: e.target.value }))}
-                placeholder="Ej: Bodega Visa"
+                placeholder={t('scriptsAdmin.phEgBodegaVisa')}
                 className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-700/60" />
             </div>
             <div>
               <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1">BIN</label>
               <input value={newForm.bin} onChange={e => setNewForm(f => ({ ...f, bin: e.target.value }))}
-                placeholder="Ej: 481283"
+                placeholder={t('scriptsAdmin.phEgBin')}
                 className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-rose-700/60" />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1">Socio</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1">{t('reference.colPartner')}</label>
               <input value={newForm.socio} onChange={e => setNewForm(f => ({ ...f, socio: e.target.value }))}
-                placeholder="Ej: Bodega"
+                placeholder={t('scriptsAdmin.phEgBodega')}
                 className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-700/60" />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1">Producto</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1">{t('reference.colProduct')}</label>
               <input value={newForm.producto} onChange={e => setNewForm(f => ({ ...f, producto: e.target.value }))}
-                placeholder="Ej: Visa / PLCC / PL"
+                placeholder={t('scriptsAdmin.phEgProduct')}
                 className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-700/60" />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1">Nombre comercial / Marca</label>
+              <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1">{t('reference.colBrand')}</label>
               <input value={newForm.nombre_comercial || newForm.marca}
                 onChange={e => {
                   if (newForm.categoria === 'Tarjetas de crédito') {
@@ -4996,7 +5018,7 @@ function BinesAdminTab() {
                     setNewForm(f => ({ ...f, marca: e.target.value, nombre_comercial: '' }));
                   }
                 }}
-                placeholder="Ej: Bradescard Total / Carnet"
+                placeholder={t('scriptsAdmin.phEgBrand')}
                 className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-700/60" />
             </div>
           </div>
@@ -5004,12 +5026,12 @@ function BinesAdminTab() {
             <button onClick={handleCreate} disabled={saving}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-500/20 border border-rose-700/40 text-rose-300 text-sm font-medium hover:bg-rose-500/30 transition-all disabled:opacity-50">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-              Guardar
+              {t('common.save')}
             </button>
             <button onClick={() => { setShowAdd(false); setNewForm({ ...emptyBinForm }); }}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-400 text-sm font-medium hover:bg-slate-700/60 transition-all">
               <X size={14} />
-              Cancelar
+              {t('common.cancel')}
             </button>
           </div>
         </div>
@@ -5021,18 +5043,18 @@ function BinesAdminTab() {
           <div className="flex items-center gap-3 px-5 py-3 bg-slate-950/40 border-b border-slate-800/60">
             <CreditCard size={14} className="text-rose-400" />
             <span className="text-sm font-semibold text-white">{categoria}</span>
-            <span className="ml-auto text-xs text-slate-500">{rows.length} registros</span>
+            <span className="ml-auto text-xs text-slate-500">{t('reference.recordsCount', { count: rows.length })}</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-800/60 bg-slate-950/30">
-                  <th className="text-left py-2.5 px-4 text-[11px] font-semibold uppercase tracking-widest text-slate-500">Nombre</th>
+                  <th className="text-left py-2.5 px-4 text-[11px] font-semibold uppercase tracking-widest text-slate-500">{t('reference.colName')}</th>
                   <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-24">BIN</th>
-                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500">Socio</th>
-                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-20">Producto</th>
-                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500">Nombre comercial / Marca</th>
-                  <th className="text-center py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-24">Acciones</th>
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500">{t('reference.colPartner')}</th>
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-20">{t('reference.colProduct')}</th>
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500">{t('reference.colBrand')}</th>
+                  <th className="text-center py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-24">{t('common.actions')}</th>
                 </tr>
               </thead>
               <tbody>

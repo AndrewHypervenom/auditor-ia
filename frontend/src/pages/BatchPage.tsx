@@ -208,9 +208,9 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
 
         {/* Item count badge */}
         <div className="flex-shrink-0 text-right hidden sm:block">
-          <div className="text-[10px] text-slate-500 uppercase tracking-wide">Casos</div>
+          <div className="text-[10px] text-slate-500 uppercase tracking-wide">{t('batchPage.cases')}</div>
           <div className="text-white font-bold text-sm">{job.item_count}</div>
-          <div className="text-[10px] text-slate-500">en lote</div>
+          <div className="text-[10px] text-slate-500">{t('batchPage.inBatch')}</div>
         </div>
       </div>
 
@@ -267,8 +267,7 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
         <div className="mx-4 mb-3 p-2.5 rounded-xl bg-slate-700/30 border border-slate-700/40 text-[11px] text-slate-500 flex items-start gap-2">
           <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-slate-400" />
           <span>
-            OpenAI procesa <strong className="text-slate-400">múltiples requests por caso</strong>: una por cada imagen y una de evaluación.
-            El conteo de requests es mayor que el de casos — esto es normal.
+            {t('batchPage.requestsNote1')} <strong className="text-slate-400">{t('batchPage.requestsNoteStrong')}</strong>{t('batchPage.requestsNote2')}
           </span>
         </div>
       )}
@@ -337,7 +336,7 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
             onClick={handleSubmit}
             disabled={loading !== null}
             className="btn-ghost text-xs flex items-center gap-1.5 py-1.5 px-3 text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500"
-            title="Enviar antes de la hora programada"
+            title={t('batchPage.submitEarlyTooltip')}
           >
             {loading === 'submit' ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -401,7 +400,7 @@ export default function BatchPage() {
       const data = await batchService.getJobs();
       setJobs(data);
     } catch {
-      toast.error('Error al cargar los lotes');
+      toast.error(t('batchPage.loadError'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -433,7 +432,7 @@ export default function BatchPage() {
             onClick={() => load(true)}
             disabled={refreshing}
             className="btn-ghost p-2 rounded-xl"
-            title="Actualizar"
+            title={t('common.update')}
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
@@ -561,7 +560,7 @@ export default function BatchPage() {
         <div className="rounded-2xl border border-slate-700/40 bg-slate-800/30 overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-700/40 flex items-center gap-2">
             <Info className="w-3.5 h-3.5 text-slate-400" />
-            <span className="text-xs font-medium text-slate-300">Modelo y límites del lote</span>
+            <span className="text-xs font-medium text-slate-300">{t('batchPage.modelAndLimits')}</span>
           </div>
 
           {/* Model badge */}
@@ -583,10 +582,10 @@ export default function BatchPage() {
             <div className="px-3 py-3 text-center">
               <div className="flex items-center justify-center gap-1 text-slate-500 text-[10px] mb-1">
                 <HardDrive className="w-3 h-3" />
-                Tamaño máx.
+                {t('batchPage.maxSize')}
               </div>
               <div className="text-white font-bold text-sm">{BATCH_LIMITS_CLIENT.MAX_FILE_SIZE_MB} MB</div>
-              <div className="text-[10px] text-slate-600">por lote</div>
+              <div className="text-[10px] text-slate-600">{t('batchPage.perBatch')}</div>
             </div>
             <div className="px-3 py-3 text-center">
               <div className="flex items-center justify-center gap-1 text-slate-500 text-[10px] mb-1">

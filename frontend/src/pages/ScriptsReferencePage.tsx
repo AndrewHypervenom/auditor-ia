@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import AppHeader from '../components/AppHeader';
 import toast from 'react-hot-toast';
 import {
@@ -115,16 +116,17 @@ function StatChip({ icon: Icon, label, color }: StatChipProps) {
 // ─── Componente principal ────────────────────────────────────
 
 export default function ScriptsReferencePage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'criteria' | 'scripts' | 'plantilla' | 'bines'>('criteria');
 
   return (
     <div className="min-h-screen text-white">
-      <AppHeader showBack onBack={() => navigate(-1)} title="Criterios, Scripts y Plantilla GPF" subtitle="Solo lectura" />
+      <AppHeader showBack onBack={() => navigate(-1)} title={t('reference.pageTitle')} subtitle={t('reference.readOnly')} />
       <div className="max-w-5xl mx-auto px-6 py-6">
 
         <p className="mb-4 text-sm text-slate-400 leading-relaxed">
-          Consulta los criterios de evaluación, scripts de agentes y la plantilla de cierre GPF configurados por el administrador.
+          {t('reference.intro')}
         </p>
 
         {/* ── Tab Selector ── */}
@@ -133,29 +135,29 @@ export default function ScriptsReferencePage() {
             {
               key: 'criteria' as const,
               icon: ClipboardList,
-              label: 'Criterios de Evaluación',
-              description: 'Rúbricas y ponderaciones',
+              label: t('reference.tabCriteria'),
+              description: t('reference.tabCriteriaDesc'),
               color: 'purple',
             },
             {
               key: 'scripts' as const,
               icon: BookOpen,
-              label: 'Scripts de Agentes',
-              description: 'Guiones y frases por paso',
+              label: t('reference.tabScripts'),
+              description: t('reference.tabScriptsDesc'),
               color: 'blue',
             },
             {
               key: 'plantilla' as const,
               icon: Table,
-              label: 'Plantilla Cierre de GPF',
-              description: 'Calificación y Sub-calificación',
+              label: t('reference.tabPlantilla'),
+              description: t('reference.tabPlantillaDesc'),
               color: 'teal',
             },
             {
               key: 'bines' as const,
               icon: CreditCard,
-              label: 'Bines',
-              description: 'Referencia BINs bancarios',
+              label: t('reference.tabBines'),
+              description: t('reference.tabBinesDesc'),
               color: 'rose',
             },
           ]).map(({ key, icon: Icon, label, description, color }) => {
@@ -256,6 +258,7 @@ export default function ScriptsReferencePage() {
 // ─── Tab: Criterios (solo lectura) ───────────────────────────
 
 function CriteriaRefTab() {
+  const { t } = useTranslation();
   const [blocks, setBlocks] = useState<CriteriaBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<AdminMode>('INBOUND');
@@ -274,11 +277,11 @@ function CriteriaRefTab() {
       const data = await criteriaService.getAll();
       setBlocks(data);
     } catch {
-      toast.error('Error al cargar criterios');
+      toast.error(t('reference.criteriaLoadError'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -307,8 +310,8 @@ function CriteriaRefTab() {
         <CallTypeSelectorShared selected={selectedCallType} onChange={setSelectedCallType} />
         <div className="flex items-center gap-2 flex-wrap">
           <StatChip icon={BarChart2} label={`${totalPoints} pts`} color="blue" />
-          <StatChip icon={AlertTriangle} label={`${criticalCount} críticos`} color="red" />
-          <StatChip icon={ListChecks} label={`${totalCriteria} criterios`} color="green" />
+          <StatChip icon={AlertTriangle} label={t('resultsView.criticalCount', { count: criticalCount })} color="red" />
+          <StatChip icon={ListChecks} label={t('resultsView.criteriaCount', { count: totalCriteria })} color="green" />
         </div>
       </div>
 
@@ -322,8 +325,8 @@ function CriteriaRefTab() {
               <ClipboardList size={28} className="text-slate-600" />
             </div>
             <div className="text-center">
-              <p className="text-slate-400 font-medium">Sin criterios configurados</p>
-              <p className="text-slate-600 text-sm mt-1">El administrador aún no ha cargado criterios para {selectedCallType}</p>
+              <p className="text-slate-400 font-medium">{t('reference.noCriteria')}</p>
+              <p className="text-slate-600 text-sm mt-1">{t('reference.noCriteriaHint', { callType: selectedCallType })}</p>
             </div>
           </div>
         )}
@@ -333,6 +336,7 @@ function CriteriaRefTab() {
 }
 
 function CriteriaBlockReadCard({ block, onUpdate }: { block: CriteriaBlock; onUpdate: () => void }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const availableTipoCierres = useSubcalificaciones(block.call_type);
   const [selectedTipoCierre, setSelectedTipoCierre] = useState<string | null>(null);
@@ -366,10 +370,10 @@ function CriteriaBlockReadCard({ block, onUpdate }: { block: CriteriaBlock; onUp
           {criticalCount > 0 && (
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-500/10 border border-red-500/15 text-red-300 text-xs font-medium">
               <AlertTriangle size={10} />
-              {criticalCount} crítico{criticalCount > 1 ? 's' : ''}
+              {t('resultsView.criticalCount', { count: criticalCount })}
             </span>
           )}
-          <span className="text-slate-500 text-xs tabular-nums">{appliedCount} criterios</span>
+          <span className="text-slate-500 text-xs tabular-nums">{t('resultsView.criteriaCount', { count: appliedCount })}</span>
         </div>
         <ChevronDown
           size={16}
@@ -383,7 +387,7 @@ function CriteriaBlockReadCard({ block, onUpdate }: { block: CriteriaBlock; onUp
           {availableTipoCierres.length > 0 && (
             <div className="px-5 pt-3 pb-3 border-b border-slate-800/40 flex items-center gap-3 flex-wrap">
               <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
-                Subcalificación:
+                {t('reference.subQualification')}
               </span>
               <select
                 value={selectedTipoCierre || ''}
@@ -397,7 +401,7 @@ function CriteriaBlockReadCard({ block, onUpdate }: { block: CriteriaBlock; onUp
               </select>
               {selectedTipoCierre && (
                 <span className="text-[11px] text-teal-400 font-medium">
-                  Criterios para: <strong>{selectedTipoCierre}</strong>
+                  {t('reference.criteriaFor')} <strong>{selectedTipoCierre}</strong>
                 </span>
               )}
             </div>
@@ -408,10 +412,10 @@ function CriteriaBlockReadCard({ block, onUpdate }: { block: CriteriaBlock; onUp
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-800/60 bg-slate-950/70">
-                    <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-widest text-slate-500">Criterio</th>
-                    <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-20">Pts</th>
-                    <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-24">Criticidad</th>
-                    <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-16">Aplica</th>
+                    <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-widest text-slate-500">{t('reference.colCriterion')}</th>
+                    <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-20">{t('reference.colPts')}</th>
+                    <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-24">{t('reference.colCriticality')}</th>
+                    <th className="text-center py-3 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-16">{t('reference.colApplies')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -442,6 +446,7 @@ function CriteriaReadRow({
   selectedTipoCierre: string | null;
   onUpdate: () => void;
 }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [toggling, setToggling] = useState(false);
 
@@ -467,7 +472,7 @@ function CriteriaReadRow({
       }
       onUpdate();
     } catch {
-      toast.error('Error al actualizar');
+      toast.error(t('reference.updateError'));
     } finally {
       setToggling(false);
     }
@@ -491,7 +496,7 @@ function CriteriaReadRow({
                                  whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] font-medium
                                  bg-slate-800 border border-slate-700/60 text-slate-200 shadow-lg
                                  opacity-0 group-hover/sbadge:opacity-100 transition-opacity duration-150 z-50">
-                  Config. específica para <strong className="text-teal-400">{selectedTipoCierre}</strong>
+                  {t('reference.specificConfigFor')} <strong className="text-teal-400">{selectedTipoCierre}</strong>
                   <span className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0
                                    border-x-4 border-x-transparent border-t-4 border-t-slate-700/60" />
                 </span>
@@ -509,7 +514,7 @@ function CriteriaReadRow({
                   className="self-start text-[11px] text-slate-600 hover:text-slate-400 transition-colors duration-150 flex items-center gap-0.5"
                 >
                   <ChevronDown size={11} className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
-                  {expanded ? 'Ver menos' : 'Ver más'}
+                  {expanded ? t('common.showLess') : t('common.showMore')}
                 </button>
               )}
             </div>
@@ -529,7 +534,7 @@ function CriteriaReadRow({
         {item.criticality === 'Crítico' ? (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/15 text-red-300 text-xs font-medium">
             <AlertTriangle size={10} />
-            Crítico
+            {t('resultsView.criticalBadge')}
           </span>
         ) : (
           <span className="text-slate-700 text-sm">—</span>
@@ -539,7 +544,7 @@ function CriteriaReadRow({
         <button
           onClick={handleToggleApplies}
           disabled={toggling}
-          title={effectiveApplies ? 'Clic para desactivar' : 'Clic para activar'}
+          title={effectiveApplies ? t('reference.clickToDisable') : t('reference.clickToEnable')}
           className={`inline-flex items-center justify-center w-6 h-6 rounded-full border transition-all duration-150
             ${effectiveApplies
               ? 'bg-teal-500/20 border-teal-500/50 text-teal-400 hover:bg-teal-500/30'
@@ -556,6 +561,7 @@ function CriteriaReadRow({
 // ─── Tab: Scripts (solo lectura) ─────────────────────────────
 
 function ScriptsRefTab() {
+  const { t } = useTranslation();
   const [scripts, setScripts] = useState<ScriptStep[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<AdminMode>('INBOUND');
@@ -574,11 +580,11 @@ function ScriptsRefTab() {
       const data = await scriptsService.getAll();
       setScripts(data);
     } catch {
-      toast.error('Error al cargar scripts');
+      toast.error(t('reference.scriptsLoadError'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -606,8 +612,8 @@ function ScriptsRefTab() {
               <BookOpen size={28} className="text-slate-600" />
             </div>
             <div className="text-center">
-              <p className="text-slate-400 font-medium">Sin pasos definidos</p>
-              <p className="text-slate-600 text-sm mt-1">El administrador aún no ha cargado scripts para {selectedCallType}</p>
+              <p className="text-slate-400 font-medium">{t('reference.noSteps')}</p>
+              <p className="text-slate-600 text-sm mt-1">{t('reference.noStepsHint', { callType: selectedCallType })}</p>
             </div>
           </div>
         )}
@@ -617,6 +623,7 @@ function ScriptsRefTab() {
 }
 
 function ScriptStepReadCard({ step }: { step: ScriptStep }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -630,7 +637,7 @@ function ScriptStepReadCard({ step }: { step: ScriptStep }) {
         </div>
         <span className="flex-1 font-semibold text-white text-[15px] truncate">{step.step_label}</span>
         <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-slate-800/60 border border-slate-700/40 text-slate-400 text-xs tabular-nums">
-          {step.lines.length} {step.lines.length === 1 ? 'frase' : 'frases'}
+          {t('reference.phrasesCount', { count: step.lines.length })}
         </span>
         <ChevronDown
           size={16}
@@ -657,6 +664,7 @@ function ScriptStepReadCard({ step }: { step: ScriptStep }) {
 // ─── Tab: Plantilla GPF (solo lectura) ───────────────────────
 
 function PlantillaRefTab() {
+  const { t } = useTranslation();
   const [items, setItems] = useState<PlantillaGPFItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<AdminMode>('INBOUND');
@@ -675,11 +683,11 @@ function PlantillaRefTab() {
       const data = await plantillaService.getAll();
       setItems(data);
     } catch {
-      toast.error('Error al cargar Plantilla GPF');
+      toast.error(t('plantilla.loadError'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -690,7 +698,7 @@ function PlantillaRefTab() {
     return (
       <div className="flex items-center justify-center py-16 text-slate-500">
         <Loader2 size={20} className="animate-spin mr-2" />
-        Cargando plantilla...
+        {t('plantilla.loading')}
       </div>
     );
   }
@@ -705,14 +713,14 @@ function PlantillaRefTab() {
       </div>
 
       <p className="mb-5 text-sm text-slate-400 leading-relaxed">
-        Plantilla de Cierre de GPF para{' '}
+        {t('reference.plantillaIntro')}{' '}
         <span className={mode === 'INBOUND' ? 'text-teal-400 font-medium' : 'text-violet-400 font-medium'}>
-          {mode === 'INBOUND' ? 'Inbound' : 'Monitoreo'}
+          {mode === 'INBOUND' ? t('plantilla.inbound') : t('plantilla.monitoring')}
         </span>
         {' — '}
         <span className="text-brand-300 font-medium">{callType}</span>.
-        La <span className="text-teal-400 font-medium">Calificación</span> corresponde a la Categoría y la{' '}
-        <span className="text-teal-400 font-medium">Sub-calificación</span> al Tipo de Cierre.
+        {' '}{t('plantilla.introQual1')} <span className="text-teal-400 font-medium">{t('plantilla.qualificationLabel')}</span> {t('plantilla.introQual2')}{' '}
+        <span className="text-teal-400 font-medium">{t('plantilla.subQualificationLabel')}</span> {t('plantilla.introQual3')}
       </p>
 
       <div className="space-y-3">
@@ -725,9 +733,9 @@ function PlantillaRefTab() {
               <Table size={28} className="text-slate-600" />
             </div>
             <div className="text-center">
-              <p className="text-slate-400 font-medium">Sin categorías configuradas</p>
+              <p className="text-slate-400 font-medium">{t('reference.noCategoriesConfigured')}</p>
               <p className="text-slate-600 text-sm mt-1">
-                No hay plantilla para {mode === 'INBOUND' ? 'Inbound' : 'Monitoreo'} — {callType}
+                {t('reference.noPlantillaFor', { mode: mode === 'INBOUND' ? t('plantilla.inbound') : t('plantilla.monitoring'), callType })}
               </p>
             </div>
           </div>
@@ -738,6 +746,7 @@ function PlantillaRefTab() {
 }
 
 function CategoriaReadCard({ categoria, items }: { categoria: string; items: PlantillaGPFItem[] }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const sorted = [...items].sort((a, b) => a.tipo_orden - b.tipo_orden);
 
@@ -749,7 +758,7 @@ function CategoriaReadCard({ categoria, items }: { categoria: string; items: Pla
       >
         <span className="flex-1 font-semibold text-white text-[15px] truncate">{categoria}</span>
         <span className="flex-shrink-0 text-slate-500 text-xs tabular-nums">
-          {sorted.length} {sorted.length === 1 ? 'tipo' : 'tipos'}
+          {t('plantilla.typesCount', { count: sorted.length })}
         </span>
         <ChevronDown
           size={16}
@@ -760,8 +769,8 @@ function CategoriaReadCard({ categoria, items }: { categoria: string; items: Pla
       {expanded && (
         <div className="border-t border-slate-800/60">
           <div className="grid grid-cols-[2fr_3fr] gap-3 px-5 py-2 bg-slate-800/30">
-            <span className="text-xs font-semibold text-teal-400/70 uppercase tracking-wider">Tipo de Cierre</span>
-            <span className="text-xs font-semibold text-teal-400/70 uppercase tracking-wider">Descripción</span>
+            <span className="text-xs font-semibold text-teal-400/70 uppercase tracking-wider">{t('plantilla.colClosureType')}</span>
+            <span className="text-xs font-semibold text-teal-400/70 uppercase tracking-wider">{t('plantilla.colDescription')}</span>
           </div>
           <div className="divide-y divide-slate-800/40">
             {sorted.map((item) => (
@@ -780,13 +789,14 @@ function CategoriaReadCard({ categoria, items }: { categoria: string; items: Pla
 // ─── Tab: Bines (solo lectura) ───────────────────────────────
 
 function BinesRefTab() {
+  const { t } = useTranslation();
   const [items, setItems] = useState<BinesItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     binesService.getAll()
       .then(setItems)
-      .catch(() => toast.error('Error al cargar bines'))
+      .catch(() => toast.error(t('reference.binesLoadError')))
       .finally(() => setLoading(false));
   }, []);
 
@@ -807,17 +817,17 @@ function BinesRefTab() {
           <div className="flex items-center gap-3 px-5 py-3 bg-slate-950/40 border-b border-slate-800/60">
             <CreditCard size={14} className="text-rose-400" />
             <span className="text-sm font-semibold text-white">{categoria}</span>
-            <span className="ml-auto text-xs text-slate-500">{rows.length} registros</span>
+            <span className="ml-auto text-xs text-slate-500">{t('reference.recordsCount', { count: rows.length })}</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-800/60 bg-slate-950/30">
-                  <th className="text-left py-2.5 px-4 text-[11px] font-semibold uppercase tracking-widest text-slate-500">Nombre</th>
+                  <th className="text-left py-2.5 px-4 text-[11px] font-semibold uppercase tracking-widest text-slate-500">{t('reference.colName')}</th>
                   <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-24">BIN</th>
-                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500">Socio</th>
-                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-20">Producto</th>
-                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500">Nombre comercial / Marca</th>
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500">{t('reference.colPartner')}</th>
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500 w-20">{t('reference.colProduct')}</th>
+                  <th className="text-left py-2.5 px-3 text-[11px] font-semibold uppercase tracking-widest text-slate-500">{t('reference.colBrand')}</th>
                 </tr>
               </thead>
               <tbody>

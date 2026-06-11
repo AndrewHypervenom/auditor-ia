@@ -242,10 +242,10 @@ export default function AdminDashboard() {
  if (result.data?.is_success && result.data?.data?.token) {
  setGpfToken(result.data.data.token);
  setGpfTokenUser(result.data.data.user || null);
- toast.success('Token obtenido correctamente');
+ toast.success(t('gpfConsole.tokenObtained'));
  } else {
  const err = result.data?.error;
- const msg = (typeof err === 'string' ? err : err?.message) || 'Credenciales inválidas';
+ const msg = (typeof err === 'string' ? err : err?.message) || t('gpfConsole.invalidCredentials');
  toast.error(`Error: ${msg}`);
  }
  } catch (error: any) {
@@ -267,14 +267,14 @@ export default function AdminDashboard() {
  try {
  parsedBody = JSON.parse(gpfBody);
  } catch {
- toast.error('El cuerpo JSON no es válido');
+ toast.error(t('gpfConsole.invalidJsonBody'));
  setGpfRequestLoading(false);
  return;
  }
  }
 
  if (gpfEndpointNeedsId && !gpfIdAtencion.trim()) {
- toast.error('Ingresa el ID de atención para este endpoint');
+ toast.error(t('gpfConsole.enterAttentionId'));
  setGpfRequestLoading(false);
  return;
  }
@@ -295,11 +295,11 @@ export default function AdminDashboard() {
  setGpfResponse(result);
 
  if (result.data?.is_success === true) {
- toast.success(`Respuesta ${result.gpf_status} OK`);
+ toast.success(t('gpfConsole.responseOk', { status: result.gpf_status }));
  } else if (result.gpf_status >= 400 || result.data?.is_success === false) {
  toast.error(`Error ${result.gpf_status}`);
  } else {
- toast.success(`Respuesta ${result.gpf_status}`);
+ toast.success(t('gpfConsole.responseStatus', { status: result.gpf_status }));
  }
  } catch (error: any) {
  const msg = error?.response?.data?.error || error.message || 'Error de conexión';
@@ -322,7 +322,7 @@ export default function AdminDashboard() {
 
  const handleGpfGenerateExport = async () => {
  if (!gpfExportForm.initial_date || !gpfExportForm.final_date) {
- toast.error('Fecha inicial y final son requeridas');
+ toast.error(t('gpfConsole.datesRequired'));
  return;
  }
  try {
@@ -346,7 +346,7 @@ export default function AdminDashboard() {
  const id = result.data.data.export_id;
  setGpfExportId(id);
  setGpfExportIdInput(String(id));
- toast.success(`Exportación generada · ID: ${id}`);
+ toast.success(t('gpfConsole.exportGenerated', { id }));
  } else {
  const err = result.data?.error;
  toast.error((typeof err === 'string' ? err : err?.message) || 'Error al generar exportación');
@@ -361,7 +361,7 @@ export default function AdminDashboard() {
  const handleGpfDownloadExport = async () => {
  const idToUse = gpfExportId ?? (gpfExportIdInput.trim() ? parseInt(gpfExportIdInput.trim(), 10) : null);
  if (idToUse === null || isNaN(idToUse)) {
- toast.error('Ingresa un export_id válido');
+ toast.error(t('gpfConsole.enterValidExportId'));
  return;
  }
  try {
@@ -382,7 +382,7 @@ export default function AdminDashboard() {
  a.click();
  window.URL.revokeObjectURL(url);
  document.body.removeChild(a);
- toast.success(`Archivo descargado: ${result.filename}`);
+ toast.success(t('gpfConsole.fileDownloaded', { filename: result.filename }));
  setGpfExportProgress(100);
  setGpfDownloadError(null);
  } else {
@@ -396,11 +396,11 @@ export default function AdminDashboard() {
  if (progress !== null) {
  setGpfExportProgress(progress);
  setGpfDownloadError(null);
- toast(`Procesando: ${progress}%`, { icon: '' });
+ toast(t('gpfConsole.processing', { percent: progress }), { icon: '' });
  } else if (isSuccess) {
  setGpfExportProgress(null);
  setGpfDownloadError(null);
- toast.success('Respuesta OK sin progreso — reintenta la descarga');
+ toast.success(t('gpfConsole.responseNoProgress'));
  } else {
  // Error de GPF — mostrar completo
  const errObj = gpfBody?.error;
@@ -435,11 +435,11 @@ export default function AdminDashboard() {
 
  const renderGpfPanel = () => {
  const GPF_ENDPOINTS = [
- { label: 'Detalle de Llamadas', path: '/api/quality-control/v1/attentions-quality-control', method: 'GET', body: '', needsId: false, confirmed: true },
- { label: 'Capturas y Comentarios', path: '/api/quality-control/v1/captures-comments/', method: 'GET', body: '', needsId: true, confirmed: true },
- { label: 'Transacciones', path: '/api/quality-control/v1/transactions/', method: 'GET', body: '', needsId: true, confirmed: true },
- { label: 'Comentarios', path: '/api/quality-control/v1/comments/', method: 'GET', body: '', needsId: true, confirmed: true },
- { label: 'Validaciones OTP', path: '/api/quality-control/v1/otp-validations/', method: 'GET', body: '', needsId: true, confirmed: true },
+ { label: t('gpfConsole.epDetalleLlamadas'), path: '/api/quality-control/v1/attentions-quality-control', method: 'GET', body: '', needsId: false, confirmed: true },
+ { label: t('gpfConsole.epCapturasComentarios'), path: '/api/quality-control/v1/captures-comments/', method: 'GET', body: '', needsId: true, confirmed: true },
+ { label: t('gpfConsole.epTransacciones'), path: '/api/quality-control/v1/transactions/', method: 'GET', body: '', needsId: true, confirmed: true },
+ { label: t('gpfConsole.epComentarios'), path: '/api/quality-control/v1/comments/', method: 'GET', body: '', needsId: true, confirmed: true },
+ { label: t('gpfConsole.epValidacionesOtp'), path: '/api/quality-control/v1/otp-validations/', method: 'GET', body: '', needsId: true, confirmed: true },
  ];
 
  const isSuccess = gpfResponse?.data?.is_success === true;
@@ -470,19 +470,19 @@ export default function AdminDashboard() {
  <Globe className="w-6 h-6 text-teal-400" />
  </div>
  <div>
- <h2 className="text-lg font-bold text-white">Integración API GPF</h2>
- <p className="text-slate-400 text-sm">Portal GPF · Positivo S+ · Pruebas y verificación de endpoints</p>
+ <h2 className="text-lg font-bold text-white">{t('adminDash.gpfApiTitle')}</h2>
+ <p className="text-slate-400 text-sm">{t('gpfConsole.bannerSubtitle')}</p>
  </div>
  <div className="ml-auto flex items-center gap-2">
  {gpfToken ? (
  <span className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/20 border border-emerald-500/40 rounded-full text-xs font-semibold text-emerald-400">
  <CheckCircle2 className="w-3 h-3" />
- Autenticado
+ {t('adminDash.authenticated')}
  </span>
  ) : (
  <span className="flex items-center gap-1.5 px-3 py-1 bg-slate-700 border border-slate-600 rounded-full text-xs font-medium text-slate-400">
  <XCircle className="w-3 h-3" />
- Sin token
+ {t('adminDash.noToken')}
  </span>
  )}
  </div>
@@ -491,42 +491,42 @@ export default function AdminDashboard() {
 
  {/* Guía de uso */}
  <div className="p-4 bg-slate-800/60 border border-slate-700 rounded-xl">
- <p className="text-xs font-semibold text-slate-300 mb-3 uppercase tracking-wide">Guia de uso — Flujo completo</p>
+ <p className="text-xs font-semibold text-slate-300 mb-3 uppercase tracking-wide">{t('gpfConsole.guideTitle')}</p>
  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
  <div className="flex items-start gap-2">
  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-600 text-white text-xs flex items-center justify-center font-bold">1</span>
  <div>
- <p className="text-xs font-medium text-slate-300">Seleccionar ambiente</p>
- <p className="text-xs text-slate-500">Pruebas (ngrok) o Productivo. Las credenciales se usan automaticamente desde el servidor.</p>
+ <p className="text-xs font-medium text-slate-300">{t('gpfConsole.step1Title')}</p>
+ <p className="text-xs text-slate-500">{t('gpfConsole.step1Desc')}</p>
  </div>
  </div>
  <div className="flex items-start gap-2">
  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-600 text-white text-xs flex items-center justify-center font-bold">2</span>
  <div>
- <p className="text-xs font-medium text-slate-300">Obtener Token</p>
- <p className="text-xs text-slate-500">Clic en "Obtener Token de Sesion". El token dura 3 dias y se llena automaticamente.</p>
+ <p className="text-xs font-medium text-slate-300">{t('gpfConsole.step2Title')}</p>
+ <p className="text-xs text-slate-500">{t('gpfConsole.step2Desc')}</p>
  </div>
  </div>
  <div className="flex items-start gap-2">
  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-600 text-white text-xs flex items-center justify-center font-bold">3</span>
  <div>
- <p className="text-xs font-medium text-slate-300">Elegir endpoint</p>
- <p className="text-xs text-slate-500">Clic en cualquier endpoint del listado. Los que requieren ID de Atencion mostraran un campo extra.</p>
+ <p className="text-xs font-medium text-slate-300">{t('gpfConsole.step3Title')}</p>
+ <p className="text-xs text-slate-500">{t('gpfConsole.step3Desc')}</p>
  </div>
  </div>
  <div className="flex items-start gap-2">
  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-600 text-white text-xs flex items-center justify-center font-bold">4</span>
  <div>
- <p className="text-xs font-medium text-slate-300">Ejecutar y ver resultados</p>
- <p className="text-xs text-slate-500">Clic en "Ejecutar Request". Visualiza la respuesta en JSON o en Tabla interactiva.</p>
+ <p className="text-xs font-medium text-slate-300">{t('gpfConsole.step4Title')}</p>
+ <p className="text-xs text-slate-500">{t('gpfConsole.step4Desc')}</p>
  </div>
  </div>
  </div>
  <div className="mt-3 pt-3 border-t border-slate-700 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-500">
- <div><span className="text-slate-400 font-medium">Pruebas:</span> classic-routinely-beagle.ngrok-free.app</div>
- <div><span className="text-slate-400 font-medium">Productivo:</span> gpf.prevencion.algartech.com.mx:6443</div>
- <div><span className="text-slate-400 font-medium">Autenticacion:</span> X-App-Token + Bearer token (obtenido en paso 2)</div>
- <div><span className="text-slate-400 font-medium">Formato:</span> Todas las respuestas tienen <code className="text-teal-400">data</code>, <code className="text-teal-400">error</code>, <code className="text-teal-400">is_success</code>, <code className="text-teal-400">status</code></div>
+ <div><span className="text-slate-400 font-medium">{t('gpfConsole.testLabel')}</span> classic-routinely-beagle.ngrok-free.app</div>
+ <div><span className="text-slate-400 font-medium">{t('gpfConsole.prodLabel')}</span> gpf.prevencion.algartech.com.mx:6443</div>
+ <div><span className="text-slate-400 font-medium">{t('gpfConsole.authLabel')}</span> X-App-Token + Bearer token (obtenido en paso 2)</div>
+ <div><span className="text-slate-400 font-medium">{t('gpfConsole.formatLabel')}</span> {t('gpfConsole.formatDesc')} <code className="text-teal-400">data</code>, <code className="text-teal-400">error</code>, <code className="text-teal-400">is_success</code>, <code className="text-teal-400">status</code></div>
  </div>
  </div>
 
@@ -534,25 +534,25 @@ export default function AdminDashboard() {
  <div className="card">
  <h3 className="section-header">
  <Key className="w-5 h-5 text-teal-400" />
- <span>Paso 1 — Ambiente y Autenticación</span>
+ <span>{t('gpfConsole.step1Header')}</span>
  </h3>
 
  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
  {/* Selector de ambiente */}
  <div>
- <label className="block text-xs font-medium text-slate-400 mb-1.5">Ambiente</label>
+ <label className="block text-xs font-medium text-slate-400 mb-1.5">{t('gpfConsole.environment')}</label>
  <div className="flex rounded-lg overflow-hidden border border-slate-700">
  <button
  onClick={() => { setGpfEnv('test'); setGpfToken(''); setGpfTokenUser(null); setGpfResponse(null); }}
  className={`flex-1 py-2 text-sm font-medium transition-all ${gpfEnv === 'test' ? 'bg-teal-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
  >
- Pruebas
+ {t('adminDash.testEnv')}
  </button>
  <button
  onClick={() => { setGpfEnv('prod'); setGpfToken(''); setGpfTokenUser(null); setGpfResponse(null); }}
  className={`flex-1 py-2 text-sm font-medium transition-all ${gpfEnv === 'prod' ? 'bg-orange-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
  >
- Productivo
+ {t('adminDash.prodEnv')}
  </button>
  </div>
  <p className="text-xs text-slate-500 mt-1">
@@ -563,7 +563,7 @@ export default function AdminDashboard() {
  {/* Token actual */}
  <div className="md:col-span-2">
  <label className="block text-xs font-medium text-slate-400 mb-1.5">
- Token de Sesión {gpfTokenUser && <span className="text-teal-400 ml-1">· {gpfTokenUser.name} ({gpfTokenUser.email})</span>}
+ {t('gpfConsole.sessionToken')} {gpfTokenUser && <span className="text-teal-400 ml-1">· {gpfTokenUser.name} ({gpfTokenUser.email})</span>}
  </label>
  <div className="flex gap-2">
  <div className="flex-1 relative">
@@ -571,15 +571,15 @@ export default function AdminDashboard() {
  type="text"
  value={gpfToken}
  onChange={(e) => setGpfToken(e.target.value)}
- placeholder="Token Bearer (se llena automáticamente al hacer login)"
+ placeholder={t('gpfConsole.tokenPlaceholder')}
  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-300 font-mono placeholder-slate-600 focus:outline-none focus:border-teal-500"
  />
  </div>
  {gpfToken && (
  <button
- onClick={() => { navigator.clipboard.writeText(gpfToken); toast.success('Token copiado'); }}
+ onClick={() => { navigator.clipboard.writeText(gpfToken); toast.success(t('gpfConsole.tokenCopied')); }}
  className="px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-slate-400 hover:text-white transition-all"
- title="Copiar token"
+ title={t('adminDash.copyToken')}
  >
  <Copy className="w-4 h-4" />
  </button>
@@ -594,7 +594,7 @@ export default function AdminDashboard() {
  className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
  >
  {gpfLoginLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
- {gpfLoginLoading ? 'Autenticando...' : 'Obtener Token de Sesión'}
+ {gpfLoginLoading ? t('adminDash.authenticating') : t('adminDash.getToken')}
  </button>
  </div>
 
@@ -602,19 +602,19 @@ export default function AdminDashboard() {
  <div className="card">
  <h3 className="section-header">
  <Terminal className="w-5 h-5 text-teal-400" />
- <span>Paso 2 — Probar Endpoints</span>
- {!gpfToken && <span className="ml-auto text-xs text-yellow-400 font-normal flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Requiere token</span>}
+ <span>{t('gpfConsole.step2Header')}</span>
+ {!gpfToken && <span className="ml-auto text-xs text-yellow-400 font-normal flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {t('gpfConsole.requiresToken')}</span>}
  </h3>
 
  {/* Presets de endpoints */}
  <div className="mb-4">
- <label className="block text-xs font-medium text-slate-400 mb-2">Endpoints conocidos</label>
+ <label className="block text-xs font-medium text-slate-400 mb-2">{t('gpfConsole.knownEndpoints')}</label>
  <div className="flex flex-wrap gap-2">
  {GPF_ENDPOINTS.map((ep) => (
  <button
  key={ep.path}
  onClick={() => handleGpfEndpointPreset(ep.path, ep.method, ep.body, ep.needsId)}
- title={ep.confirmed ? ep.path : `Ruta pendiente de confirmar · ${ep.path}`}
+ title={ep.confirmed ? ep.path : t('gpfConsole.unconfirmedRoute', { path: ep.path })}
  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
  gpfEndpoint === ep.path
  ? 'bg-teal-500/20 border-teal-500/60 text-teal-300'
@@ -634,7 +634,7 @@ export default function AdminDashboard() {
  {/* Endpoint + Método */}
  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
  <div>
- <label className="block text-xs font-medium text-slate-400 mb-1.5">Método</label>
+ <label className="block text-xs font-medium text-slate-400 mb-1.5">{t('gpfConsole.method')}</label>
  <select
  value={gpfMethod}
  onChange={(e) => setGpfMethod(e.target.value)}
@@ -645,7 +645,7 @@ export default function AdminDashboard() {
  </select>
  </div>
  <div className="md:col-span-3">
- <label className="block text-xs font-medium text-slate-400 mb-1.5">Endpoint</label>
+ <label className="block text-xs font-medium text-slate-400 mb-1.5">{t('gpfConsole.endpoint')}</label>
  <input
  type="text"
  value={gpfEndpoint}
@@ -658,12 +658,12 @@ export default function AdminDashboard() {
 
  {/* Query params */}
  <div className="mb-3">
- <label className="block text-xs font-medium text-slate-400 mb-1.5">Query String (opcional)</label>
+ <label className="block text-xs font-medium text-slate-400 mb-1.5">{t('gpfConsole.queryString')}</label>
  <input
  type="text"
  value={gpfQueryString}
  onChange={(e) => setGpfQueryString(e.target.value)}
- placeholder="clave=valor&otro=dato"
+ placeholder={t('gpfConsole.queryPlaceholder')}
  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 font-mono focus:outline-none focus:border-teal-500"
  />
  </div>
@@ -672,19 +672,19 @@ export default function AdminDashboard() {
  {gpfEndpointNeedsId && (
  <div className="mb-4">
  <label className="block text-xs font-medium text-slate-400 mb-1.5">
- ID de Atención <span className="text-red-400">*</span>
- <span className="ml-2 text-slate-500 font-normal">— se agrega al final del endpoint</span>
+ {t('gpfConsole.attentionId')} <span className="text-red-400">*</span>
+ <span className="ml-2 text-slate-500 font-normal">{t('gpfConsole.attentionIdHint')}</span>
  </label>
  <input
  type="text"
  value={gpfIdAtencion}
  onChange={(e) => setGpfIdAtencion(e.target.value)}
- placeholder="Ej: 12345"
+ placeholder={t('gpfConsole.egId')}
  className="w-full px-3 py-2 bg-slate-800 border border-teal-500/50 rounded-lg text-sm text-slate-300 font-mono focus:outline-none focus:border-teal-400"
  />
  {gpfIdAtencion && (
  <p className="text-xs text-slate-500 mt-1 font-mono">
- URL final: <span className="text-teal-400">{gpfEndpoint}{gpfIdAtencion}</span>
+ {t('gpfConsole.finalUrl')} <span className="text-teal-400">{gpfEndpoint}{gpfIdAtencion}</span>
  </p>
  )}
  </div>
@@ -693,7 +693,7 @@ export default function AdminDashboard() {
  {/* Body */}
  {!['GET', 'HEAD'].includes(gpfMethod) && (
  <div className="mb-4">
- <label className="block text-xs font-medium text-slate-400 mb-1.5">Cuerpo (JSON)</label>
+ <label className="block text-xs font-medium text-slate-400 mb-1.5">{t('gpfConsole.bodyJson')}</label>
  <textarea
  value={gpfBody}
  onChange={(e) => setGpfBody(e.target.value)}
@@ -710,7 +710,7 @@ export default function AdminDashboard() {
  className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
  >
  {gpfRequestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
- {gpfRequestLoading ? 'Ejecutando...' : 'Ejecutar Request'}
+ {gpfRequestLoading ? t('adminDash.executing') : t('adminDash.executeRequest')}
  </button>
  </div>
 
@@ -720,7 +720,7 @@ export default function AdminDashboard() {
  <div className="flex items-center justify-between mb-4">
  <h3 className="section-header mb-0">
  <Activity className="w-5 h-5 text-teal-400" />
- <span>Respuesta</span>
+ <span>{t('adminDash.response')}</span>
  </h3>
  <div className="flex items-center gap-3">
  {gpfResponse.elapsed_ms > 0 && (
@@ -733,7 +733,7 @@ export default function AdminDashboard() {
  )}
  {gpfResponse.error && (
  <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-500/10 border border-red-500/30 text-red-400">
- Error de red
+ {t('gpfConsole.networkError')}
  </span>
  )}
  </div>
@@ -754,16 +754,16 @@ export default function AdminDashboard() {
  <span className={`text-sm font-medium ${isSuccess ? 'text-emerald-300' : 'text-red-300'}`}>
  {isSuccess
  ? (() => {
- if (canShowTable) return `${responseArray.length} registros encontrados`;
- if (hasCaptures) return `${responseData.captures.length} capturas · ${(responseData.comments as string[]).length} comentarios`;
- if (hasTransactions) return `${responseData.transactions.length} transacciones`;
- if (hasCommentsObj) return `${responseData.comments.length} comentarios`;
- if (hasOtpValidations) return `${responseData.otpValidations.length} validaciones OTP`;
- return 'Solicitud exitosa';
+ if (canShowTable) return t('gpfConsole.recordsFound', { count: responseArray.length });
+ if (hasCaptures) return t('gpfConsole.capturesComments', { captures: responseData.captures.length, comments: (responseData.comments as string[]).length });
+ if (hasTransactions) return t('gpfConsole.transactionsFound', { count: responseData.transactions.length });
+ if (hasCommentsObj) return t('gpfConsole.commentsFound', { count: responseData.comments.length });
+ if (hasOtpValidations) return t('gpfConsole.otpFound', { count: responseData.otpValidations.length });
+ return t('gpfConsole.requestSuccess');
  })()
  : (() => {
  const err = gpfResponse.data?.error;
- return (typeof err === 'string' ? err : err?.message) || 'Solicitud fallida';
+ return (typeof err === 'string' ? err : err?.message) || t('gpfConsole.requestFailed');
  })()}
  </span>
  {(canShowTable || hasTransactions || hasCommentsObj || hasOtpValidations) && (
@@ -791,10 +791,10 @@ export default function AdminDashboard() {
  {/* Capturas (imágenes) */}
  <div>
  <p className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wide">
- Capturas ({(responseData.captures as string[]).length})
+ {t('gpfConsole.capturesLabel', { count: (responseData.captures as string[]).length })}
  </p>
  {(responseData.captures as string[]).length === 0 ? (
- <p className="text-slate-500 text-sm italic">Sin capturas</p>
+ <p className="text-slate-500 text-sm italic">{t('gpfConsole.noCaptures')}</p>
  ) : (
  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
  {(responseData.captures as string[]).map((url: string, idx: number) => (
@@ -803,7 +803,7 @@ export default function AdminDashboard() {
  >
  <img
  src={url}
- alt={`Captura ${idx + 1}`}
+ alt={t('newAudit.captureAlt', { n: idx + 1 })}
  className="w-full h-32 object-cover group-hover:opacity-90 transition-opacity"
  onError={(e) => {
  (e.target as HTMLImageElement).style.display = 'none';
@@ -824,10 +824,10 @@ export default function AdminDashboard() {
  {/* Comentarios de captures-comments (strings) */}
  <div>
  <p className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wide">
- Comentarios ({(responseData.comments as string[]).length})
+ {t('gpfConsole.commentsLabel', { count: (responseData.comments as string[]).length })}
  </p>
  {(responseData.comments as string[]).length === 0 ? (
- <p className="text-slate-500 text-sm italic">Sin comentarios</p>
+ <p className="text-slate-500 text-sm italic">{t('gpfConsole.noComments')}</p>
  ) : (
  <ul className="space-y-1">
  {(responseData.comments as string[]).map((c: string, idx: number) => (
@@ -841,11 +841,11 @@ export default function AdminDashboard() {
  </div>
  <div className="flex justify-end">
  <button
- onClick={() => { navigator.clipboard.writeText(JSON.stringify(gpfResponse!.data, null, 2)); toast.success('JSON copiado'); }}
+ onClick={() => { navigator.clipboard.writeText(JSON.stringify(gpfResponse!.data, null, 2)); toast.success(t('gpfConsole.jsonCopied')); }}
  className="flex items-center gap-1 px-2 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-xs text-slate-400 hover:text-white transition-all"
  >
  <Copy className="w-3 h-3" />
- Copiar JSON
+ {t('adminDash.copyJson')}
  </button>
  </div>
  </div>
@@ -879,13 +879,13 @@ export default function AdminDashboard() {
  </tbody>
  </table>
  <div className="px-4 py-2 bg-slate-800/50 border-t border-slate-700 flex items-center justify-between">
- <span className="text-xs text-slate-500">{responseArray.length} registros · {tableColumns.length} columnas</span>
+ <span className="text-xs text-slate-500">{t('gpfConsole.recordsCols', { rows: responseArray.length, cols: tableColumns.length })}</span>
  <button
- onClick={() => { navigator.clipboard.writeText(JSON.stringify(gpfResponse!.data, null, 2)); toast.success('JSON copiado'); }}
+ onClick={() => { navigator.clipboard.writeText(JSON.stringify(gpfResponse!.data, null, 2)); toast.success(t('gpfConsole.jsonCopied')); }}
  className="flex items-center gap-1 px-2 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-xs text-slate-400 hover:text-white transition-all"
  >
  <Copy className="w-3 h-3" />
- Copiar JSON
+ {t('adminDash.copyJson')}
  </button>
  </div>
  </div>
@@ -898,9 +898,9 @@ export default function AdminDashboard() {
  <thead>
  <tr className="bg-slate-800 border-b border-slate-700">
  <th className="px-3 py-2 text-left text-slate-400 font-medium">#</th>
- <th className="px-3 py-2 text-left text-slate-400 font-medium">Fecha</th>
- <th className="px-3 py-2 text-left text-slate-400 font-medium">Comercio</th>
- <th className="px-3 py-2 text-left text-slate-400 font-medium">Monto</th>
+ <th className="px-3 py-2 text-left text-slate-400 font-medium">{t('newAudit.date')}</th>
+ <th className="px-3 py-2 text-left text-slate-400 font-medium">{t('newAudit.merchant')}</th>
+ <th className="px-3 py-2 text-left text-slate-400 font-medium">{t('newAudit.amount')}</th>
  </tr>
  </thead>
  <tbody>
@@ -915,13 +915,13 @@ export default function AdminDashboard() {
  </tbody>
  </table>
  <div className="px-4 py-2 bg-slate-800/50 border-t border-slate-700 flex items-center justify-between">
- <span className="text-xs text-slate-500">{responseData.transactions.length} transacciones</span>
+ <span className="text-xs text-slate-500">{t('gpfConsole.transactionsFound', { count: responseData.transactions.length })}</span>
  <button
- onClick={() => { navigator.clipboard.writeText(JSON.stringify(gpfResponse!.data, null, 2)); toast.success('JSON copiado'); }}
+ onClick={() => { navigator.clipboard.writeText(JSON.stringify(gpfResponse!.data, null, 2)); toast.success(t('gpfConsole.jsonCopied')); }}
  className="flex items-center gap-1 px-2 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-xs text-slate-400 hover:text-white transition-all"
  >
  <Copy className="w-3 h-3" />
- Copiar JSON
+ {t('adminDash.copyJson')}
  </button>
  </div>
  </div>
@@ -934,9 +934,9 @@ export default function AdminDashboard() {
  <thead>
  <tr className="bg-slate-800 border-b border-slate-700">
  <th className="px-3 py-2 text-left text-slate-400 font-medium">#</th>
- <th className="px-3 py-2 text-left text-slate-400 font-medium">Fecha</th>
- <th className="px-3 py-2 text-left text-slate-400 font-medium">Agente</th>
- <th className="px-3 py-2 text-left text-slate-400 font-medium">Comentario</th>
+ <th className="px-3 py-2 text-left text-slate-400 font-medium">{t('newAudit.date')}</th>
+ <th className="px-3 py-2 text-left text-slate-400 font-medium">{t('newAudit.agent')}</th>
+ <th className="px-3 py-2 text-left text-slate-400 font-medium">{t('newAudit.comment')}</th>
  </tr>
  </thead>
  <tbody>
@@ -951,13 +951,13 @@ export default function AdminDashboard() {
  </tbody>
  </table>
  <div className="px-4 py-2 bg-slate-800/50 border-t border-slate-700 flex items-center justify-between">
- <span className="text-xs text-slate-500">{responseData.comments.length} comentarios</span>
+ <span className="text-xs text-slate-500">{t('gpfConsole.commentsFound', { count: responseData.comments.length })}</span>
  <button
- onClick={() => { navigator.clipboard.writeText(JSON.stringify(gpfResponse!.data, null, 2)); toast.success('JSON copiado'); }}
+ onClick={() => { navigator.clipboard.writeText(JSON.stringify(gpfResponse!.data, null, 2)); toast.success(t('gpfConsole.jsonCopied')); }}
  className="flex items-center gap-1 px-2 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-xs text-slate-400 hover:text-white transition-all"
  >
  <Copy className="w-3 h-3" />
- Copiar JSON
+ {t('adminDash.copyJson')}
  </button>
  </div>
  </div>
@@ -970,9 +970,9 @@ export default function AdminDashboard() {
  <thead>
  <tr className="bg-slate-800 border-b border-slate-700">
  <th className="px-3 py-2 text-left text-slate-400 font-medium">#</th>
- <th className="px-3 py-2 text-left text-slate-400 font-medium">Fecha</th>
- <th className="px-3 py-2 text-left text-slate-400 font-medium">Agente</th>
- <th className="px-3 py-2 text-left text-slate-400 font-medium">Resultado</th>
+ <th className="px-3 py-2 text-left text-slate-400 font-medium">{t('newAudit.date')}</th>
+ <th className="px-3 py-2 text-left text-slate-400 font-medium">{t('newAudit.agent')}</th>
+ <th className="px-3 py-2 text-left text-slate-400 font-medium">{t('newAudit.result')}</th>
  </tr>
  </thead>
  <tbody>
@@ -984,11 +984,11 @@ export default function AdminDashboard() {
  <td className="px-3 py-2">
  {v.resultado === true || v.resultado === 'true' ? (
  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-semibold">
- <CheckCircle2 className="w-3 h-3" /> Validado
+ <CheckCircle2 className="w-3 h-3" /> {t('newAudit.validated')}
  </span>
  ) : (
  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-red-400 font-semibold">
- <XCircle className="w-3 h-3" /> Fallido
+ <XCircle className="w-3 h-3" /> {t('newAudit.failed')}
  </span>
  )}
  </td>
@@ -997,13 +997,13 @@ export default function AdminDashboard() {
  </tbody>
  </table>
  <div className="px-4 py-2 bg-slate-800/50 border-t border-slate-700 flex items-center justify-between">
- <span className="text-xs text-slate-500">{responseData.otpValidations.length} validaciones</span>
+ <span className="text-xs text-slate-500">{t('gpfConsole.validationsCount', { count: responseData.otpValidations.length })}</span>
  <button
- onClick={() => { navigator.clipboard.writeText(JSON.stringify(gpfResponse!.data, null, 2)); toast.success('JSON copiado'); }}
+ onClick={() => { navigator.clipboard.writeText(JSON.stringify(gpfResponse!.data, null, 2)); toast.success(t('gpfConsole.jsonCopied')); }}
  className="flex items-center gap-1 px-2 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-xs text-slate-400 hover:text-white transition-all"
  >
  <Copy className="w-3 h-3" />
- Copiar JSON
+ {t('adminDash.copyJson')}
  </button>
  </div>
  </div>
@@ -1013,11 +1013,11 @@ export default function AdminDashboard() {
  {(!isSuccess || (!hasCaptures && !gpfTableView)) && (
  <div className="relative">
  <button
- onClick={() => { navigator.clipboard.writeText(JSON.stringify(gpfResponse.data, null, 2)); toast.success('JSON copiado'); }}
+ onClick={() => { navigator.clipboard.writeText(JSON.stringify(gpfResponse.data, null, 2)); toast.success(t('gpfConsole.jsonCopied')); }}
  className="absolute top-3 right-3 px-2 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-xs text-slate-400 hover:text-white transition-all flex items-center gap-1 z-10"
  >
  <Copy className="w-3 h-3" />
- Copiar
+ {t('gpfConsole.copy')}
  </button>
  <pre className="bg-slate-900 border border-slate-700 rounded-lg p-4 text-xs text-slate-300 font-mono overflow-x-auto max-h-96 overflow-y-auto whitespace-pre-wrap break-all">
  {JSON.stringify(gpfResponse.data, null, 2)}
@@ -1033,18 +1033,18 @@ export default function AdminDashboard() {
  <div className="card">
  <h3 className="section-header">
  <FileDown className="w-5 h-5 text-teal-400" />
- <span>Paso 3 — Exportación Excel</span>
- {!gpfToken && <span className="ml-auto text-xs text-yellow-400 font-normal flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Requiere token</span>}
+ <span>{t('gpfConsole.step3Header')}</span>
+ {!gpfToken && <span className="ml-auto text-xs text-yellow-400 font-normal flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {t('gpfConsole.requiresToken')}</span>}
  </h3>
  <p className="text-xs text-slate-500 mb-4">
- Genera un reporte filtrado y descárgalo como Excel. <span className="text-teal-400 font-medium">initial_date</span> y <span className="text-teal-400 font-medium">final_date</span> son requeridos.
+ {t('gpfConsole.exportDescPre')} <span className="text-teal-400 font-medium">initial_date</span> {t('gpfConsole.exportDescAnd')} <span className="text-teal-400 font-medium">final_date</span> {t('gpfConsole.exportDescPost')}
  </p>
 
  {/* Fechas */}
  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
  <div>
  <label className="block text-xs font-medium text-slate-400 mb-1.5">
- Fecha inicial <span className="text-red-400">*</span>
+ {t('gpfConsole.initialDate')} <span className="text-red-400">*</span>
  </label>
  <div className="relative">
  <CalendarRange className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
@@ -1058,7 +1058,7 @@ export default function AdminDashboard() {
  </div>
  <div>
  <label className="block text-xs font-medium text-slate-400 mb-1.5">
- Fecha final <span className="text-red-400">*</span>
+ {t('gpfConsole.finalDate')} <span className="text-red-400">*</span>
  </label>
  <div className="relative">
  <CalendarRange className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
@@ -1075,37 +1075,37 @@ export default function AdminDashboard() {
  {/* Filtros opcionales */}
  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
  <div>
- <label className="block text-xs font-medium text-slate-400 mb-1.5">Teléfono</label>
+ <label className="block text-xs font-medium text-slate-400 mb-1.5">{t('gpfConsole.phone')}</label>
  <input
  type="text"
  value={gpfExportForm.phone}
  onChange={(e) => setGpfExportForm(f => ({ ...f, phone: e.target.value }))}
- placeholder="Opcional"
+ placeholder={t('common.optional')}
  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-teal-500"
  />
  </div>
  <div>
- <label className="block text-xs font-medium text-slate-400 mb-1.5">Número de caso</label>
+ <label className="block text-xs font-medium text-slate-400 mb-1.5">{t('gpfConsole.caseNumber')}</label>
  <input
  type="text"
  value={gpfExportForm.case_number}
  onChange={(e) => setGpfExportForm(f => ({ ...f, case_number: e.target.value }))}
- placeholder="Opcional"
+ placeholder={t('common.optional')}
  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-teal-500"
  />
  </div>
  <div>
- <label className="block text-xs font-medium text-slate-400 mb-1.5">Calificación</label>
+ <label className="block text-xs font-medium text-slate-400 mb-1.5">{t('newAudit.qualification')}</label>
  <input
  type="text"
  value={gpfExportForm.qualification}
  onChange={(e) => setGpfExportForm(f => ({ ...f, qualification: e.target.value }))}
- placeholder="Nombre de calificación"
+ placeholder={t('gpfConsole.qualNamePlaceholder')}
  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-teal-500"
  />
  </div>
  <div>
- <label className="block text-xs font-medium text-slate-400 mb-1.5">Agente (email)</label>
+ <label className="block text-xs font-medium text-slate-400 mb-1.5">{t('gpfConsole.agentEmail')}</label>
  <input
  type="text"
  value={gpfExportForm.agent}
@@ -1115,13 +1115,13 @@ export default function AdminDashboard() {
  />
  </div>
  <div>
- <label className="block text-xs font-medium text-slate-400 mb-1.5">Tipo de fecha</label>
+ <label className="block text-xs font-medium text-slate-400 mb-1.5">{t('gpfConsole.dateType')}</label>
  <select
  value={gpfExportForm.date_type}
  onChange={(e) => setGpfExportForm(f => ({ ...f, date_type: e.target.value as '' | 'alta' | 'edicion' }))}
  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-teal-500"
  >
- <option value="">Sin filtro</option>
+ <option value="">{t('gpfConsole.noFilter')}</option>
  <option value="alta">alta</option>
  <option value="edicion">edicion</option>
  </select>
@@ -1135,7 +1135,7 @@ export default function AdminDashboard() {
  className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
  >
  {gpfExportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
- {gpfExportLoading ? 'Generando...' : 'Generar exportación'}
+ {gpfExportLoading ? t('reportsPage.generating') : t('gpfConsole.generateExport')}
  </button>
 
  {/* Respuesta de generate-report */}
@@ -1143,8 +1143,8 @@ export default function AdminDashboard() {
  <div className={`mt-4 p-3 rounded-lg border text-xs ${gpfGenerateRawResponse?.data?.is_success ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
  <p className="font-semibold text-slate-300 mb-1">
  {gpfGenerateRawResponse?.data?.is_success
- ? ` Exportación creada · export_id: ${gpfGenerateRawResponse?.data?.data?.export_id}`
- : ` Error al generar · GPF ${gpfGenerateRawResponse?.gpf_status}`}
+ ? t('gpfConsole.exportCreated', { id: gpfGenerateRawResponse?.data?.data?.export_id })
+ : t('gpfConsole.exportGenError', { status: gpfGenerateRawResponse?.gpf_status })}
  </p>
  <pre className="text-slate-400 font-mono overflow-x-auto whitespace-pre-wrap break-all max-h-24 overflow-y-auto">
  {JSON.stringify(gpfGenerateRawResponse?.data, null, 2)}
@@ -1154,17 +1154,17 @@ export default function AdminDashboard() {
 
  {/* Sección de descarga — export_id manual o automático */}
  <div className="mt-4 p-4 bg-slate-800/60 border border-slate-700 rounded-xl space-y-3">
- <p className="text-xs font-semibold text-slate-300 uppercase tracking-wide">Descargar exportación</p>
+ <p className="text-xs font-semibold text-slate-300 uppercase tracking-wide">{t('gpfConsole.downloadExport')}</p>
  <div className="flex gap-2 items-end">
  <div className="flex-1">
  <label className="block text-xs font-medium text-slate-400 mb-1.5">
- export_id <span className="text-slate-500 font-normal">(se llena automáticamente al generar, o ingrésalo manual)</span>
+ export_id <span className="text-slate-500 font-normal">{t('gpfConsole.exportIdHint')}</span>
  </label>
  <input
  type="number"
  value={gpfExportIdInput}
  onChange={(e) => { setGpfExportIdInput(e.target.value); setGpfExportId(null); }}
- placeholder="Ej: 42"
+ placeholder={t('gpfConsole.egExportId')}
  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 font-mono focus:outline-none focus:border-teal-500"
  />
  </div>
@@ -1174,7 +1174,7 @@ export default function AdminDashboard() {
  className="flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all whitespace-nowrap"
  >
  {gpfDownloadLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
- {gpfDownloadLoading ? 'Consultando...' : 'Descargar'}
+ {gpfDownloadLoading ? t('gpfConsole.querying') : t('common.download')}
  </button>
  </div>
 
@@ -1182,8 +1182,8 @@ export default function AdminDashboard() {
  {gpfExportProgress !== null && gpfExportProgress < 100 && (
  <div>
  <div className="flex items-center justify-between mb-1">
- <span className="text-xs text-yellow-400 font-medium">Procesando: {gpfExportProgress}%</span>
- <span className="text-xs text-slate-500">Vuelve a hacer clic en "Descargar" en unos segundos</span>
+ <span className="text-xs text-yellow-400 font-medium">{t('gpfConsole.processing', { percent: gpfExportProgress })}</span>
+ <span className="text-xs text-slate-500">{t('gpfConsole.clickDownloadAgain')}</span>
  </div>
  <div className="w-full bg-slate-700 rounded-full h-1.5">
  <div className="bg-teal-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${gpfExportProgress}%` }} />
@@ -1191,13 +1191,13 @@ export default function AdminDashboard() {
  </div>
  )}
  {gpfExportProgress === 100 && (
- <p className="text-xs text-emerald-400 font-semibold"> Descarga completada</p>
+ <p className="text-xs text-emerald-400 font-semibold"> {t('gpfConsole.downloadComplete')}</p>
  )}
 
  {/* Error detallado de download-report */}
  {gpfDownloadError && (
  <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
- <p className="text-xs font-semibold text-red-400 mb-1">Respuesta de GPF al descargar:</p>
+ <p className="text-xs font-semibold text-red-400 mb-1">{t('gpfConsole.gpfDownloadResponse')}</p>
  <pre className="text-xs text-slate-400 font-mono overflow-x-auto whitespace-pre-wrap break-all max-h-32 overflow-y-auto">
  {gpfDownloadError}
  </pre>
@@ -1462,7 +1462,7 @@ export default function AdminDashboard() {
  {isEmptyBatchEval(audit) && (
    <div className="mb-3 flex items-start gap-2 text-[11px] text-amber-400/80 bg-amber-500/8 border border-amber-500/20 rounded-lg px-3 py-2">
      <AlertTriangle className="w-3 h-3 mt-0.5 flex-shrink-0" />
-     <span>Procesado con versión anterior — evaluación sin criterios. Los datos existen pero el score es 0.</span>
+     <span>{t('adminDash.legacyWarning')}</span>
    </div>
  )}
 
@@ -1582,7 +1582,7 @@ export default function AdminDashboard() {
              ? 'bg-teal-500/20 border border-teal-500/50 text-teal-300'
              : 'bg-slate-800 border border-slate-700 text-slate-400 hover:border-teal-500/50'
          }`}
-         title="Integración API GPF"
+         title={t('adminDash.gpfApiTitle')}
        >
          <Globe className="w-3.5 h-3.5" />
          API GPF

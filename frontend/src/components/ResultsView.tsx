@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { auditService } from '../services/api';
 import type { EvaluationResult } from '../types';
 
@@ -34,6 +35,7 @@ function CommentTextarea({
   onSave: (criterion: string, text: string) => void;
   accentClass: string;
 }) {
+  const { t } = useTranslation();
   const [localValue, setLocalValue] = useState(value);
   const isDirty = localValue !== value;
 
@@ -42,12 +44,12 @@ function CommentTextarea({
       <div className="p-3 rounded-lg border border-sky-900/30 bg-sky-950/10">
         <div className="flex items-center justify-between mb-2">
           <p className="text-xs font-semibold text-sky-400/80 uppercase tracking-wide flex items-center gap-1.5">
-            <MessageSquare className="w-3 h-3" /> Comentario del auditor
+            <MessageSquare className="w-3 h-3" /> {t('resultsView.auditorComment')}
           </p>
           {saving && <Loader2 className="w-3.5 h-3.5 text-sky-400 animate-spin" />}
           {!saving && !isDirty && value && (
             <span className="text-xs text-sky-600 flex items-center gap-1">
-              <Check className="w-3 h-3" /> Guardado
+              <Check className="w-3 h-3" /> {t('resultsView.commentSaved')}
             </span>
           )}
         </div>
@@ -56,11 +58,11 @@ function CommentTextarea({
           value={localValue}
           onChange={e => setLocalValue(e.target.value)}
           onBlur={() => { if (isDirty) onSave(criterion, localValue); }}
-          placeholder="Escribe tu observación o retroalimentación para este criterio..."
+          placeholder={t('resultsView.commentPlaceholder')}
           className={`w-full resize-none bg-dark-bg/60 border rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 transition-colors ${accentClass}`}
         />
         {isDirty && (
-          <p className="text-xs text-slate-600 mt-1.5">Haz clic fuera del campo para guardar automáticamente</p>
+          <p className="text-xs text-slate-600 mt-1.5">{t('resultsView.commentAutoSave')}</p>
         )}
       </div>
     </div>
@@ -68,6 +70,7 @@ function CommentTextarea({
 }
 
 export default function ResultsView({ result, auditId, caseId, callType, onDownload, onNewAudit, onScoresSaved }: ResultsViewProps) {
+  const { t } = useTranslation();
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     scores: true,
     observations: false,
@@ -96,9 +99,9 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
       const data = await auditService.generateSentiment(auditId);
       setSentimentResults(Array.isArray(data.sentimentResults) ? data.sentimentResults : []);
       setSentimentSummary(data.sentimentSummary ?? null);
-      toast.success('Análisis de sentimientos generado');
+      toast.success(t('resultsView.sentimentGenerated'));
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'No se pudo generar el análisis de sentimientos');
+      toast.error(e?.response?.data?.error || t('resultsView.sentimentError'));
     } finally {
       setGeneratingSentiment(false);
     }
@@ -119,7 +122,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
     totalScore: result?.totalScore ?? 0,
     maxPossibleScore: result?.maxPossibleScore ?? 0,
     detailedScores: Array.isArray(result?.detailedScores) ? result.detailedScores : [],
-    observations: result?.observations ?? 'Sin observaciones',
+    observations: result?.observations ?? t('resultsView.noObservations'),
     recommendations: Array.isArray(result?.recommendations) ? result.recommendations : [],
     keyMoments: Array.isArray(result?.keyMoments) ? result.keyMoments : [],
     transcript: result?.transcript ?? '',
@@ -252,12 +255,12 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
       setLocalScores(currentScores.map((s: any) => ({ ...s })));
       setSavedPercentage(saved.percentage);
       setScoreEdits({});
-      toast.success('Puntajes guardados');
+      toast.success(t('resultsView.saveSuccess'));
       if (saved.excel_filename) {
         onScoresSaved?.(saved.excel_filename);
       }
     } catch {
-      toast.error('Error al guardar');
+      toast.error(t('resultsView.saveError'));
     } finally {
       setIsSaving(false);
     }
@@ -276,9 +279,9 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
     try {
       await auditService.updateAuditComments(auditId, updatedComments);
       setComments(updatedComments);
-      if (text.trim()) toast.success('Comentario guardado');
+      if (text.trim()) toast.success(t('resultsView.commentSaveSuccess'));
     } catch {
-      toast.error('Error al guardar comentario');
+      toast.error(t('resultsView.commentSaveError'));
     } finally {
       setSavingComment(null);
     }
@@ -309,11 +312,11 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
   };
 
   const getScoreBadge = (pct: number) => {
-    if (pct >= 90) return { text: 'Excelente',      cls: 'bg-brand-500/10 text-brand-400 border-brand-700/40' };
-    if (pct >= 80) return { text: 'Muy bueno',      cls: 'bg-green-500/10 text-green-400 border-green-500/30' };
-    if (pct >= 70) return { text: 'Bueno',           cls: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30' };
-    if (pct >= 60) return { text: 'Aceptable',       cls: 'bg-orange-500/10 text-orange-400 border-orange-500/30' };
-    return          { text: 'Necesita mejora',       cls: 'bg-red-500/10 text-red-400 border-red-500/30' };
+    if (pct >= 90) return { text: t('resultsView.excellent'),        cls: 'bg-brand-500/10 text-brand-400 border-brand-700/40' };
+    if (pct >= 80) return { text: t('resultsView.veryGood'),         cls: 'bg-green-500/10 text-green-400 border-green-500/30' };
+    if (pct >= 70) return { text: t('resultsView.good'),             cls: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30' };
+    if (pct >= 60) return { text: t('resultsView.acceptable'),       cls: 'bg-orange-500/10 text-orange-400 border-orange-500/30' };
+    return          { text: t('resultsView.needsImprovement'),       cls: 'bg-red-500/10 text-red-400 border-red-500/30' };
   };
 
   // Ícono de estado inequívoco por criterio
@@ -333,10 +336,10 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
   };
 
   const getAudioQuality = (c: number) => {
-    if (c >= 90) return { label: 'Excelente', cls: 'bg-brand-500/10 text-brand-400 border-brand-700/30' };
-    if (c >= 75) return { label: 'Buena',     cls: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30' };
-    if (c >= 60) return { label: 'Moderada',  cls: 'bg-orange-500/10 text-orange-400 border-orange-500/30' };
-    return               { label: 'Baja',     cls: 'bg-red-500/10 text-red-400 border-red-500/30' };
+    if (c >= 90) return { label: t('resultsView.audioExcellent'), cls: 'bg-brand-500/10 text-brand-400 border-brand-700/30' };
+    if (c >= 75) return { label: t('resultsView.audioGood'),      cls: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30' };
+    if (c >= 60) return { label: t('resultsView.audioModerate'),  cls: 'bg-orange-500/10 text-orange-400 border-orange-500/30' };
+    return               { label: t('resultsView.audioLow'),      cls: 'bg-red-500/10 text-red-400 border-red-500/30' };
   };
 
   const formatTimestamp = (ts: string | number): string => {
@@ -349,7 +352,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
   };
 
   const formatTranscript = (text: string) =>
-    text ? text.replace(/\[([^\]]+)\]/g, (_, ts) => `[${formatTimestamp(ts)}]`) : 'No hay transcripción disponible';
+    text ? text.replace(/\[([^\]]+)\]/g, (_, ts) => `[${formatTimestamp(ts)}]`) : t('resultsView.noTranscript');
 
   const scoreBadge = getScoreBadge(displayPct);
 
@@ -385,24 +388,24 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                 <Award className="w-4 h-4 text-brand-400" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-white">Resultados de Evaluación</p>
+                <p className="text-sm font-semibold text-white">{t('resultsView.title')}</p>
                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                  <span className="text-xs text-slate-500">Análisis completado</span>
+                  <span className="text-xs text-slate-500">{t('resultsView.completed')}</span>
                   {caseId && (
                     <>
                       <span className="text-slate-700">·</span>
-                      <span className="text-xs text-slate-400">Caso</span>
+                      <span className="text-xs text-slate-400">{t('resultsView.case')}</span>
                       <span className="text-xs font-mono font-semibold text-brand-400">{caseId}</span>
                     </>
                   )}
                   {callType && (
                     callType.toUpperCase() === 'MONITOREO' ? (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                        <Monitor className="w-3 h-3" /> Monitoreo
+                        <Monitor className="w-3 h-3" /> {t('resultsView.badgeMonitoring')}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-brand-500/10 text-brand-400 border border-brand-700/25">
-                        <PhoneIncoming className="w-3 h-3" /> Inbound
+                        <PhoneIncoming className="w-3 h-3" /> {t('resultsView.badgeInbound')}
                       </span>
                     )
                   )}
@@ -416,20 +419,20 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                 <>
                   <button onClick={discardEdits} disabled={isSaving}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-dark-card border border-dark-border text-slate-400 hover:text-white transition-all">
-                    <RotateCcw className="w-3.5 h-3.5" /> Descartar
+                    <RotateCcw className="w-3.5 h-3.5" /> {t('resultsView.discard')}
                   </button>
                   <button onClick={saveEdits} disabled={isSaving}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand-500 text-black hover:bg-brand-400 transition-all disabled:opacity-50 shadow-md shadow-brand-500/20">
                     <Save className="w-3.5 h-3.5" />
-                    {isSaving ? 'Guardando…' : 'Guardar cambios'}
+                    {isSaving ? t('resultsView.saving') : t('resultsView.saveChanges')}
                   </button>
                 </>
               )}
               <button onClick={onDownload} className="btn-success flex items-center gap-1.5">
-                <Download className="w-3.5 h-3.5" /> Descargar Excel
+                <Download className="w-3.5 h-3.5" /> {t('resultsView.downloadExcel')}
               </button>
               <button onClick={onNewAudit} className="btn-secondary flex items-center gap-1.5">
-                <Plus className="w-3.5 h-3.5" /> Nueva
+                <Plus className="w-3.5 h-3.5" /> {t('resultsView.newAudit')}
               </button>
             </div>
           </div>
@@ -447,12 +450,12 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                 </span>
                 {hasCriticalFail && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/25 animate-pulse">
-                    <ShieldAlert className="w-3 h-3" /> Crítico
+                    <ShieldAlert className="w-3 h-3" /> {t('resultsView.criticalBadge')}
                   </span>
                 )}
                 {hasEdits && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/25">
-                    <Pencil className="w-3 h-3" /> Editado
+                    <Pencil className="w-3 h-3" /> {t('resultsView.edited')}
                   </span>
                 )}
               </div>
@@ -464,35 +467,35 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
             {/* Stats en grid 2×2 */}
             <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-2 content-center">
               <div>
-                <p className="text-xs text-slate-500 mb-0.5">Puntos obtenidos</p>
+                <p className="text-xs text-slate-500 mb-0.5">{t('resultsView.pointsEarned')}</p>
                 <p className="text-base font-bold text-white tabular-nums">
                   {currentTotal} <span className="text-slate-600 font-normal text-xs">/ {currentMax}</span>
                 </p>
               </div>
               <div>
-                <p className="text-xs text-slate-500 mb-0.5">Criterios evaluados</p>
+                <p className="text-xs text-slate-500 mb-0.5">{t('resultsView.criteriaEvaluated')}</p>
                 <div className="flex items-center gap-2">
                   <p className="text-base font-bold text-white tabular-nums">{safeResult.detailedScores.length}</p>
                   {filterCounts.failed > 0 && (
-                    <span className="text-xs font-semibold text-red-400">{filterCounts.failed} fallido{filterCounts.failed > 1 ? 's' : ''}</span>
+                    <span className="text-xs font-semibold text-red-400">{t('resultsView.failedCount', { count: filterCounts.failed })}</span>
                   )}
                 </div>
               </div>
               {criticalOnly.length > 0 && (
                 <div>
-                  <p className="text-xs text-slate-500 mb-0.5">Críticos</p>
+                  <p className="text-xs text-slate-500 mb-0.5">{t('resultsView.criticalLabel')}</p>
                   <div className="flex items-center gap-1.5">
                     <ShieldAlert className={`w-3.5 h-3.5 flex-shrink-0 ${hasCriticalFail ? 'text-red-400' : 'text-slate-500'}`} />
                     <p className={`text-base font-bold tabular-nums ${hasCriticalFail ? 'text-red-400' : criticalPct !== null && criticalPct >= 80 ? 'text-brand-400' : 'text-yellow-400'}`}>
                       {criticalFailed.length}/{criticalOnly.length}
-                      {hasCriticalFail && <span className="text-red-400 font-normal text-xs ml-1">fallidos</span>}
+                      {hasCriticalFail && <span className="text-red-400 font-normal text-xs ml-1">{t('resultsView.failedLabel')}</span>}
                     </p>
                   </div>
                 </div>
               )}
               {safeResult.audioConfidence !== undefined && safeResult.audioConfidence > 0 && (
                 <div>
-                  <p className="text-xs text-slate-500 mb-0.5">Calidad de audio</p>
+                  <p className="text-xs text-slate-500 mb-0.5">{t('resultsView.audioQuality')}</p>
                   <p className="text-base font-bold text-white tabular-nums">
                     {safeResult.audioConfidence.toFixed(0)}%
                     <span className={`text-xs font-semibold ml-1 ${getAudioQuality(safeResult.audioConfidence).cls.split(' ')[1]}`}>
@@ -520,7 +523,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
             <div className="mt-4 rounded-lg border border-amber-400/40 bg-amber-500/8 overflow-hidden">
               <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-amber-400/20 bg-amber-400/8">
                 <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <span className="text-sm font-bold text-amber-300">Advertencias de calidad de datos</span>
+                <span className="text-sm font-bold text-amber-300">{t('resultsView.dataWarnings')}</span>
                 <span className="ml-auto text-xs font-semibold px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300">
                   {safeResult.dataWarnings.filter((w: string) => !w.startsWith('Datos no registrados en GPF')).length}
                 </span>
@@ -546,7 +549,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
           <ShieldAlert className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-red-300 mb-1">
-              Fallo en criterio crítico — Resultado final: 0%
+              {t('resultsView.criticalFailure')}
             </p>
             {criticalFailed.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
@@ -560,7 +563,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
               </div>
             ) : (
               <p className="text-xs text-red-400/80">
-                Un criterio crítico quedó en 0 puntos. Revisa los criterios marcados con <ShieldAlert className="inline w-3 h-3 mx-0.5" /> en la lista.
+                {t('resultsView.criticalZeroHint1')} <ShieldAlert className="inline w-3 h-3 mx-0.5" /> {t('resultsView.criticalZeroHint2')}
               </p>
             )}
           </div>
@@ -570,7 +573,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
         <div className="flex items-start gap-3 p-3.5 rounded-xl border border-amber-500/25 bg-amber-500/5">
           <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
           <p className="text-xs text-amber-300 leading-relaxed">
-            Calidad de audio baja ({safeResult.audioConfidence.toFixed(1)}%). La transcripción puede tener errores. Se recomienda revisión manual.
+            {t('resultsView.lowAudioWarning', { percent: safeResult.audioConfidence.toFixed(1) })}
           </p>
         </div>
       )}
@@ -586,12 +589,12 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
             <div className="flex items-center gap-1 flex-wrap">
               {(
                 [
-                  { key: 'all',      label: 'Todos',       count: safeResult.detailedScores.length, color: 'text-slate-300'  },
-                  { key: 'passed',   label: 'Aprobados',   count: filterCounts.passed,              color: 'text-brand-400'  },
-                  { key: 'partial',  label: 'Parciales',   count: filterCounts.partial,             color: 'text-yellow-400' },
-                  { key: 'failed',   label: 'Reprobados',  count: filterCounts.failed,              color: 'text-red-400'    },
-                  { key: 'critical', label: 'Críticos',    count: filterCounts.critical,            color: 'text-red-400'    },
-                  { key: 'manual',   label: 'Manuales',    count: filterCounts.manual,              color: 'text-amber-400'  },
+                  { key: 'all',      label: t('resultsView.filterAll'),      count: safeResult.detailedScores.length, color: 'text-slate-300'  },
+                  { key: 'passed',   label: t('resultsView.filterPassed'),   count: filterCounts.passed,              color: 'text-brand-400'  },
+                  { key: 'partial',  label: t('resultsView.filterPartial'),  count: filterCounts.partial,             color: 'text-yellow-400' },
+                  { key: 'failed',   label: t('resultsView.filterFailed'),   count: filterCounts.failed,              color: 'text-red-400'    },
+                  { key: 'critical', label: t('resultsView.filterCritical'), count: filterCounts.critical,            color: 'text-red-400'    },
+                  { key: 'manual',   label: t('resultsView.filterManual'),   count: filterCounts.manual,              color: 'text-amber-400'  },
                 ] as const
               ).map(tab => (
                 <button
@@ -617,7 +620,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-300 hover:bg-white/4 transition-all border border-transparent hover:border-white/8"
             >
               <ChevronsUpDown className="w-3.5 h-3.5" />
-              {allExpanded === true ? 'Colapsar todo' : 'Expandir todo'}
+              {allExpanded === true ? t('resultsView.collapseAll') : t('resultsView.expandAll')}
             </button>
           </div>
         </div>
@@ -626,7 +629,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
         {visibleBlocks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">
             <CheckCircle2 className="w-8 h-8 text-brand-400 mb-2" />
-            <p className="text-sm font-semibold text-slate-300">Sin criterios en esta categoría</p>
+            <p className="text-sm font-semibold text-slate-300">{t('resultsView.noCriteriaInCategory')}</p>
           </div>
         ) : (
           visibleBlocks.map(([block, scores], blockIdx) => {
@@ -643,10 +646,10 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                 <div className="flex items-center justify-between px-4 py-2 bg-dark-surface/50">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-xs font-bold text-slate-300 tracking-wide">{block}</span>
-                    <span className="text-xs text-slate-600">{scores.length} criterio{scores.length !== 1 ? 's' : ''}</span>
+                    <span className="text-xs text-slate-600">{t('resultsView.criteriaCount', { count: scores.length })}</span>
                     {blockFails > 0 && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20">
-                        {blockFails} fallido{blockFails > 1 ? 's' : ''}
+                        {t('resultsView.failedCount', { count: blockFails })}
                       </span>
                     )}
                     {blockCritical > 0 && (
@@ -656,8 +659,8 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                           : 'bg-red-500/8 text-red-400/70 border-red-500/15'
                       }`}>
                         <ShieldAlert className="w-3 h-3" />
-                        {blockCritical} crítico{blockCritical > 1 ? 's' : ''}
-                        {blockCriticalFailed > 0 && ` · ${blockCriticalFailed} fallido${blockCriticalFailed > 1 ? 's' : ''}`}
+                        {t('resultsView.criticalCount', { count: blockCritical })}
+                        {blockCriticalFailed > 0 && ` · ${t('resultsView.failedCount', { count: blockCriticalFailed })}`}
                       </span>
                     )}
                   </div>
@@ -707,16 +710,16 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-sm leading-snug text-amber-200 font-medium">{name}</span>
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 flex-shrink-0">
-                                  <ClipboardList className="w-3 h-3" /> Validación manual
+                                  <ClipboardList className="w-3 h-3" /> {t('resultsView.manualReview')}
                                 </span>
                                 {isEdited && (
                                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex-shrink-0">
-                                    <Pencil className="w-3 h-3" /> Editado
+                                    <Pencil className="w-3 h-3" /> {t('resultsView.edited')}
                                   </span>
                                 )}
                                 {hasComment && (
                                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20 flex-shrink-0">
-                                    <MessageSquare className="w-3 h-3" /> Comentado
+                                    <MessageSquare className="w-3 h-3" /> {t('resultsView.commented')}
                                   </span>
                                 )}
                               </div>
@@ -748,11 +751,11 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                                     />
                                   </div>
                                   <button onClick={() => confirmEdit(idx, editMax)}
-                                    className="p-1.5 rounded-lg bg-amber-500 text-black hover:bg-amber-400 transition-colors" title="Confirmar (Enter)">
+                                    className="p-1.5 rounded-lg bg-amber-500 text-black hover:bg-amber-400 transition-colors" title={t('resultsView.confirmEnter')}>
                                     <Check className="w-3.5 h-3.5" />
                                   </button>
                                   <button onClick={cancelEdit}
-                                    className="p-1.5 rounded-lg bg-dark-card border border-dark-border text-slate-400 hover:text-white transition-colors" title="Cancelar (Esc)">
+                                    className="p-1.5 rounded-lg bg-dark-card border border-dark-border text-slate-400 hover:text-white transition-colors" title={t('resultsView.cancelEsc')}>
                                     <X className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
@@ -764,7 +767,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                                   <button
                                     onClick={() => startEdit(idx, safeScore)}
                                     className="p-1.5 rounded-lg text-slate-600 hover:text-amber-400 hover:bg-amber-500/10 border border-transparent hover:border-amber-700/30 transition-all"
-                                    title="Editar puntaje"
+                                    title={t('resultsView.editScore')}
                                   >
                                     <Pencil className="w-3.5 h-3.5" />
                                   </button>
@@ -774,7 +777,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                                 <button
                                   onClick={() => toggleCriterion(idx, isExpanded)}
                                   className="p-1.5 rounded-lg text-slate-600 hover:text-amber-300 transition-colors"
-                                  title={isExpanded ? 'Ocultar comentario' : 'Añadir comentario'}
+                                  title={isExpanded ? t('resultsView.hideComment') : t('resultsView.addComment')}
                                 >
                                   {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                                 </button>
@@ -829,17 +832,17 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                                     ? 'bg-red-500/20 text-red-300 border border-red-500/40'
                                     : 'bg-red-500/10 text-red-400 border border-red-500/20'
                                 }`}>
-                                  <ShieldAlert className="w-3 h-3" /> Crítico
+                                  <ShieldAlert className="w-3 h-3" /> {t('resultsView.criticalBadge')}
                                 </span>
                               )}
                               {isEdited && (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex-shrink-0">
-                                  <Pencil className="w-3 h-3" /> Editado
+                                  <Pencil className="w-3 h-3" /> {t('resultsView.edited')}
                                 </span>
                               )}
                               {hasComment && (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20 flex-shrink-0">
-                                  <MessageSquare className="w-3 h-3" /> Comentado
+                                  <MessageSquare className="w-3 h-3" /> {t('resultsView.commented')}
                                 </span>
                               )}
                             </div>
@@ -874,11 +877,11 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                                   />
                                 </div>
                                 <button onClick={() => confirmEdit(idx, safeMax)}
-                                  className="p-1.5 rounded-lg bg-brand-500 text-black hover:bg-brand-400 transition-colors" title="Confirmar (Enter)">
+                                  className="p-1.5 rounded-lg bg-brand-500 text-black hover:bg-brand-400 transition-colors" title={t('resultsView.confirmEnter')}>
                                   <Check className="w-3.5 h-3.5" />
                                 </button>
                                 <button onClick={cancelEdit}
-                                  className="p-1.5 rounded-lg bg-dark-card border border-dark-border text-slate-400 hover:text-white transition-colors" title="Cancelar (Esc)">
+                                  className="p-1.5 rounded-lg bg-dark-card border border-dark-border text-slate-400 hover:text-white transition-colors" title={t('resultsView.cancelEsc')}>
                                   <X className="w-3.5 h-3.5" />
                                 </button>
                               </div>
@@ -908,7 +911,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                                   <button
                                     onClick={() => startEdit(idx, safeScore)}
                                     className="p-1.5 rounded-lg text-slate-600 hover:text-brand-400 hover:bg-brand-500/10 border border-transparent hover:border-brand-700/30 transition-all"
-                                    title="Editar puntaje"
+                                    title={t('resultsView.editScore')}
                                   >
                                     <Pencil className="w-3.5 h-3.5" />
                                   </button>
@@ -918,7 +921,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                                   <button
                                     onClick={() => toggleCriterion(idx, isExpanded)}
                                     className="p-1.5 rounded-lg text-slate-600 hover:text-slate-300 transition-colors"
-                                    title={isExpanded ? 'Ocultar justificación' : 'Ver justificación'}
+                                    title={isExpanded ? t('resultsView.hideJustification') : t('resultsView.showJustification')}
                                   >
                                     {isExpanded
                                       ? <ChevronUp   className="w-3.5 h-3.5" />
@@ -939,7 +942,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                               <div className="flex items-center gap-2 mb-2 px-3 py-1.5 rounded-lg bg-red-500/8 border border-red-500/20">
                                 <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
                                 <p className="text-xs text-red-300 font-medium">
-                                  Criterio crítico en 0 — el resultado global es 0%
+                                  {t('resultsView.criticalZeroBanner')}
                                 </p>
                               </div>
                             )}
@@ -948,7 +951,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                             {observations && (
                               <div className="mb-2.5 p-3 rounded-lg border border-dark-border/60 bg-dark-surface/40">
                                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
-                                  <FileText className="w-3 h-3" /> Justificación de la IA
+                                  <FileText className="w-3 h-3" /> {t('resultsView.aiReasoning')}
                                 </p>
                                 <p className="text-sm text-slate-300 leading-relaxed">{observations}</p>
                               </div>
@@ -958,7 +961,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                             {evidence.length > 0 && (
                               <div className="p-3 rounded-lg border border-dark-border/60 bg-dark-surface/40">
                                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
-                                  <CheckCircle2 className="w-3 h-3" /> Evidencia encontrada
+                                  <CheckCircle2 className="w-3 h-3" /> {t('resultsView.evidenceFound')}
                                 </p>
                                 <ul className="space-y-1.5">
                                   {evidence.map((ev: string, i: number) => (
@@ -997,7 +1000,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
         {
           key: 'observations',
           icon: <FileText className="w-3.5 h-3.5 text-brand-400" />,
-          label: 'Observaciones Generales',
+          label: t('resultsView.observations'),
           count: null,
           content: (
             <div className="px-4 py-3 border-t border-dark-border">
@@ -1010,7 +1013,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
         safeResult.recommendations.length > 0 && {
           key: 'recommendations',
           icon: <TrendingUp className="w-3.5 h-3.5 text-green-400" />,
-          label: 'Recomendaciones',
+          label: t('resultsView.recommendations'),
           count: safeResult.recommendations.length,
           content: (
             <div className="border-t border-dark-border divide-y divide-dark-border/40">
@@ -1028,7 +1031,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
         safeResult.keyMoments.length > 0 && {
           key: 'keyMoments',
           icon: <Clock className="w-3.5 h-3.5 text-orange-400" />,
-          label: 'Momentos Clave',
+          label: t('resultsView.keyMoments'),
           count: safeResult.keyMoments.length,
           content: (
             <div className="border-t border-dark-border divide-y divide-dark-border/40">
@@ -1036,7 +1039,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                 const m = {
                   timestamp: moment?.timestamp ?? '00:00',
                   impact: moment?.impact ?? moment?.type ?? 'neutral',
-                  event: moment?.event ?? moment?.type ?? 'Sin título',
+                  event: moment?.event ?? moment?.type ?? t('resultsView.noTitle'),
                   description: moment?.description ?? '',
                 };
                 return (
@@ -1058,15 +1061,15 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
         (sentimentResults.length > 0 || !!auditId) && {
           key: 'sentiment',
           icon: <HeartPulse className="w-3.5 h-3.5 text-pink-400" />,
-          label: 'Análisis de Sentimientos',
+          label: t('resultsView.sentimentTitle'),
           count: sentimentResults.length > 0 ? sentimentResults.length : null,
           badge: sentimentSummary && (() => {
             const s = sentimentSummary;
             const cfg = s.overall === 'POSITIVE'
-              ? { cls: 'bg-green-500/10 text-green-400 border-green-700/30', label: 'Positivo' }
+              ? { cls: 'bg-green-500/10 text-green-400 border-green-700/30', label: t('resultsView.sentimentPositive') }
               : s.overall === 'NEGATIVE'
-                ? { cls: 'bg-red-500/10 text-red-400 border-red-700/30', label: 'Negativo' }
-                : { cls: 'bg-slate-500/10 text-slate-400 border-slate-600/30', label: 'Neutral' };
+                ? { cls: 'bg-red-500/10 text-red-400 border-red-700/30', label: t('resultsView.sentimentNegative') }
+                : { cls: 'bg-slate-500/10 text-slate-400 border-slate-600/30', label: t('resultsView.sentimentNeutral') };
             return (
               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.cls}`}>
                 {cfg.label}
@@ -1082,7 +1085,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
               return (
                 <div className="border-t border-dark-border px-4 py-6 text-center">
                   <p className="text-sm text-slate-500 mb-3">
-                    Esta auditoría aún no tiene análisis de sentimientos.
+                    {t('resultsView.noSentimentYet')}
                   </p>
                   <button
                     onClick={handleGenerateSentiment}
@@ -1090,8 +1093,8 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-pink-500/10 text-pink-400 border border-pink-700/30 hover:bg-pink-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {generatingSentiment
-                      ? <><Loader2 className="w-4 h-4 animate-spin" /> Analizando sentimientos…</>
-                      : <><HeartPulse className="w-4 h-4" /> Generar análisis de sentimientos</>
+                      ? <><Loader2 className="w-4 h-4 animate-spin" /> {t('resultsView.analyzingSentiment')}</>
+                      : <><HeartPulse className="w-4 h-4" /> {t('resultsView.generateSentiment')}</>
                     }
                   </button>
                 </div>
@@ -1115,15 +1118,15 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {(() => {
                         const overallCfg = summary.overall === 'POSITIVE'
-                          ? { cls: 'border-green-700/30 bg-green-500/[0.06]', txt: 'text-green-400', label: 'Positivo', icon: <Smile className="w-5 h-5 text-green-400" /> }
+                          ? { cls: 'border-green-700/30 bg-green-500/[0.06]', txt: 'text-green-400', label: t('resultsView.sentimentPositive'), icon: <Smile className="w-5 h-5 text-green-400" /> }
                           : summary.overall === 'NEGATIVE'
-                            ? { cls: 'border-red-700/30 bg-red-500/[0.06]', txt: 'text-red-400', label: 'Negativo', icon: <Frown className="w-5 h-5 text-red-400" /> }
-                            : { cls: 'border-slate-600/30 bg-slate-500/[0.06]', txt: 'text-slate-300', label: 'Neutral', icon: <Meh className="w-5 h-5 text-slate-400" /> };
+                            ? { cls: 'border-red-700/30 bg-red-500/[0.06]', txt: 'text-red-400', label: t('resultsView.sentimentNegative'), icon: <Frown className="w-5 h-5 text-red-400" /> }
+                            : { cls: 'border-slate-600/30 bg-slate-500/[0.06]', txt: 'text-slate-300', label: t('resultsView.sentimentNeutral'), icon: <Meh className="w-5 h-5 text-slate-400" /> };
                         return (
                           <div className={`rounded-xl border px-3 py-2.5 flex items-center gap-2.5 ${overallCfg.cls}`}>
                             {overallCfg.icon}
                             <div>
-                              <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Tono general</p>
+                              <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">{t('resultsView.overallTone')}</p>
                               <p className={`text-sm font-bold ${overallCfg.txt}`}>{overallCfg.label}</p>
                             </div>
                           </div>
@@ -1132,21 +1135,21 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                       <div className="rounded-xl border border-dark-border bg-white/[0.015] px-3 py-2.5 flex items-center gap-2.5">
                         <Smile className="w-5 h-5 text-green-400" />
                         <div>
-                          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Positivas</p>
+                          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">{t('resultsView.sentimentPositives')}</p>
                           <p className="text-sm font-bold text-slate-200">{summary.positive} <span className="text-xs font-medium text-slate-500">({pct(summary.positive, summary.total)}%)</span></p>
                         </div>
                       </div>
                       <div className="rounded-xl border border-dark-border bg-white/[0.015] px-3 py-2.5 flex items-center gap-2.5">
                         <Meh className="w-5 h-5 text-slate-400" />
                         <div>
-                          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Neutrales</p>
+                          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">{t('resultsView.sentimentNeutrals')}</p>
                           <p className="text-sm font-bold text-slate-200">{summary.neutral} <span className="text-xs font-medium text-slate-500">({pct(summary.neutral, summary.total)}%)</span></p>
                         </div>
                       </div>
                       <div className="rounded-xl border border-dark-border bg-white/[0.015] px-3 py-2.5 flex items-center gap-2.5">
                         <Frown className="w-5 h-5 text-red-400" />
                         <div>
-                          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Negativas</p>
+                          <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">{t('resultsView.sentimentNegatives')}</p>
                           <p className="text-sm font-bold text-slate-200">{summary.negative} <span className="text-xs font-medium text-slate-500">({pct(summary.negative, summary.total)}%)</span></p>
                         </div>
                       </div>
@@ -1154,12 +1157,12 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
 
                     {/* Evolución cronológica de la llamada */}
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1.5">Evolución de la llamada</p>
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1.5">{t('resultsView.callEvolution')}</p>
                       <div className="flex h-2.5 rounded-full overflow-hidden bg-dark-bg/60 gap-px">
                         {results.map((r: any, i: number) => (
                           <div
                             key={i}
-                            title={`${msToTime(r.start)} · ${r.speaker ? `Hablante ${r.speaker} · ` : ''}${r.sentiment === 'POSITIVE' ? 'Positivo' : r.sentiment === 'NEGATIVE' ? 'Negativo' : 'Neutral'}`}
+                            title={`${msToTime(r.start)} · ${r.speaker ? `${t('resultsView.speaker', { speaker: r.speaker })} · ` : ''}${r.sentiment === 'POSITIVE' ? t('resultsView.sentimentPositive') : r.sentiment === 'NEGATIVE' ? t('resultsView.sentimentNegative') : t('resultsView.sentimentNeutral')}`}
                             className={`flex-1 ${r.sentiment === 'POSITIVE' ? 'bg-green-500/80' : r.sentiment === 'NEGATIVE' ? 'bg-red-500/80' : 'bg-slate-600/50'}`}
                           />
                         ))}
@@ -1180,7 +1183,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                               <span className={`w-6 h-6 rounded-full border flex items-center justify-center text-xs font-bold ${speakerColor(speaker)}`}>
                                 {speaker || '?'}
                               </span>
-                              <span className="text-xs font-semibold text-slate-300">Hablante {speaker || '?'}</span>
+                              <span className="text-xs font-semibold text-slate-300">{t('resultsView.speaker', { speaker: speaker || '?' })}</span>
                               <span className="ml-auto text-[11px] font-medium">
                                 <span className="text-green-400">+{s.positive}</span>
                                 <span className="text-slate-600 mx-1">·</span>
@@ -1202,10 +1205,10 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                 {/* Filtros */}
                 <div className="px-4 py-2 border-b border-dark-border/60 flex items-center gap-1.5 flex-wrap">
                   {([
-                    { key: 'all', label: `Todas (${results.length})`, active: 'bg-brand-500/15 text-brand-300 border-brand-700/40' },
-                    { key: 'POSITIVE', label: `Positivas (${results.filter((r: any) => r.sentiment === 'POSITIVE').length})`, active: 'bg-green-500/15 text-green-300 border-green-700/40' },
-                    { key: 'NEUTRAL', label: `Neutrales (${results.filter((r: any) => r.sentiment === 'NEUTRAL').length})`, active: 'bg-slate-500/20 text-slate-300 border-slate-500/40' },
-                    { key: 'NEGATIVE', label: `Negativas (${results.filter((r: any) => r.sentiment === 'NEGATIVE').length})`, active: 'bg-red-500/15 text-red-300 border-red-700/40' },
+                    { key: 'all', label: `${t('resultsView.sentimentFilterAll')} (${results.length})`, active: 'bg-brand-500/15 text-brand-300 border-brand-700/40' },
+                    { key: 'POSITIVE', label: `${t('resultsView.sentimentPositives')} (${results.filter((r: any) => r.sentiment === 'POSITIVE').length})`, active: 'bg-green-500/15 text-green-300 border-green-700/40' },
+                    { key: 'NEUTRAL', label: `${t('resultsView.sentimentNeutrals')} (${results.filter((r: any) => r.sentiment === 'NEUTRAL').length})`, active: 'bg-slate-500/20 text-slate-300 border-slate-500/40' },
+                    { key: 'NEGATIVE', label: `${t('resultsView.sentimentNegatives')} (${results.filter((r: any) => r.sentiment === 'NEGATIVE').length})`, active: 'bg-red-500/15 text-red-300 border-red-700/40' },
                   ] as const).map(f => (
                     <button
                       key={f.key}
@@ -1222,7 +1225,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                 {/* Conversación estilo chat */}
                 <div className="max-h-96 overflow-y-auto px-4 py-3 space-y-2">
                   {filtered.length === 0 && (
-                    <p className="text-xs text-slate-600 text-center py-4">No hay frases con este sentimiento.</p>
+                    <p className="text-xs text-slate-600 text-center py-4">{t('resultsView.noSentimentPhrases')}</p>
                   )}
                   {filtered.map((r: any, i: number) => {
                     const cfg = r.sentiment === 'POSITIVE'
@@ -1253,7 +1256,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
         {
           key: 'transcript',
           icon: <FileText className="w-3.5 h-3.5 text-slate-500" />,
-          label: 'Transcripción Completa',
+          label: t('resultsView.transcript'),
           count: null,
           badge: safeResult.audioConfidence !== undefined && safeResult.audioConfidence > 0 && (() => {
             const q = getAudioQuality(safeResult.audioConfidence!);
@@ -1325,7 +1328,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
             >
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-3.5 h-3.5 text-sky-400" />
-                <span className="text-xs font-semibold uppercase tracking-widest text-sky-400/80">Comentarios del Auditor</span>
+                <span className="text-xs font-semibold uppercase tracking-widest text-sky-400/80">{t('resultsView.auditorComments')}</span>
                 <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/20">
                   {commentEntries.length}
                 </span>
@@ -1335,10 +1338,10 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                   onClick={e => {
                     e.stopPropagation();
                     navigator.clipboard.writeText(allCommentsText);
-                    toast.success('Comentarios copiados');
+                    toast.success(t('resultsView.commentsCopied'));
                   }}
                   className="p-1 rounded text-slate-600 hover:text-sky-400 hover:bg-sky-500/10 transition-all"
-                  title="Copiar todos los comentarios"
+                  title={t('resultsView.copyAllComments')}
                 >
                   <Copy className="w-3.5 h-3.5" />
                 </button>

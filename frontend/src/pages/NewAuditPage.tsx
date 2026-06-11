@@ -315,7 +315,7 @@ export default function NewAuditPage() {
  }
  try {
  setExporting(true);
- toast.loading('Generando Excel...', { id: 'export-gpf' });
+ toast.loading(t('newAudit.generatingExcel'), { id: 'export-gpf' });
 
  const allKeys = Object.keys(filteredAttentions[0]);
 
@@ -368,10 +368,10 @@ export default function NewAuditPage() {
  document.body.removeChild(link);
  window.URL.revokeObjectURL(url);
 
- toast.success(`${filteredAttentions.length} casos exportados`, { id: 'export-gpf' });
+ toast.success(t('newAudit.casesExported', { count: filteredAttentions.length }), { id: 'export-gpf' });
  } catch (err) {
  console.error('Error al exportar Excel:', err);
- toast.error('Error al generar el archivo Excel', { id: 'export-gpf' });
+ toast.error(t('newAudit.excelGenError'), { id: 'export-gpf' });
  } finally {
  setExporting(false);
  }
@@ -450,7 +450,7 @@ export default function NewAuditPage() {
      });
      // Enviar inmediatamente a OpenAI (fire-and-forget en el backend)
      batchService.submitJob(job.id).catch(() => {});
-     toast.success(`${selected.length} caso${selected.length !== 1 ? 's' : ''} enviado${selected.length !== 1 ? 's' : ''} ${t('newAudit.batchCreated')}`);
+     toast.success(t('newAudit.batchSent', { count: selected.length }));
      setShowBatchModal(false);
      setBatchMode(false);
      setSelectedIds(new Set());
@@ -833,7 +833,7 @@ export default function NewAuditPage() {
  </div>
  {/* Texto descriptivo */}
  <div className="text-center">
- <p className="text-slate-300 font-medium text-lg">Cargando casos</p>
+ <p className="text-slate-300 font-medium text-lg">{t('newAudit.loadingCases')}</p>
  <p className="text-slate-500 text-sm mt-1 animate-pulse">{t('newAudit.queryingGpf')}</p>
  </div>
  {/* Filas shimmer escalonadas */}
@@ -885,8 +885,8 @@ export default function NewAuditPage() {
              <Moon className="w-4 h-4 text-indigo-300" />
            </div>
            <div>
-             <div className="text-white font-semibold text-sm leading-tight">Cola Nocturna</div>
-             <div className="text-indigo-400 text-xs">Haz clic en cualquier fila para seleccionarla</div>
+             <div className="text-white font-semibold text-sm leading-tight">{t('newAudit.batchQueueBanner')}</div>
+             <div className="text-indigo-400 text-xs">{t('newAudit.clickRowHint')}</div>
            </div>
          </div>
          <div className="flex items-center gap-1.5 ml-auto">
@@ -1048,7 +1048,7 @@ export default function NewAuditPage() {
        {selectedIds.size === 0 ? (
          <div className="flex items-center gap-2.5 text-indigo-400/50">
            <Moon className="w-4 h-4" />
-           <span className="text-sm">Selecciona casos para agregar a la cola nocturna</span>
+           <span className="text-sm">{t('newAudit.selectCasesHint')}</span>
          </div>
        ) : (
          <>
@@ -1058,12 +1058,12 @@ export default function NewAuditPage() {
              </span>
              <div>
                <div className="text-sm text-indigo-200 font-medium leading-tight">
-                 caso{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}
-                 {isOverHardLimit && <span className="text-red-400 text-xs font-normal ml-2">supera el límite máximo</span>}
-                 {isOverRecommended && !isOverHardLimit && <span className="text-amber-400 text-xs font-normal ml-2">sobre lo recomendado</span>}
+                 {t('newAudit.selectedCaseLabel', { count: selectedIds.size })}
+                 {isOverHardLimit && <span className="text-red-400 text-xs font-normal ml-2">{t('newAudit.overHardLimit')}</span>}
+                 {isOverRecommended && !isOverHardLimit && <span className="text-amber-400 text-xs font-normal ml-2">{t('newAudit.overRecommended')}</span>}
                </div>
                <div className="text-xs text-indigo-500/70">
-                 {validationResult ? `${validationResult.totalImages} imágenes` : `${selectedIds.size} casos`}
+                 {validationResult ? t('newAudit.imagesCountInfo', { count: validationResult.totalImages }) : t('newAudit.casesCountInfo', { count: selectedIds.size })}
                </div>
              </div>
            </div>
@@ -1126,7 +1126,7 @@ export default function NewAuditPage() {
            {validating ? (
              <>
                <Loader2 className="w-4 h-4 text-slate-400 animate-spin flex-shrink-0 mt-0.5" />
-               <span className="text-slate-400 text-sm">Verificando acceso a casos en GPF...</span>
+               <span className="text-slate-400 text-sm">{t('newAudit.verifyingAccess')}</span>
              </>
            ) : validationResult ? (
              <>
@@ -1136,13 +1136,13 @@ export default function NewAuditPage() {
                }
                <div className="text-sm space-y-0.5">
                  <div className="text-white font-medium">
-                   {validationResult.accessible} de {validationResult.total} casos listos para procesar
+                   {t('newAudit.casesReady', { accessible: validationResult.accessible, total: validationResult.total })}
                  </div>
                  {validationResult.noImages > 0 && (
-                   <div className="text-amber-400 text-xs">{validationResult.noImages} sin imágenes</div>
+                   <div className="text-amber-400 text-xs">{t('newAudit.noImagesCount', { count: validationResult.noImages })}</div>
                  )}
                  {validationResult.inaccessible > 0 && (
-                   <div className="text-red-400 text-xs">{validationResult.inaccessible} no accesibles en GPF (se omitirán)</div>
+                   <div className="text-red-400 text-xs">{t('newAudit.inaccessibleCount', { count: validationResult.inaccessible })}</div>
                  )}
                </div>
              </>
@@ -1159,11 +1159,11 @@ export default function NewAuditPage() {
            : 'bg-slate-800/60 border-slate-700/50'
        }`}>
          <div className="flex items-center justify-between text-xs">
-           <span className="text-slate-400 font-medium">Capacidad del lote</span>
+           <span className="text-slate-400 font-medium">{t('newAudit.batchCapacity')}</span>
            <span className={`font-semibold ${
              isOverHardLimit ? 'text-red-400' : isOverRecommended ? 'text-amber-400' : 'text-slate-300'
            }`}>
-             {selectedIds.size} / {BATCH_LIMITS_CLIENT.RECOMMENDED_MAX_CASES} recomendado
+             {t('newAudit.capacityValue', { count: selectedIds.size, max: BATCH_LIMITS_CLIENT.RECOMMENDED_MAX_CASES })}
            </span>
          </div>
          <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
@@ -1217,7 +1217,7 @@ export default function NewAuditPage() {
              className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-brand-600 placeholder:text-slate-600"
            />
          </div>
-         <p className="text-[11px] text-indigo-400/70">El sistema enviará el lote automáticamente esta noche.</p>
+         <p className="text-[11px] text-indigo-400/70">{t('newAudit.autoSendTonight')}</p>
        </div>
 
        {/* Actions */}
@@ -1231,7 +1231,7 @@ export default function NewAuditPage() {
          <button
            onClick={handleSubmitBatch}
            disabled={submittingBatch || isOverHardLimit}
-           title={isOverHardLimit ? `Máximo ${BATCH_LIMITS_CLIENT.HARD_MAX_CASES} casos por lote` : undefined}
+           title={isOverHardLimit ? t('newAudit.maxCasesPerBatch', { max: BATCH_LIMITS_CLIENT.HARD_MAX_CASES }) : undefined}
            className="flex-1 btn-primary py-2.5 text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
          >
            {submittingBatch
@@ -1256,11 +1256,11 @@ export default function NewAuditPage() {
  </div>
  {/* Texto */}
  <div className="text-center">
- <p className="text-slate-300 font-medium text-lg">Cargando detalle del caso</p>
+ <p className="text-slate-300 font-medium text-lg">{t('newAudit.loadingCaseDetail')}</p>
  <p className="text-slate-500 text-sm mt-1">
- Caso: <span className="font-mono text-brand-400">{String(getCaseNumber(selectedAttention))}</span>
+ {t('newAudit.caseLabel')}: <span className="font-mono text-brand-400">{String(getCaseNumber(selectedAttention))}</span>
  </p>
- <p className="text-slate-500 text-sm animate-pulse mt-0.5">Obteniendo capturas, transacciones y comentarios...</p>
+ <p className="text-slate-500 text-sm animate-pulse mt-0.5">{t('newAudit.fetchingCaseData')}</p>
  </div>
  {/* Filas shimmer escalonadas */}
  <div className="w-full max-w-md space-y-3">
@@ -1283,16 +1283,16 @@ export default function NewAuditPage() {
  <div className="flex items-center gap-3 mb-4">
  <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
  <div>
- <h2 className="text-xl font-semibold text-slate-200">Confirmar Auditoría</h2>
+ <h2 className="text-xl font-semibold text-slate-200">{t('newAudit.confirmAuditTitle')}</h2>
  <p className="text-slate-500 text-sm">
- Caso <span className="font-mono text-brand-400">{String(getCaseNumber(selectedAttention))}</span>
+ {t('newAudit.caseLabel')} <span className="font-mono text-brand-400">{String(getCaseNumber(selectedAttention))}</span>
  {' · '}{env.toUpperCase()}
  </p>
  </div>
  <button
  onClick={() => setState('selecting')}
  className="ml-auto p-2 hover:bg-slate-800 rounded-lg text-slate-500 hover:text-slate-300 transition-colors"
- title="Volver a la lista"
+ title={t('newAudit.back')}
  >
  <X className="w-5 h-5" />
  </button>
@@ -1364,18 +1364,18 @@ export default function NewAuditPage() {
  {/* Timer de expiración */}
  <ExpiryTimer secondsLeft={secondsLeft} />
  {!attentionDetail ? (
- <p className="text-slate-500 text-sm text-center py-8">Cargando capturas...</p>
+ <p className="text-slate-500 text-sm text-center py-8">{t('newAudit.loadingCaptures')}</p>
  ) : attentionDetail.imageUrls.length === 0 && attentionDetail.rawComments.length === 0 ? (
  <p className="text-slate-500 text-sm text-center py-8 flex flex-col items-center gap-2">
  <Image className="w-8 h-8 opacity-30" />
- Sin capturas ni comentarios de imagen
+ {t('newAudit.noCapturesOrComments')}
  </p>
  ) : (
  <div className="space-y-4">
  {attentionDetail.imageUrls.length > 0 && (
  <div>
  <p className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wide">
- Imágenes ({attentionDetail.imageUrls.length}) · <span className="normal-case text-slate-500">Clic para ampliar</span>
+ {t('newAudit.imagesLabel', { count: attentionDetail.imageUrls.length })} · <span className="normal-case text-slate-500">{t('newAudit.clickToEnlarge')}</span>
  </p>
  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
  {attentionDetail.imageUrls.map((url, idx) => (
@@ -1387,7 +1387,7 @@ export default function NewAuditPage() {
  <div className="relative">
  <img
  src={url}
- alt={`Captura ${idx + 1}`}
+ alt={t('newAudit.captureAlt', { n: idx + 1 })}
  className="w-full h-28 object-cover group-hover:opacity-80 transition-opacity"
  onError={(e) => {
  (e.target as HTMLImageElement).style.display = 'none';
@@ -1433,7 +1433,7 @@ export default function NewAuditPage() {
  {detailTab === 'transactions' && (
  <div className="mb-4">
  {!attentionDetail ? (
- <p className="text-slate-500 text-sm text-center py-8">Cargando transacciones...</p>
+ <p className="text-slate-500 text-sm text-center py-8">{t('newAudit.loadingTransactions')}</p>
  ) : attentionDetail.transactions.length === 0 ? (
  <p className="text-slate-500 text-sm text-center py-8 flex flex-col items-center gap-2">
  <CreditCard className="w-8 h-8 opacity-30" />
@@ -1446,7 +1446,7 @@ export default function NewAuditPage() {
  <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase">
  <th className="px-4 py-2 text-left">#</th>
  <th className="px-4 py-2 text-left">{t('newAudit.date')}</th>
- <th className="px-4 py-2 text-left">Comercio</th>
+ <th className="px-4 py-2 text-left">{t('newAudit.merchant')}</th>
  <th className="px-4 py-2 text-right">{t('newAudit.amount')}</th>
  </tr>
  </thead>
@@ -1462,7 +1462,7 @@ export default function NewAuditPage() {
  </tbody>
  </table>
  <div className="px-4 py-2 bg-slate-800/40 border-t border-slate-700 text-xs text-slate-500">
- {attentionDetail.transactions.length} transacción{attentionDetail.transactions.length !== 1 ? 'es' : ''}
+ {t('newAudit.transactionsCount', { count: attentionDetail.transactions.length })}
  </div>
  </div>
  )}
@@ -1473,7 +1473,7 @@ export default function NewAuditPage() {
  {detailTab === 'comments' && (
  <div className="mb-4">
  {!attentionDetail ? (
- <p className="text-slate-500 text-sm text-center py-8">Cargando comentarios...</p>
+ <p className="text-slate-500 text-sm text-center py-8">{t('newAudit.loadingComments')}</p>
  ) : attentionDetail.comments.length === 0 ? (
  <p className="text-slate-500 text-sm text-center py-8 flex flex-col items-center gap-2">
  <MessageSquare className="w-8 h-8 opacity-30" />
@@ -1502,7 +1502,7 @@ export default function NewAuditPage() {
  </tbody>
  </table>
  <div className="px-4 py-2 bg-slate-800/40 border-t border-slate-700 text-xs text-slate-500">
- {attentionDetail.comments.length} comentario{attentionDetail.comments.length !== 1 ? 's' : ''}
+ {t('newAudit.commentsCount', { count: attentionDetail.comments.length })}
  </div>
  </div>
  )}
@@ -1513,7 +1513,7 @@ export default function NewAuditPage() {
  {detailTab === 'otp' && (
  <div className="mb-4">
  {!attentionDetail ? (
- <p className="text-slate-500 text-sm text-center py-8">Cargando validaciones OTP...</p>
+ <p className="text-slate-500 text-sm text-center py-8">{t('newAudit.loadingOtp')}</p>
  ) : attentionDetail.otpValidations.length === 0 ? (
  <p className="text-slate-500 text-sm text-center py-8 flex flex-col items-center gap-2">
  <ShieldCheck className="w-8 h-8 opacity-30" />
@@ -1564,14 +1564,14 @@ export default function NewAuditPage() {
  <div className="flex items-center justify-between gap-2 mb-3">
  <div className="flex items-center gap-2">
  <Mic className="w-4 h-4 text-brand-400" />
- <span className="text-sm font-medium text-slate-300">Audio de la llamada</span>
+ <span className="text-sm font-medium text-slate-300">{t('newAudit.callAudio')}</span>
  </div>
  <ExpiryTimer secondsLeft={secondsLeft} compact />
  </div>
  {audioLoading ? (
  <div className="flex items-center gap-2 text-slate-500 text-sm">
  <Loader2 className="w-4 h-4 animate-spin" />
- Obteniendo enlace de audio...
+ {t('newAudit.fetchingAudioLink')}
  </div>
  ) : audioUrl ? (
  <div className="space-y-2">
@@ -1587,7 +1587,7 @@ export default function NewAuditPage() {
 
  {/* Excel type selector */}
  <div className="mb-4 p-4 bg-slate-800/30 rounded-xl border border-slate-700">
- <label className="block text-sm font-medium text-slate-300 mb-2">Tipo de Reporte</label>
+ <label className="block text-sm font-medium text-slate-300 mb-2">{t('newAudit.reportType')}</label>
  <div className="relative max-w-xs">
  <select
  value={excelType}
@@ -1648,7 +1648,7 @@ export default function NewAuditPage() {
  <button
  onClick={() => setZoomLevel(z => Math.max(z - 0.25, 0.5))}
  className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
- title="Alejar (−)"
+ title={t('newAudit.zoomOut')}
  >
  <ZoomOut className="w-4 h-4" />
  </button>
@@ -1656,21 +1656,21 @@ export default function NewAuditPage() {
  <button
  onClick={() => setZoomLevel(z => Math.min(z + 0.25, 4))}
  className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
- title="Acercar (+)"
+ title={t('newAudit.zoomIn')}
  >
  <ZoomIn className="w-4 h-4" />
  </button>
  <button
  onClick={() => setZoomLevel(1)}
  className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs transition-colors"
- title="Restablecer zoom"
+ title={t('newAudit.zoomReset')}
  >
  100%
  </button>
  <button
  onClick={() => { setLightboxOpen(false); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
  className="p-2 rounded-lg bg-white/10 hover:bg-red-500/60 text-white transition-colors ml-2"
- title="Cerrar (Esc)"
+ title={t('newAudit.closeEsc')}
  >
  <X className="w-4 h-4" />
  </button>
@@ -1682,7 +1682,7 @@ export default function NewAuditPage() {
  <button
  onClick={() => { setLightboxIndex(i => (i - 1 + attentionDetail.imageUrls.length) % attentionDetail.imageUrls.length); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
  className="absolute left-3 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors"
- title="Anterior (←)"
+ title={t('newAudit.imgPrev')}
  >
  <ChevronLeft className="w-6 h-6" />
  </button>
@@ -1707,7 +1707,7 @@ export default function NewAuditPage() {
  >
  <img
  src={attentionDetail.imageUrls[lightboxIndex]}
- alt={`Captura ${lightboxIndex + 1}`}
+ alt={t('newAudit.captureAlt', { n: lightboxIndex + 1 })}
  style={{
  transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
  transformOrigin: 'center',
@@ -1723,7 +1723,7 @@ export default function NewAuditPage() {
  <button
  onClick={() => { setLightboxIndex(i => (i + 1) % attentionDetail.imageUrls.length); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
  className="absolute right-3 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors"
- title="Siguiente (→)"
+ title={t('newAudit.imgNext')}
  >
  <ChevronRight className="w-6 h-6" />
  </button>
@@ -1753,6 +1753,7 @@ export default function NewAuditPage() {
 
 // ── Componente timer de expiración ────────────────────────────────────────────
 function ExpiryTimer({ secondsLeft, compact = false }: { secondsLeft: number | null; compact?: boolean }) {
+ const { t } = useTranslation();
  if (secondsLeft === null) return null;
 
  const mins = Math.floor(secondsLeft / 60);
@@ -1772,7 +1773,7 @@ function ExpiryTimer({ secondsLeft, compact = false }: { secondsLeft: number | n
  return (
  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-mono ${colorClass}`}>
  {expired ? <AlertTriangle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
- {expired ? 'Expirado' : formatted}
+ {expired ? t('newAudit.expired') : formatted}
  </div>
  );
  }
@@ -1781,8 +1782,8 @@ function ExpiryTimer({ secondsLeft, compact = false }: { secondsLeft: number | n
  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs mb-3 ${colorClass}`}>
  {expired ? <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> : <Clock className="w-3.5 h-3.5 flex-shrink-0" />}
  {expired
- ? 'Los datos han expirado. Vuelve a seleccionar el caso para recargarlos.'
- : <><span className="font-semibold font-mono">{formatted}</span><span className="opacity-70">restantes para que los datos expiren</span></>
+ ? t('newAudit.dataExpired')
+ : <><span className="font-semibold font-mono">{formatted}</span><span className="opacity-70">{t('newAudit.untilExpire')}</span></>
  }
  </div>
  );

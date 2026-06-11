@@ -750,63 +750,63 @@ export default function AuditsViewPage() {
  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-5">
  <div className="stat-card bg-slate-800/50 border-brand-700/40 hover:border-brand-500/50/60 transition-all">
  <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total</span>
+ <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">{t('auditsView.kpiTotal')}</span>
  <FileText className="w-4 h-4 text-brand-400" />
  </div>
  <div className="text-2xl font-bold text-brand-400">{stats.total}</div>
- <div className="text-xs text-slate-500 mt-1">Auditorías</div>
+ <div className="text-xs text-slate-500 mt-1">{t('auditsView.kpiAudits')}</div>
  </div>
 
  <div className="stat-card bg-slate-800/50 border-green-500/30 hover:border-green-400/60 transition-all">
  <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Completadas</span>
+ <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">{t('auditsView.kpiCompleted')}</span>
  <CheckCircle2 className="w-4 h-4 text-green-400" />
  </div>
  <div className="text-2xl font-bold text-green-400">{stats.completed}</div>
  <div className="text-xs text-slate-500 mt-1">
- {stats.total > 0 ? `${((stats.completed / stats.total) * 100).toFixed(1)}%` : '0%'} del total
+ {stats.total > 0 ? `${((stats.completed / stats.total) * 100).toFixed(1)}%` : '0%'} {t('auditsView.kpiOfTotal')}
  </div>
  </div>
 
  <div className="stat-card bg-slate-800/50 border-yellow-500/30 hover:border-yellow-400/60 transition-all">
  <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Procesando</span>
+ <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">{t('auditsView.kpiProcessing')}</span>
  <Clock className="w-4 h-4 text-yellow-400" />
  </div>
  <div className="text-2xl font-bold text-yellow-400">{stats.processing}</div>
- <div className="text-xs text-slate-500 mt-1">En proceso</div>
+ <div className="text-xs text-slate-500 mt-1">{t('auditsView.kpiInProcess')}</div>
  </div>
 
  <div className="stat-card bg-slate-800/50 border-red-500/30 hover:border-red-400/60 transition-all">
  <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Errores</span>
+ <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">{t('auditsView.kpiErrors')}</span>
  <AlertCircle className="w-4 h-4 text-red-400" />
  </div>
  <div className="text-2xl font-bold text-red-400">{stats.errors}</div>
- <div className="text-xs text-slate-500 mt-1">Con problemas</div>
+ <div className="text-xs text-slate-500 mt-1">{t('auditsView.kpiProblems')}</div>
  </div>
 
  <div className="stat-card bg-slate-800/50 border-brand-700/40 hover:border-brand-500/50 transition-all">
  <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Score Prom.</span>
+ <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">{t('auditsView.kpiScoreAvg')}</span>
  <TrendingUp className="w-4 h-4 text-brand-400" />
  </div>
  <div className={`text-2xl font-bold ${getScoreColor(stats.avgScore)}`}>
  {stats.avgScore > 0 ? `${stats.avgScore.toFixed(1)}%` : 'N/A'}
  </div>
- <div className="text-xs text-slate-500 mt-1">Calificación media</div>
+ <div className="text-xs text-slate-500 mt-1">{t('auditsView.kpiAvgScore')}</div>
  </div>
 
  {isSupervisor && (
  <div className="stat-card bg-slate-800/50 border-emerald-500/30 hover:border-emerald-400/60 transition-all">
  <div className="flex items-center justify-between mb-2">
- <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Costos</span>
+ <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">{t('auditsView.kpiCosts')}</span>
  <DollarSign className="w-4 h-4 text-emerald-400" />
  </div>
  <div className="text-2xl font-bold text-emerald-400">
  ${stats.totalCost.toFixed(2)}
  </div>
- <div className="text-xs text-slate-500 mt-1">USD Total</div>
+ <div className="text-xs text-slate-500 mt-1">{t('auditsView.kpiUsdTotal')}</div>
  </div>
  )}
  </div>
@@ -890,7 +890,7 @@ export default function AuditsViewPage() {
  <div className="mt-4 pt-4 border-t border-[#1e1e32]">
  {/* Accesos rápidos */}
  <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
- <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Accesos rápidos</span>
+ <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">{t('auditsView.quickAccess')}</span>
  <div className="flex flex-wrap gap-2">
  <button
  onClick={() => setDateFilter('yesterday')}
@@ -1066,7 +1066,7 @@ export default function AuditsViewPage() {
  {/* Cost (Supervisor only) */}
  {isSupervisor && getAuditTotalCost(audit) > 0 && (
  <div className="mt-3 pt-3 border-t border-slate-700/50 flex items-center justify-between">
- <span className="text-slate-400 text-sm font-medium">Costo</span>
+ <span className="text-slate-400 text-sm font-medium">{t('auditsView.cardCost')}</span>
  <span className="text-emerald-400 font-bold text-lg">
  ${getAuditTotalCost(audit).toFixed(4)}
  </span>
@@ -1092,7 +1092,7 @@ export default function AuditsViewPage() {
  handleDownloadExcel(audit.evaluations![0].excel_filename);
  }}
  className="px-3 py-2 bg-brand-500/10 hover:bg-brand-500/30 border border-brand-700/40 text-brand-300 rounded-lg transition-colors flex items-center justify-center"
- title="Descargar Excel individual"
+ title={t('auditsView.downloadExcel')}
  >
  <FileSpreadsheet className="w-4 h-4" />
  </button>
@@ -1222,7 +1222,7 @@ export default function AuditsViewPage() {
  navigate(`/audit/${audit.id}`);
  }}
  className="p-2 hover:bg-[#1a1a2e] rounded-lg transition-colors text-brand-400"
- title="Ver detalles"
+ title={t('auditsView.viewDetailsTooltip')}
  >
  <Eye className="w-4 h-4" />
  </button>
@@ -1233,7 +1233,7 @@ export default function AuditsViewPage() {
  handleDownloadExcel(audit.evaluations![0].excel_filename);
  }}
  className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-brand-400"
- title="Descargar Excel individual"
+ title={t('auditsView.downloadExcel')}
  >
  <Download className="w-4 h-4" />
  </button>

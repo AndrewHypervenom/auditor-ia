@@ -52,7 +52,7 @@ export default function CompaniesPage() {
       const data = await companyService.getAll();
       setCompanies(data);
     } catch {
-      toast.error('Error al cargar empresas');
+      toast.error(t('companies.loadError'));
     } finally {
       setLoading(false);
     }
@@ -63,7 +63,7 @@ export default function CompaniesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.slug.trim()) {
-      toast.error('Nombre e identificador son requeridos');
+      toast.error(t('companies.nameIdRequired'));
       return;
     }
     setSaving(true);
@@ -80,7 +80,7 @@ export default function CompaniesPage() {
       setForm({ name: '', slug: '', integration_type: 'manual' });
       await loadCompanies();
     } catch (err: any) {
-      toast.error(err?.response?.data?.error ?? 'Error al guardar empresa');
+      toast.error(err?.response?.data?.error ?? t('companies.saveError'));
     } finally {
       setSaving(false);
     }
@@ -89,10 +89,10 @@ export default function CompaniesPage() {
   const handleToggleActive = async (company: Company) => {
     try {
       await companyService.update(company.id, { is_active: !company.is_active });
-      toast.success(company.is_active ? 'Empresa desactivada' : 'Empresa activada');
+      toast.success(company.is_active ? t('companies.deactivated') : t('companies.activated'));
       await loadCompanies();
     } catch {
-      toast.error('Error al actualizar estado');
+      toast.error(t('companies.statusUpdateError'));
     }
   };
 
@@ -105,10 +105,10 @@ export default function CompaniesPage() {
   const handleSaveLimits = async (companyId: string, limits: Record<string, unknown>) => {
     try {
       await companyService.setLimits(companyId, limits);
-      toast.success('Límites actualizados');
+      toast.success(t('companies.limitsUpdated'));
       await loadCompanies();
     } catch {
-      toast.error('Error al actualizar límites');
+      toast.error(t('companies.limitsUpdateError'));
     }
   };
 
@@ -152,7 +152,7 @@ export default function CompaniesPage() {
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   className="w-full bg-slate-700/60 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-brand-500"
-                  placeholder="Ej: Empresa ABC"
+                  placeholder={t('companies.namePlaceholder')}
                 />
               </div>
               <div>
@@ -224,7 +224,7 @@ export default function CompaniesPage() {
                       <span className="text-white font-medium text-sm">{company.name}</span>
                       <span className="text-xs text-slate-500 font-mono">{company.slug}</span>
                       {!company.is_active && (
-                        <span className="text-xs text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded">Inactiva</span>
+                        <span className="text-xs text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded">{t('companies.inactive')}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-4 mt-1">
@@ -320,7 +320,7 @@ function UsageLimitsEditor({ company, onSave }: UsageLimitsEditorProps) {
       <h4 className="text-sm font-medium text-white flex items-center gap-2">
         <Settings className="w-4 h-4 text-slate-400" />
         {t('usage.setLimits')}
-        <span className="text-xs text-slate-500 font-normal">(dejar vacío = sin límite)</span>
+        <span className="text-xs text-slate-500 font-normal">{t('companies.leaveEmptyNoLimit')}</span>
       </h4>
       <div className="grid grid-cols-3 gap-3">
         <div>
@@ -368,7 +368,7 @@ function UsageLimitsEditor({ company, onSave }: UsageLimitsEditorProps) {
           <p className="text-xs text-slate-400 mb-2">{t('usage.title')}</p>
           <div className="grid grid-cols-3 gap-2 text-xs">
             <div>
-              <span className="text-slate-500">Auditorías</span>
+              <span className="text-slate-500">{t('companies.auditsLabel')}</span>
               <p className="text-white font-medium">
                 {company.usage_this_month.total_audits}
                 {limits?.monthly_audits ? ` / ${limits.monthly_audits}` : ''}
@@ -383,7 +383,7 @@ function UsageLimitsEditor({ company, onSave }: UsageLimitsEditorProps) {
               )}
             </div>
             <div>
-              <span className="text-slate-500">Costo USD</span>
+              <span className="text-slate-500">{t('companies.costUsd')}</span>
               <p className="text-white font-medium">
                 ${company.usage_this_month.total_cost?.toFixed(2) ?? '0.00'}
                 {limits?.monthly_cost_usd ? ` / $${limits.monthly_cost_usd}` : ''}
@@ -398,7 +398,7 @@ function UsageLimitsEditor({ company, onSave }: UsageLimitsEditorProps) {
               )}
             </div>
             <div>
-              <span className="text-slate-500">Tokens</span>
+              <span className="text-slate-500">{t('companies.tokens')}</span>
               <p className="text-white font-medium">
                 {(company.usage_this_month.total_tokens ?? 0).toLocaleString()}
                 {limits?.monthly_tokens ? ` / ${Number(limits.monthly_tokens).toLocaleString()}` : ''}

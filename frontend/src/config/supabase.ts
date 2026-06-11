@@ -38,7 +38,7 @@ export const SESSION_CONFIG = {
  * Configurar auto-refresh del token
  */
 export function setupAutoRefresh(): () => void {
- let intervalId: NodeJS.Timeout;
+ let intervalId: ReturnType<typeof setInterval>;
  
  const checkAndRefresh = async () => {
  try {

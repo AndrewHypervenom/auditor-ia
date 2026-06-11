@@ -496,7 +496,7 @@ export default function SupervisorDashboard() {
  }}
  disabled={deletingId === audit.id}
  className="btn-icon-danger"
- title="Eliminar"
+ title={t('common.delete')}
  >
  {deletingId === audit.id ? (
  <Loader2 className="w-4 h-4 animate-spin" />

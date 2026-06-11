@@ -3,6 +3,7 @@
 import { useAuth } from '../contexts/AuthContext';
 import { Clock, AlertTriangle } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface SessionTimerProps {
  showInHeader?: boolean;
@@ -13,6 +14,7 @@ export default function SessionTimer({
  showInHeader = false,
  warningThreshold = 30 * 60 // 30 minutos por defecto
 }: SessionTimerProps) {
+ const { t } = useTranslation();
  const { sessionTimeRemaining, signOut } = useAuth();
  const [showWarning, setShowWarning] = useState(false);
 
@@ -57,7 +59,7 @@ export default function SessionTimer({
  ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30' 
  : 'bg-slate-800/50 text-slate-400'
  }`}
- title={isWarning ? 'Tu sesión expirará pronto' : 'Tiempo restante de sesión'}
+ title={isWarning ? t('sessionTimer.expiringSoon') : t('sessionTimer.timeRemaining')}
  >
  {isWarning ? (
  <AlertTriangle className="w-4 h-4" />
@@ -84,24 +86,23 @@ export default function SessionTimer({
  
  <div className="flex-1">
  <h3 className="text-sm font-semibold text-yellow-400 mb-1">
- Tu sesión está por expirar
+ {t('sessionTimer.title')}
  </h3>
  <p className="text-xs text-slate-300 mb-3">
- Tu sesión expirará en aproximadamente <strong>{timeFormatted}</strong>. 
- Guarda tu trabajo para evitar perder cambios.
+ {t('sessionTimer.message')} <strong>{timeFormatted}</strong>. {t('sessionTimer.saveWork')}
  </p>
  <div className="flex gap-2">
  <button
  onClick={() => window.location.reload()}
  className="px-3 py-1.5 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded-lg text-xs font-medium transition-colors"
  >
- Extender sesión
+ {t('sessionTimer.extendButton')}
  </button>
  <button
  onClick={() => setShowWarning(false)}
  className="px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition-colors"
  >
- Entendido
+ {t('sessionTimer.acknowledgeButton')}
  </button>
  </div>
  </div>

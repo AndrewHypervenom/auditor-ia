@@ -160,7 +160,7 @@ export default function AiAnalysisPage() {
   return (
     <div className="min-h-screen text-slate-100">
 
-      <AppHeader showBack onBack={() => window.close()} backLabel={t('common.close')} title="Análisis IA" />
+      <AppHeader showBack onBack={() => window.close()} backLabel={t('common.close')} title={t('aiAnalysis.title')} />
 
       {/* Contenido */}
       <main className="max-w-5xl mx-auto px-4 py-6">
@@ -171,11 +171,11 @@ export default function AiAnalysisPage() {
           </div>
           <div>
             <p className="text-sm font-semibold text-slate-200">
-              Vista de referencia · Caso <span className="font-mono text-brand-400">{String(caseNumber)}</span>
+              {t('aiAnalysis.referenceView')} <span className="font-mono text-brand-400">{String(caseNumber)}</span>
             </p>
             <p className="text-xs text-slate-500">
               {executive} · {callType} · {excelType}
-              <span className="ml-2 text-yellow-500/80">— La auditoría se procesa en la pestaña anterior</span>
+              <span className="ml-2 text-yellow-500/80">{t('aiAnalysis.processedHint')}</span>
             </p>
           </div>
         </div>
@@ -248,7 +248,7 @@ export default function AiAnalysisPage() {
                   {detail.imageUrls.length > 0 && (
                     <div>
                       <p className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wide">
-                        Imágenes ({detail.imageUrls.length}) · <span className="normal-case text-slate-500">Clic para ampliar</span>
+                        {t('newAudit.imagesLabel', { count: detail.imageUrls.length })} · <span className="normal-case text-slate-500">{t('newAudit.clickToEnlarge')}</span>
                       </p>
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                         {detail.imageUrls.map((url, idx) => (
@@ -316,9 +316,9 @@ export default function AiAnalysisPage() {
                     <thead>
                       <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase">
                         <th className="px-4 py-2 text-left">#</th>
-                        <th className="px-4 py-2 text-left">Fecha</th>
-                        <th className="px-4 py-2 text-left">Comercio</th>
-                        <th className="px-4 py-2 text-right">Monto</th>
+                        <th className="px-4 py-2 text-left">{t('newAudit.date')}</th>
+                        <th className="px-4 py-2 text-left">{t('newAudit.merchant')}</th>
+                        <th className="px-4 py-2 text-right">{t('newAudit.amount')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -354,9 +354,9 @@ export default function AiAnalysisPage() {
                     <thead>
                       <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase">
                         <th className="px-4 py-2 text-left">#</th>
-                        <th className="px-4 py-2 text-left">Fecha</th>
-                        <th className="px-4 py-2 text-left">Agente</th>
-                        <th className="px-4 py-2 text-left">Comentario</th>
+                        <th className="px-4 py-2 text-left">{t('newAudit.date')}</th>
+                        <th className="px-4 py-2 text-left">{t('newAudit.agent')}</th>
+                        <th className="px-4 py-2 text-left">{t('newAudit.comment')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -392,9 +392,9 @@ export default function AiAnalysisPage() {
                     <thead>
                       <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase">
                         <th className="px-4 py-2 text-left">#</th>
-                        <th className="px-4 py-2 text-left">Fecha</th>
-                        <th className="px-4 py-2 text-left">Agente</th>
-                        <th className="px-4 py-2 text-left">Resultado</th>
+                        <th className="px-4 py-2 text-left">{t('newAudit.date')}</th>
+                        <th className="px-4 py-2 text-left">{t('newAudit.agent')}</th>
+                        <th className="px-4 py-2 text-left">{t('newAudit.result')}</th>
                       </tr>
                     </thead>
                     <tbody>

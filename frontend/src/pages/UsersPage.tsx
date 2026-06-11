@@ -412,16 +412,16 @@ export default function UsersPage() {
  <button
  onClick={() => openEditModal(user)}
  className="flex-1 px-3 py-2 bg-brand-500/10 hover:bg-brand-500/30 border border-brand-700/40 text-brand-300 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium"
- title="Editar usuario"
+ title={t('usersPage.editTooltip')}
  >
  <Edit className="w-4 h-4" />
- Editar
+ {t('usersPage.editBtn')}
  </button>
  {user.id !== profile?.id && (
  <button
  onClick={() => handleDeleteUser(user.id, user.email)}
  className="flex-1 px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-300 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium"
- title="Eliminar usuario"
+ title={t('usersPage.deleteTooltip')}
  >
  <Trash2 className="w-4 h-4" />
  Eliminar
@@ -464,13 +464,13 @@ export default function UsersPage() {
  </div>
 
  <div>
- <label className="block text-sm text-slate-400 mb-2">Email</label>
+ <label className="block text-sm text-slate-400 mb-2">{t('usersPage.emailLabel')}</label>
  <input
  type="email"
  value={newUser.email}
  onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
  className="input"
- placeholder="juan@ejemplo.com"
+ placeholder={t('usersPage.emailPlaceholder')}
  required
  />
  </div>
@@ -551,7 +551,7 @@ export default function UsersPage() {
 
  <form onSubmit={handleEditUser} className="space-y-4">
  <div>
- <label className="block text-sm text-slate-400 mb-2">Email</label>
+ <label className="block text-sm text-slate-400 mb-2">{t('usersPage.emailLabel')}</label>
  <input
  type="email"
  value={editingUser.email}

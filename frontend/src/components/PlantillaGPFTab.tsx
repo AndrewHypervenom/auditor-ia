@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, Trash2, Check, X, ChevronDown, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { plantillaService, type PlantillaGPFItem } from '../services/api';
 import ModeSelector, { type AdminMode } from './ModeSelector';
 import CallTypeSelector from './CallTypeSelector';
@@ -24,6 +25,7 @@ function groupByCategoria(items: PlantillaGPFItem[]): Map<string, PlantillaGPFIt
 // ── Componente principal ─────────────────────────────────────
 
 export default function PlantillaGPFTab() {
+  const { t } = useTranslation();
   const [items, setItems] = useState<PlantillaGPFItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<AdminMode>('INBOUND');
@@ -42,11 +44,11 @@ export default function PlantillaGPFTab() {
       const data = await plantillaService.getAll();
       setItems(data);
     } catch {
-      toast.error('Error al cargar la Plantilla GPF');
+      toast.error(t('plantilla.loadError'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -59,22 +61,22 @@ export default function PlantillaGPFTab() {
   };
 
   const handleAddCategoria = async () => {
-    const nombre = prompt('Nombre de la nueva categoría:');
+    const nombre = prompt(t('plantilla.newCategoryPrompt'));
     if (!nombre?.trim()) return;
     try {
       await plantillaService.create({
         categoria: nombre.trim(),
-        tipo_cierre: 'Nuevo tipo de cierre',
+        tipo_cierre: t('plantilla.newClosureTypeDefault'),
         descripcion: '',
         categoria_orden: nextCategoriaOrden(),
         tipo_orden: 1,
         call_type: callType,
         mode,
       });
-      toast.success('Categoría agregada');
+      toast.success(t('plantilla.categoryAdded'));
       load();
     } catch {
-      toast.error('Error al agregar categoría');
+      toast.error(t('plantilla.categoryAddError'));
     }
   };
 
@@ -82,7 +84,7 @@ export default function PlantillaGPFTab() {
     return (
       <div className="flex items-center justify-center py-16 text-slate-500">
         <Loader2 size={20} className="animate-spin mr-2" />
-        Cargando plantilla...
+        {t('plantilla.loading')}
       </div>
     );
   }
@@ -100,14 +102,14 @@ export default function PlantillaGPFTab() {
       </div>
 
       <p className="mb-5 text-sm text-slate-400 leading-relaxed">
-        Tabla editable de Cierre de GPF para{' '}
+        {t('plantilla.introTable')}{' '}
         <span className={mode === 'INBOUND' ? 'text-teal-400 font-medium' : 'text-violet-400 font-medium'}>
-          {mode === 'INBOUND' ? 'Inbound' : 'Monitoreo'}
+          {mode === 'INBOUND' ? t('plantilla.inbound') : t('plantilla.monitoring')}
         </span>
         {' — '}
         <span className="text-brand-300 font-medium">{callType}</span>.
-        La <span className="text-teal-400 font-medium">Calificación</span> corresponde a la Categoría y la{' '}
-        <span className="text-teal-400 font-medium">Sub-calificación</span> al Tipo de Cierre.
+        {' '}{t('plantilla.introQual1')} <span className="text-teal-400 font-medium">{t('plantilla.qualificationLabel')}</span> {t('plantilla.introQual2')}{' '}
+        <span className="text-teal-400 font-medium">{t('plantilla.subQualificationLabel')}</span> {t('plantilla.introQual3')}
       </p>
 
       <div className="space-y-3">
@@ -124,7 +126,7 @@ export default function PlantillaGPFTab() {
 
         {grouped.size === 0 && (
           <div className="py-12 flex flex-col items-center gap-2 text-slate-500">
-            <p className="text-sm">Sin categorías para {mode === 'INBOUND' ? 'Inbound' : 'Monitoreo'} — {callType}</p>
+            <p className="text-sm">{t('plantilla.noCategories', { mode: mode === 'INBOUND' ? t('plantilla.inbound') : t('plantilla.monitoring'), callType })}</p>
           </div>
         )}
 
@@ -136,7 +138,7 @@ export default function PlantillaGPFTab() {
                      transition-all duration-200 text-sm"
         >
           <Plus size={15} />
-          Agregar categoría
+          {t('plantilla.addCategory')}
         </button>
       </div>
     </div>
@@ -154,6 +156,7 @@ interface CategoriaCardProps {
 }
 
 function CategoriaCard({ categoria, items, callType, mode, onUpdate }: CategoriaCardProps) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(categoria);
@@ -166,22 +169,22 @@ function CategoriaCard({ categoria, items, callType, mode, onUpdate }: Categoria
     if (nameValue.trim() === categoria) return;
     try {
       await plantillaService.renameCategoria(categoria, nameValue.trim(), callType, mode);
-      toast.success('Categoría renombrada');
+      toast.success(t('plantilla.categoryRenamed'));
       onUpdate();
     } catch {
-      toast.error('Error al renombrar categoría');
+      toast.error(t('plantilla.renameError'));
       setNameValue(categoria);
     }
   };
 
   const handleDeleteCategoria = async () => {
-    if (!confirm(`¿Eliminar la categoría "${categoria}" y todos sus tipos de cierre?`)) return;
+    if (!confirm(t('plantilla.deleteCategoryConfirm', { name: categoria }))) return;
     try {
       await Promise.all(items.map((item) => plantillaService.remove(item.id)));
-      toast.success('Categoría eliminada');
+      toast.success(t('plantilla.categoryDeleted'));
       onUpdate();
     } catch {
-      toast.error('Error al eliminar categoría');
+      toast.error(t('plantilla.deleteCategoryError'));
     }
   };
 
@@ -190,17 +193,17 @@ function CategoriaCard({ categoria, items, callType, mode, onUpdate }: Categoria
     try {
       await plantillaService.create({
         categoria,
-        tipo_cierre: 'Nuevo tipo de cierre',
+        tipo_cierre: t('plantilla.newClosureTypeDefault'),
         descripcion: '',
         categoria_orden: items[0]?.categoria_orden ?? 0,
         tipo_orden: nextOrder,
         call_type: callType,
         mode,
       });
-      toast.success('Tipo de cierre agregado');
+      toast.success(t('plantilla.closureAdded'));
       onUpdate();
     } catch {
-      toast.error('Error al agregar tipo de cierre');
+      toast.error(t('plantilla.closureAddError'));
     }
   };
 
@@ -241,7 +244,7 @@ function CategoriaCard({ categoria, items, callType, mode, onUpdate }: Categoria
         </div>
 
         <span className="flex-shrink-0 text-slate-500 text-xs tabular-nums">
-          {sorted.length} {sorted.length === 1 ? 'tipo' : 'tipos'}
+          {t('plantilla.typesCount', { count: sorted.length })}
         </span>
 
         <div
@@ -251,14 +254,14 @@ function CategoriaCard({ categoria, items, callType, mode, onUpdate }: Categoria
           <button
             onClick={() => setEditingName(true)}
             className="p-2 rounded-xl text-slate-500 hover:text-teal-400 hover:bg-teal-500/10 transition-all duration-150"
-            title="Renombrar categoría"
+            title={t('plantilla.renameCategory')}
           >
             <Pencil size={14} />
           </button>
           <button
             onClick={handleDeleteCategoria}
             className="p-2 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150"
-            title="Eliminar categoría"
+            title={t('plantilla.deleteCategory')}
           >
             <Trash2 size={14} />
           </button>
@@ -273,8 +276,8 @@ function CategoriaCard({ categoria, items, callType, mode, onUpdate }: Categoria
       {expanded && (
         <div className="border-t border-slate-800/60">
           <div className="grid grid-cols-[2fr_3fr_auto] gap-3 px-5 py-2 bg-slate-800/30">
-            <span className="text-xs font-semibold text-teal-400/70 uppercase tracking-wider">Tipo de Cierre</span>
-            <span className="text-xs font-semibold text-teal-400/70 uppercase tracking-wider">Descripción</span>
+            <span className="text-xs font-semibold text-teal-400/70 uppercase tracking-wider">{t('plantilla.colClosureType')}</span>
+            <span className="text-xs font-semibold text-teal-400/70 uppercase tracking-wider">{t('plantilla.colDescription')}</span>
             <span className="w-16" />
           </div>
 
@@ -301,7 +304,7 @@ function CategoriaCard({ categoria, items, callType, mode, onUpdate }: Categoria
                          transition-all duration-200"
             >
               <Plus size={13} />
-              Agregar tipo de cierre
+              {t('plantilla.addClosureType')}
             </button>
           </div>
         </div>
@@ -322,6 +325,7 @@ interface ItemRowProps {
 }
 
 function ItemRow({ item, isEditing, onStartEdit, onCancelEdit, onSaved, onDeleted }: ItemRowProps) {
+  const { t } = useTranslation();
   const [tipoCierre, setTipoCierre] = useState(item.tipo_cierre);
   const [descripcion, setDescripcion] = useState(item.descripcion);
   const [saving, setSaving] = useState(false);
@@ -335,23 +339,23 @@ function ItemRow({ item, isEditing, onStartEdit, onCancelEdit, onSaved, onDelete
     setSaving(true);
     try {
       await plantillaService.update(item.id, { tipo_cierre: tipoCierre.trim(), descripcion: descripcion.trim() });
-      toast.success('Guardado');
+      toast.success(t('plantilla.saved'));
       onSaved();
     } catch {
-      toast.error('Error al guardar');
+      toast.error(t('plantilla.saveError'));
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!confirm(`¿Eliminar "${item.tipo_cierre}"?`)) return;
+    if (!confirm(t('plantilla.deleteItemConfirm', { name: item.tipo_cierre }))) return;
     try {
       await plantillaService.remove(item.id);
-      toast.success('Eliminado');
+      toast.success(t('plantilla.deleted'));
       onDeleted();
     } catch {
-      toast.error('Error al eliminar');
+      toast.error(t('plantilla.deleteError'));
     }
   };
 
@@ -360,7 +364,7 @@ function ItemRow({ item, isEditing, onStartEdit, onCancelEdit, onSaved, onDelete
       <div className="px-5 py-3 bg-slate-800/20 space-y-2">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs text-slate-500 mb-1 block">Tipo de Cierre</label>
+            <label className="text-xs text-slate-500 mb-1 block">{t('plantilla.colClosureType')}</label>
             <input
               autoFocus
               value={tipoCierre}
@@ -370,7 +374,7 @@ function ItemRow({ item, isEditing, onStartEdit, onCancelEdit, onSaved, onDelete
             />
           </div>
           <div>
-            <label className="text-xs text-slate-500 mb-1 block">Descripción</label>
+            <label className="text-xs text-slate-500 mb-1 block">{t('plantilla.colDescription')}</label>
             <input
               value={descripcion}
               onChange={(e) => setDescripcion(e.target.value)}
@@ -388,14 +392,14 @@ function ItemRow({ item, isEditing, onStartEdit, onCancelEdit, onSaved, onDelete
                        hover:bg-teal-500/20 disabled:opacity-50 transition-all duration-150"
           >
             {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-            Guardar
+            {t('common.save')}
           </button>
           <button
             onClick={onCancelEdit}
             className="px-3 py-1.5 rounded-xl text-slate-400 text-xs font-medium
                        hover:text-slate-200 hover:bg-slate-800/60 transition-all duration-150"
           >
-            Cancelar
+            {t('common.cancel')}
           </button>
         </div>
       </div>
@@ -411,14 +415,14 @@ function ItemRow({ item, isEditing, onStartEdit, onCancelEdit, onSaved, onDelete
         <button
           onClick={onStartEdit}
           className="p-1.5 rounded-lg text-slate-500 hover:text-teal-400 hover:bg-teal-500/10 transition-all duration-150"
-          title="Editar"
+          title={t('common.edit')}
         >
           <Pencil size={13} />
         </button>
         <button
           onClick={handleDelete}
           className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150"
-          title="Eliminar"
+          title={t('common.delete')}
         >
           <Trash2 size={13} />
         </button>

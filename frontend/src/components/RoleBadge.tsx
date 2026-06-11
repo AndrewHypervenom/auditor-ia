@@ -2,6 +2,7 @@
 
 import type { UserRole } from '../types/auth.types';
 import { Shield, Star, Eye, User } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface RoleBadgeProps {
   role: UserRole;
@@ -11,7 +12,7 @@ interface RoleBadgeProps {
 
 const ROLE_CONFIG = {
   admin: {
-    label: 'Administrador',
+    labelKey: 'roles.admin',
     icon: Shield,
     bgColor: 'bg-red-500/10',
     textColor: 'text-red-400',
@@ -19,7 +20,7 @@ const ROLE_CONFIG = {
     dotColor: 'bg-red-500',
   },
   supervisor: {
-    label: 'Supervisor',
+    labelKey: 'roles.supervisor',
     icon: Star,
     bgColor: 'bg-amber-500/10',
     textColor: 'text-amber-400',
@@ -27,7 +28,7 @@ const ROLE_CONFIG = {
     dotColor: 'bg-amber-400',
   },
   analyst: {
-    label: 'Analista',
+    labelKey: 'roles.analyst',
     icon: Eye,
     bgColor: 'bg-brand-500/10',
     textColor: 'text-brand-400',
@@ -35,7 +36,7 @@ const ROLE_CONFIG = {
     dotColor: 'bg-brand-500',
   },
   executive: {
-    label: 'Ejecutivo',
+    labelKey: 'roles.executive',
     icon: User,
     bgColor: 'bg-slate-500/10',
     textColor: 'text-slate-400',
@@ -66,6 +67,7 @@ const SIZE_CONFIG = {
 };
 
 export function RoleBadge({ role, size = 'md', showIcon = true }: RoleBadgeProps) {
+  const { t } = useTranslation();
   const config = ROLE_CONFIG[role];
   const sizeConfig = SIZE_CONFIG[size];
   const Icon = config.icon;
@@ -79,7 +81,7 @@ export function RoleBadge({ role, size = 'md', showIcon = true }: RoleBadgeProps
       `}
     >
       {showIcon && <Icon className={sizeConfig.icon} />}
-      <span className={`font-medium ${sizeConfig.text}`}>{config.label}</span>
+      <span className={`font-medium ${sizeConfig.text}`}>{t(config.labelKey)}</span>
       <div className={`${sizeConfig.dot} ${config.dotColor} rounded-full animate-pulse`} />
     </div>
   );
@@ -87,6 +89,7 @@ export function RoleBadge({ role, size = 'md', showIcon = true }: RoleBadgeProps
 
 // Variante más simple
 export function SimpleRoleBadge({ role }: { role: UserRole }) {
+  const { t } = useTranslation();
   const config = ROLE_CONFIG[role];
 
   return (
@@ -97,13 +100,14 @@ export function SimpleRoleBadge({ role }: { role: UserRole }) {
       `}
     >
       <div className={`w-1.5 h-1.5 ${config.dotColor} rounded-full`} />
-      {config.label}
+      {t(config.labelKey)}
     </span>
   );
 }
 
 // Para usar en headers
 export function RoleHeader({ role, userName }: { role: UserRole; userName?: string }) {
+  const { t } = useTranslation();
   const config = ROLE_CONFIG[role];
   const Icon = config.icon;
 
@@ -116,10 +120,10 @@ export function RoleHeader({ role, userName }: { role: UserRole; userName?: stri
         {userName && (
           <p className="text-white font-semibold">{userName}</p>
         )}
-        <p className={`text-sm ${config.textColor}`}>{config.label}</p>
+        <p className={`text-sm ${config.textColor}`}>{t(config.labelKey)}</p>
       </div>
       <div className={`px-3 py-1 rounded-full ${config.bgColor} ${config.borderColor} border`}>
-        <span className={`text-xs font-medium ${config.textColor}`}>Activo</span>
+        <span className={`text-xs font-medium ${config.textColor}`}>{t('common.active')}</span>
       </div>
     </div>
   );

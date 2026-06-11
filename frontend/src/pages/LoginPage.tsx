@@ -122,7 +122,7 @@ export default function LoginPage() {
            <span className="text-xl font-bold tracking-tight text-white">Auditor</span>
            <span className="text-xl font-bold tracking-tight text-brand-500">IA</span>
          </div>
-         <p className="text-sm font-medium text-slate-400">Auditor IA · Sistema de evaluación</p>
+         <p className="text-sm font-medium text-slate-400">{t('auth.appSubtitle')}</p>
        </div>
 
        {/* Card de login */}
