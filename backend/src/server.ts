@@ -1274,7 +1274,7 @@ app.delete('/api/admin/blocks/:id', authenticateUser, requireAdminOrAnalyst, asy
 
 app.post('/api/admin/criteria', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
-    const { block_id, topic, criticality, points, applies, what_to_look_for, validation_source, criteria_order } = req.body;
+    const { block_id, topic, criticality, points, applies, what_to_look_for, validation_source, criteria_order, requires_manual_review } = req.body;
     if (!block_id || !topic) {
       return res.status(400).json({ error: 'block_id y topic son requeridos' });
     }
@@ -1286,7 +1286,8 @@ app.post('/api/admin/criteria', authenticateUser, requireAdminOrAnalyst, async (
       applies: applies !== false,
       what_to_look_for,
       validation_source: Array.isArray(validation_source) ? validation_source : [],
-      criteria_order: criteria_order ?? 0
+      criteria_order: criteria_order ?? 0,
+      requires_manual_review: requires_manual_review === true
     });
     res.status(201).json(criteria);
   } catch (error: any) {
@@ -1724,6 +1725,33 @@ app.delete('/api/admin/call-types-config/:id', authenticateUser, requireAdminOrA
   } catch (error: any) {
     logger.error('Error deleting call_type_config:', error);
     res.status(500).json({ error: 'Error al eliminar tipo de llamada' });
+  }
+});
+
+// Sincroniza calificaciones y subcalificaciones con lo que entrega GPF:
+// registra las nuevas, desactiva las que GPF ya no entrega y alinea la plantilla.
+app.post('/api/admin/call-types-config/sync-gpf', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+  const env = (req.body?.env as string) || 'prod';
+  try {
+    const token = await gpfTokenService.getTokenWithRetry(env);
+    const attentions = await gpfDataService.getAttentions(env, token);
+    const entries = attentions
+      .map((a: any) => ({
+        calificacion: (a['Calificación'] || '').trim(),
+        subcalificacion: (a['Sub-calificación'] || '').trim()
+      }))
+      .filter((e: any) => e.calificacion);
+
+    if (entries.length === 0) {
+      return res.status(422).json({ error: 'GPF no devolvió atenciones con calificación — no se modificó nada' });
+    }
+
+    const summary = await databaseService.reconcileCallTypesWithGpf(entries, req.user!.company_id ?? undefined);
+    res.json(summary);
+  } catch (error: any) {
+    logger.error('Error sincronizando call types con GPF:', error);
+    if (error.message?.includes('401')) gpfTokenService.invalidate(env);
+    res.status(502).json({ error: `Error sincronizando con GPF: ${error.message}` });
   }
 });
 

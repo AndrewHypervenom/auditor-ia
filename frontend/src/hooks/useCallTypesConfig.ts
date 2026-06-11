@@ -15,6 +15,12 @@ let cache: CallTypeConfig[] | null = null;
 let cacheTime = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+/** Invalida el caché compartido (ej. tras sincronizar tipos con GPF). */
+export function invalidateCallTypesConfigCache(): void {
+  cache = null;
+  cacheTime = 0;
+}
+
 export function useCallTypesConfig(): UseCallTypesConfigResult {
   const [callTypes, setCallTypes] = useState<CallTypeConfig[]>(cache ?? []);
   const [loading, setLoading] = useState(cache === null);

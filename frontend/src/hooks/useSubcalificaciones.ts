@@ -77,6 +77,16 @@ export function useSubcalificaciones(callType: string): string[] {
       .filter((i) => i.is_active !== false && (i.call_type || '').toUpperCase().trim() === upper)
       .map((i) => i.tipo_cierre.trim())
       .filter(Boolean);
-    return [...new Set([...fromPlantilla, ...getFallback(callType)])].sort();
+    // Dedup tolerante a mayúsculas/acentos (la plantilla tiene prioridad sobre el fallback)
+    const strip = (s: string) => s.toUpperCase().trim().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const tc of [...fromPlantilla, ...getFallback(callType)]) {
+      const key = strip(tc);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push(tc);
+    }
+    return result.sort();
   }, [items, callType]);
 }

@@ -899,6 +899,18 @@ export const callTypesConfigService = {
   async remove(id: string): Promise<void> {
     await api.delete(`/admin/call-types-config/${id}`);
   },
+  // Alinea calificaciones/subcalificaciones con lo que entrega GPF
+  async syncFromGpf(env: 'prod' | 'test' = 'prod'): Promise<{
+    totalCategories: number;
+    registeredTypes: string[];
+    deactivatedTypes: string[];
+    reactivatedTypes: string[];
+    deactivatedSubs: number;
+    reactivatedSubs: number;
+  }> {
+    const response = await api.post('/admin/call-types-config/sync-gpf', { env });
+    return response.data;
+  },
 };
 
 // ── Cola Nocturna / Batch Processing ─────────────────────────────────────────

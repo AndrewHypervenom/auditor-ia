@@ -742,8 +742,10 @@ class DatabaseService {
   private normalizeCallTypeForDB(callType: string): string {
     const upper = callType.toUpperCase().trim();
     // MONITOREO es un modo (INBOUND/OUTBOUND), no una categoría de llamada
-    if (upper.includes('TH CONFIRMA') || upper.includes('TH_CONFIRMA')) return 'TH CONFIRMA';
-    if (upper.includes('FRAUDE') || upper.includes('ROEXT')) return 'FRAUDE';
+    // Nombres canónicos = los que entrega GPF (cubren también los nombres
+    // internos históricos 'TH CONFIRMA' y 'FRAUDE' guardados en auditorías viejas)
+    if (upper.includes('TH CONFIRMA') || upper.includes('TH_CONFIRMA')) return 'TH CONFIRMA MOVIMIENTOS';
+    if (upper.includes('FRAUDE') || upper.includes('ROEXT')) return 'FRAUDE/ROEXT';
     return callType;
   }
 
@@ -756,7 +758,7 @@ class DatabaseService {
    */
   async resolveCallTypeFromText(text: string): Promise<string | null> {
     const normalized = this.normalizeCallTypeForDB(text);
-    if (normalized === 'FRAUDE' || normalized === 'TH CONFIRMA') return normalized;
+    if (normalized === 'FRAUDE/ROEXT' || normalized === 'TH CONFIRMA MOVIMIENTOS') return normalized;
 
     // Comparación flexible: mayúsculas, sin acentos, coincidencia por inclusión
     const strip = (s: string) => s.toUpperCase().trim()
@@ -795,15 +797,35 @@ class DatabaseService {
     }
     if (!blocks || blocks.length === 0) {
       // Info de base compartida: si el call_type aún no tiene criterios propios,
-      // usar los criterios base de FRAUDE para que la evaluación siempre funcione.
-      if (normalized !== 'FRAUDE') {
-        logger.warn(`getCriteriaForCallType: sin bloques para "${normalized}" — usando criterios base compartidos (FRAUDE)`, { original: callType });
-        return this.getCriteriaForCallType('FRAUDE', subCalificacion, companyId);
+      // usar los criterios base de FRAUDE/ROEXT para que la evaluación siempre funcione.
+      if (normalized !== 'FRAUDE/ROEXT') {
+        logger.warn(`getCriteriaForCallType: sin bloques para "${normalized}" — usando criterios base compartidos (FRAUDE/ROEXT)`, { original: callType });
+        return this.getCriteriaForCallType('FRAUDE/ROEXT', subCalificacion, companyId);
       }
       throw new Error(`No hay bloques activos en la BD para call_type: "${normalized}" (original: "${callType}")`);
     }
 
-    const blockIds = blocks.map((b: any) => b.id);
+    // Filtrar secciones por subcalificación: si un bloque define
+    // applicable_tipo_cierres (no vacío), solo aplica cuando la subcalificación
+    // de la auditoría está en esa lista. Lista vacía/null = aplica a todas.
+    const stripText = (s: string) => String(s ?? '').toUpperCase().trim()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '');
+    let applicableBlocks = blocks;
+    if (subCalificacion) {
+      const target = stripText(subCalificacion);
+      applicableBlocks = blocks.filter((b: any) => {
+        const list: string[] = Array.isArray(b.applicable_tipo_cierres)
+          ? b.applicable_tipo_cierres.filter(Boolean) : [];
+        if (list.length === 0) return true;
+        return list.some((tc: string) => stripText(tc) === target);
+      });
+      if (applicableBlocks.length === 0) {
+        logger.warn(`getCriteriaForCallType: ningún bloque aplica a la subcalificación "${subCalificacion}" — se usan todos los bloques de "${normalized}"`);
+        applicableBlocks = blocks;
+      }
+    }
+
+    const blockIds = applicableBlocks.map((b: any) => b.id);
 
     const { data: criteria, error: criteriaError } = await supabaseAdmin
       .from('evaluation_criteria')
@@ -826,7 +848,7 @@ class DatabaseService {
     }
 
     const result: any[] = [];
-    for (const block of blocks) {
+    for (const block of applicableBlocks) {
       if (seenBlockNames.has(block.block_name)) {
         logger.warn(`getCriteriaForCallType: bloque duplicado ignorado → "${block.block_name}" (id: ${block.id})`);
         continue;
@@ -949,6 +971,7 @@ class DatabaseService {
     what_to_look_for?: string;
     validation_source?: string[];
     criteria_order: number;
+    requires_manual_review?: boolean;
   }): Promise<any> {
     const { data, error } = await supabaseAdmin
       .from('evaluation_criteria')
@@ -1509,9 +1532,11 @@ class DatabaseService {
 
     for (const block of (blocks || [])) {
       const { id: oldBlockId, created_at, updated_at, ...blockFields } = block;
+      // Las subcalificaciones del tipo destino son distintas: el clon arranca
+      // aplicando a todas (lista vacía) para no heredar restricciones ajenas.
       const { data: newBlock, error: insertBlockError } = await supabaseAdmin
         .from('evaluation_blocks')
-        .insert({ ...blockFields, call_type: toCallType })
+        .insert({ ...blockFields, call_type: toCallType, applicable_tipo_cierres: [] })
         .select('id')
         .single();
       if (insertBlockError) throw insertBlockError;
@@ -1612,7 +1637,7 @@ class DatabaseService {
 
         // Clonar criterios y scripts base (info compartida) para que sea editable
         try {
-          await this.cloneCallTypeData('FRAUDE', callTypeName);
+          await this.cloneCallTypeData('FRAUDE/ROEXT', callTypeName);
         } catch (err: any) {
           logger.warn(`syncCallTypesFromGpf: error clonando base para "${callTypeName}": ${err.message}`);
         }
@@ -1663,6 +1688,110 @@ class DatabaseService {
         logger.warn(`syncCallTypesFromGpf: error sincronizando plantilla de "${callTypeName}": ${err.message}`);
       }
     }
+  }
+
+  /**
+   * Reconciliación completa con GPF: deja la configuración del sistema con los
+   * MISMOS nombres de calificaciones y subcalificaciones que entrega GPF.
+   * 1. Registra calificaciones/subcalificaciones nuevas (syncCallTypesFromGpf).
+   * 2. Desactiva los call types activos que GPF ya no entrega (ej. duplicados
+   *    provenientes del ambiente de pruebas con nombres distintos).
+   * 3. En la plantilla GPF: reactiva los tipos de cierre que GPF entrega y
+   *    desactiva los que ya no existen, por cada calificación entregada.
+   * Todo es reversible (solo cambia is_active, no borra nada).
+   */
+  async reconcileCallTypesWithGpf(
+    entries: Array<{ calificacion: string; subcalificacion: string }>,
+    companyId?: string | null
+  ): Promise<{
+    totalCategories: number;
+    registeredTypes: string[];
+    deactivatedTypes: string[];
+    reactivatedTypes: string[];
+    deactivatedSubs: number;
+    reactivatedSubs: number;
+  }> {
+    const strip = (s: string) => String(s ?? '').toUpperCase().trim()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+    const typesBefore = await this.getCallTypesConfig();
+    const namesBefore = new Set(typesBefore.map((t: any) => strip(t.name)));
+
+    // 1. Registrar lo nuevo (calificaciones + subcalificaciones en plantilla)
+    await this.syncCallTypesFromGpf(entries, companyId);
+
+    // Agrupar subcalificaciones por calificación entregada por GPF
+    const byCal = new Map<string, Set<string>>();
+    for (const e of entries) {
+      const cal = (e.calificacion || '').trim();
+      if (!cal) continue;
+      if (!byCal.has(cal)) byCal.set(cal, new Set());
+      const sub = (e.subcalificacion || '').trim();
+      if (sub) byCal.get(cal)!.add(sub);
+    }
+
+    // 2. Resolver el call_type de cada calificación GPF → set de tipos "en uso"
+    this.invalidateCallTypesCache();
+    const usedTypeNames = new Set<string>();
+    for (const cal of byCal.keys()) {
+      const resolved = await this.resolveCallTypeFromText(cal);
+      usedTypeNames.add(strip(resolved ?? cal));
+    }
+
+    const typesAfter = await this.getCallTypesConfig();
+    const registeredTypes = typesAfter
+      .filter((t: any) => !namesBefore.has(strip(t.name)))
+      .map((t: any) => t.name);
+
+    const deactivatedTypes: string[] = [];
+    const reactivatedTypes: string[] = [];
+    for (const t of typesAfter) {
+      const inUse = usedTypeNames.has(strip(t.name));
+      if (t.is_active !== false && !inUse) {
+        await this.updateCallTypeConfig(t.id, { is_active: false });
+        deactivatedTypes.push(t.name);
+      } else if (t.is_active === false && inUse) {
+        await this.updateCallTypeConfig(t.id, { is_active: true });
+        reactivatedTypes.push(t.name);
+      }
+    }
+
+    // 3. Plantilla: alinear tipos de cierre con los entregados por GPF,
+    //    solo para las calificaciones que GPF entregó en esta corrida.
+    let deactivatedSubs = 0;
+    let reactivatedSubs = 0;
+    for (const [cal, subs] of byCal) {
+      const callTypeName = (await this.resolveCallTypeFromText(cal)) ?? cal.toUpperCase();
+      const gpfSubs = new Set([...subs].map(strip));
+      const { data: rows } = await supabaseAdmin
+        .from('plantilla_gpf')
+        .select('id, tipo_cierre, is_active')
+        .eq('call_type', callTypeName);
+      for (const row of (rows || [])) {
+        const delivered = gpfSubs.has(strip(row.tipo_cierre));
+        if (row.is_active !== false && !delivered) {
+          await supabaseAdmin.from('plantilla_gpf').update({ is_active: false }).eq('id', row.id);
+          deactivatedSubs++;
+        } else if (row.is_active === false && delivered) {
+          await supabaseAdmin.from('plantilla_gpf').update({ is_active: true }).eq('id', row.id);
+          reactivatedSubs++;
+        }
+      }
+    }
+
+    this.invalidateCallTypesCache();
+    this.invalidateCriteriaCache();
+
+    const summary = {
+      totalCategories: byCal.size,
+      registeredTypes,
+      deactivatedTypes,
+      reactivatedTypes,
+      deactivatedSubs,
+      reactivatedSubs,
+    };
+    logger.success('reconcileCallTypesWithGpf: configuración alineada con GPF', summary);
+    return summary;
   }
 
   /**
@@ -1931,6 +2060,7 @@ export const databaseService = {
   deleteCallTypeConfig: (id: string) => getDatabaseService().deleteCallTypeConfig(id),
   cloneCallTypeData: (fromCallType: string, toCallType: string) => getDatabaseService().cloneCallTypeData(fromCallType, toCallType),
   syncCallTypesFromGpf: (entries: Array<{ calificacion: string; subcalificacion: string }>, companyId?: string | null) => getDatabaseService().syncCallTypesFromGpf(entries, companyId),
+  reconcileCallTypesWithGpf: (entries: Array<{ calificacion: string; subcalificacion: string }>, companyId?: string | null) => getDatabaseService().reconcileCallTypesWithGpf(entries, companyId),
   // Scripts dinámicos
   getScriptsForCallType: (callType: string, companyId?: string) => getDatabaseService().getScriptsForCallType(callType, companyId),
   getAllScripts: (companyId?: string) => getDatabaseService().getAllScripts(companyId),

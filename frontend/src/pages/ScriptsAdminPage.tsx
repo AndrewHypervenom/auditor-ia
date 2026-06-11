@@ -37,6 +37,8 @@ import {
   Eye,
   RefreshCw,
   ImageIcon,
+  Filter,
+  Layers,
 } from 'lucide-react';
 import {
   scriptsService,
@@ -65,7 +67,7 @@ import {
 import PlantillaGPFTab from '../components/PlantillaGPFTab';
 import ModeSelector, { type AdminMode } from '../components/ModeSelector';
 import CallTypeSelectorShared from '../components/CallTypeSelector';
-import { useCallTypesConfig } from '../hooks/useCallTypesConfig';
+import { useCallTypesConfig, invalidateCallTypesConfigCache } from '../hooks/useCallTypesConfig';
 import { useSubcalificaciones } from '../hooks/useSubcalificaciones';
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -655,7 +657,33 @@ function CriteriaTab() {
   const [mode, setMode] = useState<AdminMode>('INBOUND');
   const [selectedCallType, setSelectedCallType] = useState<string>('');
   const [showAiGenerator, setShowAiGenerator] = useState(false);
+  const [showBaseImporter, setShowBaseImporter] = useState(false);
+  const [syncingGpf, setSyncingGpf] = useState(false);
   const { callTypeNames: availableCallTypes } = useCallTypesConfig();
+
+  const handleSyncGpf = async () => {
+    if (!confirm(t('scriptsAdmin.syncGpfConfirm'))) return;
+    setSyncingGpf(true);
+    try {
+      const s = await callTypesConfigService.syncFromGpf('prod');
+      const parts: string[] = [];
+      if (s.registeredTypes.length > 0) parts.push(t('scriptsAdmin.syncGpfNew', { list: s.registeredTypes.join(', ') }));
+      if (s.deactivatedTypes.length > 0) parts.push(t('scriptsAdmin.syncGpfDeactivated', { list: s.deactivatedTypes.join(', ') }));
+      if (s.reactivatedTypes.length > 0) parts.push(t('scriptsAdmin.syncGpfReactivated', { list: s.reactivatedTypes.join(', ') }));
+      if (s.deactivatedSubs > 0 || s.reactivatedSubs > 0) parts.push(t('scriptsAdmin.syncGpfSubs', { off: s.deactivatedSubs, on: s.reactivatedSubs }));
+      toast.success(
+        t('scriptsAdmin.syncGpfDone', { count: s.totalCategories }) + (parts.length > 0 ? `\n${parts.join('\n')}` : ''),
+        { duration: 8000 }
+      );
+      invalidateCallTypesConfigCache();
+      setSelectedCallType('');
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || t('scriptsAdmin.syncGpfError'));
+    } finally {
+      setSyncingGpf(false);
+    }
+  };
 
   // Setear el primer callType disponible cuando cargue desde BD
   useEffect(() => {
@@ -741,6 +769,27 @@ function CriteriaTab() {
             <Wand2 size={12} />
             {t('scriptsAdmin.generateWithAi')}
           </button>
+          <button
+            onClick={() => setShowBaseImporter(true)}
+            disabled={!selectedCallType}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold
+                       bg-teal-500/15 border border-teal-500/30 text-teal-300
+                       hover:bg-teal-500/25 disabled:opacity-40 transition-all duration-150"
+          >
+            <Layers size={12} />
+            {t('scriptsAdmin.addFromBase')}
+          </button>
+          <button
+            onClick={handleSyncGpf}
+            disabled={syncingGpf}
+            title={t('scriptsAdmin.syncGpfHint')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold
+                       bg-blue-500/15 border border-blue-500/30 text-blue-300
+                       hover:bg-blue-500/25 disabled:opacity-40 transition-all duration-150"
+          >
+            {syncingGpf ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+            {t('scriptsAdmin.syncGpf')}
+          </button>
         </div>
       </div>
 
@@ -750,6 +799,18 @@ function CriteriaTab() {
           mode={mode}
           onClose={() => setShowAiGenerator(false)}
           onImported={() => { load(); setShowAiGenerator(false); }}
+        />
+      )}
+
+      {showBaseImporter && selectedCallType && (
+        <ImportBaseBlockDrawer
+          allBlocks={blocks}
+          targetCallType={selectedCallType}
+          mode={mode}
+          nextOrder={currentBlocks.length > 0 ? Math.max(...currentBlocks.map((b) => b.block_order)) + 1 : 1}
+          existingNames={currentBlocks.map((b) => b.block_name)}
+          onClose={() => setShowBaseImporter(false)}
+          onImported={() => { load(); }}
         />
       )}
 
@@ -769,6 +830,153 @@ function CriteriaTab() {
         <AddButton onClick={handleAddBlock} label={t('scriptsAdmin.addBlock')} />
       </div>
     </div>
+  );
+}
+
+// ─── Drawer: agregar sección desde la base ───────────────────
+// Lista los bloques (rubros) existentes en la BD de otras calificaciones
+// y permite clonarlos —con sus criterios— a la calificación seleccionada.
+
+interface ImportBaseBlockDrawerProps {
+  allBlocks: CriteriaBlock[];
+  targetCallType: string;
+  mode: AdminMode;
+  nextOrder: number;
+  existingNames: string[];
+  onClose: () => void;
+  onImported: () => void;
+}
+
+function ImportBaseBlockDrawer({ allBlocks, targetCallType, mode, nextOrder, existingNames, onClose, onImported }: ImportBaseBlockDrawerProps) {
+  const { t } = useTranslation();
+  const [search, setSearch] = useState('');
+  const [importingId, setImportingId] = useState<string | null>(null);
+
+  // Catálogo: bloques de otras calificaciones (o del otro modo)
+  const candidates = allBlocks.filter((b) => !(b.call_type === targetCallType && b.mode === mode));
+  const q = search.toLowerCase().trim();
+  const filtered = !q ? candidates : candidates.filter(
+    (b) => b.block_name.toLowerCase().includes(q) || b.call_type.toLowerCase().includes(q)
+  );
+  const grouped = filtered.reduce<Record<string, CriteriaBlock[]>>((acc, b) => {
+    const key = `${b.call_type} · ${b.mode}`;
+    (acc[key] = acc[key] || []).push(b);
+    return acc;
+  }, {});
+
+  const handleImport = async (source: CriteriaBlock) => {
+    setImportingId(source.id);
+    try {
+      const newBlock = await criteriaService.createBlock({
+        call_type: targetCallType,
+        mode,
+        block_name: source.block_name,
+        block_order: nextOrder,
+      });
+      const sourceCriteria = (source.criteria || []).slice().sort((a, b) => a.criteria_order - b.criteria_order);
+      for (let i = 0; i < sourceCriteria.length; i++) {
+        const c = sourceCriteria[i];
+        await criteriaService.createCriteria({
+          block_id: newBlock.id,
+          topic: c.topic,
+          criticality: c.criticality,
+          points: c.points,
+          applies: c.applies,
+          requires_manual_review: c.requires_manual_review,
+          what_to_look_for: c.what_to_look_for || '',
+          validation_source: c.validation_source || [],
+          criteria_order: i + 1,
+        });
+      }
+      toast.success(t('scriptsAdmin.sectionImported', { name: source.block_name }));
+      onImported();
+    } catch {
+      toast.error(t('scriptsAdmin.sectionImportError'));
+    } finally {
+      setImportingId(null);
+    }
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={onClose} />
+      <div className="fixed right-0 top-0 h-screen w-[480px] max-w-[calc(100vw-2rem)]
+                      bg-slate-950 border-l border-slate-800/60 z-50 flex flex-col
+                      overflow-hidden animate-slideFromRight shadow-2xl">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800/60">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-teal-500/15 border border-teal-500/20 flex items-center justify-center">
+              <Layers size={15} className="text-teal-400" />
+            </div>
+            <div>
+              <h2 className="text-white font-semibold text-sm">{t('scriptsAdmin.addFromBaseTitle')}</h2>
+              <p className="text-[11px] text-slate-500">{targetCallType} · {mode}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-slate-800/60 transition-all">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Buscador */}
+        <div className="px-6 pt-4 pb-2">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('scriptsAdmin.searchSectionPlaceholder')}
+            className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3.5 py-2
+                       text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-teal-700/60"
+          />
+          <p className="text-[11px] text-slate-500 mt-2">{t('scriptsAdmin.addFromBaseHint')}</p>
+        </div>
+
+        {/* Lista */}
+        <div className="flex-1 overflow-y-auto px-6 py-3 space-y-4">
+          {Object.entries(grouped).map(([group, groupBlocks]) => (
+            <div key={group}>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mb-1.5">{group}</p>
+              <div className="space-y-1.5">
+                {groupBlocks.map((b) => {
+                  const count = (b.criteria || []).length;
+                  const pts = (b.criteria || []).filter((c) => c.applies && c.points !== null).reduce((s, c) => s + (c.points ?? 0), 0);
+                  const alreadyExists = existingNames.includes(b.block_name);
+                  return (
+                    <div
+                      key={b.id}
+                      className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-slate-900/60
+                                 border border-slate-800/50 hover:border-slate-700/60 transition-all duration-150"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-slate-200 font-medium truncate">{b.block_name}</p>
+                        <p className="text-[11px] text-slate-500">
+                          {t('resultsView.criteriaCount', { count })} · {pts} pts
+                          {alreadyExists && <span className="text-amber-400/80"> · {t('scriptsAdmin.sectionAlreadyExists')}</span>}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleImport(b)}
+                        disabled={importingId !== null}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold flex-shrink-0
+                                   bg-teal-500/15 border border-teal-500/30 text-teal-300
+                                   hover:bg-teal-500/25 disabled:opacity-40 transition-all duration-150"
+                      >
+                        {importingId === b.id ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+                        {t('scriptsAdmin.importSection')}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <p className="text-sm text-slate-500 text-center py-8">{t('scriptsAdmin.noSectionsFound')}</p>
+          )}
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -815,6 +1023,33 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
   const blockPoints = criteria.filter((c) => c.applies && c.points !== null).reduce((s, c) => s + (c.points ?? 0), 0);
   const criticalCount = criteria.filter((c) => c.criticality === 'Crítico' && c.applies).length;
   const appliedCount = criteria.filter((c) => c.applies).length;
+
+  // Subcalificaciones donde aplica esta sección (lista vacía = todas)
+  const sectionTipoCierres = (block.applicable_tipo_cierres || []).filter(Boolean);
+  const sectionAppliesIn = (tc: string) => sectionTipoCierres.length === 0 || sectionTipoCierres.includes(tc);
+
+  const handleToggleSectionForTipoCierre = async () => {
+    if (!selectedTipoCierre) return;
+    let next: string[];
+    if (sectionAppliesIn(selectedTipoCierre)) {
+      const current = sectionTipoCierres.length === 0 ? availableTipoCierres : sectionTipoCierres;
+      next = current.filter(tc => tc !== selectedTipoCierre);
+      if (next.length === 0) {
+        toast.error(t('scriptsAdmin.sectionMustApplySomewhere'));
+        return;
+      }
+    } else {
+      next = [...sectionTipoCierres, selectedTipoCierre];
+      if (availableTipoCierres.every(tc => next.includes(tc))) next = [];
+    }
+    try {
+      await criteriaService.updateBlock(block.id, { applicable_tipo_cierres: next });
+      toast.success(t('scriptsAdmin.sectionScopeUpdated'));
+      onUpdate();
+    } catch {
+      toast.error(t('scriptsAdmin.blockUpdateError'));
+    }
+  };
 
   const handleSaveBlock = async () => {
     setEditingName(false);
@@ -922,6 +1157,16 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
               {t('resultsView.criticalCount', { count: criticalCount })}
             </span>
           )}
+          {sectionTipoCierres.length > 0 && (
+            <span
+              title={t('scriptsAdmin.sectionRestrictedTo', { list: sectionTipoCierres.join(', ') })}
+              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full
+                         bg-amber-500/10 border border-amber-500/15 text-amber-300 text-xs font-medium tabular-nums"
+            >
+              <Filter size={10} />
+              {sectionTipoCierres.length}/{availableTipoCierres.length || sectionTipoCierres.length}
+            </span>
+          )}
           <span className="text-slate-500 text-xs tabular-nums">{t('resultsView.criteriaCount', { count: appliedCount })}</span>
         </div>
 
@@ -976,18 +1221,19 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
               {availableTipoCierres.map(tc => {
                 const isSelected = selectedTipoCierre === tc;
                 const hasOverride = criteria.some(c => c.tipo_cierre_overrides?.[tc]);
+                const sectionOff = !sectionAppliesIn(tc);
                 return (
                   <button
                     key={tc}
                     onClick={() => setSelectedTipoCierre(isSelected ? null : tc)}
-                    title={hasOverride ? t('scriptsAdmin.hasCustomConfig') : t('scriptsAdmin.noCustomConfig')}
+                    title={sectionOff ? t('scriptsAdmin.sectionNotEvaluatedHere') : hasOverride ? t('scriptsAdmin.hasCustomConfig') : t('scriptsAdmin.noCustomConfig')}
                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-all duration-150 ${
                       isSelected
                         ? 'bg-teal-500/15 border-teal-500/30 text-teal-300'
                         : 'bg-slate-800/40 border-slate-700/40 text-slate-500 hover:text-slate-300 hover:border-slate-600'
-                    }`}
+                    } ${sectionOff && !isSelected ? 'opacity-50' : ''}`}
                   >
-                    {tc}
+                    <span className={sectionOff ? 'line-through' : ''}>{tc}</span>
                     {hasOverride && (
                       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isSelected ? 'bg-teal-400' : 'bg-teal-600'}`} />
                     )}
@@ -996,9 +1242,32 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
               })}
             </div>
             {selectedTipoCierre && (
-              <p className="text-[11px] text-teal-400/80 mt-2">
-                {t('scriptsAdmin.specificConfigFor')} <strong className="text-teal-400">{selectedTipoCierre}</strong>
-              </p>
+              <div className="flex items-center justify-between gap-3 mt-2 flex-wrap">
+                <p className="text-[11px] text-teal-400/80">
+                  {t('scriptsAdmin.specificConfigFor')} <strong className="text-teal-400">{selectedTipoCierre}</strong>
+                </p>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className={`text-[11px] ${sectionAppliesIn(selectedTipoCierre) ? 'text-slate-400' : 'text-amber-400/90'}`}>
+                    {sectionAppliesIn(selectedTipoCierre)
+                      ? t('scriptsAdmin.sectionEvaluatedHere')
+                      : t('scriptsAdmin.sectionNotEvaluatedHere')}
+                  </span>
+                  <button
+                    onClick={handleToggleSectionForTipoCierre}
+                    title={t('scriptsAdmin.sectionToggleHint', { name: selectedTipoCierre })}
+                    className="toggle-track"
+                    style={{ backgroundColor: sectionAppliesIn(selectedTipoCierre) ? 'rgba(20,184,166,0.5)' : '' }}
+                  >
+                    <span
+                      className="toggle-thumb"
+                      style={{
+                        transform: sectionAppliesIn(selectedTipoCierre) ? 'translateX(16px)' : 'translateX(2px)',
+                        backgroundColor: sectionAppliesIn(selectedTipoCierre) ? '#fff' : '#64748b',
+                      }}
+                    />
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         )}
