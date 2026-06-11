@@ -1611,11 +1611,35 @@ class DatabaseService {
       ?? existingTypes.find((t: any) => t.company_id)?.company_id
       ?? null;
 
+    const stripName = (s: string) => String(s ?? '').toUpperCase().trim()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '');
+
     for (const [calificacion, subcals] of byCal) {
       // ¿Ya se resuelve a un tipo configurado por texto? (No usar la plantilla aquí:
       // la plantilla histórica mapea todas las categorías a FRAUDE/TH CONFIRMA y
       // eso impediría registrar las calificaciones nuevas como tipos propios.)
-      const resolved = await this.resolveCallTypeFromText(calificacion);
+      let resolved = await this.resolveCallTypeFromText(calificacion);
+
+      // Si no resuelve contra los tipos ACTIVOS, buscar también entre los
+      // inactivos (tolerante a acentos/mayúsculas) y reactivar en lugar de
+      // crear un duplicado (ej. "ACLARACION SIMPLE" vs "ACLARACIÓN SIMPLE").
+      if (!resolved) {
+        const target = stripName(calificacion);
+        const existing = existingTypes.find((t: any) =>
+          stripName(t.name) === target || stripName(this.normalizeCallTypeForDB(t.name)) === target);
+        if (existing) {
+          if (existing.is_active === false) {
+            try {
+              await this.updateCallTypeConfig(existing.id, { is_active: true });
+              logger.info(`syncCallTypesFromGpf: tipo inactivo reactivado → "${existing.name}"`);
+            } catch (err: any) {
+              logger.warn(`syncCallTypesFromGpf: no se pudo reactivar "${existing.name}": ${err.message}`);
+            }
+          }
+          resolved = existing.name;
+        }
+      }
+
       const callTypeName = resolved ?? calificacion.toUpperCase();
 
       if (!resolved) {
@@ -1746,7 +1770,10 @@ class DatabaseService {
     const deactivatedTypes: string[] = [];
     const reactivatedTypes: string[] = [];
     for (const t of typesAfter) {
-      const inUse = usedTypeNames.has(strip(t.name));
+      // Comparar también el nombre normalizado: cubre nombres internos
+      // históricos (ej. 'FRAUDE' → 'FRAUDE/ROEXT') aún sin migrar.
+      const inUse = usedTypeNames.has(strip(t.name))
+        || usedTypeNames.has(strip(this.normalizeCallTypeForDB(t.name)));
       if (t.is_active !== false && !inUse) {
         await this.updateCallTypeConfig(t.id, { is_active: false });
         deactivatedTypes.push(t.name);

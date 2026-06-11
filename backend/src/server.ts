@@ -1734,7 +1734,11 @@ app.post('/api/admin/call-types-config/sync-gpf', authenticateUser, requireAdmin
   const env = (req.body?.env as string) || 'prod';
   try {
     const token = await gpfTokenService.getTokenWithRetry(env);
-    const attentions = await gpfDataService.getAttentions(env, token);
+    // Ventana amplia (90 días): sin fechas la API de GPF devuelve solo las
+    // atenciones recientes y se desactivarían calificaciones válidas.
+    const dateTo = new Date().toISOString().slice(0, 10);
+    const dateFrom = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    const attentions = await gpfDataService.getAttentions(env, token, dateFrom, dateTo);
     const entries = attentions
       .map((a: any) => ({
         calificacion: (a['Calificación'] || '').trim(),
