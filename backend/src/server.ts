@@ -1734,11 +1734,34 @@ app.post('/api/admin/call-types-config/sync-gpf', authenticateUser, requireAdmin
   const env = (req.body?.env as string) || 'prod';
   try {
     const token = await gpfTokenService.getTokenWithRetry(env);
+
     // Ventana amplia (90 días): sin fechas la API de GPF devuelve solo las
     // atenciones recientes y se desactivarían calificaciones válidas.
+    // Si GPF no soporta el rango (timeout/5xx), intentar ventanas más cortas.
     const dateTo = new Date().toISOString().slice(0, 10);
-    const dateFrom = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString().slice(0, 10);
-    const attentions = await gpfDataService.getAttentions(env, token, dateFrom, dateTo);
+    const windows = [90, 45, 21, 10, null];
+    let attentions: any[] | null = null;
+    let windowDays: number | null = null;
+    let lastError: any = null;
+
+    for (const days of windows) {
+      try {
+        const dateFrom = days !== null
+          ? new Date(Date.now() - days * 24 * 3600 * 1000).toISOString().slice(0, 10)
+          : undefined;
+        attentions = await gpfDataService.getAttentions(env, token, dateFrom, days !== null ? dateTo : undefined);
+        windowDays = days;
+        break;
+      } catch (err: any) {
+        lastError = err;
+        logger.warn(`sync-gpf: fallo con ventana de ${days ?? 'sin fechas'} días, intentando una más corta`, { error: err.message });
+      }
+    }
+
+    if (!attentions) {
+      throw lastError ?? new Error('GPF no respondió');
+    }
+
     const entries = attentions
       .map((a: any) => ({
         calificacion: (a['Calificación'] || '').trim(),
@@ -1750,8 +1773,15 @@ app.post('/api/admin/call-types-config/sync-gpf', authenticateUser, requireAdmin
       return res.status(422).json({ error: 'GPF no devolvió atenciones con calificación — no se modificó nada' });
     }
 
-    const summary = await databaseService.reconcileCallTypesWithGpf(entries, req.user!.company_id ?? undefined);
-    res.json(summary);
+    // Solo desactivar lo que GPF "ya no entrega" cuando la muestra es amplia;
+    // con una ventana corta solo se registra/reactiva (evita falsos negativos).
+    const allowDeactivation = windowDays !== null && windowDays >= 45;
+    const summary = await databaseService.reconcileCallTypesWithGpf(
+      entries,
+      req.user!.company_id ?? undefined,
+      { allowDeactivation }
+    );
+    res.json({ ...summary, windowDays, deactivationSkipped: !allowDeactivation });
   } catch (error: any) {
     logger.error('Error sincronizando call types con GPF:', error);
     if (error.message?.includes('401')) gpfTokenService.invalidate(env);

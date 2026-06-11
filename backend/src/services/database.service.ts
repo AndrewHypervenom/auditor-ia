@@ -1726,7 +1726,8 @@ class DatabaseService {
    */
   async reconcileCallTypesWithGpf(
     entries: Array<{ calificacion: string; subcalificacion: string }>,
-    companyId?: string | null
+    companyId?: string | null,
+    options?: { allowDeactivation?: boolean }
   ): Promise<{
     totalCategories: number;
     registeredTypes: string[];
@@ -1767,6 +1768,7 @@ class DatabaseService {
       .filter((t: any) => !namesBefore.has(strip(t.name)))
       .map((t: any) => t.name);
 
+    const allowDeactivation = options?.allowDeactivation !== false;
     const deactivatedTypes: string[] = [];
     const reactivatedTypes: string[] = [];
     for (const t of typesAfter) {
@@ -1774,7 +1776,7 @@ class DatabaseService {
       // históricos (ej. 'FRAUDE' → 'FRAUDE/ROEXT') aún sin migrar.
       const inUse = usedTypeNames.has(strip(t.name))
         || usedTypeNames.has(strip(this.normalizeCallTypeForDB(t.name)));
-      if (t.is_active !== false && !inUse) {
+      if (t.is_active !== false && !inUse && allowDeactivation) {
         await this.updateCallTypeConfig(t.id, { is_active: false });
         deactivatedTypes.push(t.name);
       } else if (t.is_active === false && inUse) {
@@ -1796,7 +1798,7 @@ class DatabaseService {
         .eq('call_type', callTypeName);
       for (const row of (rows || [])) {
         const delivered = gpfSubs.has(strip(row.tipo_cierre));
-        if (row.is_active !== false && !delivered) {
+        if (row.is_active !== false && !delivered && allowDeactivation) {
           await supabaseAdmin.from('plantilla_gpf').update({ is_active: false }).eq('id', row.id);
           deactivatedSubs++;
         } else if (row.is_active === false && delivered) {
@@ -2087,7 +2089,7 @@ export const databaseService = {
   deleteCallTypeConfig: (id: string) => getDatabaseService().deleteCallTypeConfig(id),
   cloneCallTypeData: (fromCallType: string, toCallType: string) => getDatabaseService().cloneCallTypeData(fromCallType, toCallType),
   syncCallTypesFromGpf: (entries: Array<{ calificacion: string; subcalificacion: string }>, companyId?: string | null) => getDatabaseService().syncCallTypesFromGpf(entries, companyId),
-  reconcileCallTypesWithGpf: (entries: Array<{ calificacion: string; subcalificacion: string }>, companyId?: string | null) => getDatabaseService().reconcileCallTypesWithGpf(entries, companyId),
+  reconcileCallTypesWithGpf: (entries: Array<{ calificacion: string; subcalificacion: string }>, companyId?: string | null, options?: { allowDeactivation?: boolean }) => getDatabaseService().reconcileCallTypesWithGpf(entries, companyId, options),
   // Scripts dinámicos
   getScriptsForCallType: (callType: string, companyId?: string) => getDatabaseService().getScriptsForCallType(callType, companyId),
   getAllScripts: (companyId?: string) => getDatabaseService().getAllScripts(companyId),

@@ -671,6 +671,7 @@ function CriteriaTab() {
       if (s.deactivatedTypes.length > 0) parts.push(t('scriptsAdmin.syncGpfDeactivated', { list: s.deactivatedTypes.join(', ') }));
       if (s.reactivatedTypes.length > 0) parts.push(t('scriptsAdmin.syncGpfReactivated', { list: s.reactivatedTypes.join(', ') }));
       if (s.deactivatedSubs > 0 || s.reactivatedSubs > 0) parts.push(t('scriptsAdmin.syncGpfSubs', { off: s.deactivatedSubs, on: s.reactivatedSubs }));
+      if (s.deactivationSkipped) parts.push(t('scriptsAdmin.syncGpfShortWindow', { days: s.windowDays ?? '-' }));
       toast.success(
         t('scriptsAdmin.syncGpfDone', { count: s.totalCategories }) + (parts.length > 0 ? `\n${parts.join('\n')}` : ''),
         { duration: 8000 }

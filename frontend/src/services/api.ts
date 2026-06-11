@@ -907,6 +907,8 @@ export const callTypesConfigService = {
     reactivatedTypes: string[];
     deactivatedSubs: number;
     reactivatedSubs: number;
+    windowDays: number | null;
+    deactivationSkipped: boolean;
   }> {
     const response = await api.post('/admin/call-types-config/sync-gpf', { env });
     return response.data;

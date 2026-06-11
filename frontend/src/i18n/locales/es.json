@@ -1095,6 +1095,7 @@
     "syncGpfDeactivated": "Desactivadas: {{list}}",
     "syncGpfReactivated": "Reactivadas: {{list}}",
     "syncGpfSubs": "Subcalificaciones: {{off}} desactivadas, {{on}} reactivadas",
+    "syncGpfShortWindow": "GPF solo respondió con una ventana corta ({{days}} días): se registraron/reactivaron calificaciones pero no se desactivó ninguna. Reintenta más tarde para la limpieza completa.",
     "syncGpfError": "Error al sincronizar con GPF",
     "addFromBase": "Agregar desde base",
     "addFromBaseTitle": "Agregar sección desde la base",
