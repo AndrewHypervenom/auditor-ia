@@ -1735,11 +1735,11 @@ app.post('/api/admin/call-types-config/sync-gpf', authenticateUser, requireAdmin
   try {
     const token = await gpfTokenService.getTokenWithRetry(env);
 
-    // Ventana amplia (90 días): sin fechas la API de GPF devuelve solo las
-    // atenciones recientes y se desactivarían calificaciones válidas.
-    // Si GPF no soporta el rango (timeout/5xx), intentar ventanas más cortas.
+    // Ventana de 29 días (GPF maneja alrededor de un mes): sin fechas la API
+    // devuelve solo las atenciones recientes y se desactivarían calificaciones
+    // válidas. Si GPF no soporta el rango (timeout/5xx), intentar ventanas más cortas.
     const dateTo = new Date().toISOString().slice(0, 10);
-    const windows = [90, 45, 21, 10, null];
+    const windows = [29, 14, 7, null];
     let attentions: any[] | null = null;
     let windowDays: number | null = null;
     let lastError: any = null;
@@ -1773,9 +1773,9 @@ app.post('/api/admin/call-types-config/sync-gpf', authenticateUser, requireAdmin
       return res.status(422).json({ error: 'GPF no devolvió atenciones con calificación — no se modificó nada' });
     }
 
-    // Solo desactivar lo que GPF "ya no entrega" cuando la muestra es amplia;
-    // con una ventana corta solo se registra/reactiva (evita falsos negativos).
-    const allowDeactivation = windowDays !== null && windowDays >= 45;
+    // Solo desactivar lo que GPF "ya no entrega" cuando se logró la ventana
+    // completa; con una ventana corta solo se registra/reactiva (evita falsos negativos).
+    const allowDeactivation = windowDays !== null && windowDays >= 29;
     const summary = await databaseService.reconcileCallTypesWithGpf(
       entries,
       req.user!.company_id ?? undefined,
