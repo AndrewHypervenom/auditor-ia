@@ -566,13 +566,17 @@ function ScriptsRefTab() {
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<AdminMode>('INBOUND');
   const [selectedCallType, setSelectedCallType] = useState<string>('');
+  const [selectedTipoCierre, setSelectedTipoCierre] = useState<string | null>(null);
   const { callTypeNames: availableCallTypes } = useCallTypesConfig();
+  const availableTipoCierres = useSubcalificaciones(selectedCallType);
 
   useEffect(() => {
     if (availableCallTypes.length > 0 && !selectedCallType) {
       setSelectedCallType(availableCallTypes[0]);
     }
   }, [availableCallTypes, selectedCallType]);
+
+  useEffect(() => { setSelectedTipoCierre(null); }, [selectedCallType, mode]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -602,9 +606,34 @@ function ScriptsRefTab() {
         <CallTypeSelectorShared selected={selectedCallType} onChange={setSelectedCallType} />
       </div>
 
+      {/* Selector de subcalificación — guion base o específico */}
+      {availableTipoCierres.length > 0 && (
+        <div className="mb-4 flex items-center gap-3 flex-wrap">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+            {t('reference.subQualification')}
+          </span>
+          <select
+            value={selectedTipoCierre || ''}
+            onChange={(e) => setSelectedTipoCierre(e.target.value || null)}
+            className="bg-slate-800/60 border border-slate-700/50 rounded-lg px-2.5 py-1
+                       text-xs text-white focus:outline-none focus:border-teal-600/50 cursor-pointer"
+          >
+            <option value="">{t('scriptsAdmin.base')}</option>
+            {availableTipoCierres.map(tc => (
+              <option key={tc} value={tc}>{tc}</option>
+            ))}
+          </select>
+          {selectedTipoCierre && (
+            <span className="text-[11px] text-teal-400 font-medium">
+              {t('reference.criteriaFor')} <strong>{selectedTipoCierre}</strong>
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="space-y-3">
         {currentSteps.map((step) => (
-          <ScriptStepReadCard key={step.id} step={step} />
+          <ScriptStepReadCard key={step.id} step={step} selectedTipoCierre={selectedTipoCierre} />
         ))}
         {currentSteps.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -622,9 +651,13 @@ function ScriptsRefTab() {
   );
 }
 
-function ScriptStepReadCard({ step }: { step: ScriptStep }) {
+function ScriptStepReadCard({ step, selectedTipoCierre }: { step: ScriptStep; selectedTipoCierre: string | null }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
+
+  const overrideLines = selectedTipoCierre ? step.tipo_cierre_overrides?.[selectedTipoCierre]?.lines : undefined;
+  const hasOverride = Array.isArray(overrideLines);
+  const lines = overrideLines ?? step.lines;
 
   return (
     <div className="bg-slate-900/60 border border-slate-800/60 rounded-2xl overflow-hidden transition-all duration-300 hover:border-slate-700/60">
@@ -636,8 +669,17 @@ function ScriptStepReadCard({ step }: { step: ScriptStep }) {
           {step.step_order}
         </div>
         <span className="flex-1 font-semibold text-white text-[15px] truncate">{step.step_label}</span>
+        {hasOverride && (
+          <span
+            title={t('scriptsAdmin.scriptHasSpecific', { sub: selectedTipoCierre })}
+            className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-500/15 border border-teal-500/25 text-teal-300 text-[11px] font-semibold"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+            {t('scriptsAdmin.specificBadge')}
+          </span>
+        )}
         <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-slate-800/60 border border-slate-700/40 text-slate-400 text-xs tabular-nums">
-          {t('reference.phrasesCount', { count: step.lines.length })}
+          {t('reference.phrasesCount', { count: lines.length })}
         </span>
         <ChevronDown
           size={16}
@@ -647,7 +689,7 @@ function ScriptStepReadCard({ step }: { step: ScriptStep }) {
 
       {expanded && (
         <div className="border-t border-slate-800/60 px-5 py-4 space-y-2">
-          {step.lines.map((line, idx) => (
+          {lines.map((line, idx) => (
             <div key={idx} className="flex items-start gap-3">
               <span className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-lg bg-slate-800/60 text-slate-500 text-[11px] font-medium flex items-center justify-center tabular-nums">
                 {idx + 1}

@@ -651,29 +651,47 @@ class DatabaseService {
     this.promptsCache.clear();
   }
 
-  async getScriptsForCallType(callType: string, companyId?: string): Promise<any[]> {
+  async getScriptsForCallType(callType: string, subCalificacion?: string, companyId?: string): Promise<any[]> {
     const normalized = this.normalizeCallTypeForDB(callType);
     const key = `${normalized.toUpperCase()}__${companyId ?? 'all'}`;
     const cached = this.scriptsCache.get(key);
-    if (cached && this.isCacheValid(cached)) return cached.data;
+    const rows = cached && this.isCacheValid(cached) ? cached.data : await (async () => {
+      let query = supabaseAdmin
+        .from('call_scripts')
+        .select('*')
+        .eq('call_type', normalized)
+        .eq('is_active', true);
 
-    let query = supabaseAdmin
-      .from('call_scripts')
-      .select('*')
-      .eq('call_type', normalized)
-      .eq('is_active', true);
+      if (companyId) query = query.eq('company_id', companyId);
 
-    if (companyId) query = query.eq('company_id', companyId);
+      const { data, error } = await query.order('step_order', { ascending: true });
 
-    const { data, error } = await query.order('step_order', { ascending: true });
+      if (error) {
+        logger.warn('Warning: could not load scripts from DB, returning empty', { callType, error });
+        return null;
+      }
 
-    if (error) {
-      logger.warn('Warning: could not load scripts from DB, returning empty', { callType, error });
-      return [];
+      this.scriptsCache.set(key, { data: data || [], timestamp: Date.now() });
+      return data || [];
+    })();
+
+    if (!rows) return [];
+
+    // Resolver override de guion por subcalificación (lines específicas).
+    // La cache guarda la fila completa (con overrides); aplicamos el override aquí
+    // para no invalidar la cache cuando cambia la subcalificación.
+    if (subCalificacion) {
+      const target = subCalificacion.toUpperCase().trim();
+      return rows.map((r: any) => {
+        const ov = r.tipo_cierre_overrides?.[target] ?? r.tipo_cierre_overrides?.[subCalificacion];
+        if (ov && Array.isArray(ov.lines)) {
+          return { ...r, lines: ov.lines };
+        }
+        return r;
+      });
     }
 
-    this.scriptsCache.set(key, { data: data || [], timestamp: Date.now() });
-    return data || [];
+    return rows;
   }
 
   async getAllScripts(companyId?: string): Promise<any[]> {
@@ -714,6 +732,7 @@ class DatabaseService {
     step_order: number;
     lines: string[];
     is_active: boolean;
+    tipo_cierre_overrides: Record<string, unknown>;
   }>): Promise<any> {
     const { data, error } = await supabaseAdmin
       .from('call_scripts')
@@ -2091,7 +2110,7 @@ export const databaseService = {
   syncCallTypesFromGpf: (entries: Array<{ calificacion: string; subcalificacion: string }>, companyId?: string | null) => getDatabaseService().syncCallTypesFromGpf(entries, companyId),
   reconcileCallTypesWithGpf: (entries: Array<{ calificacion: string; subcalificacion: string }>, companyId?: string | null, options?: { allowDeactivation?: boolean }) => getDatabaseService().reconcileCallTypesWithGpf(entries, companyId, options),
   // Scripts dinámicos
-  getScriptsForCallType: (callType: string, companyId?: string) => getDatabaseService().getScriptsForCallType(callType, companyId),
+  getScriptsForCallType: (callType: string, subCalificacion?: string, companyId?: string) => getDatabaseService().getScriptsForCallType(callType, subCalificacion, companyId),
   getAllScripts: (companyId?: string) => getDatabaseService().getAllScripts(companyId),
   createScript: (payload: Parameters<DatabaseService['createScript']>[0]) => getDatabaseService().createScript(payload),
   updateScript: (id: string, payload: Parameters<DatabaseService['updateScript']>[1]) => getDatabaseService().updateScript(id, payload),

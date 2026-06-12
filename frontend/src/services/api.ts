@@ -583,7 +583,7 @@ export const scriptsService = {
     const response = await api.post('/admin/scripts', payload);
     return response.data as ScriptStep;
   },
-  async update(id: string, payload: Partial<Pick<ScriptStep, 'step_label' | 'step_order' | 'lines' | 'is_active'>>) {
+  async update(id: string, payload: Partial<Pick<ScriptStep, 'step_label' | 'step_order' | 'lines' | 'is_active' | 'tipo_cierre_overrides'>>) {
     const response = await api.put(`/admin/scripts/${id}`, payload);
     return response.data as ScriptStep;
   },
@@ -640,6 +640,10 @@ export const criteriaService = {
 // ============================================================
 // Tipos para scripts y criterios
 // ============================================================
+export interface ScriptStepOverride {
+  lines?: string[];
+}
+
 export interface ScriptStep {
   id: string;
   call_type: string;
@@ -648,6 +652,9 @@ export interface ScriptStep {
   step_label: string;
   step_order: number;
   lines: string[];
+  /** Guion específico por subcalificación. Si no hay override para una sub,
+   *  se usa `lines` (guion base, válido para todas las subcalificaciones). */
+  tipo_cierre_overrides?: Record<string, ScriptStepOverride>;
   is_active: boolean;
   created_at: string;
   updated_at: string;

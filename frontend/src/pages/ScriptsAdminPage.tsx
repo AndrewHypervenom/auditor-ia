@@ -260,7 +260,10 @@ function ScriptsTab() {
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<AdminMode>('INBOUND');
   const [selectedCallType, setSelectedCallType] = useState<string>('');
+  // null = guion base (aplica a todas las subcalificaciones)
+  const [selectedTipoCierre, setSelectedTipoCierre] = useState<string | null>(null);
   const { callTypeNames: availableCallTypes } = useCallTypesConfig();
+  const availableTipoCierres = useSubcalificaciones(selectedCallType);
 
   // Setear el primer callType disponible cuando cargue desde BD
   useEffect(() => {
@@ -268,6 +271,9 @@ function ScriptsTab() {
       setSelectedCallType(availableCallTypes[0]);
     }
   }, [availableCallTypes, selectedCallType]);
+
+  // Al cambiar de calificación o modo, volver al guion base
+  useEffect(() => { setSelectedTipoCierre(null); }, [selectedCallType, mode]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -320,6 +326,55 @@ function ScriptsTab() {
         <CallTypeSelectorShared selected={selectedCallType} onChange={setSelectedCallType} />
       </div>
 
+      {/* Selector de subcalificación — guion base vs específico por subcalificación */}
+      {availableTipoCierres.length > 0 && (
+        <div className="mb-4 rounded-2xl border border-slate-800/60 bg-slate-900/40 px-4 py-3">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mr-1 flex-shrink-0">
+              {t('scriptsAdmin.subQualificationLabel')}
+            </span>
+            <button
+              onClick={() => setSelectedTipoCierre(null)}
+              title={t('scriptsAdmin.scriptBaseHint')}
+              className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-all duration-150 ${
+                selectedTipoCierre === null
+                  ? 'bg-slate-700/60 border-slate-600/60 text-slate-200'
+                  : 'bg-slate-800/40 border-slate-700/40 text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              {t('scriptsAdmin.base')}
+            </button>
+            {availableTipoCierres.map(tc => {
+              const isSelected = selectedTipoCierre === tc;
+              const hasOverride = currentSteps.some(s => Array.isArray(s.tipo_cierre_overrides?.[tc]?.lines));
+              return (
+                <button
+                  key={tc}
+                  onClick={() => setSelectedTipoCierre(isSelected ? null : tc)}
+                  title={hasOverride ? t('scriptsAdmin.hasCustomConfig') : t('scriptsAdmin.noCustomConfig')}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-all duration-150 ${
+                    isSelected
+                      ? 'bg-teal-500/15 border-teal-500/30 text-teal-300'
+                      : 'bg-slate-800/40 border-slate-700/40 text-slate-500 hover:text-slate-300 hover:border-slate-600'
+                  }`}
+                >
+                  <span>{tc}</span>
+                  {hasOverride && (
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isSelected ? 'bg-teal-400' : 'bg-teal-600'}`} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <p className="flex items-start gap-1.5 text-[11px] text-slate-500 mt-2.5">
+            <Info size={12} className="mt-0.5 flex-shrink-0" />
+            {selectedTipoCierre === null
+              ? t('scriptsAdmin.scriptBaseHint')
+              : t('scriptsAdmin.scriptForSubHint', { sub: selectedTipoCierre })}
+          </p>
+        </div>
+      )}
+
       <div className="space-y-3">
         {currentSteps.map((step) => (
           <ScriptStepCard
@@ -327,6 +382,7 @@ function ScriptsTab() {
             step={step}
             onUpdate={load}
             totalSteps={currentSteps.length}
+            selectedTipoCierre={selectedTipoCierre}
           />
         ))}
 
@@ -338,7 +394,10 @@ function ScriptsTab() {
           />
         )}
 
-        <AddButton onClick={handleAddStep} label={t('scriptsAdmin.addStep')} />
+        {/* Los pasos son estructurales y compartidos: solo se agregan en el guion base */}
+        {selectedTipoCierre === null && (
+          <AddButton onClick={handleAddStep} label={t('scriptsAdmin.addStep')} />
+        )}
       </div>
     </div>
   );
@@ -350,29 +409,66 @@ interface ScriptStepCardProps {
   step: ScriptStep;
   onUpdate: () => void;
   totalSteps: number;
+  /** null = guion base; si es una subcalificación, se edita su override de frases */
+  selectedTipoCierre: string | null;
 }
 
-function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
+function ScriptStepCard({ step, onUpdate, totalSteps, selectedTipoCierre }: ScriptStepCardProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [editingLabel, setEditingLabel] = useState(false);
   const [labelValue, setLabelValue] = useState(step.step_label);
-  const [lines, setLines] = useState<string[]>(step.lines);
   const [editingLineIdx, setEditingLineIdx] = useState<number | null>(null);
   const [lineValue, setLineValue] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const save = async (newLines?: string[], newLabel?: string) => {
+  // En modo subcalificación se trabaja sobre el override; si no hay override aún,
+  // partimos del guion base (las frases efectivas que se ven hoy en esa sub).
+  const overrideLines = selectedTipoCierre ? step.tipo_cierre_overrides?.[selectedTipoCierre]?.lines : undefined;
+  const hasOverride = Array.isArray(overrideLines);
+  const effectiveLines = overrideLines ?? step.lines;
+
+  const [lines, setLines] = useState<string[]>(effectiveLines);
+
+  // Resincronizar el buffer local cuando cambia el paso o la subcalificación
+  useEffect(() => {
+    setLines(effectiveLines);
+    setEditingLineIdx(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step.id, selectedTipoCierre, JSON.stringify(effectiveLines)]);
+
+  const save = async (newLines: string[]) => {
     setSaving(true);
     try {
-      await scriptsService.update(step.id, {
-        step_label: newLabel ?? labelValue,
-        lines: newLines ?? lines,
-      });
+      if (selectedTipoCierre) {
+        const overrides = {
+          ...(step.tipo_cierre_overrides || {}),
+          [selectedTipoCierre]: { lines: newLines },
+        };
+        await scriptsService.update(step.id, { tipo_cierre_overrides: overrides });
+      } else {
+        await scriptsService.update(step.id, { lines: newLines });
+      }
       toast.success(t('plantilla.saved'));
       onUpdate();
     } catch {
       toast.error(t('plantilla.saveError'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResetToBase = async () => {
+    if (!selectedTipoCierre) return;
+    setSaving(true);
+    try {
+      const overrides = { ...(step.tipo_cierre_overrides || {}) };
+      delete overrides[selectedTipoCierre];
+      await scriptsService.update(step.id, { tipo_cierre_overrides: overrides });
+      toast.success(t('scriptsAdmin.configReset'));
+      onUpdate();
+    } catch {
+      toast.error(t('scriptsAdmin.resetError'));
     } finally {
       setSaving(false);
     }
@@ -403,7 +499,17 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
 
   const handleSaveLabel = async () => {
     setEditingLabel(false);
-    await save(undefined, labelValue);
+    setSaving(true);
+    try {
+      await scriptsService.update(step.id, { step_label: labelValue });
+      toast.success(t('plantilla.saved'));
+      onUpdate();
+    } catch {
+      toast.error(t('plantilla.saveError'));
+      setLabelValue(step.step_label);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleAddLine = () => {
@@ -490,6 +596,28 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
           )}
         </div>
 
+        {/* Indicador de configuración en modo subcalificación */}
+        {selectedTipoCierre && (
+          hasOverride ? (
+            <span
+              title={t('scriptsAdmin.scriptHasSpecific', { sub: selectedTipoCierre })}
+              className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full
+                         bg-teal-500/15 border border-teal-500/25 text-teal-300 text-[11px] font-semibold"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+              {t('scriptsAdmin.specificBadge')}
+            </span>
+          ) : (
+            <span
+              title={t('scriptsAdmin.scriptUsingBase')}
+              className="flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full
+                         bg-slate-800/60 border border-slate-700/40 text-slate-500 text-[11px] font-medium"
+            >
+              {t('scriptsAdmin.base')}
+            </span>
+          )
+        )}
+
         {/* Badge frases */}
         <span className="flex-shrink-0 px-2 py-0.5 rounded-full bg-slate-800/60 border border-slate-700/40
                          text-slate-400 text-xs tabular-nums">
@@ -501,40 +629,57 @@ function ScriptStepCard({ step, onUpdate, totalSteps }: ScriptStepCardProps) {
           className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            onClick={handleMoveUp}
-            disabled={step.step_order <= 1}
-            className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-slate-700/50
-                       disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-150"
-            title={t('scriptsAdmin.moveUp')}
-          >
-            <ChevronDown size={14} className="rotate-180" />
-          </button>
-          <button
-            onClick={handleMoveDown}
-            disabled={step.step_order >= totalSteps}
-            className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-slate-700/50
-                       disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-150"
-            title={t('scriptsAdmin.moveDown')}
-          >
-            <ChevronDown size={14} />
-          </button>
-          <button
-            onClick={() => setEditingLabel(true)}
-            className="p-2 rounded-xl text-slate-500 hover:text-brand-400 hover:bg-brand-500/10
-                       transition-all duration-150"
-            title={t('scriptsAdmin.rename')}
-          >
-            <Pencil size={14} />
-          </button>
-          <button
-            onClick={handleDeleteStep}
-            className="p-2 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10
-                       transition-all duration-150"
-            title={t('scriptsAdmin.deleteStep')}
-          >
-            <Trash2 size={14} />
-          </button>
+          {selectedTipoCierre ? (
+            // En modo subcalificación solo se ofrece resetear el override al guion base
+            hasOverride && (
+              <button
+                onClick={handleResetToBase}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-slate-500
+                           hover:text-amber-300 hover:bg-amber-500/10 transition-all duration-150 text-xs font-medium"
+                title={t('scriptsAdmin.resetToBase')}
+              >
+                <RotateCcw size={13} />
+                {t('scriptsAdmin.resetToBase')}
+              </button>
+            )
+          ) : (
+            <>
+              <button
+                onClick={handleMoveUp}
+                disabled={step.step_order <= 1}
+                className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-slate-700/50
+                           disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-150"
+                title={t('scriptsAdmin.moveUp')}
+              >
+                <ChevronDown size={14} className="rotate-180" />
+              </button>
+              <button
+                onClick={handleMoveDown}
+                disabled={step.step_order >= totalSteps}
+                className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-slate-700/50
+                           disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-150"
+                title={t('scriptsAdmin.moveDown')}
+              >
+                <ChevronDown size={14} />
+              </button>
+              <button
+                onClick={() => setEditingLabel(true)}
+                className="p-2 rounded-xl text-slate-500 hover:text-brand-400 hover:bg-brand-500/10
+                           transition-all duration-150"
+                title={t('scriptsAdmin.rename')}
+              >
+                <Pencil size={14} />
+              </button>
+              <button
+                onClick={handleDeleteStep}
+                className="p-2 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10
+                           transition-all duration-150"
+                title={t('scriptsAdmin.deleteStep')}
+              >
+                <Trash2 size={14} />
+              </button>
+            </>
+          )}
         </div>
 
         {/* Chevron */}

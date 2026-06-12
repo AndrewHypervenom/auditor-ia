@@ -676,7 +676,7 @@ REGLAS:
    + manualTopics.reduce((sum, t) => sum + t.maxScore, 0);
 
  // Cargar script desde BD
- const dbScripts = await getDatabaseService().getScriptsForCallType(auditInput.callType);
+ const dbScripts = await getDatabaseService().getScriptsForCallType(auditInput.callType, auditInput.subCalificacion);
  const scriptSteps = dbScripts.reduce((acc: any, s: any) => {
    acc[s.step_key] = s.lines;
    return acc;

@@ -1188,8 +1188,8 @@ app.post('/api/admin/scripts', authenticateUser, requireAdminOrAnalyst, async (r
 app.put('/api/admin/scripts/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { step_label, step_order, lines, is_active } = req.body;
-    const script = await databaseService.updateScript(id, { step_label, step_order, lines, is_active });
+    const { step_label, step_order, lines, is_active, tipo_cierre_overrides } = req.body;
+    const script = await databaseService.updateScript(id, { step_label, step_order, lines, is_active, tipo_cierre_overrides });
     res.json(script);
   } catch (error: any) {
     logger.error('Error updating script:', error);
