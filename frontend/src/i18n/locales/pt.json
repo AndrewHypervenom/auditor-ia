@@ -1473,7 +1473,17 @@
     "saveError": "Erro ao salvar",
     "deleteItemConfirm": "Excluir \"{{name}}\"?",
     "deleted": "Excluído",
-    "deleteError": "Erro ao excluir"
+    "deleteError": "Erro ao excluir",
+    "inactiveInfo": "{{count}} sub-qualificação(ões) inativa(s) — o GPF deixou de entregá-las (não são excluídas, você pode reativá-las).",
+    "showInactive": "Mostrar inativas",
+    "hideInactive": "Ocultar inativas",
+    "inactiveBadge": "Inativa",
+    "inactiveBadgeHint": "Inativa: o GPF já não a entrega. Continua salva e você pode reativá-la.",
+    "reactivate": "Reativar",
+    "reactivated": "Sub-qualificação reativada",
+    "deactivate": "Desativar",
+    "deactivated": "Sub-qualificação desativada",
+    "toggleError": "Erro ao alterar o estado"
   },
   "sessionTimer": {
     "title": "Sua sessão está prestes a expirar",

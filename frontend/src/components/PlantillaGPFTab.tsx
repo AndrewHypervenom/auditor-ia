@@ -2,7 +2,7 @@
 // Plantilla Cierre de GPF — editable (CRUD completo)
 
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Check, X, ChevronDown, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, X, ChevronDown, Loader2, Power, RotateCcw, EyeOff, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { plantillaService, type PlantillaGPFItem } from '../services/api';
@@ -30,6 +30,7 @@ export default function PlantillaGPFTab() {
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<AdminMode>('INBOUND');
   const [callType, setCallType] = useState('');
+  const [showInactive, setShowInactive] = useState(true);
   const { callTypeNames: availableCallTypes } = useCallTypesConfig();
 
   useEffect(() => {
@@ -52,7 +53,9 @@ export default function PlantillaGPFTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  const filteredItems = items.filter((i) => i.mode === mode && i.call_type === callType);
+  const scopedItems = items.filter((i) => i.mode === mode && i.call_type === callType);
+  const inactiveCount = scopedItems.filter((i) => i.is_active === false).length;
+  const filteredItems = showInactive ? scopedItems : scopedItems.filter((i) => i.is_active !== false);
   const grouped = groupByCategoria(filteredItems);
 
   const nextCategoriaOrden = () => {
@@ -112,6 +115,24 @@ export default function PlantillaGPFTab() {
         <span className="text-teal-400 font-medium">{t('plantilla.subQualificationLabel')}</span> {t('plantilla.introQual3')}
       </p>
 
+      {/* Toggle de inactivas — las que GPF dejó de entregar (reversible) */}
+      {inactiveCount > 0 && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-slate-800/60 bg-slate-900/40 px-4 py-2.5">
+          <span className="text-xs text-slate-400">
+            {t('plantilla.inactiveInfo', { count: inactiveCount })}
+          </span>
+          <button
+            onClick={() => setShowInactive((v) => !v)}
+            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                       bg-slate-800/60 border border-slate-700/50 text-slate-300
+                       hover:bg-slate-800 hover:text-white transition-all duration-150"
+          >
+            {showInactive ? <EyeOff size={13} /> : <Eye size={13} />}
+            {showInactive ? t('plantilla.hideInactive') : t('plantilla.showInactive')}
+          </button>
+        </div>
+      )}
+
       <div className="space-y-3">
         {[...grouped.entries()].map(([categoria, catItems]) => (
           <CategoriaCard
@@ -163,6 +184,7 @@ function CategoriaCard({ categoria, items, callType, mode, onUpdate }: Categoria
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const sorted = [...items].sort((a, b) => a.tipo_orden - b.tipo_orden);
+  const inactiveInCat = items.filter((i) => i.is_active === false).length;
 
   const handleSaveName = async () => {
     setEditingName(false);
@@ -243,6 +265,16 @@ function CategoriaCard({ categoria, items, callType, mode, onUpdate }: Categoria
           )}
         </div>
 
+        {inactiveInCat > 0 && (
+          <span
+            title={t('plantilla.inactiveBadgeHint')}
+            className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full
+                       bg-slate-700/40 border border-slate-600/40 text-slate-400 text-[11px] font-medium tabular-nums"
+          >
+            <Power size={10} />
+            {inactiveInCat}
+          </span>
+        )}
         <span className="flex-shrink-0 text-slate-500 text-xs tabular-nums">
           {t('plantilla.typesCount', { count: sorted.length })}
         </span>
@@ -359,6 +391,21 @@ function ItemRow({ item, isEditing, onStartEdit, onCancelEdit, onSaved, onDelete
     }
   };
 
+  const inactive = item.is_active === false;
+
+  const handleToggleActive = async () => {
+    setSaving(true);
+    try {
+      await plantillaService.update(item.id, { is_active: inactive });
+      toast.success(inactive ? t('plantilla.reactivated') : t('plantilla.deactivated'));
+      onDeleted(); // recarga la lista
+    } catch {
+      toast.error(t('plantilla.toggleError'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (isEditing) {
     return (
       <div className="px-5 py-3 bg-slate-800/20 space-y-2">
@@ -407,21 +454,45 @@ function ItemRow({ item, isEditing, onStartEdit, onCancelEdit, onSaved, onDelete
   }
 
   return (
-    <div className="group/row grid grid-cols-[2fr_3fr_auto] gap-3 items-center px-5 py-3
-                    hover:bg-slate-800/20 transition-colors">
-      <span className="text-sm text-slate-300">{item.tipo_cierre}</span>
-      <span className="text-sm text-slate-400">{item.descripcion}</span>
-      <div className="flex items-center gap-0.5 opacity-0 group-hover/row:opacity-100 transition-opacity duration-150">
+    <div className={`group/row grid grid-cols-[2fr_3fr_auto] gap-3 items-center px-5 py-3
+                    hover:bg-slate-800/20 transition-colors ${inactive ? 'opacity-50' : ''}`}>
+      <span className="flex items-center gap-2 min-w-0">
+        <span className={`text-sm truncate ${inactive ? 'text-slate-400 line-through' : 'text-slate-300'}`}>{item.tipo_cierre}</span>
+        {inactive && (
+          <span
+            title={t('plantilla.inactiveBadgeHint')}
+            className="flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full
+                       bg-slate-700/50 border border-slate-600/40 text-slate-400 text-[10px] font-semibold uppercase tracking-wide"
+          >
+            {t('plantilla.inactiveBadge')}
+          </span>
+        )}
+      </span>
+      <span className="text-sm text-slate-400 truncate">{item.descripcion}</span>
+      <div className="flex items-center gap-0.5">
+        {/* Reactivar/Desactivar — reversible, no borra (alinea con GPF) */}
+        <button
+          onClick={handleToggleActive}
+          disabled={saving}
+          className={`p-1.5 rounded-lg transition-all duration-150 disabled:opacity-50 ${
+            inactive
+              ? 'text-teal-400 hover:text-teal-300 hover:bg-teal-500/10 opacity-100'
+              : 'text-slate-500 hover:text-amber-400 hover:bg-amber-500/10 opacity-0 group-hover/row:opacity-100'
+          }`}
+          title={inactive ? t('plantilla.reactivate') : t('plantilla.deactivate')}
+        >
+          {saving ? <Loader2 size={13} className="animate-spin" /> : inactive ? <RotateCcw size={13} /> : <Power size={13} />}
+        </button>
         <button
           onClick={onStartEdit}
-          className="p-1.5 rounded-lg text-slate-500 hover:text-teal-400 hover:bg-teal-500/10 transition-all duration-150"
+          className="p-1.5 rounded-lg text-slate-500 hover:text-teal-400 hover:bg-teal-500/10 transition-all duration-150 opacity-0 group-hover/row:opacity-100"
           title={t('common.edit')}
         >
           <Pencil size={13} />
         </button>
         <button
           onClick={handleDelete}
-          className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150"
+          className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150 opacity-0 group-hover/row:opacity-100"
           title={t('common.delete')}
         >
           <Trash2 size={13} />

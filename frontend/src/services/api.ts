@@ -737,7 +737,7 @@ export const plantillaService = {
     const response = await api.post('/admin/plantilla-gpf', payload);
     return response.data as PlantillaGPFItem;
   },
-  async update(id: string, payload: Partial<Pick<PlantillaGPFItem, 'categoria' | 'tipo_cierre' | 'descripcion' | 'categoria_orden' | 'tipo_orden'>>) {
+  async update(id: string, payload: Partial<Pick<PlantillaGPFItem, 'categoria' | 'tipo_cierre' | 'descripcion' | 'categoria_orden' | 'tipo_orden' | 'is_active'>>) {
     const response = await api.put(`/admin/plantilla-gpf/${id}`, payload);
     return response.data as PlantillaGPFItem;
   },

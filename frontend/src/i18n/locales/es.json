@@ -1473,7 +1473,17 @@
     "saveError": "Error al guardar",
     "deleteItemConfirm": "¿Eliminar \"{{name}}\"?",
     "deleted": "Eliminado",
-    "deleteError": "Error al eliminar"
+    "deleteError": "Error al eliminar",
+    "inactiveInfo": "{{count}} subcalificación(es) inactiva(s) — GPF dejó de entregarlas (no se borran, puedes reactivarlas).",
+    "showInactive": "Mostrar inactivas",
+    "hideInactive": "Ocultar inactivas",
+    "inactiveBadge": "Inactiva",
+    "inactiveBadgeHint": "Inactiva: GPF ya no la entrega. Sigue guardada y puedes reactivarla.",
+    "reactivate": "Reactivar",
+    "reactivated": "Subcalificación reactivada",
+    "deactivate": "Desactivar",
+    "deactivated": "Subcalificación desactivada",
+    "toggleError": "Error al cambiar el estado"
   },
   "sessionTimer": {
     "title": "Tu sesión está por expirar",

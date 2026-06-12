@@ -1419,8 +1419,8 @@ app.put('/api/admin/plantilla-gpf/rename-categoria', authenticateUser, requireAd
 app.put('/api/admin/plantilla-gpf/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { categoria, tipo_cierre, descripcion, categoria_orden, tipo_orden } = req.body;
-    const item = await databaseService.updatePlantillaItem(id, { categoria, tipo_cierre, descripcion, categoria_orden, tipo_orden });
+    const { categoria, tipo_cierre, descripcion, categoria_orden, tipo_orden, is_active } = req.body;
+    const item = await databaseService.updatePlantillaItem(id, { categoria, tipo_cierre, descripcion, categoria_orden, tipo_orden, is_active });
     res.json(item);
   } catch (error: any) {
     logger.error('Error updating plantilla item:', error);
