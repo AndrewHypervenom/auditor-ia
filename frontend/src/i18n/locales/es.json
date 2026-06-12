@@ -1088,7 +1088,7 @@
     "sectionNotEvaluatedHere": "No se evalúa en esta subcalificación",
     "sectionToggleHint": "Activar o desactivar esta sección completa para \"{{name}}\"",
     "syncGpf": "Sincronizar con GPF",
-    "syncGpfHint": "Deja las calificaciones y subcalificaciones exactamente como las entrega GPF (producción)",
+    "syncGpfHint": "Sincronización global: alinea calificaciones y subcalificaciones en criterios, scripts y plantilla con lo que entrega GPF (producción)",
     "syncGpfConfirm": "Esto alineará las calificaciones y subcalificaciones con lo que entrega GPF (producción): se registrarán las nuevas y se desactivarán las que GPF ya no entrega (no se borra nada, puedes reactivarlas después). ¿Continuar?",
     "syncGpfDone": "Sincronizado con GPF: {{count}} calificaciones",
     "syncGpfNew": "Nuevas: {{list}}",

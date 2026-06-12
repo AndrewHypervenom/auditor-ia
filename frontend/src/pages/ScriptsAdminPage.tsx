@@ -89,6 +89,34 @@ export default function ScriptsAdminPage() {
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
   const [activeTab, setActiveTab] = useState<'scripts' | 'criteria' | 'plantilla' | 'ai_prompts' | 'bines'>('criteria');
+  const [syncingGpf, setSyncingGpf] = useState(false);
+
+  // Sincronización GLOBAL con GPF (prod): alinea calificaciones y subcalificaciones
+  // en todo el sistema (criterios, scripts y plantilla). Acción transversal, por eso
+  // vive en el encabezado de la página y no dentro de una sola pestaña.
+  const handleSyncGpf = async () => {
+    if (!confirm(t('scriptsAdmin.syncGpfConfirm'))) return;
+    setSyncingGpf(true);
+    try {
+      const s = await callTypesConfigService.syncFromGpf('prod');
+      const parts: string[] = [];
+      if (s.registeredTypes.length > 0) parts.push(t('scriptsAdmin.syncGpfNew', { list: s.registeredTypes.join(', ') }));
+      if (s.deactivatedTypes.length > 0) parts.push(t('scriptsAdmin.syncGpfDeactivated', { list: s.deactivatedTypes.join(', ') }));
+      if (s.reactivatedTypes.length > 0) parts.push(t('scriptsAdmin.syncGpfReactivated', { list: s.reactivatedTypes.join(', ') }));
+      if (s.deactivatedSubs > 0 || s.reactivatedSubs > 0) parts.push(t('scriptsAdmin.syncGpfSubs', { off: s.deactivatedSubs, on: s.reactivatedSubs }));
+      if (s.deactivationSkipped) parts.push(t('scriptsAdmin.syncGpfShortWindow', { days: s.windowDays ?? '-' }));
+      toast.success(
+        t('scriptsAdmin.syncGpfDone', { count: s.totalCategories }) + (parts.length > 0 ? `\n${parts.join('\n')}` : ''),
+        { duration: 8000 }
+      );
+      invalidateCallTypesConfigCache();
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || t('scriptsAdmin.syncGpfError'));
+    } finally {
+      setSyncingGpf(false);
+    }
+  };
 
   const allTabs = [
     {
@@ -136,10 +164,23 @@ export default function ScriptsAdminPage() {
       <AppHeader showBack onBack={() => navigate('/dashboard')} title={t('reference.pageTitle')} />
       <div className="max-w-5xl mx-auto px-6 py-6">
 
-        {/* ── Description ── */}
-        <p className="mb-4 text-sm text-slate-400 leading-relaxed">
-          {isAdmin ? t('scriptsAdmin.introAdmin') : t('scriptsAdmin.intro')}
-        </p>
+        {/* ── Description + acción global ── */}
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <p className="text-sm text-slate-400 leading-relaxed flex-1">
+            {isAdmin ? t('scriptsAdmin.introAdmin') : t('scriptsAdmin.intro')}
+          </p>
+          <button
+            onClick={handleSyncGpf}
+            disabled={syncingGpf}
+            title={t('scriptsAdmin.syncGpfHint')}
+            className="flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
+                       bg-blue-500/15 border border-blue-500/30 text-blue-300
+                       hover:bg-blue-500/25 disabled:opacity-40 transition-all duration-150"
+          >
+            {syncingGpf ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+            {t('scriptsAdmin.syncGpf')}
+          </button>
+        </div>
 
 
         {/* ── Tab Selector ── */}
@@ -803,33 +844,7 @@ function CriteriaTab() {
   const [selectedCallType, setSelectedCallType] = useState<string>('');
   const [showAiGenerator, setShowAiGenerator] = useState(false);
   const [showBaseImporter, setShowBaseImporter] = useState(false);
-  const [syncingGpf, setSyncingGpf] = useState(false);
   const { callTypeNames: availableCallTypes } = useCallTypesConfig();
-
-  const handleSyncGpf = async () => {
-    if (!confirm(t('scriptsAdmin.syncGpfConfirm'))) return;
-    setSyncingGpf(true);
-    try {
-      const s = await callTypesConfigService.syncFromGpf('prod');
-      const parts: string[] = [];
-      if (s.registeredTypes.length > 0) parts.push(t('scriptsAdmin.syncGpfNew', { list: s.registeredTypes.join(', ') }));
-      if (s.deactivatedTypes.length > 0) parts.push(t('scriptsAdmin.syncGpfDeactivated', { list: s.deactivatedTypes.join(', ') }));
-      if (s.reactivatedTypes.length > 0) parts.push(t('scriptsAdmin.syncGpfReactivated', { list: s.reactivatedTypes.join(', ') }));
-      if (s.deactivatedSubs > 0 || s.reactivatedSubs > 0) parts.push(t('scriptsAdmin.syncGpfSubs', { off: s.deactivatedSubs, on: s.reactivatedSubs }));
-      if (s.deactivationSkipped) parts.push(t('scriptsAdmin.syncGpfShortWindow', { days: s.windowDays ?? '-' }));
-      toast.success(
-        t('scriptsAdmin.syncGpfDone', { count: s.totalCategories }) + (parts.length > 0 ? `\n${parts.join('\n')}` : ''),
-        { duration: 8000 }
-      );
-      invalidateCallTypesConfigCache();
-      setSelectedCallType('');
-      setTimeout(() => window.location.reload(), 1500);
-    } catch (e: any) {
-      toast.error(e?.response?.data?.error || t('scriptsAdmin.syncGpfError'));
-    } finally {
-      setSyncingGpf(false);
-    }
-  };
 
   // Setear el primer callType disponible cuando cargue desde BD
   useEffect(() => {
@@ -924,17 +939,6 @@ function CriteriaTab() {
           >
             <Layers size={12} />
             {t('scriptsAdmin.addFromBase')}
-          </button>
-          <button
-            onClick={handleSyncGpf}
-            disabled={syncingGpf}
-            title={t('scriptsAdmin.syncGpfHint')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold
-                       bg-blue-500/15 border border-blue-500/30 text-blue-300
-                       hover:bg-blue-500/25 disabled:opacity-40 transition-all duration-150"
-          >
-            {syncingGpf ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-            {t('scriptsAdmin.syncGpf')}
           </button>
         </div>
       </div>
