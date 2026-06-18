@@ -437,13 +437,22 @@ export function useAuth() {
 
 export function useRole() {
  const { profile, isRole, hasPermission } = useAuth();
+ // Nuevos roles: superadmin (plataforma), lider (empresa), auditor (operador).
+ // Se conservan los alias isAdmin/isSupervisor/isAnalyst para compatibilidad:
+ //   isAdmin = superadmin, isSupervisor = lider, isAnalyst = auditor.
+ const isSuperadmin = isRole('superadmin');
+ const isLider = isRole('lider');
+ const isAuditor = isRole('auditor');
  return {
  role: profile?.role,
- isAdmin: isRole('admin'),
- isSupervisor: isRole('supervisor'),
- isAnalyst: isRole('analyst'),
+ isSuperadmin,
+ isLider,
+ isAuditor,
+ isAdmin: isSuperadmin,
+ isSupervisor: isLider,
+ isAnalyst: isAuditor,
  canCreateAudits: hasPermission('audits:create'),
- canViewAllAudits: hasPermission('audits:read:all') || isRole(['admin', 'supervisor', 'analyst']),
+ canViewAllAudits: hasPermission('audits:read:all') || isRole(['superadmin', 'lider', 'auditor']),
  canViewCosts: hasPermission('costs:read:all'),
  canManageUsers: hasPermission('users:create'),
  };

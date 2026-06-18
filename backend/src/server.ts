@@ -22,6 +22,7 @@ import { authenticateUser, requireAdmin, requireAdminOrAnalyst, requireAdminOrSu
 import { checkUsageLimits } from './middleware/usage-limit.middleware.js';
 import { gpfTokenService } from './services/gpf-token.service.js';
 import { gpfDataService } from './services/gpf-data.service.js';
+import { gpfConfigService } from './services/gpf-config.service.js';
 import { buildSyntheticTranscript } from './utils/synthetic-transcript.js';
 import { downloadImagesToTemp } from './utils/image-downloader.js';
 import { gpfFetch } from './utils/gpf-fetch.js';
@@ -302,10 +303,12 @@ app.get('/api/audits', authenticateUser, async (req: Request, res: Response) => 
  const limit = parseInt(req.query.limit as string) || 50;
  const offset = parseInt(req.query.offset as string) || 0;
 
+ // superadmin ve todas las empresas; el resto solo la suya
+ const effectiveCompanyId = req.user!.role === 'superadmin' ? null : req.user!.company_id;
  const { audits, total } = await databaseService.getUserAudits(
  req.user!.id,
  req.user!.role,
- req.user!.company_id,
+ effectiveCompanyId,
  limit,
  offset
  );
@@ -326,7 +329,8 @@ app.get('/api/audits/:auditId', authenticateUser, async (req: Request, res: Resp
  try {
  const { auditId } = req.params;
 
- const auditData = await databaseService.getAuditById(auditId, req.user!.id, req.user!.role);
+ const effectiveCompanyId = req.user!.role === 'superadmin' ? null : req.user!.company_id;
+ const auditData = await databaseService.getAuditById(auditId, req.user!.id, req.user!.role, effectiveCompanyId);
 
  await databaseService.logAuditActivity(
  auditId,
@@ -413,7 +417,9 @@ app.post('/api/evaluate',
  callDate: req.body.callDate || new Date().toISOString().split('T')[0],
  callDuration: req.body.callDuration || null,
  audioPath: audioFile.path,
- imagePaths: imageFiles.map(f => f.path)
+ imagePaths: imageFiles.map(f => f.path),
+ // Carga manual: la auditoría pertenece a la empresa del usuario (multi-tenant)
+ companyId: req.user!.company_id ?? null
  };
 
  logger.info(' Audit metadata:', metadata);
@@ -597,6 +603,23 @@ app.post('/api/evaluate',
  }
 );
 
+// Verifica que la auditoría pertenezca a la empresa del usuario (superadmin: acceso total).
+// Responde 404 y devuelve false si no puede operar sobre ella.
+async function ensureAuditCompany(req: Request, res: Response, auditId: string): Promise<boolean> {
+ if (req.user!.role === 'superadmin' || !req.user!.company_id) return true;
+ const { data } = await supabaseAdmin
+ .from('audits')
+ .select('id')
+ .eq('id', auditId)
+ .eq('company_id', req.user!.company_id)
+ .maybeSingle();
+ if (!data) {
+ res.status(404).json({ error: 'Auditoría no encontrada' });
+ return false;
+ }
+ return true;
+}
+
 // ============================================================
 // POST /api/audits/:auditId/sentiment — Generar sentimientos bajo demanda
 // (para auditorías guardadas antes de la función de sentimientos)
@@ -604,6 +627,7 @@ app.post('/api/evaluate',
 app.post('/api/audits/:auditId/sentiment', authenticateUser, async (req: Request, res: Response) => {
  try {
  const { auditId } = req.params;
+ if (!(await ensureAuditCompany(req, res, auditId))) return;
 
  const { data: t, error } = await databaseService.client
  .from('transcriptions')
@@ -675,6 +699,7 @@ app.post('/api/audits/:auditId/sentiment', authenticateUser, async (req: Request
 app.patch('/api/audits/:auditId/scores', authenticateUser, async (req: Request, res: Response) => {
  try {
  const { auditId } = req.params;
+ if (!(await ensureAuditCompany(req, res, auditId))) return;
  const { detailedScores } = req.body as { detailedScores: Array<{ criterion: string; score: number; maxScore: number; observations: string; criticality?: string; requiresManualReview?: boolean }> };
 
  if (!Array.isArray(detailedScores) || detailedScores.length === 0) {
@@ -716,7 +741,7 @@ app.patch('/api/audits/:auditId/scores', authenticateUser, async (req: Request, 
  // Regenerar Excel con los puntajes actualizados
  let newExcelFilename: string | undefined;
  try {
-   const auditData = await databaseService.getAuditById(auditId, req.user!.id, req.user!.role);
+   const auditData = await databaseService.getAuditById(auditId, req.user!.id, req.user!.role, req.user!.role === 'superadmin' ? null : req.user!.company_id);
    if (auditData?.audit) {
      const { audit, evaluation: evalRow } = auditData;
      const auditInput: AuditInput = {
@@ -762,6 +787,7 @@ app.patch('/api/audits/:auditId/scores', authenticateUser, async (req: Request, 
 app.patch('/api/audits/:auditId/comments', authenticateUser, async (req: Request, res: Response) => {
  try {
  const { auditId } = req.params;
+ if (!(await ensureAuditCompany(req, res, auditId))) return;
  const { comments } = req.body as { comments: Record<string, string> };
 
  if (!comments || typeof comments !== 'object' || Array.isArray(comments)) {
@@ -791,8 +817,9 @@ app.delete('/api/audits/:auditId', authenticateUser, async (req: Request, res: R
  const { auditId } = req.params;
  const userId = req.user!.id;
  const userRole = req.user!.role;
+ const effectiveCompanyId = userRole === 'superadmin' ? null : req.user!.company_id;
 
- await databaseService.deleteAudit(auditId, userId, userRole);
+ await databaseService.deleteAudit(auditId, userId, userRole, effectiveCompanyId);
 
  logger.success('Audit deleted successfully', { auditId });
 
@@ -827,8 +854,8 @@ app.get('/api/admin/users', authenticateUser, requireAdminOrSupervisor, async (r
  .select('*')
  .order('created_at', { ascending: false });
 
- // admin ve todos los usuarios; supervisor solo los de su empresa
- if (req.user!.role !== 'admin' && req.user!.company_id) {
+ // superadmin ve todos los usuarios; lider solo los de su empresa
+ if (req.user!.role !== 'superadmin' && req.user!.company_id) {
  query = query.eq('company_id', req.user!.company_id);
  }
 
@@ -854,14 +881,14 @@ app.post('/api/admin/users', authenticateUser, requireAdminOrSupervisor, async (
  return res.status(400).json({ error: 'Todos los campos son requeridos' });
  }
 
- const validRoles = ['admin', 'supervisor', 'analyst'];
+ const validRoles = ['superadmin', 'lider', 'auditor'];
  if (!validRoles.includes(role)) {
  return res.status(400).json({ error: 'Rol inválido' });
  }
 
- // supervisor no puede crear admins
- if (req.user!.role === 'supervisor' && role === 'admin') {
- return res.status(403).json({ error: 'No tienes permisos para crear administradores' });
+ // lider no puede crear superadmins
+ if (req.user!.role === 'lider' && role === 'superadmin') {
+ return res.status(403).json({ error: 'No tienes permisos para crear superadministradores' });
  }
 
  // company_id del nuevo usuario = company_id del usuario que lo crea
@@ -917,7 +944,7 @@ app.put('/api/admin/users/:userId', authenticateUser, requireAdminOrSupervisor, 
  const { email, full_name, role, password } = req.body;
 
  if (role) {
- const validRoles = ['admin', 'supervisor', 'analyst'];
+ const validRoles = ['superadmin', 'lider', 'auditor'];
  if (!validRoles.includes(role)) {
  return res.status(400).json({ error: 'Rol inválido' });
  }
@@ -1354,7 +1381,8 @@ app.delete('/api/admin/criteria/:id', authenticateUser, requireAdminOrAnalyst, a
 
 app.get('/api/admin/plantilla-gpf', authenticateUser, async (req: Request, res: Response) => {
   try {
-    const items = await databaseService.getAllPlantillaGPF();
+    const companyId = req.user!.role === 'superadmin' ? undefined : (req.user!.company_id ?? undefined);
+    const items = await databaseService.getAllPlantillaGPF(companyId);
     res.json(items);
   } catch (error: any) {
     logger.error('Error fetching plantilla GPF:', error);
@@ -1368,7 +1396,8 @@ app.post('/api/admin/plantilla-gpf', authenticateUser, requireAdminOrAnalyst, as
     if (!categoria || !tipo_cierre) {
       return res.status(400).json({ error: 'categoria y tipo_cierre son requeridos' });
     }
-    const callTypesConfig = await databaseService.getCallTypesConfig();
+    const companyId = req.user!.role === 'superadmin' ? undefined : (req.user!.company_id ?? undefined);
+    const callTypesConfig = await databaseService.getCallTypesConfig(companyId);
     const validCallTypes = callTypesConfig.filter((c: any) => c.is_active !== false).map((c: any) => c.name);
     const validModes = [...new Set(callTypesConfig.flatMap((c: any) => c.modes || []))];
     if (!call_type || !validCallTypes.includes(call_type)) {
@@ -1385,6 +1414,7 @@ app.post('/api/admin/plantilla-gpf', authenticateUser, requireAdminOrAnalyst, as
       tipo_orden: tipo_orden ?? 0,
       call_type,
       mode,
+      company_id: req.user!.company_id ?? undefined,
     });
     res.status(201).json(item);
   } catch (error: any) {
@@ -1399,7 +1429,8 @@ app.put('/api/admin/plantilla-gpf/rename-categoria', authenticateUser, requireAd
     if (!oldName || !newName) {
       return res.status(400).json({ error: 'oldName y newName son requeridos' });
     }
-    const callTypesConfig = await databaseService.getCallTypesConfig();
+    const companyId = req.user!.role === 'superadmin' ? undefined : (req.user!.company_id ?? undefined);
+    const callTypesConfig = await databaseService.getCallTypesConfig(companyId);
     const validCallTypes = callTypesConfig.filter((c: any) => c.is_active !== false).map((c: any) => c.name);
     const validModes = [...new Set(callTypesConfig.flatMap((c: any) => c.modes || []))];
     if (!call_type || !validCallTypes.includes(call_type)) {
@@ -1475,7 +1506,8 @@ app.put('/api/admin/ai-prompts/:id', authenticateUser, requireAdmin, async (req:
 
 app.get('/api/admin/word-boost', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
-    const terms = await databaseService.getWordBoostTerms();
+    const companyId = req.user!.role === 'superadmin' ? undefined : (req.user!.company_id ?? undefined);
+    const terms = await databaseService.getWordBoostTerms(companyId);
     res.json(terms);
   } catch (error: any) {
     logger.error('Error fetching word_boost_terms:', error);
@@ -1489,7 +1521,7 @@ app.post('/api/admin/word-boost', authenticateUser, requireAdminOrAnalyst, async
     if (!term || !category) {
       return res.status(400).json({ error: 'term y category son requeridos' });
     }
-    const item = await databaseService.createWordBoostTerm({ term, category, is_active, display_order });
+    const item = await databaseService.createWordBoostTerm({ term, category, is_active, display_order, company_id: req.user!.company_id ?? undefined });
     res.status(201).json(item);
   } catch (error: any) {
     logger.error('Error creating word_boost_term:', error);
@@ -1526,7 +1558,8 @@ app.delete('/api/admin/word-boost/:id', authenticateUser, requireAdminOrAnalyst,
 
 app.get('/api/admin/image-systems', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
-    const systems = await databaseService.getImageSystems();
+    const companyId = req.user!.role === 'superadmin' ? undefined : (req.user!.company_id ?? undefined);
+    const systems = await databaseService.getImageSystems(companyId);
     res.json(systems);
   } catch (error: any) {
     logger.error('Error fetching image_systems:', error);
@@ -1540,7 +1573,7 @@ app.post('/api/admin/image-systems', authenticateUser, requireAdminOrAnalyst, as
     if (!system_name || !description) {
       return res.status(400).json({ error: 'system_name y description son requeridos' });
     }
-    const item = await databaseService.createImageSystem({ system_name, description, detection_hints, fields_schema, is_active, display_order });
+    const item = await databaseService.createImageSystem({ system_name, description, detection_hints, fields_schema, is_active, display_order, company_id: req.user!.company_id ?? undefined });
     res.status(201).json(item);
   } catch (error: any) {
     logger.error('Error creating image_system:', error);
@@ -1550,7 +1583,8 @@ app.post('/api/admin/image-systems', authenticateUser, requireAdminOrAnalyst, as
 
 app.get('/api/admin/image-systems/analytics', authenticateUser, async (req: Request, res: Response) => {
   try {
-    const data = await databaseService.getImageSystemAnalytics();
+    const companyId = req.user!.role === 'superadmin' ? undefined : (req.user!.company_id ?? undefined);
+    const data = await databaseService.getImageSystemAnalytics(companyId);
     res.json(data);
   } catch (error: any) {
     logger.error('Error fetching image system analytics:', error);
@@ -1560,7 +1594,8 @@ app.get('/api/admin/image-systems/analytics', authenticateUser, async (req: Requ
 
 app.get('/api/admin/audits/calificaciones', authenticateUser, async (req: Request, res: Response) => {
   try {
-    const data = await databaseService.getCalificacionesFromAudits();
+    const companyId = req.user!.role === 'superadmin' ? undefined : (req.user!.company_id ?? undefined);
+    const data = await databaseService.getCalificacionesFromAudits(companyId);
     res.json(data);
   } catch (error: any) {
     logger.error('Error fetching calificaciones:', error);
@@ -1572,9 +1607,11 @@ app.get('/api/admin/image-systems/by-calltype', authenticateUser, async (req: Re
   try {
     const calificacion = req.query.calificacion as string | undefined;
     const subcalificacion = req.query.subcalificacion as string | undefined;
+    const companyId = req.user!.role === 'superadmin' ? undefined : (req.user!.company_id ?? undefined);
     const data = await databaseService.getImageSystemsByCallType(
       calificacion || undefined,
-      subcalificacion || undefined
+      subcalificacion || undefined,
+      companyId
     );
     res.json(data);
   } catch (error: any) {
@@ -1589,7 +1626,8 @@ app.post('/api/admin/criteria/generate-blocks', authenticateUser, requireAdminOr
     if (!description?.trim() || !call_type) {
       return res.status(400).json({ error: 'description y call_type son requeridos' });
     }
-    const imageSystems = await databaseService.getImageSystems();
+    const companyId = req.user!.role === 'superadmin' ? undefined : (req.user!.company_id ?? undefined);
+    const imageSystems = await databaseService.getImageSystems(companyId);
     const systemNames = imageSystems.filter((s: any) => s.is_active !== false).map((s: any) => s.system_name as string);
     const result = await openAIService.generateCriteriaBlocks(description.trim(), call_type, mode ?? 'INBOUND', systemNames);
     res.json(result);
@@ -1661,7 +1699,8 @@ app.delete('/api/admin/image-systems/:id', authenticateUser, requireAdminOrAnaly
 
 app.get('/api/call-types-config', authenticateUser, async (req: Request, res: Response) => {
   try {
-    const items = await databaseService.getCallTypesConfig();
+    const companyId = req.user!.role === 'superadmin' ? undefined : (req.user!.company_id ?? undefined);
+    const items = await databaseService.getCallTypesConfig(companyId);
     res.json(items);
   } catch (error: any) {
     logger.error('Error fetching call_types_config (public):', error);
@@ -1675,7 +1714,8 @@ app.get('/api/call-types-config', authenticateUser, async (req: Request, res: Re
 
 app.get('/api/admin/call-types-config', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
-    const items = await databaseService.getCallTypesConfig();
+    const companyId = req.user!.role === 'superadmin' ? undefined : (req.user!.company_id ?? undefined);
+    const items = await databaseService.getCallTypesConfig(companyId);
     res.json(items);
   } catch (error: any) {
     logger.error('Error fetching call_types_config:', error);
@@ -1793,17 +1833,18 @@ app.post('/api/admin/call-types-config/sync-gpf', authenticateUser, requireAdmin
 // GPF API PROXY
 // ============================================
 
-const getGpfBaseUrl = (env: string): string => {
- return env === 'prod'
- ? (process.env.GPF_API_URL_PROD || '')
- : (process.env.GPF_API_URL_TEST || '');
+// Resuelven credenciales GPF desde integration_config de PositivoS+ (fallback .env).
+const getGpfBaseUrl = async (env: string): Promise<string> => {
+ const creds = await gpfConfigService.getCredentials();
+ return env === 'prod' ? creds.apiUrlProd : creds.apiUrlTest;
 };
 
-const buildGpfHeaders = (token?: string): Record<string, string> => {
+const buildGpfHeaders = async (token?: string): Promise<Record<string, string>> => {
+ const creds = await gpfConfigService.getCredentials();
  const headers: Record<string, string> = {
  'Accept': 'application/json',
  'Content-Type': 'application/json',
- 'X-App-Token': process.env.GPF_APP_TOKEN || '',
+ 'X-App-Token': creds.appToken,
  'ngrok-skip-browser-warning': 'true'
  };
  if (token) {
@@ -1815,19 +1856,20 @@ const buildGpfHeaders = (token?: string): Record<string, string> => {
 app.post('/api/gpf/login', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
  try {
  const env: string = req.body.env || 'test';
- const baseUrl = getGpfBaseUrl(env);
+ const baseUrl = await getGpfBaseUrl(env);
 
  if (!baseUrl) {
  return res.status(500).json({ error: 'URL de GPF no configurada' });
  }
 
- const email: string = req.body.email || process.env.GPF_EMAIL || '';
- const password: string = req.body.password || process.env.GPF_PASSWORD || '';
+ const creds = await gpfConfigService.getCredentials();
+ const email: string = req.body.email || creds.email;
+ const password: string = req.body.password || creds.password;
 
  const start = Date.now();
  const response = await fetch(`${baseUrl}/api/login`, {
  method: 'POST',
- headers: buildGpfHeaders(),
+ headers: await buildGpfHeaders(),
  body: JSON.stringify({ email, password })
  });
 
@@ -1862,7 +1904,7 @@ app.post('/api/gpf/proxy', authenticateUser, requireAdmin, async (req: Request, 
  return res.status(400).json({ error: 'El campo endpoint es requerido' });
  }
 
- const baseUrl = getGpfBaseUrl(env);
+ const baseUrl = await getGpfBaseUrl(env);
  if (!baseUrl) {
  return res.status(500).json({ error: 'URL de GPF no configurada' });
  }
@@ -1875,7 +1917,7 @@ app.post('/api/gpf/proxy', authenticateUser, requireAdmin, async (req: Request, 
 
  const fetchOptions: RequestInit = {
  method: method.toUpperCase(),
- headers: buildGpfHeaders(token)
+ headers: await buildGpfHeaders(token)
  };
 
  if (requestBody && !['GET', 'HEAD'].includes(method.toUpperCase())) {
@@ -1920,7 +1962,7 @@ app.post('/api/gpf/download-report', authenticateUser, requireAdmin, async (req:
  return res.status(400).json({ error: 'export_id es requerido' });
  }
 
- const baseUrl = getGpfBaseUrl(env);
+ const baseUrl = await getGpfBaseUrl(env);
  if (!baseUrl) {
  return res.status(500).json({ error: 'URL de GPF no configurada' });
  }
@@ -1928,7 +1970,7 @@ app.post('/api/gpf/download-report', authenticateUser, requireAdmin, async (req:
  const start = Date.now();
  const response = await fetch(`${baseUrl}/api/quality-control/v1/download-report`, {
  method: 'POST',
- headers: buildGpfHeaders(token),
+ headers: await buildGpfHeaders(token),
  body: JSON.stringify({ export_id })
  });
  const elapsed = Date.now() - start;
@@ -2144,9 +2186,10 @@ app.get('/api/gpf/image-proxy', async (req: Request, res: Response) => {
  if (!url) return res.status(400).end();
 
  // Protección SSRF: solo permitir URLs de los servidores GPF configurados
+ const creds = await gpfConfigService.getCredentials();
  const allowed = [
- process.env.GPF_API_URL_PROD || '',
- process.env.GPF_API_URL_TEST || '',
+ creds.apiUrlProd,
+ creds.apiUrlTest,
  '200.94.158.81',
  'ngrok-free.app',
  'ngrok.io'
@@ -2174,8 +2217,8 @@ app.get('/api/gpf/image-proxy', async (req: Request, res: Response) => {
  const httpUrl = url.replace(/^https:\/\//, 'http://');
 
  const imgAttempts: Array<{ label: string; url: string; headers: Record<string, string> }> = [
- { label: 'Bearer+AppToken', url, headers: { 'Authorization': `Bearer ${gpfToken}`, 'X-App-Token': process.env.GPF_APP_TOKEN || '', 'ngrok-skip-browser-warning': 'true' } },
- { label: 'AppToken-solo', url, headers: { 'X-App-Token': process.env.GPF_APP_TOKEN || '', 'ngrok-skip-browser-warning': 'true' } },
+ { label: 'Bearer+AppToken', url, headers: { 'Authorization': `Bearer ${gpfToken}`, 'X-App-Token': creds.appToken, 'ngrok-skip-browser-warning': 'true' } },
+ { label: 'AppToken-solo', url, headers: { 'X-App-Token': creds.appToken, 'ngrok-skip-browser-warning': 'true' } },
  { label: 'browser-UA', url, headers: { 'User-Agent': browserUA, 'Referer': gpfOrigin + '/', 'Accept': 'image/*,*/*' } },
  { label: 'http', url: httpUrl, headers: {} },
  { label: 'http-browser-UA', url: httpUrl, headers: { 'User-Agent': browserUA, 'Referer': gpfOrigin + '/', 'Accept': 'image/*,*/*' } },
@@ -2348,7 +2391,7 @@ app.post('/api/gpf/audio-proxy', authenticateUser, requireAdminOrAnalyst, async 
  const { attentionId, env = 'test' } = req.body;
  if (!attentionId) return res.status(400).json({ error: 'attentionId requerido' });
  try {
- const appToken = process.env.GPF_APP_TOKEN || '';
+ const appToken = (await gpfConfigService.getCredentials()).appToken;
 
  // Ciclo 1: token/cookie cacheados
  let token = await gpfTokenService.getTokenWithRetry(env);
@@ -2433,10 +2476,14 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
  const resolvedExcelType: 'INBOUND' | 'MONITOREO' =
  rawExcelType === 'MONITOREO' ? 'MONITOREO' : 'INBOUND';
 
+ // Toda la data de GPF pertenece a PositivoS+ (multi-tenant)
+ const gpfCompanyId = await databaseService.getPositivosCompanyId();
+
  // Use the full attention object from the list for rich metadata
  const metadata = {
  ...gpfDataService.normalizeMetadata(attentionObject || {}, attentionId),
  excelType: resolvedExcelType,
+ companyId: gpfCompanyId,
  gpfData: {
   attentionFields: attentionObject || {},
   transactions: attentionData.transactions,
@@ -2458,8 +2505,8 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
    } else {
      // Intento 2: buscar en plantilla_gpf solo para calificaciones no reconocidas por texto
      const resolvedCallType =
-       await databaseService.getCallTypeFromPlantilla(calificacion, subCalificacion || undefined, resolvedExcelType)
-       ?? await databaseService.getCallTypeFromPlantilla(calificacion, undefined, resolvedExcelType);
+       await databaseService.getCallTypeFromPlantilla(calificacion, subCalificacion || undefined, resolvedExcelType, gpfCompanyId ?? undefined)
+       ?? await databaseService.getCallTypeFromPlantilla(calificacion, undefined, resolvedExcelType, gpfCompanyId ?? undefined);
      if (resolvedCallType) {
        metadata.callType = resolvedCallType;
        logger.info('[PASO 1] callType resuelto desde plantilla_gpf', { calificacion, subCalificacion, resolvedCallType });
@@ -2498,7 +2545,7 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
 
  auditId = await databaseService.createAudit({
  userId: req.user!.id,
- companyId: req.user!.company_id ?? undefined,
+ companyId: gpfCompanyId,
  auditInput: metadata,
  audioFilename: 'gpf-sourced',
  imageFilenames: localPaths.map(p => path.basename(p))
@@ -2615,7 +2662,7 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
 
  if (audioSecureUrl) {
  progressBroadcaster.progress(sseClientId, 'audio', 62, '[AUDIO] Descargando grabacion...');
- const appToken = process.env.GPF_APP_TOKEN || '';
+ const appToken = (await gpfConfigService.getCredentials()).appToken;
  const sessionCookie = gpfTokenService.getSessionCookie(env);
  logger.info('[PASO 5] Descargando audio (intento 1 con Bearer + cookie)...', { url: audioSecureUrl.substring(0, 80) });
  let audioResponse = await gpfFetch(audioSecureUrl, {
@@ -2868,7 +2915,7 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
  excelBase64,
  processingTimeMs: Date.now() - startTime,
  costs,
- companyId: req.user!.company_id ?? null,
+ companyId: gpfCompanyId,
  audioDuration: audioDurationSeconds || null,
  transcriptionConfidence: gpfTranscriptionConfidence,
  languageCode: gpfLanguageCode,
@@ -2928,7 +2975,8 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
 
 app.get('/api/admin/bines', authenticateUser, async (req: Request, res: Response) => {
   try {
-    const bines = await databaseService.getAllBines();
+    const companyId = req.user!.role === 'superadmin' ? undefined : (req.user!.company_id ?? undefined);
+    const bines = await databaseService.getAllBines(companyId);
     res.json(bines);
   } catch (error: any) {
     logger.error('Error fetching bines:', error);
@@ -2951,6 +2999,7 @@ app.post('/api/admin/bines', authenticateUser, requireAdminOrAnalyst, async (req
       producto,
       nombre_comercial,
       marca,
+      company_id: req.user!.company_id ?? undefined,
     });
     res.status(201).json(item);
   } catch (error: any) {
@@ -3009,7 +3058,8 @@ app.post('/api/batch/jobs', authenticateUser, requireAdminOrAnalyst, async (req:
 
 app.get('/api/batch/jobs', authenticateUser, async (req: Request, res: Response) => {
   try {
-    const jobs = await batchService.getBatchJobs(req.user!.id, req.user!.role);
+    const companyId = req.user!.role === 'superadmin' ? null : req.user!.company_id;
+    const jobs = await batchService.getBatchJobs(req.user!.id, req.user!.role, companyId);
     res.json(jobs);
   } catch (error: any) {
     logger.error('Error listing batch jobs', error);
@@ -3021,6 +3071,10 @@ app.get('/api/batch/jobs/:jobId', authenticateUser, async (req: Request, res: Re
   try {
     const job = await batchService.getBatchJobById(req.params.jobId);
     if (!job) return res.status(404).json({ error: 'Lote no encontrado' });
+    // Aislamiento por empresa: solo superadmin o miembros de la empresa dueña
+    if (req.user!.role !== 'superadmin' && req.user!.company_id && job.company_id !== req.user!.company_id) {
+      return res.status(404).json({ error: 'Lote no encontrado' });
+    }
     res.json(job);
   } catch (error: any) {
     logger.error('Error fetching batch job', error);
@@ -3265,6 +3319,75 @@ app.put('/api/admin/company/role-permissions', authenticateUser, requireAdminOrS
  } catch (error: any) {
  logger.error('Error updating role permissions', error);
  res.status(500).json({ error: 'Error al actualizar permisos' });
+ }
+});
+
+// ── Integración interna por empresa (lider o superadmin) ──────────────────
+// El lider edita únicamente los endpoints internos de SU empresa
+// (companies.integration_config). Las APIs globales (OpenAI/AssemblyAI) NO
+// se tocan aquí; viven en /api/admin/config (solo superadmin).
+app.get('/api/company/integration', authenticateUser, requireAdminOrSupervisor, async (req: Request, res: Response) => {
+ try {
+ // El superadmin puede inspeccionar otra empresa con ?companyId=; el lider solo la suya.
+ const targetId = req.user!.role === 'superadmin'
+   ? ((req.query.companyId as string) || req.user!.company_id)
+   : req.user!.company_id;
+ if (!targetId) return res.status(400).json({ error: 'No company associated' });
+
+ const company = await databaseService.getCompany(targetId);
+ res.json({
+   company_id: company.id,
+   name: company.name,
+   integration_type: company.integration_type ?? 'none',
+   integration_config: company.integration_config ?? {},
+ });
+ } catch (error: any) {
+ logger.error('Error fetching company integration', error);
+ res.status(500).json({ error: 'Error al obtener integración' });
+ }
+});
+
+app.put('/api/company/integration', authenticateUser, requireAdminOrSupervisor, async (req: Request, res: Response) => {
+ try {
+ const { integration_type, integration_config } = req.body ?? {};
+ // El superadmin puede dirigir otra empresa por body.companyId; el lider solo la suya.
+ const targetId = req.user!.role === 'superadmin'
+   ? ((req.body?.companyId as string) || req.user!.company_id)
+   : req.user!.company_id;
+ if (!targetId) return res.status(400).json({ error: 'No company associated' });
+
+ // Mezclar config existente con la nueva para no perder claves no enviadas.
+ const current = await databaseService.getCompany(targetId);
+ const mergedConfig = {
+   ...((current?.integration_config as Record<string, unknown>) ?? {}),
+   ...((integration_config as Record<string, unknown>) ?? {}),
+ };
+
+ const payload: { integration_type?: string; integration_config: Record<string, unknown> } = {
+   integration_config: mergedConfig,
+ };
+ if (typeof integration_type === 'string') payload.integration_type = integration_type;
+
+ const updated = await databaseService.updateCompany(targetId, payload);
+ logger.success('Company integration updated', { companyId: targetId, by: req.user!.id });
+
+ // Si se actualizó PositivoS+ (dueña de GPF), invalidar las cachés de
+ // credenciales y de token para que el runtime tome los nuevos valores.
+ const positivosId = await databaseService.getPositivosCompanyId();
+ if (positivosId && targetId === positivosId) {
+   gpfConfigService.invalidate();
+   gpfTokenService.invalidate('prod');
+   gpfTokenService.invalidate('test');
+ }
+ res.json({
+   company_id: updated.id,
+   name: updated.name,
+   integration_type: updated.integration_type ?? 'none',
+   integration_config: updated.integration_config ?? {},
+ });
+ } catch (error: any) {
+ logger.error('Error updating company integration', error);
+ res.status(500).json({ error: 'Error al actualizar integración' });
  }
 });
 

@@ -23,8 +23,14 @@ router.get('/stats', authenticateUser, async (req: Request, res: Response) => {
  .from('audits')
  .select('id, status, created_at, evaluations(percentage)');
 
- // Filtrar por usuario si es ejecutivo
- if (userRole === 'analyst') {
+ // Aislamiento por empresa: superadmin ve todas; el resto solo la suya
+ const companyId = userRole === 'superadmin' ? null : req.user!.company_id;
+ if (companyId) {
+ query = query.eq('company_id', companyId);
+ }
+
+ // El auditor solo ve sus propias auditorías
+ if (userRole === 'auditor') {
  query = query.eq('user_id', userId);
  }
 
@@ -77,12 +83,13 @@ router.get('/stats', authenticateUser, async (req: Request, res: Response) => {
 
  // Contar ejecutivos únicos (solo para supervisor/admin)
  let totalExecutives = 0;
- if (userRole === 'admin' || userRole === 'supervisor') {
- const { data: users, error: usersError } = await databaseService.client
+ if (userRole === 'superadmin' || userRole === 'lider') {
+ let usersQuery = databaseService.client
  .from('users')
  .select('id')
- .eq('role', 'executive')
  .eq('is_active', true);
+ if (companyId) usersQuery = usersQuery.eq('company_id', companyId);
+ const { data: users, error: usersError } = await usersQuery;
 
  if (usersError) {
  logger.warn(' Error counting executives:', usersError);
@@ -107,10 +114,12 @@ router.get('/stats', authenticateUser, async (req: Request, res: Response) => {
 
  // ⭐ NUEVO: Calcular costos totales
  let totalCosts = 0;
- if (userRole === 'admin' || userRole === 'supervisor') {
- const { data: costs, error: costsError } = await databaseService.client
+ if (userRole === 'superadmin' || userRole === 'lider') {
+ let costsQuery = databaseService.client
  .from('api_costs')
  .select('total_cost');
+ if (companyId) costsQuery = costsQuery.eq('company_id', companyId);
+ const { data: costs, error: costsError } = await costsQuery;
 
  if (costsError) {
  logger.warn(' Error fetching costs:', costsError);
@@ -167,7 +176,7 @@ router.get('/my-audits', authenticateUser, async (req: Request, res: Response) =
  }
 
  // Buscar auditorías por executive_name (usando full_name o email)
- const { data: audits, error } = await databaseService.client
+ let myAuditsQuery = databaseService.client
  .from('audits')
  .select(`
  id,
@@ -183,7 +192,12 @@ router.get('/my-audits', authenticateUser, async (req: Request, res: Response) =
  percentage
  )
  `)
- .or(`executive_name.eq.${userData.full_name},executive_id.eq.${userId}`)
+ .or(`executive_name.eq.${userData.full_name},executive_id.eq.${userId}`);
+ // Aislamiento por empresa (salvo superadmin)
+ if (req.user!.role !== 'superadmin' && req.user!.company_id) {
+ myAuditsQuery = myAuditsQuery.eq('company_id', req.user!.company_id);
+ }
+ const { data: audits, error } = await myAuditsQuery
  .order('call_date', { ascending: false });
 
  if (error) {
@@ -210,13 +224,16 @@ router.get('/analytics', authenticateUser, async (req: Request, res: Response) =
  const { period = 'month' } = req.query;
  const userRole = req.user!.role;
 
- // Solo Admin y Analyst pueden acceder a este endpoint
- if (userRole !== 'admin' && userRole !== 'analyst') {
+ // Acceso para superadmin, lider y auditor
+ if (!['superadmin', 'lider', 'auditor'].includes(userRole)) {
  return res.status(403).json({ error: 'Acceso denegado' });
  }
 
- // Obtener todas las auditorías completadas con evaluaciones
- const { data: audits, error } = await databaseService.client
+ // Aislamiento por empresa: superadmin ve todas; el resto solo la suya
+ const companyId = userRole === 'superadmin' ? null : req.user!.company_id;
+
+ // Obtener auditorías completadas con evaluaciones
+ let analyticsQuery = databaseService.client
  .from('audits')
  .select(`
  id,
@@ -229,7 +246,9 @@ router.get('/analytics', authenticateUser, async (req: Request, res: Response) =
  percentage
  )
  `)
- .eq('status', 'completed')
+ .eq('status', 'completed');
+ if (companyId) analyticsQuery = analyticsQuery.eq('company_id', companyId);
+ const { data: audits, error } = await analyticsQuery
  .order('call_date', { ascending: false });
 
  if (error) {

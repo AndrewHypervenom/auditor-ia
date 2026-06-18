@@ -4,7 +4,7 @@ import { Request, Response, NextFunction } from 'express';
 import { supabase, supabaseAdmin } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 
-export type UserRole = 'admin' | 'supervisor' | 'analyst';
+export type UserRole = 'superadmin' | 'lider' | 'auditor';
 
 declare global {
   namespace Express {
@@ -78,7 +78,7 @@ export const authenticateUser = async (
  id: user.id,
  email: user.email,
  full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || '',
- role: 'analyst', // Rol por defecto (operador principal)
+ role: 'auditor', // Rol por defecto (operador de auditorías)
  is_active: true
  })
  .select('role, full_name, is_active, company_id')
@@ -90,7 +90,7 @@ export const authenticateUser = async (
  }
 
  profile = newProfile;
- logger.success(' User profile created successfully', { userId: user.id, role: 'analyst' });
+ logger.success(' User profile created successfully', { userId: user.id, role: 'auditor' });
  } else if (profileError) {
  logger.error(' Error fetching user profile', profileError);
  return res.status(500).json({ error: 'Error fetching user profile' });
@@ -112,7 +112,7 @@ export const authenticateUser = async (
  req.user = {
  id: user.id,
  email: user.email!,
- role: (profile?.role as UserRole) || 'analyst',
+ role: (profile?.role as UserRole) || 'auditor',
  full_name: profile?.full_name || undefined,
  company_id: profile?.company_id ?? null
  };
@@ -138,14 +138,14 @@ export const requireAdmin = (req: Request, res: Response, next: NextFunction) =>
  return res.status(401).json({ error: 'Not authenticated' });
  }
 
- if (req.user.role !== 'admin') {
+ if (req.user.role !== 'superadmin') {
  logger.warn(' Unauthorized access attempt to admin resource', {
  userId: req.user.id,
  role: req.user.role
  });
- return res.status(403).json({ 
+ return res.status(403).json({
  error: 'Insufficient permissions',
- message: 'This action requires administrator privileges' 
+ message: 'This action requires superadmin privileges'
  });
  }
 
@@ -153,23 +153,23 @@ export const requireAdmin = (req: Request, res: Response, next: NextFunction) =>
 };
 
 /**
- * Middleware para verificar que el usuario sea Admin o Analyst
- * Según documento v1.0: Solo Admin y Analyst pueden crear/editar/eliminar auditorías
+ * Middleware para operaciones (crear/editar/eliminar auditorías y configuración
+ * operativa). Lo pueden hacer superadmin, lider (gestor de su empresa) y auditor.
  */
 export const requireAdminOrAnalyst = (req: Request, res: Response, next: NextFunction) => {
  if (!req.user) {
  return res.status(401).json({ error: 'Not authenticated' });
  }
 
- if (!['admin', 'analyst'].includes(req.user.role)) {
+ if (!['superadmin', 'lider', 'auditor'].includes(req.user.role)) {
  logger.warn(' Unauthorized access attempt', {
  userId: req.user.id,
  role: req.user.role,
- requiredRoles: ['admin', 'analyst']
+ requiredRoles: ['superadmin', 'lider', 'auditor']
  });
- return res.status(403).json({ 
+ return res.status(403).json({
  error: 'Insufficient permissions',
- message: 'This action requires administrator or analyst privileges' 
+ message: 'This action requires superadmin, lider or auditor privileges'
  });
  }
 
@@ -218,8 +218,8 @@ export const canAccessAudit = async (req: Request, res: Response, next: NextFunc
  }
 
  try {
- // Todos los roles tienen acceso de lectura a todas las auditorías
- if (['admin', 'supervisor', 'analyst'].includes(req.user.role)) {
+ // Todos los roles tienen acceso de lectura a las auditorías de su empresa
+ if (['superadmin', 'lider', 'auditor'].includes(req.user.role)) {
  return next();
  }
 
@@ -232,18 +232,19 @@ export const canAccessAudit = async (req: Request, res: Response, next: NextFunc
 };
 
 /**
- * Middleware para verificar que el usuario sea Admin o Supervisor (gestores de empresa/plataforma)
+ * Middleware para gestores de empresa/plataforma (superadmin y lider).
+ * El lider gestiona su propia empresa; el superadmin todas.
  */
 export const requireAdminOrSupervisor = (req: Request, res: Response, next: NextFunction) => {
  if (!req.user) {
  return res.status(401).json({ error: 'Not authenticated' });
  }
 
- if (!['admin', 'supervisor'].includes(req.user.role)) {
+ if (!['superadmin', 'lider'].includes(req.user.role)) {
  logger.warn(' Unauthorized access attempt', {
  userId: req.user.id,
  role: req.user.role,
- requiredRoles: ['admin', 'supervisor']
+ requiredRoles: ['superadmin', 'lider']
  });
  return res.status(403).json({
  error: 'Insufficient permissions',
@@ -264,8 +265,9 @@ export const requireAdminOrSupervisor = (req: Request, res: Response, next: Next
  */
 export function hasPermission(role: UserRole, permission: string): boolean {
  const permissions: Record<UserRole, string[]> = {
- admin: ['*'], // Admin tiene todos los permisos
- analyst: [
+ superadmin: ['*'], // Superadmin tiene todos los permisos (todas las empresas)
+ lider: ['*'], // Lider tiene todos los permisos dentro de su empresa
+ auditor: [
  'audits:create',
  'audits:read',
  'audits:update',
@@ -273,13 +275,6 @@ export function hasPermission(role: UserRole, permission: string): boolean {
  'users:read',
  'reports:generate'
  // NO incluye 'costs:read'
- ],
- supervisor: [
- 'audits:read',
- 'users:read',
- 'costs:read',
- 'reports:generate:readonly'
- // NO incluye create, update, delete
  ]
  };
 

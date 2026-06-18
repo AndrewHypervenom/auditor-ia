@@ -73,7 +73,9 @@ class AssemblyAIService {
  logger.info('[ASSEMBLYAI] Audio subido exitosamente, iniciando transcripcion...');
 
  // ============ CARGAR VOCABULARIO DESDE BD ============
- const dbTerms = await getDatabaseService().getWordBoostTerms();
+ // Vocabulario (word boost) pertenece a PositivoS+ (origen GPF).
+ const wbCompanyId = await getDatabaseService().getPositivosCompanyId();
+ const dbTerms = await getDatabaseService().getWordBoostTerms(wbCompanyId ?? undefined);
  const wordBoostList = dbTerms.filter((t: any) => t.is_active !== false).map((t: any) => t.term);
  logger.info(`[ASSEMBLYAI] Vocabulario cargado desde BD: ${wordBoostList.length} términos`);
 

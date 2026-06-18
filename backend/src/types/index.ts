@@ -26,6 +26,7 @@ export interface AuditInput {
  audioPath?: string; // Ruta del archivo de audio
  imagePaths?: string[]; // Rutas de las imágenes
  gpfData?: GpfStructuredData; // Datos estructurados GPF (solo auditorías desde GPF)
+ companyId?: string | null; // Empresa dueña (multi-tenant): GPF→PositivoS+, manual→empresa del usuario
 }
 
 /**

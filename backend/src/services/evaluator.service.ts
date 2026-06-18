@@ -34,7 +34,7 @@ class EvaluatorService {
  let totalOutputTokens = 0;
 
  // PASO 0: Obtener criterios — necesarios para enriquecer el análisis de imágenes
- const criteriaEarly = await getDatabaseService().getCriteriaForCallType(auditInput.callType, auditInput.subCalificacion) as EvaluationBlock[];
+ const criteriaEarly = await getDatabaseService().getCriteriaForCallType(auditInput.callType, auditInput.subCalificacion, auditInput.companyId ?? undefined) as EvaluationBlock[];
 
  // Construir hints de rubros que deben validarse en imágenes
  const imageRubroHints = criteriaEarly
@@ -294,7 +294,7 @@ class EvaluatorService {
      });
    }
 
-   const criteria = await getDatabaseService().getCriteriaForCallType(auditInput.callType, auditInput.subCalificacion) as EvaluationBlock[];
+   const criteria = await getDatabaseService().getCriteriaForCallType(auditInput.callType, auditInput.subCalificacion, auditInput.companyId ?? undefined) as EvaluationBlock[];
 
    // Normalizar evidencia visual contra sistemas conocidos (igual que evaluate())
    const knownSystems = new Set(criteria.map(b => this.getSystemFromBlock(b.blockName)));
@@ -513,7 +513,9 @@ class EvaluatorService {
  * MEJORADO: Prompt con mejor detección de campos críticos
  */
  private async getEnhancedAnalysisPrompt(rubroHints?: string): Promise<string> {
-  const systems = await getDatabaseService().getImageSystems();
+  // Config de sistemas de imagen pertenece a PositivoS+ (origen GPF).
+  const imgCompanyId = await getDatabaseService().getPositivosCompanyId();
+  const systems = await getDatabaseService().getImageSystems(imgCompanyId ?? undefined);
   const activeSystems = systems.filter((s: any) => s.is_active !== false);
   if (activeSystems.length === 0) {
    return this.buildGenericAnalysisPrompt(rubroHints);

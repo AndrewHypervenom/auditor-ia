@@ -4,7 +4,7 @@
 /**
  * Roles disponibles en el sistema
  */
-export type UserRole = 'admin' | 'supervisor' | 'analyst';
+export type UserRole = 'superadmin' | 'lider' | 'auditor';
 
 /**
  * Permisos granulares del sistema
@@ -92,48 +92,45 @@ export interface UserProfile {
  * - Puede ver usuarios
  */
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
-  admin: [
-    // Usuarios - Gestión completa
+  // SUPERADMIN: control total de la plataforma (todas las empresas)
+  superadmin: [
     'users:create',
     'users:read',
     'users:update',
     'users:delete',
-    // Auditorías - Control total
     'audits:create',
     'audits:read:all',
     'audits:update:all',
     'audits:delete:all',
-    // Costos - Acceso completo
     'costs:read:all',
-    // Configuración
     'config:manage',
     'logs:read',
     'roles:manage',
-    // Reportes
     'reports:generate',
   ],
-  analyst: [
-    // Auditorías - Operación completa
+  // LIDER: administra su propia empresa (gestión, config, endpoints internos)
+  lider: [
+    'users:create',
+    'users:read',
+    'users:update',
+    'users:delete',
     'audits:create',
     'audits:read:all',
     'audits:update:all',
     'audits:delete:all',
-    // Reportes - Generación completa
+    'costs:read:all',
+    'config:manage',
+    'logs:read',
+    'reports:generate',
+  ],
+  // AUDITOR: operador de auditorías dentro de su empresa
+  auditor: [
+    'audits:create',
+    'audits:read:all',
+    'audits:update:all',
+    'audits:delete:all',
     'reports:generate',
     // Sin acceso a costos
-    // Sin gestión de usuarios
-    // Sin configuración del sistema
-  ],
-  supervisor: [
-    // Usuarios - Solo lectura
-    'users:read',
-    // Auditorías - SOLO LECTURA
-    'audits:read:all',
-    // Costos - Lectura completa
-    'costs:read:all',
-    // Reportes - Solo lectura
-    'reports:generate:readonly',
-    // Sin capacidad de crear, editar o eliminar auditorías
     // Sin gestión de usuarios
     // Sin configuración del sistema
   ],
@@ -143,20 +140,20 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
  * Información de cada rol para mostrar en UI
  */
 export const ROLE_INFO: Record<UserRole, { label: string; description: string; color: string }> = {
-  admin: {
-    label: 'Administrador',
-    description: 'Control total del sistema',
+  superadmin: {
+    label: 'Super Administrador',
+    description: 'Control total de la plataforma - Todas las empresas',
     color: 'red',
   },
-  analyst: {
-    label: 'Analista',
-    description: 'Operador principal - Gestión completa de auditorías',
-    color: 'blue',
+  lider: {
+    label: 'Líder',
+    description: 'Administra su empresa - Config, APIs/endpoints internos y equipo',
+    color: 'purple',
   },
-  supervisor: {
-    label: 'Supervisor',
-    description: 'Consulta amplia - Solo lectura con acceso a costos',
-    color: 'green',
+  auditor: {
+    label: 'Auditor',
+    description: 'Operador de auditorías de su empresa',
+    color: 'blue',
   },
 };
 

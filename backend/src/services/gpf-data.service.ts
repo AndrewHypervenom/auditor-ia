@@ -13,6 +13,7 @@
 import { logger } from '../utils/logger.js';
 import type { AuditInput } from '../types/index.js';
 import { gpfFetch, normalizeGpfUrl } from '../utils/gpf-fetch.js';
+import { gpfConfigService, type GpfCredentials } from './gpf-config.service.js';
 
 export interface AttentionFullData {
  attention: any;
@@ -43,18 +44,16 @@ export interface OtpItem {
 }
 
 class GpfDataService {
- private getBaseUrl(env: string): string {
- const raw = env === 'prod'
-  ? (process.env.GPF_API_URL_PROD || '')
-  : (process.env.GPF_API_URL_TEST || '');
+ private getBaseUrl(env: string, creds: GpfCredentials): string {
+ const raw = env === 'prod' ? creds.apiUrlProd : creds.apiUrlTest;
  return normalizeGpfUrl(raw);
  }
 
- private buildHeaders(token: string): Record<string, string> {
+ private buildHeaders(token: string, creds: GpfCredentials): Record<string, string> {
  return {
  'Accept': 'application/json',
  'Content-Type': 'application/json',
- 'X-App-Token': process.env.GPF_APP_TOKEN || '',
+ 'X-App-Token': creds.appToken,
  'Authorization': `Bearer ${token}`,
  'ngrok-skip-browser-warning': 'true'
  };
@@ -81,7 +80,8 @@ class GpfDataService {
  }
 
  async getAttentions(env: string, token: string, dateFrom?: string, dateTo?: string): Promise<any[]> {
- const baseUrl = this.getBaseUrl(env);
+ const creds = await gpfConfigService.getCredentials();
+ const baseUrl = this.getBaseUrl(env, creds);
  if (!baseUrl) throw new Error(`GPF URL not configured for env: ${env}`);
 
  const qs = new URLSearchParams();
@@ -91,7 +91,7 @@ class GpfDataService {
 
  const response = await gpfFetch(
   `${baseUrl}/api/quality-control/v1/attentions-quality-control${qsStr ? '?' + qsStr : ''}`,
-  { headers: this.buildHeaders(token) }
+  { headers: this.buildHeaders(token, creds) }
  );
 
  if (!response.ok) {
@@ -144,10 +144,11 @@ class GpfDataService {
  attentionId: string | number,
  token: string
  ): Promise<AttentionFullData> {
- const baseUrl = this.getBaseUrl(env);
+ const creds = await gpfConfigService.getCredentials();
+ const baseUrl = this.getBaseUrl(env, creds);
  if (!baseUrl) throw new Error(`GPF URL not configured for env: ${env}`);
 
- const headers = this.buildHeaders(token);
+ const headers = this.buildHeaders(token, creds);
  const id = String(attentionId);
 
  logger.info(' Fetching GPF attention data (parallel)', { attentionId: id, env });
@@ -256,10 +257,11 @@ class GpfDataService {
    imageCount: number;
    error?: string;
  }> {
-   const baseUrl = this.getBaseUrl(env);
+   const creds = await gpfConfigService.getCredentials();
+   const baseUrl = this.getBaseUrl(env, creds);
    if (!baseUrl) return { accessible: false, imageCount: 0, error: 'GPF URL no configurada' };
    const url = `${baseUrl}/api/quality-control/v1/captures-comments/${attentionId}`;
-   const data = await this.fetchJson(url, this.buildHeaders(token));
+   const data = await this.fetchJson(url, this.buildHeaders(token, creds));
    if (data === null) return { accessible: false, imageCount: 0, error: 'No se pudo acceder al caso' };
    const imageCount = Array.isArray(data.captures) ? data.captures.length : 0;
    return { accessible: true, imageCount };
@@ -267,10 +269,11 @@ class GpfDataService {
 
  /** Obtiene la URL segura de descarga del audio de una atención (caduca en 5 minutos). */
  async fetchAudioUrl(env: string, attentionId: string | number, token: string): Promise<string | null> {
- const baseUrl = this.getBaseUrl(env);
+ const creds = await gpfConfigService.getCredentials();
+ const baseUrl = this.getBaseUrl(env, creds);
  if (!baseUrl) return null;
  const url = `${baseUrl}/api/quality-control/v1/download-audio-file`;
- const headers = this.buildHeaders(token);
+ const headers = this.buildHeaders(token, creds);
  try {
  const response = await gpfFetch(url, {
  method: 'POST',

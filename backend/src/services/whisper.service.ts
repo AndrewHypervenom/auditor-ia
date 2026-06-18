@@ -23,7 +23,9 @@ class WhisperService {
     logger.info('[WHISPER] Iniciando transcripción fallback con gpt-4o-transcribe', { audioPath });
 
     // Cargar vocabulario de la BD como pista de contexto para el modelo
-    const dbTerms = await getDatabaseService().getWordBoostTerms();
+    // (word boost pertenece a PositivoS+, origen GPF).
+    const wbCompanyId = await getDatabaseService().getPositivosCompanyId();
+    const dbTerms = await getDatabaseService().getWordBoostTerms(wbCompanyId ?? undefined);
     const vocabHint = dbTerms
       .filter((t: any) => t.is_active !== false)
       .slice(0, 60) // Límite aprox. 224 tokens del prompt de Whisper

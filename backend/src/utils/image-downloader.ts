@@ -5,6 +5,7 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from './logger.js';
 import { gpfFetch } from './gpf-fetch.js';
+import { gpfConfigService } from '../services/gpf-config.service.js';
 
 export interface DownloadResult {
  localPaths: string[];
@@ -21,7 +22,7 @@ export async function downloadImagesToTemp(
  }
 
  const localPaths: string[] = [];
- const appToken = process.env.GPF_APP_TOKEN || '';
+ const appToken = (await gpfConfigService.getCredentials()).appToken;
 
  for (const url of urls) {
  try {

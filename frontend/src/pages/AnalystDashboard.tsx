@@ -11,6 +11,7 @@ import {
   Monitor, Moon, Search, RefreshCw, LogOut, BookOpen,
 } from 'lucide-react';
 import AppHeader from '../components/AppHeader';
+import DateRangeFilter from '../components/DateRangeFilter';
 import toast from 'react-hot-toast';
 
 const isBatchAudit = (audit: Audit) => audit.audio_filename === 'gpf-batch';
@@ -29,6 +30,22 @@ function fmtDate(s: string) {
       hour: '2-digit', minute: '2-digit',
     });
   } catch { return s; }
+}
+
+// yyyy-mm-dd en hora local (coincide con el valor de <input type="date">)
+function localDateStr(s: string) {
+  try { return new Date(s).toLocaleDateString('en-CA'); } catch { return ''; }
+}
+
+type ScoreFilter = 'all' | 'excellent' | 'good' | 'regular' | 'low';
+
+function matchesScore(pct: number | undefined, sf: ScoreFilter) {
+  if (sf === 'all') return true;
+  if (pct === undefined) return false;
+  if (sf === 'excellent') return pct >= 90;
+  if (sf === 'good') return pct >= 75 && pct < 90;
+  if (sf === 'regular') return pct >= 60 && pct < 75;
+  return pct < 60;
 }
 
 function StatCard({ label, value, sub, icon: Icon, accent = false }: {
@@ -125,7 +142,11 @@ function AuditCard({ audit, onView, onDownload }: {
           </h3>
           <div className="flex items-center gap-3 mt-1.5 text-[11px] text-slate-500 flex-wrap">
             <span>Caso {audit.gpf_data?.attentionFields?.['Caso'] ?? audit.executive_id}</span>
-            {audit.client_id && <><span className="text-slate-700">·</span><span>Socio {audit.client_id}</span></>}
+            {audit.client_id && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-500/10 border border-brand-500/25 text-brand-300 font-semibold">
+                {t('analyst.partner')} {audit.client_id}
+              </span>
+            )}
             <span className="text-slate-700">·</span>
             <span>{fmtDate(audit.created_at)}</span>
             {audit.created_by_name && (
@@ -210,6 +231,10 @@ export default function AnalystDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+  const [dateFrom, setDateFrom] = useState(() => new Date().toLocaleDateString('en-CA'));
+  const [dateTo, setDateTo] = useState(() => new Date().toLocaleDateString('en-CA'));
+  const [scoreFilter, setScoreFilter] = useState<ScoreFilter>('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
 
   useEffect(() => { loadAudits(); }, []);
 
@@ -259,10 +284,25 @@ export default function AnalystDashboard() {
     return Math.round(sum / withScore.length);
   }, [completed]);
 
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    audits.forEach(a => { if (a?.call_type) set.add(a.call_type); });
+    return [...set].sort();
+  }, [audits]);
+
   const filtered = useMemo(() => {
     let list = audits.filter(Boolean);
     if (filter === 'batch') list = list.filter(isBatchAudit);
     if (filter === 'normal') list = list.filter(a => !isBatchAudit(a));
+    if (dateFrom) list = list.filter(a => localDateStr(a.created_at) >= dateFrom);
+    if (dateTo) list = list.filter(a => localDateStr(a.created_at) <= dateTo);
+    if (categoryFilter !== 'all') list = list.filter(a => a.call_type === categoryFilter);
+    if (scoreFilter !== 'all') {
+      list = list.filter(a => {
+        const e = Array.isArray(a.evaluations) ? a.evaluations : [];
+        return matchesScore(e[0]?.percentage, scoreFilter);
+      });
+    }
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(a =>
@@ -272,7 +312,7 @@ export default function AnalystDashboard() {
       );
     }
     return list;
-  }, [audits, filter, search]);
+  }, [audits, filter, search, dateFrom, dateTo, scoreFilter, categoryFilter]);
 
   const filterLabel = (f: Filter) => {
     if (f === 'all') return t('analyst.filterAll');
@@ -368,6 +408,49 @@ export default function AnalystDashboard() {
             </div>
           </div>
 
+          <div className="flex items-center gap-3 flex-wrap">
+            <DateRangeFilter
+              from={dateFrom} to={dateTo}
+              onChange={(f, tt) => { setDateFrom(f); setDateTo(tt); }}
+              className="flex items-center gap-2 px-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-xl text-sm text-white focus:outline-none focus:border-brand-600 min-w-[160px]"
+            />
+            <div className="relative">
+              <TrendingUp className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+              <select
+                value={scoreFilter}
+                onChange={e => setScoreFilter(e.target.value as ScoreFilter)}
+                className="pl-9 pr-8 py-2 bg-slate-800/60 border border-slate-700/50 rounded-xl text-sm text-white focus:outline-none focus:border-brand-600 appearance-none"
+                title={t('analyst.filterScore')}
+              >
+                <option value="all">{t('analyst.scoreAll')}</option>
+                <option value="excellent">{t('analyst.scoreExcellent')}</option>
+                <option value="good">{t('analyst.scoreGood')}</option>
+                <option value="regular">{t('analyst.scoreRegular')}</option>
+                <option value="low">{t('analyst.scoreLow')}</option>
+              </select>
+            </div>
+            <div className="relative">
+              <PhoneIncoming className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+              <select
+                value={categoryFilter}
+                onChange={e => setCategoryFilter(e.target.value)}
+                className="pl-9 pr-8 py-2 bg-slate-800/60 border border-slate-700/50 rounded-xl text-sm text-white focus:outline-none focus:border-brand-600 appearance-none"
+                title={t('analyst.filterCategory')}
+              >
+                <option value="all">{t('analyst.categoryAll')}</option>
+                {categories.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            {(dateFrom || dateTo || scoreFilter !== 'all' || categoryFilter !== 'all') && (
+              <button onClick={() => { setDateFrom(''); setDateTo(''); setScoreFilter('all'); setCategoryFilter('all'); }}
+                className="text-xs text-brand-400 hover:text-brand-300">
+                {t('analyst.clearFilters')}
+              </button>
+            )}
+          </div>
+
           {!loading && (
             <div className="text-xs text-slate-600 px-0.5">
               {filtered.length} {filtered.length === 1 ? t('analyst.resultSingular') : t('analyst.resultPlural')}
@@ -398,8 +481,8 @@ export default function AnalystDashboard() {
               ) : (
                 <>
                   <Search className="w-8 h-8 text-slate-600 mx-auto mb-3" />
-                  <p className="text-slate-400 text-sm">{t('analyst.noResults', { search })}</p>
-                  <button onClick={() => { setSearch(''); setFilter('all'); }}
+                  <p className="text-slate-400 text-sm">{search ? t('analyst.noResults', { search }) : t('analyst.noResultsFilters')}</p>
+                  <button onClick={() => { setSearch(''); setFilter('all'); setDateFrom(''); setDateTo(''); setScoreFilter('all'); setCategoryFilter('all'); }}
                     className="mt-2 text-xs text-brand-400 hover:text-brand-300">
                     {t('analyst.clearFilters')}
                   </button>

@@ -4,11 +4,11 @@
  * Roles disponibles en el sistema AuditorIA
  * Basado en el documento oficial "Sistema de Roles y Permisos v1.0"
  * 
- * - admin: Administrador/Desarrollador (control total)
- * - analyst: Analista/Operador Principal (gestión completa de auditorías)
- * - supervisor: Supervisor/Consulta Amplia (solo lectura con acceso a costos)
+ * - superadmin: Super Administrador (control total de la plataforma, todas las empresas)
+ * - lider: Líder (administra su empresa: config, APIs/endpoints internos, equipo, costos)
+ * - auditor: Auditor (operador de auditorías de su empresa)
  */
-export type UserRole = 'admin' | 'analyst' | 'supervisor';
+export type UserRole = 'superadmin' | 'lider' | 'auditor';
 
 /**
  * Perfil extendido del usuario
@@ -73,58 +73,48 @@ export type Permission =
  * - Ver lista de usuarios (sin modificar)
  */
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
-  admin: [
-    // Usuarios
+  // SUPERADMIN: control total de la plataforma (todas las empresas)
+  superadmin: [
     'users:create',
     'users:read',
     'users:update',
     'users:delete',
-    // Auditorías
     'audits:create',
     'audits:read:all',
     'audits:update',
     'audits:delete',
-    // Costos
     'costs:read',
     'costs:read:all',
-    // Configuración
     'config:manage',
-    // Logs
     'logs:read',
-    // Reportes
     'reports:generate',
-    // Plataforma
     'companies:manage',
   ],
-  analyst: [
-    // Usuarios (solo lectura básica)
-    'users:read',
-    // Auditorías (gestión completa)
-    'audits:create',
-    'audits:read:all',
-    'audits:update',
-    'audits:delete',
-    // Reportes
-    'reports:generate',
-    // SIN ACCESO A: costos, configuración, logs
-  ],
-  supervisor: [
-    // Usuarios (gestión de su empresa)
+  // LIDER: administra su empresa (equipo, config, APIs/endpoints internos, costos)
+  lider: [
     'users:create',
     'users:read',
     'users:update',
-    // Auditorías (crear, editar, leer — admin de empresa)
+    'users:delete',
     'audits:create',
     'audits:read:all',
     'audits:update',
     'audits:delete',
-    // Costos (acceso completo de lectura)
     'costs:read',
     'costs:read:all',
-    // Configuración (de su empresa)
     'config:manage',
-    // Reportes
+    'logs:read',
     'reports:generate',
+  ],
+  // AUDITOR: operador de auditorías de su empresa
+  auditor: [
+    'users:read',
+    'audits:create',
+    'audits:read:all',
+    'audits:update',
+    'audits:delete',
+    'reports:generate',
+    // SIN ACCESO A: costos, configuración, logs
   ],
 };
 
@@ -132,20 +122,20 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
  * Información visual de cada rol según documento oficial
  */
 export const ROLE_INFO: Record<UserRole, { label: string; description: string; color: string }> = {
-  admin: {
-    label: 'Administrador',
-    description: 'Control total del sistema',
+  superadmin: {
+    label: 'Super Administrador',
+    description: 'Control total de la plataforma - Todas las empresas',
     color: 'red',
   },
-  analyst: {
-    label: 'Analista',
-    description: 'Gestión completa de auditorías',
-    color: 'blue',
+  lider: {
+    label: 'Líder',
+    description: 'Administra su empresa: config, APIs/endpoints y equipo',
+    color: 'purple',
   },
-  supervisor: {
-    label: 'Supervisor',
-    description: 'Consulta amplia con acceso a costos',
-    color: 'green',
+  auditor: {
+    label: 'Auditor',
+    description: 'Operador de auditorías de su empresa',
+    color: 'blue',
   },
 };
 

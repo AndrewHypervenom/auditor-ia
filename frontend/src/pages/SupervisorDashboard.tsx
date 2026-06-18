@@ -27,7 +27,8 @@ import {
  Monitor,
  Trash2,
  UserCheck,
- BookOpen
+ BookOpen,
+ Plug
 } from 'lucide-react';
 import AppHeader from '../components/AppHeader';
 import toast from 'react-hot-toast';
@@ -358,6 +359,21 @@ export default function SupervisorDashboard() {
  <div className="text-left">
  <h3 className="text-sm font-semibold text-white">{t('supervisor.criteriaScripts')}</h3>
  <p className="text-sm text-slate-400">{t('supervisor.referenceConsult')}</p>
+ </div>
+ </div>
+ </button>
+
+ <button
+ onClick={() => navigate('/integrations')}
+ className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-amber-900/40 to-amber-800/40 border-amber-700/40"
+ >
+ <div className="flex items-center gap-4">
+ <div className="p-3 bg-amber-600/20 rounded-xl">
+ <Plug className="w-5 h-5 text-amber-400" />
+ </div>
+ <div className="text-left">
+ <h3 className="text-sm font-semibold text-white">{t('supervisor.integrations')}</h3>
+ <p className="text-sm text-slate-400">{t('supervisor.integrationsDesc')}</p>
  </div>
  </div>
  </button>

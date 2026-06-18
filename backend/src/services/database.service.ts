@@ -383,17 +383,19 @@ class DatabaseService {
   /**
    * Eliminar una auditorÃ­a y todos sus datos relacionados
    */
-  async deleteAudit(auditId: string, userId: string, userRole: string): Promise<void> {
+  async deleteAudit(auditId: string, userId: string, userRole: string, companyId?: string | null): Promise<void> {
     try {
-      if (userRole !== 'admin' && userRole !== 'analyst' && userRole !== 'supervisor') {
+      if (userRole !== 'superadmin' && userRole !== 'lider' && userRole !== 'auditor') {
         throw new Error('No tienes permisos para eliminar auditorÃ­as');
       }
 
-      const { data: audit, error: fetchError } = await supabaseAdmin
+      // Aislamiento por empresa: solo superadmin puede borrar fuera de su empresa
+      let fetchQuery = supabaseAdmin
         .from('audits')
         .select('id')
-        .eq('id', auditId)
-        .single();
+        .eq('id', auditId);
+      if (companyId) fetchQuery = fetchQuery.eq('company_id', companyId);
+      const { data: audit, error: fetchError } = await fetchQuery.single();
 
       if (fetchError || !audit) {
         throw new Error('AuditorÃ­a no encontrada');
@@ -492,12 +494,18 @@ class DatabaseService {
   /**
    * Obtener una auditorÃ­a completa con todos sus datos
    */
-  async getAuditById(auditId: string, userId: string, userRole: string) {
+  async getAuditById(auditId: string, userId: string, userRole: string, companyId?: string | null) {
     try {
       let query = supabaseAdmin
         .from('audits')
         .select('*')
         .eq('id', auditId);
+
+      // Aislamiento por empresa: superadmin (companyId null) ve cualquier auditoría;
+      // el resto solo puede acceder a las de su empresa.
+      if (companyId) {
+        query = query.eq('company_id', companyId);
+      }
 
       const { data: audit, error: auditError } = await query.single();
 
@@ -1036,11 +1044,13 @@ class DatabaseService {
 
   // ── Plantilla GPF ──────────────────────────────────────────
 
-  async getAllPlantillaGPF(): Promise<any[]> {
-    const { data, error } = await supabaseAdmin
+  async getAllPlantillaGPF(companyId?: string): Promise<any[]> {
+    let query = supabaseAdmin
       .from('plantilla_gpf')
       .select('*')
-      .eq('is_active', true)
+      .eq('is_active', true);
+    if (companyId) query = query.eq('company_id', companyId);
+    const { data, error } = await query
       .order('categoria_orden', { ascending: true })
       .order('tipo_orden', { ascending: true });
     if (error) throw error;
@@ -1051,7 +1061,7 @@ class DatabaseService {
    *  Busca por categoria (= Calificación) y opcionalmente tipo_cierre (= Sub-calificación).
    *  Retorna null si no hay ninguna entrada activa que coincida.
    */
-  async getCallTypeFromPlantilla(categoria: string, tipoCierre?: string, mode?: 'INBOUND' | 'MONITOREO'): Promise<string | null> {
+  async getCallTypeFromPlantilla(categoria: string, tipoCierre?: string, mode?: 'INBOUND' | 'MONITOREO', companyId?: string): Promise<string | null> {
     // Helper: normaliza texto para comparación flexible
     const normalize = (s: string) => s.toUpperCase().trim()
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -1063,6 +1073,9 @@ class DatabaseService {
       .eq('is_active', true);
     if (mode) {
       query = query.eq('mode', mode);
+    }
+    if (companyId) {
+      query = query.eq('company_id', companyId);
     }
     const { data, error } = await query;
 
@@ -1108,6 +1121,7 @@ class DatabaseService {
     tipo_orden: number;
     call_type: string;
     mode: string;
+    company_id?: string | null;
   }): Promise<any> {
     const { data, error } = await supabaseAdmin
       .from('plantilla_gpf')
@@ -1216,13 +1230,17 @@ class DatabaseService {
     this.wordBoostCache.clear();
   }
 
-  async getWordBoostTerms(): Promise<any[]> {
-    const cached = this.wordBoostCache.get('all');
+  async getWordBoostTerms(companyId?: string): Promise<any[]> {
+    const cacheKey = `wb__${companyId ?? 'all'}`;
+    const cached = this.wordBoostCache.get(cacheKey);
     if (cached && this.isCacheValid(cached)) return cached.data;
 
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('word_boost_terms')
-      .select('*')
+      .select('*');
+    if (companyId) query = query.eq('company_id', companyId);
+
+    const { data, error } = await query
       .order('category')
       .order('display_order', { ascending: true });
 
@@ -1232,7 +1250,7 @@ class DatabaseService {
     }
 
     const result = data || [];
-    this.wordBoostCache.set('all', { data: result, timestamp: Date.now() });
+    this.wordBoostCache.set(cacheKey, { data: result, timestamp: Date.now() });
     return result;
   }
 
@@ -1241,6 +1259,7 @@ class DatabaseService {
     category: string;
     is_active?: boolean;
     display_order?: number;
+    company_id?: string | null;
   }): Promise<any> {
     const { data, error } = await supabaseAdmin
       .from('word_boost_terms')
@@ -1288,13 +1307,17 @@ class DatabaseService {
     this.imageSystemsCache.clear();
   }
 
-  async getImageSystems(): Promise<any[]> {
-    const cached = this.imageSystemsCache.get('all');
+  async getImageSystems(companyId?: string): Promise<any[]> {
+    const cacheKey = `is__${companyId ?? 'all'}`;
+    const cached = this.imageSystemsCache.get(cacheKey);
     if (cached && this.isCacheValid(cached)) return cached.data;
 
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('image_systems')
-      .select('*')
+      .select('*');
+    if (companyId) query = query.eq('company_id', companyId);
+
+    const { data, error } = await query
       .order('display_order', { ascending: true });
 
     if (error) {
@@ -1303,7 +1326,7 @@ class DatabaseService {
     }
 
     const result = data || [];
-    this.imageSystemsCache.set('all', { data: result, timestamp: Date.now() });
+    this.imageSystemsCache.set(cacheKey, { data: result, timestamp: Date.now() });
     return result;
   }
 
@@ -1314,6 +1337,7 @@ class DatabaseService {
     fields_schema?: any[];
     is_active?: boolean;
     display_order?: number;
+    company_id?: string | null;
   }): Promise<any> {
     const { data, error } = await supabaseAdmin
       .from('image_systems')
@@ -1353,12 +1377,14 @@ class DatabaseService {
     this.invalidateImageSystemsCache();
   }
 
-  async getCalificacionesFromAudits(): Promise<Array<{ calificacion: string; subcalificaciones: string[] }>> {
-    const { data, error } = await supabaseAdmin
+  async getCalificacionesFromAudits(companyId?: string): Promise<Array<{ calificacion: string; subcalificaciones: string[] }>> {
+    let query = supabaseAdmin
       .from('audits')
       .select('calificacion, sub_calificacion')
       .not('calificacion', 'is', null)
       .eq('status', 'completed');
+    if (companyId) query = query.eq('company_id', companyId);
+    const { data, error } = await query;
 
     if (error) { logger.warn('getCalificaciones: error', { error }); return []; }
 
@@ -1375,7 +1401,7 @@ class DatabaseService {
       .sort((a, b) => a.calificacion.localeCompare(b.calificacion));
   }
 
-  async getImageSystemsByCallType(calificacion?: string, subcalificacion?: string): Promise<Array<{ system_name: string; count: number; avg_confidence: number }>> {
+  async getImageSystemsByCallType(calificacion?: string, subcalificacion?: string, companyId?: string): Promise<Array<{ system_name: string; count: number; avg_confidence: number }>> {
     // Paso 1: obtener IDs de auditorías que coincidan con el filtro
     let auditQuery = supabaseAdmin
       .from('audits')
@@ -1383,6 +1409,7 @@ class DatabaseService {
       .eq('status', 'completed');
     if (calificacion) auditQuery = auditQuery.eq('calificacion', calificacion);
     if (subcalificacion) auditQuery = auditQuery.eq('sub_calificacion', subcalificacion);
+    if (companyId) auditQuery = auditQuery.eq('company_id', companyId);
 
     const { data: audits, error: auditErr } = await auditQuery.limit(2000);
     if (auditErr || !audits?.length) return [];
@@ -1416,11 +1443,13 @@ class DatabaseService {
       .sort((a, b) => b.count - a.count);
   }
 
-  async getImageSystemAnalytics(): Promise<Array<{ system_name: string; count: number; avg_confidence: number; last_seen: string | null }>> {
-    const { data, error } = await supabaseAdmin
+  async getImageSystemAnalytics(companyId?: string): Promise<Array<{ system_name: string; count: number; avg_confidence: number; last_seen: string | null }>> {
+    let query = supabaseAdmin
       .from('image_analyses')
       .select('system_detected, confidence, created_at')
-      .not('system_detected', 'is', null)
+      .not('system_detected', 'is', null);
+    if (companyId) query = query.eq('company_id', companyId);
+    const { data, error } = await query
       .order('created_at', { ascending: false })
       .limit(3000);
 
@@ -1460,13 +1489,17 @@ class DatabaseService {
     this.callTypesCache.clear();
   }
 
-  async getCallTypesConfig(): Promise<any[]> {
-    const cached = this.callTypesCache.get('all');
+  async getCallTypesConfig(companyId?: string): Promise<any[]> {
+    const cacheKey = `ctc__${companyId ?? 'all'}`;
+    const cached = this.callTypesCache.get(cacheKey);
     if (cached && this.isCacheValid(cached)) return cached.data;
 
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('call_types_config')
-      .select('*')
+      .select('*');
+    if (companyId) query = query.eq('company_id', companyId);
+
+    const { data, error } = await query
       .order('display_order', { ascending: true });
 
     if (error) {
@@ -1475,7 +1508,7 @@ class DatabaseService {
     }
 
     const result = data || [];
-    this.callTypesCache.set('all', { data: result, timestamp: Date.now() });
+    this.callTypesCache.set(cacheKey, { data: result, timestamp: Date.now() });
     return result;
   }
 
@@ -1873,10 +1906,12 @@ class DatabaseService {
 
   // ─── Bines ──────────────────────────────────────────────────
 
-  async getAllBines(): Promise<any[]> {
-    const { data, error } = await supabaseAdmin
+  async getAllBines(companyId?: string): Promise<any[]> {
+    let query = supabaseAdmin
       .from('bines')
-      .select('*')
+      .select('*');
+    if (companyId) query = query.eq('company_id', companyId);
+    const { data, error } = await query
       .order('categoria_orden', { ascending: true })
       .order('item_order', { ascending: true });
     if (error) throw error;
@@ -1892,6 +1927,7 @@ class DatabaseService {
     producto: string;
     nombre_comercial?: string;
     marca?: string;
+    company_id?: string | null;
   }): Promise<any> {
     const { data, error } = await supabaseAdmin
       .from('bines')
@@ -1935,6 +1971,34 @@ class DatabaseService {
   // ============================================================
   // COMPANIES (multi-tenancy)
   // ============================================================
+
+  // Caché del id de la empresa dueña de la integración GPF (PositivoS+).
+  // undefined = aún no resuelto; null = no encontrada.
+  private positivosCompanyId: string | null | undefined = undefined;
+
+  /**
+   * Resuelve el id de la empresa PositivoS+ (dueña de toda la data de GPF).
+   * Se usa para atribuir las auditorías de GPF (tiempo real + cola nocturna)
+   * y para resolver sus criterios/guiones. Cacheado en memoria.
+   */
+  async getPositivosCompanyId(): Promise<string | null> {
+    if (this.positivosCompanyId !== undefined) return this.positivosCompanyId;
+    const { data, error } = await supabaseAdmin
+      .from('companies')
+      .select('id')
+      .eq('slug', 'positivo-splus')
+      .maybeSingle();
+    if (error) {
+      logger.warn('No se pudo resolver la empresa PositivoS+ (slug positivo-splus)', { error: error.message });
+      this.positivosCompanyId = null;
+      return null;
+    }
+    this.positivosCompanyId = data?.id ?? null;
+    if (!this.positivosCompanyId) {
+      logger.warn('Empresa PositivoS+ (slug positivo-splus) no encontrada en companies');
+    }
+    return this.positivosCompanyId ?? null;
+  }
 
   async getAllCompanies(): Promise<any[]> {
     const { data, error } = await supabaseAdmin
@@ -2084,25 +2148,25 @@ export const databaseService = {
   saveEvaluation: (params: SaveEvaluationParams) => getDatabaseService().saveEvaluation(params),
   saveAPICosts: (auditId: string, costs: APICosts, companyId?: string | null) => getDatabaseService().saveAPICosts(auditId, costs, companyId),
   completeAudit: (auditId: string, params: CompleteAuditParams) => getDatabaseService().completeAudit(auditId, params),
-  deleteAudit: (auditId: string, userId: string, userRole: string) => getDatabaseService().deleteAudit(auditId, userId, userRole),
+  deleteAudit: (auditId: string, userId: string, userRole: string, companyId?: string | null) => getDatabaseService().deleteAudit(auditId, userId, userRole, companyId),
   markAuditError: (auditId: string, errorMessage: string) => getDatabaseService().markAuditError(auditId, errorMessage),
   getUserAudits: (userId: string, userRole: string, companyId: string | null, limit?: number, offset?: number) => getDatabaseService().getUserAudits(userId, userRole, companyId, limit, offset),
-  getAuditById: (auditId: string, userId: string, userRole: string) => getDatabaseService().getAuditById(auditId, userId, userRole),
+  getAuditById: (auditId: string, userId: string, userRole: string, companyId?: string | null) => getDatabaseService().getAuditById(auditId, userId, userRole, companyId),
   getExcelData: (filename: string) => getDatabaseService().getExcelData(filename),
   logAuditActivity: (auditId: string, userId: string, action: string, details?: any, ip?: string, ua?: string) =>
     getDatabaseService().logAuditActivity(auditId, userId, action, details, ip, ua),
   // Word Boost Terms
-  getWordBoostTerms: () => getDatabaseService().getWordBoostTerms(),
+  getWordBoostTerms: (companyId?: string) => getDatabaseService().getWordBoostTerms(companyId),
   createWordBoostTerm: (payload: Parameters<DatabaseService['createWordBoostTerm']>[0]) => getDatabaseService().createWordBoostTerm(payload),
   updateWordBoostTerm: (id: string, payload: Parameters<DatabaseService['updateWordBoostTerm']>[1]) => getDatabaseService().updateWordBoostTerm(id, payload),
   deleteWordBoostTerm: (id: string) => getDatabaseService().deleteWordBoostTerm(id),
   // Image Systems
-  getImageSystems: () => getDatabaseService().getImageSystems(),
+  getImageSystems: (companyId?: string) => getDatabaseService().getImageSystems(companyId),
   createImageSystem: (payload: Parameters<DatabaseService['createImageSystem']>[0]) => getDatabaseService().createImageSystem(payload),
   updateImageSystem: (id: string, payload: Parameters<DatabaseService['updateImageSystem']>[1]) => getDatabaseService().updateImageSystem(id, payload),
   deleteImageSystem: (id: string) => getDatabaseService().deleteImageSystem(id),
   // Call Types Config
-  getCallTypesConfig: () => getDatabaseService().getCallTypesConfig(),
+  getCallTypesConfig: (companyId?: string) => getDatabaseService().getCallTypesConfig(companyId),
   createCallTypeConfig: (payload: Parameters<DatabaseService['createCallTypeConfig']>[0]) => getDatabaseService().createCallTypeConfig(payload),
   updateCallTypeConfig: (id: string, payload: Parameters<DatabaseService['updateCallTypeConfig']>[1]) => getDatabaseService().updateCallTypeConfig(id, payload),
   deleteCallTypeConfig: (id: string) => getDatabaseService().deleteCallTypeConfig(id),
@@ -2126,8 +2190,8 @@ export const databaseService = {
   deleteCriteria: (id: string) => getDatabaseService().deleteCriteria(id),
   // Plantilla GPF
   resolveCallTypeFromText: (text: string) => getDatabaseService().resolveCallTypeFromText(text),
-  getCallTypeFromPlantilla: (categoria: string, tipoCierre?: string, mode?: 'INBOUND' | 'MONITOREO') => getDatabaseService().getCallTypeFromPlantilla(categoria, tipoCierre, mode),
-  getAllPlantillaGPF: () => getDatabaseService().getAllPlantillaGPF(),
+  getCallTypeFromPlantilla: (categoria: string, tipoCierre?: string, mode?: 'INBOUND' | 'MONITOREO', companyId?: string) => getDatabaseService().getCallTypeFromPlantilla(categoria, tipoCierre, mode, companyId),
+  getAllPlantillaGPF: (companyId?: string) => getDatabaseService().getAllPlantillaGPF(companyId),
   createPlantillaItem: (payload: Parameters<DatabaseService['createPlantillaItem']>[0]) => getDatabaseService().createPlantillaItem(payload),
   updatePlantillaItem: (id: string, payload: Parameters<DatabaseService['updatePlantillaItem']>[1]) => getDatabaseService().updatePlantillaItem(id, payload),
   renamePlantillaCategoria: (oldName: string, newName: string, callType: string, mode: string) => getDatabaseService().renamePlantillaCategoria(oldName, newName, callType, mode),
@@ -2138,15 +2202,16 @@ export const databaseService = {
   updatePrompt: (id: string, payload: Parameters<DatabaseService['updatePrompt']>[1]) => getDatabaseService().updatePrompt(id, payload),
   invalidatePromptsCache: () => getDatabaseService().invalidatePromptsCache(),
   // Bines
-  getAllBines: () => getDatabaseService().getAllBines(),
+  getAllBines: (companyId?: string) => getDatabaseService().getAllBines(companyId),
   createBin: (payload: Parameters<DatabaseService['createBin']>[0]) => getDatabaseService().createBin(payload),
   updateBin: (id: string, payload: Parameters<DatabaseService['updateBin']>[1]) => getDatabaseService().updateBin(id, payload),
   deleteBin: (id: string) => getDatabaseService().deleteBin(id),
   // Analytics
-  getImageSystemAnalytics: () => getDatabaseService().getImageSystemAnalytics(),
-  getCalificacionesFromAudits: () => getDatabaseService().getCalificacionesFromAudits(),
-  getImageSystemsByCallType: (calificacion?: string, subcalificacion?: string) => getDatabaseService().getImageSystemsByCallType(calificacion, subcalificacion),
+  getImageSystemAnalytics: (companyId?: string) => getDatabaseService().getImageSystemAnalytics(companyId),
+  getCalificacionesFromAudits: (companyId?: string) => getDatabaseService().getCalificacionesFromAudits(companyId),
+  getImageSystemsByCallType: (calificacion?: string, subcalificacion?: string, companyId?: string) => getDatabaseService().getImageSystemsByCallType(calificacion, subcalificacion, companyId),
   // Companies
+  getPositivosCompanyId: () => getDatabaseService().getPositivosCompanyId(),
   getAllCompanies: () => getDatabaseService().getAllCompanies(),
   getCompany: (companyId: string) => getDatabaseService().getCompany(companyId),
   createCompany: (payload: Parameters<DatabaseService['createCompany']>[0]) => getDatabaseService().createCompany(payload),

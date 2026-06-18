@@ -64,8 +64,8 @@ export function ProtectedRoute({
  );
  }
 
- // admin bypasea todos los role checks (acceso total a la plataforma)
- if (profile.role === 'admin') {
+ // superadmin bypasea todos los role checks (acceso total a la plataforma)
+ if (profile.role === 'superadmin') {
  return <>{children}</>;
  }
 

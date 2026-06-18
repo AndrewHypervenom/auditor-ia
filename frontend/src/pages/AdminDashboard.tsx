@@ -1,7 +1,7 @@
 ﻿// frontend/src/pages/AdminDashboard.tsx
 // Dashboard para Administrador - Control total del sistema con datos reales
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
@@ -41,9 +41,26 @@ import {
  BookOpen,
  Moon,
  Building2,
+ Search,
+ Plug,
 } from 'lucide-react';
+import DateRangeFilter from '../components/DateRangeFilter';
 
 const isBatchAudit = (audit: Audit) => audit.audio_filename === 'gpf-batch';
+
+// yyyy-mm-dd en hora local (coincide con el valor de <input type="date">)
+const localDateStr = (s: string) => { try { return new Date(s).toLocaleDateString('en-CA'); } catch { return ''; } };
+
+type ScoreFilter = 'all' | 'excellent' | 'good' | 'regular' | 'low';
+
+const matchesScore = (pct: number | undefined, sf: ScoreFilter) => {
+ if (sf === 'all') return true;
+ if (pct === undefined) return false;
+ if (sf === 'excellent') return pct >= 90;
+ if (sf === 'good') return pct >= 75 && pct < 90;
+ if (sf === 'regular') return pct >= 60 && pct < 75;
+ return pct < 60;
+};
 const isEmptyBatchEval = (audit: Audit) => {
   if (!isBatchAudit(audit) || audit.status !== 'completed') return false;
   const evals = Array.isArray(audit.evaluations) ? audit.evaluations : [];
@@ -69,6 +86,13 @@ export default function AdminDashboard() {
  const [audits, setAudits] = useState<Audit[]>([]);
  const [loading, setLoading] = useState(true);
  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+ // Filtros de la lista de auditorías
+ const [search, setSearch] = useState('');
+ const [dateFrom, setDateFrom] = useState(() => new Date().toLocaleDateString('en-CA'));
+ const [dateTo, setDateTo] = useState(() => new Date().toLocaleDateString('en-CA'));
+ const [scoreFilter, setScoreFilter] = useState<ScoreFilter>('all');
+ const [categoryFilter, setCategoryFilter] = useState('all');
  
  // Estados para integración GPF
  const [showGpfPanel, setShowGpfPanel] = useState(false);
@@ -124,6 +148,32 @@ export default function AdminDashboard() {
  if (Array.isArray(audit.evaluations)) return audit.evaluations;
  return [audit.evaluations];
  };
+
+ const categories = useMemo(() => {
+ const set = new Set<string>();
+ audits.forEach(a => { if (a?.call_type) set.add(a.call_type); });
+ return [...set].sort();
+ }, [audits]);
+
+ const filteredAudits = useMemo(() => {
+ let list = audits.filter(Boolean);
+ if (dateFrom) list = list.filter(a => localDateStr(a.created_at) >= dateFrom);
+ if (dateTo) list = list.filter(a => localDateStr(a.created_at) <= dateTo);
+ if (categoryFilter !== 'all') list = list.filter(a => a.call_type === categoryFilter);
+ if (scoreFilter !== 'all') {
+ list = list.filter(a => matchesScore(getEvaluations(a)[0]?.percentage, scoreFilter));
+ }
+ if (search.trim()) {
+ const q = search.toLowerCase();
+ list = list.filter(a =>
+ a.executive_name?.toLowerCase().includes(q) ||
+ a.executive_id?.toLowerCase().includes(q) ||
+ a.client_id?.toLowerCase().includes(q) ||
+ a.created_by_name?.toLowerCase().includes(q)
+ );
+ }
+ return list;
+ }, [audits, search, dateFrom, dateTo, scoreFilter, categoryFilter]);
 
  const loadAudits = async () => {
  try {
@@ -1340,6 +1390,21 @@ export default function AdminDashboard() {
  </div>
  </div>
  </button>
+
+ <button
+ onClick={() => navigate('/integrations')}
+ className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-amber-900/20 to-amber-800/20 border-amber-500/30"
+ >
+ <div className="flex items-center gap-4">
+ <div className="p-3 bg-amber-500/20 rounded-xl">
+ <Plug className="w-5 h-5 text-amber-400" />
+ </div>
+ <div className="text-left">
+ <h3 className="text-sm font-semibold text-white">{t('adminDash.integrations')}</h3>
+ <p className="text-sm text-slate-400">{t('adminDash.integrationsDesc')}</p>
+ </div>
+ </div>
+ </button>
  </div>
 
  {/* Stats Cards - Solo las 4 tarjetas con datos reales */}
@@ -1401,6 +1466,60 @@ export default function AdminDashboard() {
  {t('adminDash.auditManagement')}
  </h2>
 
+ {/* Filtros */}
+ <div className="flex items-center gap-3 flex-wrap mb-4">
+ <div className="flex-1 min-w-[180px] relative">
+ <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+ <input
+ type="text"
+ value={search}
+ onChange={e => setSearch(e.target.value)}
+ placeholder={t('adminDash.searchPlaceholder')}
+ className="w-full pl-9 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 placeholder-slate-600 focus:outline-none focus:border-brand-500"
+ />
+ </div>
+ <DateRangeFilter
+ from={dateFrom} to={dateTo}
+ onChange={(f, tt) => { setDateFrom(f); setDateTo(tt); }}
+ className="flex items-center gap-2 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-brand-500 min-w-[170px]"
+ />
+ <div className="relative">
+ <TrendingUp className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+ <select
+ value={scoreFilter}
+ onChange={e => setScoreFilter(e.target.value as ScoreFilter)}
+ className="pl-9 pr-8 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-brand-500 appearance-none"
+ title={t('adminDash.filterScore')}
+ >
+ <option value="all">{t('adminDash.scoreAll')}</option>
+ <option value="excellent">{t('adminDash.scoreExcellent')}</option>
+ <option value="good">{t('adminDash.scoreGood')}</option>
+ <option value="regular">{t('adminDash.scoreRegular')}</option>
+ <option value="low">{t('adminDash.scoreLow')}</option>
+ </select>
+ </div>
+ <div className="relative">
+ <PhoneIncoming className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+ <select
+ value={categoryFilter}
+ onChange={e => setCategoryFilter(e.target.value)}
+ className="pl-9 pr-8 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-brand-500 appearance-none"
+ title={t('adminDash.filterCategory')}
+ >
+ <option value="all">{t('adminDash.categoryAll')}</option>
+ {categories.map(c => (
+ <option key={c} value={c}>{c}</option>
+ ))}
+ </select>
+ </div>
+ {(search || dateFrom || dateTo || scoreFilter !== 'all' || categoryFilter !== 'all') && (
+ <button onClick={() => { setSearch(''); setDateFrom(''); setDateTo(''); setScoreFilter('all'); setCategoryFilter('all'); }}
+ className="text-xs text-brand-400 hover:text-brand-300 whitespace-nowrap">
+ {t('adminDash.clearFilters')}
+ </button>
+ )}
+ </div>
+
  {loading ? (
  <div className="flex items-center justify-center py-8">
  <Loader2 className="w-5 h-5 text-brand-400 animate-spin" />
@@ -1421,11 +1540,20 @@ export default function AdminDashboard() {
  {t('adminDash.createFirst')}
  </button>
  </div>
+ ) : filteredAudits.length === 0 ? (
+ <div className="text-center py-8">
+ <Search className="w-8 h-8 text-slate-600 mx-auto mb-3" />
+ <p className="text-slate-400 text-sm">{t('adminDash.noResults')}</p>
+ <button onClick={() => { setSearch(''); setDateFrom(''); setDateTo(''); setScoreFilter('all'); setCategoryFilter('all'); }}
+ className="mt-2 text-xs text-brand-400 hover:text-brand-300">
+ {t('adminDash.clearFilters')}
+ </button>
+ </div>
  ) : (
  <div className="space-y-4">
- {audits.map((audit) => {
+ {filteredAudits.map((audit) => {
  if (!audit) return null; // Protección adicional
- 
+
  return (
  <div
  key={audit.id}
@@ -1473,7 +1601,15 @@ export default function AdminDashboard() {
  </div>
  <div>
  <span className="text-slate-500">{t('adminDash.client')}</span>
- <p className="text-slate-300 font-medium">{audit.client_id}</p>
+ {audit.client_id ? (
+ <p className="mt-0.5">
+ <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-brand-500/10 border border-brand-500/30 text-brand-300 font-semibold">
+ {audit.client_id}
+ </span>
+ </p>
+ ) : (
+ <p className="text-slate-300 font-medium">—</p>
+ )}
  </div>
  <div>
  <span className="text-slate-500">{t('adminDash.type')}</span>

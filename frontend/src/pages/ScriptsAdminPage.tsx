@@ -72,6 +72,15 @@ import { useSubcalificaciones } from '../hooks/useSubcalificaciones';
 
 // ─── Helpers ────────────────────────────────────────────────
 
+// Valores rápidos de calificación por rubro (además del campo libre).
+// 'n/a' se guarda como points=null; el resto se parsea a número.
+const POINTS_PRESETS: { value: string; label: string }[] = [
+  { value: '-100', label: '-100' },
+  { value: '0', label: '0' },
+  { value: '5', label: '5' },
+  { value: 'n/a', label: 'N/A' },
+];
+
 function groupByCallType<T extends { call_type: string }>(items: T[]): Record<string, T[]> {
   return items.reduce((acc, item) => {
     const key = item.call_type;
@@ -87,7 +96,7 @@ export default function ScriptsAdminPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { profile } = useAuth();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'superadmin';
   const [activeTab, setActiveTab] = useState<'scripts' | 'criteria' | 'plantilla' | 'ai_prompts' | 'bines'>('criteria');
   const [syncingGpf, setSyncingGpf] = useState(false);
 
@@ -1834,6 +1843,22 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
                                text-sm text-white focus:outline-none focus:border-brand-700/60
                                focus:ring-1 focus:ring-brand-500/20"
                   />
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {POINTS_PRESETS.map((p) => (
+                      <button
+                        key={p.value}
+                        type="button"
+                        onClick={() => setPoints(p.value)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+                          points === p.value
+                            ? 'bg-brand-500/20 border-brand-500/40 text-brand-300'
+                            : 'bg-slate-900/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
@@ -2764,6 +2789,22 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
                              text-sm text-white focus:outline-none focus:border-brand-600/60
                              focus:ring-1 focus:ring-brand-500/20 placeholder:text-slate-600 transition-colors"
                 />
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {POINTS_PRESETS.map((p) => (
+                    <button
+                      key={p.value}
+                      type="button"
+                      onClick={() => setPoints(p.value)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+                        points === p.value
+                          ? 'bg-brand-500/20 border-brand-500/40 text-brand-300'
+                          : 'bg-slate-900/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div>
                 <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-200 mb-2">

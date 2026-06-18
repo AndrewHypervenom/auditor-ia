@@ -158,7 +158,7 @@ export interface APICosts {
 // TIPOS DE USUARIO Y AUTENTICACIÓN
 // ============================================
 
-export type UserRole = 'admin' | 'supervisor' | 'analyst';
+export type UserRole = 'superadmin' | 'lider' | 'auditor';
 
 export interface UserProfile {
   id: string;

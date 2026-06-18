@@ -10,25 +10,27 @@ interface RoleBadgeProps {
   showIcon?: boolean;
 }
 
-const ROLE_CONFIG = {
-  admin: {
-    labelKey: 'roles.admin',
+const ROLE_CONFIG: Record<string, {
+  labelKey: string; icon: typeof Shield; bgColor: string; textColor: string; borderColor: string; dotColor: string;
+}> = {
+  superadmin: {
+    labelKey: 'roles.superadmin',
     icon: Shield,
     bgColor: 'bg-red-500/10',
     textColor: 'text-red-400',
     borderColor: 'border-red-500/20',
     dotColor: 'bg-red-500',
   },
-  supervisor: {
-    labelKey: 'roles.supervisor',
+  lider: {
+    labelKey: 'roles.lider',
     icon: Star,
-    bgColor: 'bg-amber-500/10',
-    textColor: 'text-amber-400',
-    borderColor: 'border-amber-500/20',
-    dotColor: 'bg-amber-400',
+    bgColor: 'bg-purple-500/10',
+    textColor: 'text-purple-400',
+    borderColor: 'border-purple-500/20',
+    dotColor: 'bg-purple-400',
   },
-  analyst: {
-    labelKey: 'roles.analyst',
+  auditor: {
+    labelKey: 'roles.auditor',
     icon: Eye,
     bgColor: 'bg-brand-500/10',
     textColor: 'text-brand-400',

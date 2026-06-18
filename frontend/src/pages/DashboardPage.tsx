@@ -25,11 +25,11 @@ export default function DashboardPage() {
   }
 
   switch (profile.role) {
-    case 'admin':
+    case 'superadmin':
       return <AdminDashboard />;
-    case 'analyst':
+    case 'auditor':
       return <AnalystDashboard />;
-    case 'supervisor':
+    case 'lider':
       return <SupervisorDashboard />;
     default:
       return (

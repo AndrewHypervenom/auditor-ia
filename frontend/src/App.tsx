@@ -12,6 +12,7 @@ import NewAuditPage from './pages/NewAuditPage';
 import AuditDetailPage from './pages/AuditDetailPage';
 import UsersPage from './pages/UsersPage';
 import SettingsPage from './pages/SettingsPage';
+import IntegrationsPage from './pages/IntegrationsPage';
 import ReportsPage from './pages/ReportsPage';
 import AuditsViewPage from './pages/AuditsViewPage';
 import AiAnalysisPage from './pages/AiAnalysisPage';
@@ -68,7 +69,7 @@ function App() {
           <Route
             path="/supervisor"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'supervisor']}>
+              <ProtectedRoute allowedRoles={['superadmin', 'lider']}>
                 <SupervisorDashboard />
               </ProtectedRoute>
             }
@@ -78,7 +79,7 @@ function App() {
           <Route
             path="/analyst"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'analyst']}>
+              <ProtectedRoute allowedRoles={['superadmin', 'lider', 'auditor']}>
                 <AnalystDashboard />
               </ProtectedRoute>
             }
@@ -88,7 +89,7 @@ function App() {
           <Route
             path="/audit/new"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'analyst']}>
+              <ProtectedRoute allowedRoles={['superadmin', 'lider', 'auditor']}>
                 <NewAuditPage />
               </ProtectedRoute>
             }
@@ -98,7 +99,7 @@ function App() {
           <Route
             path="/ai-analysis"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'analyst']}>
+              <ProtectedRoute allowedRoles={['superadmin', 'lider', 'auditor']}>
                 <AiAnalysisPage />
               </ProtectedRoute>
             }
@@ -118,7 +119,7 @@ function App() {
           <Route
             path="/audits"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'supervisor', 'analyst']}>
+              <ProtectedRoute allowedRoles={['superadmin', 'lider', 'auditor']}>
                 <AuditsViewPage />
               </ProtectedRoute>
             }
@@ -128,7 +129,7 @@ function App() {
           <Route
             path="/users"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'supervisor', 'analyst']}>
+              <ProtectedRoute allowedRoles={['superadmin', 'lider', 'auditor']}>
                 <UsersPage />
               </ProtectedRoute>
             }
@@ -138,7 +139,7 @@ function App() {
           <Route
             path="/reports"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'supervisor', 'analyst']}>
+              <ProtectedRoute allowedRoles={['superadmin', 'lider', 'auditor']}>
                 <ReportsPage />
               </ProtectedRoute>
             }
@@ -148,8 +149,18 @@ function App() {
           <Route
             path="/settings"
             element={
-              <ProtectedRoute allowedRoles={['admin']}>
+              <ProtectedRoute allowedRoles={['superadmin']}>
                 <SettingsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Integraciones internas por empresa - Superadmin y Lider */}
+          <Route
+            path="/integrations"
+            element={
+              <ProtectedRoute allowedRoles={['superadmin', 'lider']}>
+                <IntegrationsPage />
               </ProtectedRoute>
             }
           />
@@ -158,7 +169,7 @@ function App() {
           <Route
             path="/scripts-admin"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'analyst']}>
+              <ProtectedRoute allowedRoles={['superadmin', 'lider', 'auditor']}>
                 <ScriptsAdminPage />
               </ProtectedRoute>
             }
@@ -168,7 +179,7 @@ function App() {
           <Route
             path="/referencia"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'analyst', 'supervisor']}>
+              <ProtectedRoute allowedRoles={['superadmin', 'lider', 'auditor']}>
                 <ScriptsReferencePage />
               </ProtectedRoute>
             }
@@ -178,7 +189,7 @@ function App() {
           <Route
             path="/batch"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'analyst']}>
+              <ProtectedRoute allowedRoles={['superadmin', 'lider', 'auditor']}>
                 <BatchPage />
               </ProtectedRoute>
             }
@@ -187,7 +198,7 @@ function App() {
           <Route
             path="/companies"
             element={
-              <ProtectedRoute allowedRoles={['admin']}>
+              <ProtectedRoute allowedRoles={['superadmin']}>
                 <CompaniesPage />
               </ProtectedRoute>
             }

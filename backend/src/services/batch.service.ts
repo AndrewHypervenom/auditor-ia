@@ -6,6 +6,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { gpfTokenService } from './gpf-token.service.js';
 import { gpfDataService } from './gpf-data.service.js';
+import { gpfConfigService } from './gpf-config.service.js';
 import { assemblyAIService } from './assemblyai.service.js';
 import { openAIService } from './openai.service.js';
 import { downloadImagesToTemp } from '../utils/image-downloader.js';
@@ -76,6 +77,9 @@ class BatchService {
       );
     }
 
+    // Los lotes procesan exclusivamente casos de GPF, que pertenecen a PositivoS+.
+    const companyId = await getDatabaseService().getPositivosCompanyId();
+
     const { data: job, error: jobErr } = await supabaseAdmin
       .from('batch_jobs')
       .insert({
@@ -84,6 +88,7 @@ class BatchService {
         scheduled_for,
         created_by,
         item_count: items.length,
+        company_id: companyId,
       })
       .select()
       .single();
@@ -108,13 +113,19 @@ class BatchService {
     return job;
   }
 
-  async getBatchJobs(userId: string, role: string) {
+  async getBatchJobs(userId: string, role: string, companyId?: string | null) {
     let query = supabaseAdmin
       .from('batch_jobs')
       .select('*, batch_items(id, status, executive_name, call_type, call_date, error_message)')
       .order('created_at', { ascending: false });
 
-    if (role !== 'admin' && role !== 'supervisor') {
+    // Aislamiento por empresa: superadmin ve todos los lotes; el resto solo los de su empresa
+    if (role !== 'superadmin' && companyId) {
+      query = query.eq('company_id', companyId);
+    }
+
+    // El auditor solo ve sus propios lotes; lider/superadmin ven los de la empresa
+    if (role !== 'superadmin' && role !== 'lider') {
       query = query.eq('created_by', userId);
     }
 
@@ -267,7 +278,7 @@ class BatchService {
             const audioToken = await gpfTokenService.getTokenWithRetry(item.gpf_env);
             const audioSecureUrl = await gpfDataService.fetchAudioUrl(item.gpf_env, item.gpf_attention_id, audioToken);
             if (audioSecureUrl) {
-              const appToken = process.env.GPF_APP_TOKEN || '';
+              const appToken = (await gpfConfigService.getCredentials()).appToken;
               const sessionCookie = gpfTokenService.getSessionCookie(item.gpf_env);
               let audioResponse = await gpfFetch(audioSecureUrl, {
                 headers: {
@@ -352,14 +363,17 @@ class BatchService {
               resolvedCallType = direct;
             } else {
               const fromPlantilla = await databaseService.getCallTypeFromPlantilla(
-                calificacion, subCalificacion || undefined, item.gpf_excel_type as any
+                calificacion, subCalificacion || undefined, item.gpf_excel_type as any,
+                (await databaseService.getPositivosCompanyId()) ?? undefined
               );
               resolvedCallType = fromPlantilla ?? resolvedCallType;
             }
           }
 
           // Agregar request de evaluación al batch (mismo 50% de descuento)
-          const criteria = await databaseService.getCriteriaForCallType(resolvedCallType, subCalificacion || undefined);
+          // GPF pertenece a PositivoS+: resolver criterios de esa empresa.
+          const batchCompanyId = await databaseService.getPositivosCompanyId();
+          const criteria = await databaseService.getCriteriaForCallType(resolvedCallType, subCalificacion || undefined, batchCompanyId ?? undefined);
           const activeTopics = criteria.flatMap((b: any) => (b.topics || []).filter((t: any) => t.applies && !t.requiresManualReview));
 
           if (activeTopics.length === 0) {
@@ -601,21 +615,26 @@ class BatchService {
             resolvedCallType = direct;
           } else {
             const fromPlantilla = await databaseService.getCallTypeFromPlantilla(
-              calificacion, subCalificacion || undefined, item.gpf_excel_type as any
+              calificacion, subCalificacion || undefined, item.gpf_excel_type as any,
+              (job.company_id ?? await databaseService.getPositivosCompanyId()) ?? undefined
             );
             resolvedCallType = fromPlantilla ?? resolvedCallType;
           }
         }
 
+        // Empresa dueña del lote (GPF → PositivoS+); guardada en el job.
+        const jobCompanyId = job.company_id ?? await databaseService.getPositivosCompanyId();
+
         // Usar el snapshot de criterios congelado al armar el prompt (fase 1);
         // solo consultar la BD si el snapshot no existe (lotes anteriores a esta función)
         const itemCriteria = (Array.isArray(item.criteria_snapshot) && item.criteria_snapshot.length > 0)
           ? item.criteria_snapshot
-          : await databaseService.getCriteriaForCallType(resolvedCallType, subCalificacion || undefined);
+          : await databaseService.getCriteriaForCallType(resolvedCallType, subCalificacion || undefined, jobCompanyId ?? undefined);
         const metadata = {
           ...gpfDataService.normalizeMetadata(attentionObject, item.gpf_attention_id),
           excelType: item.gpf_excel_type as 'INBOUND' | 'MONITOREO',
           callType: resolvedCallType,
+          companyId: jobCompanyId,
           gpfData: {
             attentionFields: attentionObject,
             transactions: [],
@@ -643,7 +662,7 @@ class BatchService {
         // Crear audit record
         const auditId = await databaseService.createAudit({
           userId: job.created_by,
-          companyId: job.company_id,
+          companyId: jobCompanyId,
           auditInput: metadata,
           audioFilename: 'gpf-batch',
           imageFilenames: imageResults.map((_: any, i: number) => `batch-img-${i}.jpg`),
@@ -661,6 +680,7 @@ class BatchService {
           excelBase64,
           processingTimeMs: 0,
           costs,
+          companyId: jobCompanyId,
           sentimentResults: item.sentiment_results || [],
           sentimentSummary: item.sentiment_summary || null,
         });

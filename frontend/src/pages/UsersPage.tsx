@@ -63,12 +63,12 @@ export default function UsersPage() {
  email: '',
  password: '',
  full_name: '',
- role: 'analyst' as UserRole
+ role: 'auditor' as UserRole
  });
 
  const [editForm, setEditForm] = useState({
  full_name: '',
- role: 'analyst' as UserRole
+ role: 'auditor' as UserRole
  });
 
  useEffect(() => {
@@ -91,9 +91,14 @@ export default function UsersPage() {
  .select('*')
  .order('created_at', { ascending: false });
 
- // Si es supervisor, solo mostrar analistas
+ // Aislamiento por empresa: el superadmin ve todas; el resto solo su empresa
+ if (profile?.role !== 'superadmin' && profile?.company_id) {
+ query = query.eq('company_id', profile.company_id);
+ }
+
+ // El lider solo gestiona a los auditores de su equipo
  if (isSupervisor) {
- query = query.eq('role', 'analyst');
+ query = query.eq('role', 'auditor');
  }
 
  const { data, error } = await query;
@@ -134,7 +139,7 @@ export default function UsersPage() {
  email: '',
  password: '',
  full_name: '',
- role: 'analyst'
+ role: 'auditor'
  });
  loadUsers();
  } catch (error: any) {
@@ -207,21 +212,21 @@ export default function UsersPage() {
 
  const getRoleBadge = (role: UserRole) => {
  switch (role) {
- case 'admin':
+ case 'superadmin':
  return (
  <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-900/20 border border-red-500/30 rounded-full text-red-300 text-xs font-medium">
  <Shield className="w-3 h-3" />
  {t('usersPage.roleAdmin')}
  </span>
  );
- case 'supervisor':
+ case 'lider':
  return (
- <span className="inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-green-900/30 to-emerald-900/30 border border-green-500/30 rounded-full text-green-300 text-xs font-medium">
+ <span className="inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-purple-900/30 to-fuchsia-900/30 border border-purple-500/30 rounded-full text-purple-300 text-xs font-medium">
  <Eye className="w-3 h-3" />
  {t('usersPage.roleSupervisor')}
  </span>
  );
- case 'analyst':
+ case 'auditor':
  return (
  <span className="inline-flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-brand-900/30 to-indigo-900/30 border border-brand-700/40 rounded-full text-brand-300 text-xs font-medium">
  <Award className="w-3 h-3" />
@@ -380,9 +385,9 @@ export default function UsersPage() {
  <UserIcon className="w-7 h-7 text-white" />
  </div>
  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-slate-900 rounded-full flex items-center justify-center border-2 border-slate-800">
- {user.role === 'admin' && <Shield className="w-3 h-3 text-red-400" />}
- {user.role === 'supervisor' && <Eye className="w-3 h-3 text-green-400" />}
- {user.role === 'analyst' && <Award className="w-3 h-3 text-brand-400" />}
+ {user.role === 'superadmin' && <Shield className="w-3 h-3 text-red-400" />}
+ {user.role === 'lider' && <Eye className="w-3 h-3 text-purple-400" />}
+ {user.role === 'auditor' && <Award className="w-3 h-3 text-brand-400" />}
  </div>
  </div>
 
@@ -495,9 +500,9 @@ export default function UsersPage() {
  onChange={(e) => setNewUser(prev => ({ ...prev, role: e.target.value as UserRole }))}
  className="input"
  >
- <option value="analyst">{t('usersPage.roleAnalyst')}</option>
- <option value="supervisor">{t('usersPage.roleSupervisor')}</option>
- <option value="admin">{t('usersPage.roleAdmin')}</option>
+ <option value="auditor">{t('usersPage.roleAnalyst')}</option>
+ <option value="lider">{t('usersPage.roleSupervisor')}</option>
+ {isAdmin && <option value="superadmin">{t('usersPage.roleAdmin')}</option>}
  </select>
  </div>
 
@@ -581,9 +586,9 @@ export default function UsersPage() {
  disabled={editingUser.id === profile?.id}
  className="input disabled:opacity-50 disabled:cursor-not-allowed"
  >
- <option value="analyst">{t('usersPage.roleAnalyst')}</option>
- <option value="supervisor">{t('usersPage.roleSupervisor')}</option>
- <option value="admin">{t('usersPage.roleAdmin')}</option>
+ <option value="auditor">{t('usersPage.roleAnalyst')}</option>
+ <option value="lider">{t('usersPage.roleSupervisor')}</option>
+ {isAdmin && <option value="superadmin">{t('usersPage.roleAdmin')}</option>}
  </select>
  {editingUser.id === profile?.id && (
  <p className="text-xs text-slate-500 mt-1">{t('usersPage.ownRoleNote')}</p>

@@ -4,6 +4,7 @@
 
 import { logger } from '../utils/logger.js';
 import { gpfFetch, normalizeGpfUrl } from '../utils/gpf-fetch.js';
+import { gpfConfigService, type GpfCredentials } from './gpf-config.service.js';
 
 interface TokenCache {
  token: string;
@@ -17,38 +18,37 @@ const TOKEN_TTL_MS = 90 * 60 * 1000; // 90 min — cookie Laravel expira mucho a
 class GpfTokenService {
  private cache: Map<string, TokenCache> = new Map();
 
- private getBaseUrl(env: string): string {
- const raw = env === 'prod'
-  ? (process.env.GPF_API_URL_PROD || '')
-  : (process.env.GPF_API_URL_TEST || '');
+ private getBaseUrl(env: string, creds: GpfCredentials): string {
+ const raw = env === 'prod' ? creds.apiUrlProd : creds.apiUrlTest;
  return normalizeGpfUrl(raw);
  }
 
- private buildHeaders(): Record<string, string> {
+ private buildHeaders(creds: GpfCredentials): Record<string, string> {
  return {
  'Accept': 'application/json',
  'Content-Type': 'application/json',
- 'X-App-Token': process.env.GPF_APP_TOKEN || '',
+ 'X-App-Token': creds.appToken,
  'ngrok-skip-browser-warning': 'true'
  };
  }
 
  private async login(env: string): Promise<{ token: string; sessionCookie: string }> {
- const baseUrl = this.getBaseUrl(env);
+ const creds = await gpfConfigService.getCredentials();
+ const baseUrl = this.getBaseUrl(env, creds);
  if (!baseUrl) throw new Error(`GPF URL not configured for env: ${env}`);
 
- const email = process.env.GPF_EMAIL || '';
- const password = process.env.GPF_PASSWORD || '';
+ const email = creds.email;
+ const password = creds.password;
 
  if (!email || !password) {
- throw new Error('GPF_EMAIL and GPF_PASSWORD must be configured');
+ throw new Error('GPF email and password must be configured (integration_config o .env)');
  }
 
  logger.info(' GPF auto-login', { env });
 
  const response = await gpfFetch(`${baseUrl}/api/login`, {
  method: 'POST',
- headers: this.buildHeaders(),
+ headers: this.buildHeaders(creds),
  body: JSON.stringify({ email, password })
  });
 

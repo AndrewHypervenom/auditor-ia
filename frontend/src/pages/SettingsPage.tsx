@@ -58,8 +58,8 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    // Verificar que sea admin
-    if (profile?.role !== 'admin') {
+    // Verificar que sea superadmin
+    if (profile?.role !== 'superadmin') {
       toast.error(t('settingsPage.unauthorized'));
       navigate('/dashboard');
       return;

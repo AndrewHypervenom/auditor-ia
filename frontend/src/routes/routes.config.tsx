@@ -9,7 +9,8 @@ import {
   DollarSign,
   Settings,
   FileSearch,
-  BookOpen
+  BookOpen,
+  Plug
 } from 'lucide-react';
 
 export interface RouteConfig {
@@ -34,14 +35,14 @@ export const ROUTES: RouteConfig[] = [
     path: '/dashboard',
     name: 'Dashboard',
     icon: LayoutDashboard,
-    allowedRoles: ['admin', 'supervisor', 'analyst'],
+    allowedRoles: ['superadmin', 'lider', 'auditor'],
     showInMenu: true,
   },
   {
     path: '/audits/new',
     name: 'Nueva Auditoría',
     icon: PlusCircle,
-    allowedRoles: ['admin', 'analyst'],
+    allowedRoles: ['superadmin', 'lider', 'auditor'],
     requirePermission: 'audits:create',
     showInMenu: true,
   },
@@ -49,14 +50,14 @@ export const ROUTES: RouteConfig[] = [
     path: '/audits',
     name: 'Auditorías',
     icon: FileText,
-    allowedRoles: ['admin', 'supervisor', 'analyst'],
+    allowedRoles: ['superadmin', 'lider', 'auditor'],
     showInMenu: true,
   },
   {
     path: '/users',
     name: 'Usuarios',
     icon: Users,
-    allowedRoles: ['admin', 'supervisor', 'analyst'],
+    allowedRoles: ['superadmin', 'lider', 'auditor'],
     requirePermission: 'users:read',
     showInMenu: true,
   },
@@ -64,7 +65,7 @@ export const ROUTES: RouteConfig[] = [
     path: '/costs',
     name: 'Costos',
     icon: DollarSign,
-    allowedRoles: ['admin', 'supervisor'],
+    allowedRoles: ['superadmin', 'lider'],
     requirePermission: 'costs:read:all',
     showInMenu: true,
   },
@@ -72,15 +73,22 @@ export const ROUTES: RouteConfig[] = [
     path: '/logs',
     name: 'Logs de Auditoría',
     icon: FileSearch,
-    allowedRoles: ['admin'],
+    allowedRoles: ['superadmin'],
     requirePermission: 'logs:read',
+    showInMenu: true,
+  },
+  {
+    path: '/integrations',
+    name: 'Integraciones',
+    icon: Plug,
+    allowedRoles: ['superadmin', 'lider'],
     showInMenu: true,
   },
   {
     path: '/settings',
     name: 'Configuración',
     icon: Settings,
-    allowedRoles: ['admin'],
+    allowedRoles: ['superadmin'],
     requirePermission: 'config:manage',
     showInMenu: true,
   },
@@ -88,7 +96,7 @@ export const ROUTES: RouteConfig[] = [
     path: '/scripts-admin',
     name: 'Scripts y Criterios',
     icon: BookOpen,
-    allowedRoles: ['admin', 'analyst'],
+    allowedRoles: ['superadmin', 'lider', 'auditor'],
     showInMenu: true,
   },
 ];
@@ -113,36 +121,37 @@ export function canAccessRoute(role: UserRole, path: string): boolean {
  * Mensajes de bienvenida personalizados por rol
  */
 export const ROLE_WELCOME_MESSAGES: Record<UserRole, string> = {
-  admin: '¡Bienvenido al panel de administración! Tienes control total del sistema.',
-  analyst: '¡Bienvenido! Puedes crear, editar y gestionar auditorías completas.',
-  supervisor: '¡Bienvenido! Puedes consultar auditorías y generar reportes con análisis de costos.',
+  superadmin: '¡Bienvenido al panel de administración! Tienes control total de la plataforma.',
+  lider: '¡Bienvenido! Administras tu empresa: equipo, configuración, APIs/endpoints y reportes.',
+  auditor: '¡Bienvenido! Puedes crear, editar y gestionar auditorías de tu empresa.',
 };
 
 /**
  * Configuración de features disponibles por rol
  */
 export const ROLE_FEATURES: Record<UserRole, string[]> = {
-  admin: [
+  superadmin: [
+    'Control total de todas las empresas',
     'Gestión completa de usuarios',
     'Crear, editar y eliminar auditorías',
-    'Acceso a todos los costos del sistema',
-    'Configuración del sistema',
+    'Acceso a todos los costos de la plataforma',
+    'Configuración global y APIs',
     'Logs de auditoría completos',
   ],
-  analyst: [
+  lider: [
+    'Gestión del equipo de su empresa',
+    'Crear, editar y eliminar auditorías',
+    'Configurar APIs/endpoints internos de su empresa',
+    'Consultar costos de su empresa',
+    'Generar reportes de análisis',
+    'Exportar datos en Excel',
+  ],
+  auditor: [
     'Crear nuevas auditorías',
     'Editar auditorías existentes',
     'Eliminar auditorías',
-    'Ver todas las auditorías del sistema',
+    'Ver todas las auditorías de su empresa',
     'Generar reportes personalizados',
     'Ver transcripciones y análisis',
-  ],
-  supervisor: [
-    'Ver todas las auditorías (solo lectura)',
-    'Acceder a detalles completos de auditorías',
-    'Consultar costos operativos del sistema',
-    'Generar reportes de análisis',
-    'Ver tendencias y métricas',
-    'Exportar datos en Excel',
   ],
 };
