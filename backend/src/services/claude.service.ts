@@ -140,8 +140,9 @@ class ClaudeService {
  /**
  * Corrige errores obvios de reconocimiento de voz en transcripciones bancarias
  */
- async correctTranscription(text: string): Promise<string> {
- if (!text || text.length < 10) return text;
+ async correctTranscription(text: string): Promise<{ text: string; usage: { inputTokens: number; outputTokens: number } }> {
+ const emptyUsage = { inputTokens: 0, outputTokens: 0 };
+ if (!text || text.length < 10) return { text, usage: emptyUsage };
 
  try {
  logger.info('[CLAUDE] Iniciando post-corrección de transcripción', { longitud: text.length });
@@ -162,14 +163,20 @@ class ClaudeService {
  });
 
  const corrected = this.extractText(response).trim();
- const tokens = (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0);
+ const usage = {
+ inputTokens: response.usage?.input_tokens ?? 0,
+ outputTokens: response.usage?.output_tokens ?? 0,
+ };
 
- logger.info('[CLAUDE] Post-corrección completada', { tokens, cambios: corrected !== text });
+ logger.info('[CLAUDE] Post-corrección completada', {
+ tokens: usage.inputTokens + usage.outputTokens,
+ cambios: corrected !== text,
+ });
 
- return corrected || text;
+ return { text: corrected || text, usage };
  } catch (error: any) {
  logger.warn('[CLAUDE] Post-corrección falló, usando texto original', { error: error.message });
- return text;
+ return { text, usage: emptyUsage };
  }
  }
 

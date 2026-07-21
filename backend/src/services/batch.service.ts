@@ -283,6 +283,14 @@ class BatchService {
 
           // ── Audio: descargar + transcribir con AssemblyAI (igual que tiempo real) ──
           let finalTranscriptText = syntheticTranscript.text;
+          // Metadatos de costo de los pasos en tiempo real (corrección + sentimientos + AssemblyAI).
+          // Se persisten en batch_items.cost_meta para calcular el costo real en processBatchResults.
+          const costMeta = {
+            assemblyaiDurationSeconds: 0,
+            nativeSentiment: false,
+            correction: { inputTokens: 0, outputTokens: 0 },
+            sentiment: { inputTokens: 0, outputTokens: 0 },
+          };
           try {
             const audioToken = await gpfTokenService.getTokenWithRetry(item.gpf_env);
             const audioSecureUrl = await gpfDataService.fetchAudioUrl(item.gpf_env, item.gpf_attention_id, audioToken);
@@ -316,9 +324,11 @@ class BatchService {
                 tempFiles.push(localAudioPath);
                 logger.info('Batch: transcribing audio with AssemblyAI', { itemId: item.id, sizeMB: (audioBuffer.length / 1024 / 1024).toFixed(2) });
                 const rawTranscript = await assemblyAIService.transcribe(localAudioPath);
+                costMeta.assemblyaiDurationSeconds = rawTranscript?.audio_duration ?? 0;
                 if (rawTranscript?.text) {
                   const corrected = await openAIService.correctTranscription(rawTranscript.text);
-                  const audioText = corrected || rawTranscript.text;
+                  costMeta.correction = corrected.usage;
+                  const audioText = corrected.text || rawTranscript.text;
                   finalTranscriptText = `${audioText}\n\n--- DATOS ESTRUCTURADOS GPF ---\n${syntheticTranscript.text}`;
                   logger.success('Batch: audio transcribed', { itemId: item.id, length: finalTranscriptText.length });
 
@@ -327,10 +337,12 @@ class BatchService {
                   try {
                     let sentimentResults = rawTranscript.sentiment_analysis_results || [];
                     let sentimentProvider: 'assemblyai' | 'openai' = 'assemblyai';
+                    costMeta.nativeSentiment = sentimentResults.length > 0;
                     if (sentimentResults.length === 0 && (rawTranscript.utterances?.length || 0) > 0) {
                       const gptSentiment = await openAIService.analyzeSentiment(rawTranscript.utterances);
                       sentimentResults = gptSentiment.results;
                       sentimentProvider = 'openai';
+                      costMeta.sentiment = gptSentiment.usage;
                     }
                     if (sentimentResults.length > 0) {
                       const sentimentSummary = buildSentimentSummary(sentimentResults, sentimentProvider);
@@ -407,10 +419,24 @@ class BatchService {
           });
 
           // Persistir transcript para processBatchResults (llega horas después con los resultados de OpenAI)
-          await supabaseAdmin
+          const { error: transErr } = await supabaseAdmin
             .from('batch_items')
-            .update({ status: 'processing', transcript_text: finalTranscriptText.substring(0, 100_000) })
+            .update({
+              status: 'processing',
+              transcript_text: finalTranscriptText.substring(0, 100_000),
+              cost_meta: costMeta,
+            })
             .eq('id', item.id);
+          if (transErr) {
+            // cost_meta puede faltar en lotes anteriores a la migración; reintentar sin él.
+            logger.warn('Batch: no se pudo guardar cost_meta — ¿falta la columna en batch_items? Se guardará el transcript sin metadatos de costo', {
+              itemId: item.id, error: transErr.message,
+            });
+            await supabaseAdmin
+              .from('batch_items')
+              .update({ status: 'processing', transcript_text: finalTranscriptText.substring(0, 100_000) })
+              .eq('id', item.id);
+          }
 
           // Snapshot de criterios: processBatchResults debe parsear con EXACTAMENTE
           // los criterios usados para armar el prompt. Si los criterios se editan en BD
@@ -550,9 +576,12 @@ class BatchService {
       try {
         // Recolectar resultados de imágenes del batch
         const imageResults: any[] = [];
+        const imgUsage = { inputTokens: 0, outputTokens: 0 };
         let imgIdx = 0;
         while (resultMap.has(`${item.id}__img__${imgIdx}`)) {
           const imgMsg = resultMap.get(`${item.id}__img__${imgIdx}`)!;
+          imgUsage.inputTokens += imgMsg.usage?.input_tokens ?? 0;
+          imgUsage.outputTokens += imgMsg.usage?.output_tokens ?? 0;
           const imgText = extractClaudeText(imgMsg);
           if (imgText) {
             try {
@@ -651,7 +680,24 @@ class BatchService {
 
         const excelResult = await excelService.generateExcelReport(metadata, normalizedEval);
         const excelBase64 = excelResult.buffer.toString('base64');
-        const costs = costCalculatorService.calculateTotalCost(0, imageResults.length, 0, 0, 0, 0);
+
+        // Costo real del ítem: imágenes + evaluación vienen del batch (50% descuento);
+        // corrección + sentimientos son en tiempo real (fase 1) y viven en cost_meta.
+        const cm = item.cost_meta || {};
+        const evalUsage = {
+          inputTokens: evalMsg?.usage?.input_tokens ?? 0,
+          outputTokens: evalMsg?.usage?.output_tokens ?? 0,
+        };
+        const costs = costCalculatorService.calculateTotalCost({
+          model: BATCH_LIMITS.MODEL,
+          audioDurationSeconds: cm.assemblyaiDurationSeconds ?? 0,
+          includeNativeSentiment: !!cm.nativeSentiment,
+          correction: cm.correction ?? { inputTokens: 0, outputTokens: 0 },
+          sentiment: cm.sentiment ?? { inputTokens: 0, outputTokens: 0 },
+          images: { count: imageResults.length, inputTokens: imgUsage.inputTokens, outputTokens: imgUsage.outputTokens },
+          evaluation: evalUsage,
+          batchDiscountOnBatchedSteps: true,
+        });
 
         await databaseService.completeAudit(auditId, {
           transcription: item.transcript_text || '[Procesado en lote nocturno]',

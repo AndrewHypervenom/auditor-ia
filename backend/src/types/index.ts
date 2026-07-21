@@ -117,26 +117,40 @@ export interface EvaluationResult {
  dataWarnings?: string[]; // advertencias de calidad de datos (imágenes iguales, datos GPF faltantes, etc.)
 }
 
+/** Tokens de una llamada a Claude. */
+export interface ClaudeUsage {
+ inputTokens: number;
+ outputTokens: number;
+}
+
+/** Un paso de Claude con sus tokens y su costo en USD. */
+export interface ClaudeStepCost {
+ inputTokens: number;
+ outputTokens: number;
+ cost: number;
+}
+
 /**
- * Costos de APIs
+ * Costos de APIs, desglosados por API (Claude / AssemblyAI) y por paso.
  */
 export interface APICosts {
  assemblyai: {
  audioDurationMinutes: number;
+ costPerMinute?: number;
  totalCost: number;
  };
+ claude: {
+ model: string;
+ correction: ClaudeStepCost;
+ sentiment: ClaudeStepCost;
+ images: ClaudeStepCost & { count: number };
+ evaluation: ClaudeStepCost;
+ totalCost: number;
+ };
+ /** Alias histórico de `claude` (imágenes + evaluación). Mantiene compat con BD/UI. */
  openai: {
- images: {
- count: number;
- inputTokens: number;
- outputTokens: number;
- cost: number;
- };
- evaluation: {
- inputTokens: number;
- outputTokens: number;
- cost: number;
- };
+ images: ClaudeStepCost & { count: number };
+ evaluation: ClaudeStepCost;
  totalCost: number;
  };
  totalCost: number;

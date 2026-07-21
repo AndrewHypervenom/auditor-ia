@@ -125,17 +125,33 @@ export interface ImageAnalysisResult {
 export interface APICostsDB {
   id: string;
   audit_id: string;
-  transcription_cost: number;
-  image_analysis_cost: number;
-  evaluation_cost: number;
+
+  // AssemblyAI (transcripción)
+  assemblyai_duration_minutes?: number;
+  assemblyai_cost?: number;
+
+  // Claude — modelo y pasos
+  claude_model?: string;
+  claude_correction_input_tokens?: number;
+  claude_correction_output_tokens?: number;
+  claude_correction_cost?: number;
+  claude_sentiment_input_tokens?: number;
+  claude_sentiment_output_tokens?: number;
+  claude_sentiment_cost?: number;
+
+  // Claude — imágenes y evaluación (columnas históricas "openai_*")
+  openai_images_count?: number;
+  openai_images_input_tokens?: number;
+  openai_images_output_tokens?: number;
+  openai_images_cost?: number;
+  openai_evaluation_input_tokens?: number;
+  openai_evaluation_output_tokens?: number;
+  openai_evaluation_cost?: number;
+  openai_total_cost?: number; // subtotal de todo Claude
+
   total_cost: number;
-  tokens_used: {
-    transcription?: number;
-    imageAnalysis?: number;
-    evaluation?: number;
-    total?: number;
-  };
-  created_at: string;
+  currency?: string;
+  created_at?: string;
 }
 
 export interface APICosts {

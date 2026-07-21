@@ -199,27 +199,51 @@ class DatabaseService {
    * Guardar costos de API
    */
   async saveAPICosts(auditId: string, costs: APICosts, companyId?: string | null): Promise<void> {
+    // Columnas del desglose por paso de Claude (requieren la migración
+    // add_cost_breakdown_to_api_costs.sql). Se separan para reintentar sin
+    // ellas si la migración aún no se corrió en el entorno.
+    const breakdownCols = {
+      claude_model: costs.claude.model,
+      claude_correction_input_tokens: costs.claude.correction.inputTokens,
+      claude_correction_output_tokens: costs.claude.correction.outputTokens,
+      claude_correction_cost: costs.claude.correction.cost,
+      claude_sentiment_input_tokens: costs.claude.sentiment.inputTokens,
+      claude_sentiment_output_tokens: costs.claude.sentiment.outputTokens,
+      claude_sentiment_cost: costs.claude.sentiment.cost,
+    };
+    const baseRow = {
+      audit_id: auditId,
+      ...(companyId ? { company_id: companyId } : {}),
+      assemblyai_duration_minutes: costs.assemblyai.audioDurationMinutes,
+      assemblyai_cost: costs.assemblyai.totalCost,
+      openai_images_count: costs.openai.images.count,
+      openai_images_input_tokens: costs.openai.images.inputTokens,
+      openai_images_output_tokens: costs.openai.images.outputTokens,
+      openai_images_cost: costs.openai.images.cost,
+      openai_evaluation_input_tokens: costs.openai.evaluation.inputTokens,
+      openai_evaluation_output_tokens: costs.openai.evaluation.outputTokens,
+      openai_evaluation_cost: costs.openai.evaluation.cost,
+      openai_total_cost: costs.openai.totalCost,
+      total_cost: costs.totalCost,
+      currency: costs.currency,
+    };
+
     try {
       const { error } = await supabaseAdmin
         .from('api_costs')
-        .insert({
-          audit_id: auditId,
-          ...(companyId ? { company_id: companyId } : {}),
-          assemblyai_duration_minutes: costs.assemblyai.audioDurationMinutes,
-          assemblyai_cost: costs.assemblyai.totalCost,
-          openai_images_count: costs.openai.images.count,
-          openai_images_input_tokens: costs.openai.images.inputTokens,
-          openai_images_output_tokens: costs.openai.images.outputTokens,
-          openai_images_cost: costs.openai.images.cost,
-          openai_evaluation_input_tokens: costs.openai.evaluation.inputTokens,
-          openai_evaluation_output_tokens: costs.openai.evaluation.outputTokens,
-          openai_evaluation_cost: costs.openai.evaluation.cost,
-          openai_total_cost: costs.openai.totalCost,
-          total_cost: costs.totalCost,
-          currency: costs.currency
-        });
+        .insert({ ...baseRow, ...breakdownCols });
 
-      if (error) throw error;
+      if (error) {
+        // Fallback: si faltan las columnas del desglose (migración pendiente),
+        // guardar al menos los totales para no perder el registro de costo.
+        logger.warn('[COSTOS] Insert con desglose falló; reintentando sin columnas claude_* — ¿falta correr add_cost_breakdown_to_api_costs.sql?', {
+          auditId, error: error.message,
+        });
+        const { error: fallbackError } = await supabaseAdmin
+          .from('api_costs')
+          .insert(baseRow);
+        if (fallbackError) throw fallbackError;
+      }
 
       logger.success('âœ… API costs saved to database', { 
         auditId, 

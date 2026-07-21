@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import AppHeader from '../components/AppHeader';
 import { useAuth, useRole } from '../contexts/AuthContext';
-import { auditService, getAuditTotalCost, type Audit } from '../services/api';
+import { auditService, getAuditTotalCost, getAuditClaudeCost, getAuditAssemblyAICost, type Audit } from '../services/api';
 import ExcelJS from 'exceljs';
 import { 
  BarChart3,
@@ -80,6 +80,8 @@ const EXAMPLE_DATA = {
  avgScore: 87.3,
  totalCosts: 45.6789,
  avgCost: 0.2928,
+ claudeCosts: 31.9752,
+ assemblyaiCosts: 13.7037,
  auditsWithScores: 142,
  
  monthlyData: [
@@ -184,6 +186,8 @@ export default function ReportsPage() {
  
  const totalCosts = audits.reduce((sum, audit) => sum + getAuditTotalCost(audit), 0);
  const avgCost = totalAudits > 0 ? totalCosts / totalAudits : 0;
+ const claudeCosts = audits.reduce((sum, audit) => sum + getAuditClaudeCost(audit), 0);
+ const assemblyaiCosts = audits.reduce((sum, audit) => sum + getAuditAssemblyAICost(audit), 0);
  
  const auditsWithScores = audits.filter(a => a.evaluations && a.evaluations.length > 0);
  const avgScore = auditsWithScores.length > 0
@@ -197,6 +201,8 @@ export default function ReportsPage() {
  errorAudits,
  totalCosts,
  avgCost,
+ claudeCosts,
+ assemblyaiCosts,
  auditsWithScores: auditsWithScores.length,
  avgScore
  };
@@ -1161,6 +1167,46 @@ export default function ReportsPage() {
  </div>
  </div>
  </div>
+
+ {/* Desglose por API: Claude vs AssemblyAI */}
+ {(() => {
+   const claude = stats.claudeCosts ?? 0;
+   const assembly = stats.assemblyaiCosts ?? 0;
+   const totalApi = claude + assembly;
+   const claudePct = totalApi > 0 ? (claude / totalApi) * 100 : 0;
+   const assemblyPct = totalApi > 0 ? (assembly / totalApi) * 100 : 0;
+   return (
+     <div className="mt-6 pt-6 border-t border-slate-700/50">
+       <h4 className="text-sm font-semibold text-slate-300 uppercase tracking-wide mb-4">
+         Desglose por API
+       </h4>
+       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+         <div className="p-5 bg-slate-800/50 border border-violet-500/30 rounded-xl">
+           <div className="flex items-center justify-between mb-2">
+             <span className="text-slate-400 text-xs font-semibold uppercase tracking-wide">Claude (LLM)</span>
+             <span className="text-violet-300 text-xs font-semibold">{claudePct.toFixed(1)}%</span>
+           </div>
+           <div className="text-2xl font-bold text-violet-300 mb-1">${claude.toFixed(4)}</div>
+           <div className="text-[11px] text-slate-500 mb-2">Corrección · Sentimientos · Imágenes · Evaluación</div>
+           <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+             <div className="h-full bg-gradient-to-r from-violet-500 to-purple-400 rounded-full transition-all duration-700" style={{ width: `${claudePct}%` }}></div>
+           </div>
+         </div>
+         <div className="p-5 bg-slate-800/50 border border-cyan-500/30 rounded-xl">
+           <div className="flex items-center justify-between mb-2">
+             <span className="text-slate-400 text-xs font-semibold uppercase tracking-wide">AssemblyAI</span>
+             <span className="text-cyan-300 text-xs font-semibold">{assemblyPct.toFixed(1)}%</span>
+           </div>
+           <div className="text-2xl font-bold text-cyan-300 mb-1">${assembly.toFixed(4)}</div>
+           <div className="text-[11px] text-slate-500 mb-2">Transcripción de audio (Universal-3 Pro)</div>
+           <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+             <div className="h-full bg-gradient-to-r from-cyan-500 to-sky-400 rounded-full transition-all duration-700" style={{ width: `${assemblyPct}%` }}></div>
+           </div>
+         </div>
+       </div>
+     </div>
+   );
+ })()}
  </div>
  )}
  </>

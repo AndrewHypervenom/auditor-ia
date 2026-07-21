@@ -443,8 +443,9 @@ app.post('/api/evaluate',
  const transcriptionRaw = await assemblyAIService.transcribe(audioFile.path);
 
  // Post-corrección: arregla errores de ASR en nombres de marca y términos bancarios
- const correctedText = await openAIService.correctTranscription(transcriptionRaw.text);
- const transcription = { ...transcriptionRaw, text: correctedText };
+ const correction = await openAIService.correctTranscription(transcriptionRaw.text);
+ const transcription = { ...transcriptionRaw, text: correction.text };
+ const correctionUsage = correction.usage;
 
  logger.success(' Transcription completed', {
  duration: transcription.audio_duration,
@@ -519,15 +520,18 @@ app.post('/api/evaluate',
  // 6. Calcular costos (fix: usar tokens reales del análisis de imágenes)
  const imgInputTokens = imageAnalyses.reduce((s: number, img: any) => s + (img.usage?.input_tokens || 0), 0);
  const imgOutputTokens = imageAnalyses.reduce((s: number, img: any) => s + (img.usage?.output_tokens || 0), 0);
- const costs = costCalculatorService.calculateTotalCost(
- transcription.audio_duration || 0,
- imageFiles.length,
- imgInputTokens,
- imgOutputTokens,
- (evaluation.usage?.inputTokens || 0) + sentimentUsage.inputTokens,
- (evaluation.usage?.outputTokens || 0) + sentimentUsage.outputTokens,
- sentimentProvider === 'assemblyai' && sentimentResults.length > 0
- );
+ const costs = costCalculatorService.calculateTotalCost({
+ audioDurationSeconds: transcription.audio_duration || 0,
+ includeNativeSentiment: sentimentProvider === 'assemblyai' && sentimentResults.length > 0,
+ correction: correctionUsage,
+ // Sentimientos con Claude solo cuando el proveedor no fue AssemblyAI nativo.
+ sentiment: sentimentProvider === 'openai' ? sentimentUsage : { inputTokens: 0, outputTokens: 0 },
+ images: { count: imageFiles.length, inputTokens: imgInputTokens, outputTokens: imgOutputTokens },
+ evaluation: {
+ inputTokens: evaluation.usage?.inputTokens || 0,
+ outputTokens: evaluation.usage?.outputTokens || 0,
+ },
+ });
 
  logger.info(' Costs calculated:', costs);
 
@@ -2657,6 +2661,7 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
  let gpfNativeSentiment: any[] = []; // sentimientos nativos de AssemblyAI (solo EN)
  let gpfLanguageCode: string | undefined;
  let gpfTranscriptionConfidence: number | null = null;
+ let correctionUsage = { inputTokens: 0, outputTokens: 0 };
 
  try {
  logger.info('[PASO 5] Solicitando URL de audio a GPF...', { attentionId, env });
@@ -2728,11 +2733,12 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
  duracionAudio: transcriptionResultRaw?.audio_duration ?? 0
  });
  // Post-corrección de errores ASR en nombres de marca y términos bancarios
- const correctedGpfText = transcriptionResultRaw?.text
+ const gpfCorrection = transcriptionResultRaw?.text
  ? await openAIService.correctTranscription(transcriptionResultRaw.text)
- : transcriptionResultRaw?.text;
+ : null;
+ correctionUsage = gpfCorrection?.usage ?? { inputTokens: 0, outputTokens: 0 };
  const transcriptionResult = transcriptionResultRaw
- ? { ...transcriptionResultRaw, text: correctedGpfText ?? transcriptionResultRaw.text }
+ ? { ...transcriptionResultRaw, text: gpfCorrection?.text ?? transcriptionResultRaw.text }
  : transcriptionResultRaw;
  if (transcriptionResult?.text) {
  audioOnlyTranscriptText = transcriptionResult.text; // guardar solo el audio para mostrar en UI
@@ -2893,15 +2899,17 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
  // ── 8. Calculate costs (fix: usar tokens reales del análisis de imágenes) ─
  const imgInputTokensGpf = imageAnalyses.reduce((s: number, img: any) => s + (img.usage?.input_tokens || 0), 0);
  const imgOutputTokensGpf = imageAnalyses.reduce((s: number, img: any) => s + (img.usage?.output_tokens || 0), 0);
- const costs = costCalculatorService.calculateTotalCost(
+ const costs = costCalculatorService.calculateTotalCost({
  audioDurationSeconds, // en segundos (calculateAssemblyAICost divide entre 60 internamente)
- localPaths.length,
- imgInputTokensGpf,
- imgOutputTokensGpf,
- (evaluation.usage?.inputTokens || 0) + sentimentUsage.inputTokens,
- (evaluation.usage?.outputTokens || 0) + sentimentUsage.outputTokens,
- sentimentProvider === 'assemblyai' && sentimentResults.length > 0
- );
+ includeNativeSentiment: sentimentProvider === 'assemblyai' && sentimentResults.length > 0,
+ correction: correctionUsage,
+ sentiment: sentimentProvider === 'openai' ? sentimentUsage : { inputTokens: 0, outputTokens: 0 },
+ images: { count: localPaths.length, inputTokens: imgInputTokensGpf, outputTokens: imgOutputTokensGpf },
+ evaluation: {
+ inputTokens: evaluation.usage?.inputTokens || 0,
+ outputTokens: evaluation.usage?.outputTokens || 0,
+ },
+ });
 
  // Adjuntar advertencias de calidad de datos al resultado
  if (dataWarnings.length > 0) {

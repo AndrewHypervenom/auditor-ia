@@ -1,207 +1,237 @@
 //backend/src/services/cost-calculator.service.ts
 
 import { logger } from '../utils/logger.js';
-import type { APICosts } from '../types/index.js';
+import type { APICosts, ClaudeUsage } from '../types/index.js';
 
 /**
- * Precios actualizados a Junio 2026
- * Fuentes:
- * - AssemblyAI: https://www.assemblyai.com/pricing
- * - OpenAI GPT-4o: https://openai.com/api/pricing/
+ * Cálculo de costos de APIs (Claude + AssemblyAI).
+ *
+ * El objetivo es que el costo registrado por auditoría sea EXACTO y quede
+ * desglosado por API y por paso, porque no tenemos acceso a las consolas de
+ * facturación de los proveedores.
+ *
+ * Pasos de Claude que se tarifan por auditoría:
+ *   1. Corrección de transcripción (post-ASR)
+ *   2. Análisis de sentimientos (solo cuando NO lo hace AssemblyAI nativo)
+ *   3. Análisis de imágenes
+ *   4. Evaluación con criterios
+ *
+ * Precios verificados a Julio 2026. Fuentes:
+ * - AssemblyAI Universal-3 Pro: https://www.assemblyai.com/pricing
+ * - Claude (Anthropic): https://platform.claude.com/docs/en/pricing
  */
+
+interface ClaudeModelPrice {
+  inputPer1M: number;
+  outputPer1M: number;
+}
+
+// Precios de lista por 1M de tokens (USD). La clave es un prefijo del model id.
+const CLAUDE_PRICES: Record<string, ClaudeModelPrice> = {
+  'claude-fable-5': { inputPer1M: 10.0, outputPer1M: 50.0 },
+  'claude-opus-4-8': { inputPer1M: 5.0, outputPer1M: 25.0 },
+  'claude-opus-4-7': { inputPer1M: 5.0, outputPer1M: 25.0 },
+  'claude-opus-4-6': { inputPer1M: 5.0, outputPer1M: 25.0 },
+  'claude-opus': { inputPer1M: 5.0, outputPer1M: 25.0 },
+  'claude-sonnet-5': { inputPer1M: 3.0, outputPer1M: 15.0 },
+  'claude-sonnet-4-6': { inputPer1M: 3.0, outputPer1M: 15.0 },
+  'claude-sonnet': { inputPer1M: 3.0, outputPer1M: 15.0 },
+  'claude-haiku-4-5': { inputPer1M: 1.0, outputPer1M: 5.0 },
+  'claude-haiku': { inputPer1M: 1.0, outputPer1M: 5.0 },
+};
+
+const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-5';
+
+/** Parámetros para el costo total de una auditoría. */
+export interface CostCalcInput {
+  /** Modelo de Claude usado (para tarifar). Por defecto CLAUDE_MODEL del entorno. */
+  model?: string;
+  /** Duración del audio en segundos (AssemblyAI). */
+  audioDurationSeconds: number;
+  /** true si AssemblyAI hizo el análisis de sentimientos nativo (add-on inglés). */
+  includeNativeSentiment?: boolean;
+  /** Tokens de la post-corrección de transcripción con Claude. */
+  correction?: ClaudeUsage;
+  /** Tokens del análisis de sentimientos con Claude (solo ES/PT). */
+  sentiment?: ClaudeUsage;
+  /** Análisis de imágenes con Claude. */
+  images?: { count: number; inputTokens: number; outputTokens: number };
+  /** Evaluación con criterios (Claude). */
+  evaluation?: ClaudeUsage;
+  /**
+   * Aplica el descuento del 50% de la Batch API de Anthropic a los pasos que
+   * realmente pasan por el batch (imágenes + evaluación). La corrección y los
+   * sentimientos se calculan en tiempo real (precio completo) aun en lotes.
+   */
+  batchDiscountOnBatchedSteps?: boolean;
+}
+
+const ZERO_USAGE: ClaudeUsage = { inputTokens: 0, outputTokens: 0 };
+
 class CostCalculatorService {
- // ============================================
- // PRECIOS ASSEMBLYAI — UNIVERSAL-3 PRO (Junio 2026)
- // ============================================
- private readonly ASSEMBLYAI_U3PRO_PER_HOUR = 0.21; // Universal-3 Pro base
- private readonly ASSEMBLYAI_DIARIZATION_PER_HOUR = 0.02; // Speaker labels (add-on)
- private readonly ASSEMBLYAI_SENTIMENT_PER_HOUR = 0.02; // Sentiment analysis nativo (solo EN)
- private readonly ASSEMBLYAI_COST_PER_MINUTE =
- (this.ASSEMBLYAI_U3PRO_PER_HOUR + this.ASSEMBLYAI_DIARIZATION_PER_HOUR) / 60; // ≈ $0.00383/min
+  // ============================================
+  // PRECIOS ASSEMBLYAI — UNIVERSAL-3 PRO (Julio 2026)
+  // ============================================
+  private readonly ASSEMBLYAI_U3PRO_PER_HOUR = 0.21; // Universal-3 Pro base
+  private readonly ASSEMBLYAI_DIARIZATION_PER_HOUR = 0.02; // Speaker labels (add-on)
+  private readonly ASSEMBLYAI_SENTIMENT_PER_HOUR = 0.02; // Sentiment nativo (solo EN)
+  private readonly ASSEMBLYAI_COST_PER_MINUTE =
+    (this.ASSEMBLYAI_U3PRO_PER_HOUR + this.ASSEMBLYAI_DIARIZATION_PER_HOUR) / 60; // ≈ $0.00383/min
 
- // ============================================
- // PRECIOS CLAUDE SONNET 5 (Julio 2026)
- // ============================================
- private readonly LLM_INPUT_COST_PER_1M = 3.00; // $3.00 por 1M tokens de input
- private readonly LLM_OUTPUT_COST_PER_1M = 15.00; // $15.00 por 1M tokens de output
+  /** Resuelve el precio del modelo por prefijo del id (con fallback seguro). */
+  private priceFor(model?: string): { model: string; price: ClaudeModelPrice } {
+    const id = (model || process.env.CLAUDE_MODEL || DEFAULT_CLAUDE_MODEL).toLowerCase();
+    // Buscar la coincidencia de prefijo más larga (más específica).
+    const key = Object.keys(CLAUDE_PRICES)
+      .filter(k => id.startsWith(k))
+      .sort((a, b) => b.length - a.length)[0];
+    const price = key ? CLAUDE_PRICES[key] : CLAUDE_PRICES[DEFAULT_CLAUDE_MODEL];
+    if (!key) {
+      logger.warn('[COSTOS] Modelo Claude no reconocido en tabla de precios, usando sonnet-5', { model: id });
+    }
+    return { model: id, price };
+  }
 
- /**
- * Calcular costo de transcripción de AssemblyAI
- */
- calculateAssemblyAICost(audioDurationSeconds: number, includeNativeSentiment = false): {
- audioDurationMinutes: number;
- costPerMinute: number;
- totalCost: number;
- } {
- const durationMinutes = audioDurationSeconds / 60;
- const costPerMinute = this.ASSEMBLYAI_COST_PER_MINUTE +
- (includeNativeSentiment ? this.ASSEMBLYAI_SENTIMENT_PER_HOUR / 60 : 0);
- const totalCost = durationMinutes * costPerMinute;
+  private round(n: number, decimals = 4): number {
+    return parseFloat(n.toFixed(decimals));
+  }
 
- logger.info(' AssemblyAI cost calculated (Universal-3 Pro)', {
- durationMinutes: durationMinutes.toFixed(2),
- costPerMinute: costPerMinute.toFixed(6),
- nativeSentiment: includeNativeSentiment,
- totalCost: `$${totalCost.toFixed(4)}`
- });
+  /** Costo de un paso de Claude a partir de sus tokens. */
+  private claudeStepCost(
+    usage: ClaudeUsage | undefined,
+    price: ClaudeModelPrice,
+    discount = false
+  ): { inputTokens: number; outputTokens: number; cost: number } {
+    const u = usage ?? ZERO_USAGE;
+    const factor = discount ? 0.5 : 1;
+    const inputCost = (u.inputTokens / 1_000_000) * price.inputPer1M * factor;
+    const outputCost = (u.outputTokens / 1_000_000) * price.outputPer1M * factor;
+    return {
+      inputTokens: u.inputTokens,
+      outputTokens: u.outputTokens,
+      cost: this.round(inputCost + outputCost),
+    };
+  }
 
- return {
- audioDurationMinutes: parseFloat(durationMinutes.toFixed(2)),
- costPerMinute: parseFloat(costPerMinute.toFixed(6)),
- totalCost: parseFloat(totalCost.toFixed(4))
- };
- }
+  /**
+   * Calcular costo de transcripción de AssemblyAI.
+   */
+  calculateAssemblyAICost(audioDurationSeconds: number, includeNativeSentiment = false): {
+    audioDurationMinutes: number;
+    costPerMinute: number;
+    totalCost: number;
+  } {
+    const durationMinutes = audioDurationSeconds / 60;
+    const costPerMinute = this.ASSEMBLYAI_COST_PER_MINUTE +
+      (includeNativeSentiment ? this.ASSEMBLYAI_SENTIMENT_PER_HOUR / 60 : 0);
+    const totalCost = durationMinutes * costPerMinute;
 
- /**
- * Calcular costo de análisis de imágenes con GPT-4o
- */
- calculateImageAnalysisCost(
- imageCount: number,
- totalInputTokens: number,
- totalOutputTokens: number
- ): {
- count: number;
- inputTokens: number;
- outputTokens: number;
- cost: number;
- } {
- const inputCost = (totalInputTokens / 1_000_000) * this.LLM_INPUT_COST_PER_1M;
- const outputCost = (totalOutputTokens / 1_000_000) * this.LLM_OUTPUT_COST_PER_1M;
- const totalCost = inputCost + outputCost;
+    return {
+      audioDurationMinutes: this.round(durationMinutes, 2),
+      costPerMinute: this.round(costPerMinute, 6),
+      totalCost: this.round(totalCost),
+    };
+  }
 
- logger.info(' Image analysis cost calculated', {
- imageCount,
- inputTokens: totalInputTokens.toLocaleString(),
- outputTokens: totalOutputTokens.toLocaleString(),
- inputCost: `$${inputCost.toFixed(4)}`,
- outputCost: `$${outputCost.toFixed(4)}`,
- totalCost: `$${totalCost.toFixed(4)}`
- });
+  /**
+   * Calcular costo total de una auditoría completa, desglosado por API y por paso.
+   */
+  calculateTotalCost(input: CostCalcInput): APICosts {
+    const { model, price } = this.priceFor(input.model);
+    const discount = !!input.batchDiscountOnBatchedSteps;
 
- return {
- count: imageCount,
- inputTokens: totalInputTokens,
- outputTokens: totalOutputTokens,
- cost: parseFloat(totalCost.toFixed(4))
- };
- }
+    const assemblyai = this.calculateAssemblyAICost(
+      input.audioDurationSeconds || 0,
+      !!input.includeNativeSentiment
+    );
 
- /**
- * Calcular costo de evaluación con GPT-4o
- */
- calculateEvaluationCost(
- inputTokens: number,
- outputTokens: number
- ): {
- inputTokens: number;
- outputTokens: number;
- cost: number;
- } {
- const inputCost = (inputTokens / 1_000_000) * this.LLM_INPUT_COST_PER_1M;
- const outputCost = (outputTokens / 1_000_000) * this.LLM_OUTPUT_COST_PER_1M;
- const totalCost = inputCost + outputCost;
+    // Corrección y sentimientos son en tiempo real (sin descuento de batch).
+    const correction = this.claudeStepCost(input.correction, price, false);
+    const sentiment = this.claudeStepCost(input.sentiment, price, false);
+    // Imágenes y evaluación sí pasan por el batch cuando aplica.
+    const imagesUsage: ClaudeUsage = {
+      inputTokens: input.images?.inputTokens ?? 0,
+      outputTokens: input.images?.outputTokens ?? 0,
+    };
+    const imagesStep = this.claudeStepCost(imagesUsage, price, discount);
+    const images = { count: input.images?.count ?? 0, ...imagesStep };
+    const evaluation = this.claudeStepCost(input.evaluation, price, discount);
 
- logger.info(' Evaluation cost calculated', {
- inputTokens: inputTokens.toLocaleString(),
- outputTokens: outputTokens.toLocaleString(),
- inputCost: `$${inputCost.toFixed(4)}`,
- outputCost: `$${outputCost.toFixed(4)}`,
- totalCost: `$${totalCost.toFixed(4)}`
- });
+    const claudeTotal = this.round(
+      correction.cost + sentiment.cost + images.cost + evaluation.cost
+    );
+    const totalCost = this.round(assemblyai.totalCost + claudeTotal);
 
- return {
- inputTokens,
- outputTokens,
- cost: parseFloat(totalCost.toFixed(4))
- };
- }
+    const claude = {
+      model,
+      correction,
+      sentiment,
+      images,
+      evaluation,
+      totalCost: claudeTotal,
+    };
 
- /**
- * Calcular costo total de una auditoría completa
- */
- calculateTotalCost(
- audioDurationSeconds: number,
- imageCount: number,
- imageInputTokens: number,
- imageOutputTokens: number,
- evaluationInputTokens: number,
- evaluationOutputTokens: number,
- includeNativeSentiment = false
- ): APICosts {
- const assemblyaiCost = this.calculateAssemblyAICost(audioDurationSeconds, includeNativeSentiment);
- const imagesCost = this.calculateImageAnalysisCost(
- imageCount,
- imageInputTokens,
- imageOutputTokens
- );
- const evaluationCost = this.calculateEvaluationCost(
- evaluationInputTokens,
- evaluationOutputTokens
- );
+    const costs: APICosts = {
+      assemblyai,
+      claude,
+      // Alias histórico: el resto del código y la BD siguen usando "openai".
+      openai: {
+        images,
+        evaluation,
+        totalCost: claudeTotal,
+      },
+      totalCost,
+      total: totalCost,
+      currency: 'USD',
+    };
 
- const openaiTotalCost = imagesCost.cost + evaluationCost.cost;
- const totalCost = assemblyaiCost.totalCost + openaiTotalCost;
+    logger.success('[COSTOS] Costo total de auditoría', {
+      modelo: model,
+      assemblyai: `$${assemblyai.totalCost.toFixed(4)}`,
+      claude: `$${claudeTotal.toFixed(4)}`,
+      total: `$${totalCost.toFixed(4)}`,
+      batch: discount,
+    });
 
- const costs: APICosts = {
- assemblyai: assemblyaiCost,
- openai: {
- images: imagesCost,
- evaluation: evaluationCost,
- totalCost: parseFloat(openaiTotalCost.toFixed(4))
- },
- totalCost: parseFloat(totalCost.toFixed(4)),
- currency: 'USD'
- };
+    return costs;
+  }
 
- logger.success(' Total audit cost calculated', {
- assemblyai: `$${assemblyaiCost.totalCost.toFixed(4)}`,
- openai: `$${openaiTotalCost.toFixed(4)}`,
- total: `$${totalCost.toFixed(4)}`
- });
-
- return costs;
- }
-
- /**
- * Formatear costos para mostrar en logs
- */
- formatCostSummary(costs: APICosts): string {
- return `
+  /**
+   * Formatear costos para mostrar en logs.
+   */
+  formatCostSummary(costs: APICosts): string {
+    const c = costs.claude;
+    return `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- RESUMEN DE COSTOS
+ RESUMEN DE COSTOS (${c.model})
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
  AssemblyAI (Transcripción):
- • Duración: ${costs.assemblyai.audioDurationMinutes} minutos
- • Costo: $${costs.assemblyai.totalCost.toFixed(4)}
+ • Duración: ${costs.assemblyai.audioDurationMinutes} min
+ • Costo:   $${costs.assemblyai.totalCost.toFixed(4)}
 
- Claude Sonnet 5 (Análisis de Imágenes):
- • Imágenes: ${costs.openai.images.count}
- • Input tokens: ${costs.openai.images.inputTokens.toLocaleString()}
- • Output tokens: ${costs.openai.images.outputTokens.toLocaleString()}
- • Costo: $${costs.openai.images.cost.toFixed(4)}
-
- Claude Sonnet 5 (Evaluación):
- • Input tokens: ${costs.openai.evaluation.inputTokens.toLocaleString()}
- • Output tokens: ${costs.openai.evaluation.outputTokens.toLocaleString()}
- • Costo: $${costs.openai.evaluation.cost.toFixed(4)}
+ Claude:
+ • Corrección transcripción: $${c.correction.cost.toFixed(4)}
+ • Sentimientos:             $${c.sentiment.cost.toFixed(4)}
+ • Análisis de imágenes:     $${c.images.cost.toFixed(4)}
+ • Evaluación:               $${c.evaluation.cost.toFixed(4)}
+ • Subtotal Claude:          $${c.totalCost.toFixed(4)}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- TOTAL LLM (CLAUDE): $${costs.openai.totalCost.toFixed(4)}
  COSTO TOTAL: $${costs.totalCost.toFixed(4)} USD
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- `.trim();
- }
+    `.trim();
+  }
 }
 
 // Exportar singleton
 let instance: CostCalculatorService | null = null;
 
 export const getCostCalculatorService = () => {
- if (!instance) {
- instance = new CostCalculatorService();
- }
- return instance;
+  if (!instance) {
+    instance = new CostCalculatorService();
+  }
+  return instance;
 };
 
 export const costCalculatorService = getCostCalculatorService();

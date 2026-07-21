@@ -375,6 +375,31 @@ export function hasAuditCosts(audit: Audit | null | undefined): boolean {
  return getAuditCosts(audit) !== null;
 }
 
+const num = (v: unknown): number => {
+ const n = Number(v);
+ return isNaN(n) ? 0 : n;
+};
+
+/** Costo de AssemblyAI (transcripción) de una auditoría. */
+export function getAuditAssemblyAICost(audit: Audit | null | undefined): number {
+ const c = getAuditCosts(audit);
+ return c ? num(c.assemblyai_cost) : 0;
+}
+
+/** Costo total de Claude (corrección + sentimientos + imágenes + evaluación). */
+export function getAuditClaudeCost(audit: Audit | null | undefined): number {
+ const c = getAuditCosts(audit);
+ if (!c) return 0;
+ // Preferir el subtotal persistido; si falta, sumar los pasos disponibles.
+ if (c.openai_total_cost != null) return num(c.openai_total_cost);
+ return (
+  num(c.claude_correction_cost) +
+  num(c.claude_sentiment_cost) +
+  num(c.openai_images_cost) +
+  num(c.openai_evaluation_cost)
+ );
+}
+
 export function formatAuditCost(audit: Audit | null | undefined): string {
  const cost = getAuditTotalCost(audit);
  return `$${cost.toFixed(4)}`;
