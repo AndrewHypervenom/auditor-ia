@@ -6,7 +6,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import AppHeader from '../components/AppHeader';
 import { auditService, type AuditDetail } from '../services/api';
-import { useRole } from '../contexts/AuthContext';
 import ResultsView from '../components/ResultsView';
 import { Loader2, UserCheck } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -14,7 +13,6 @@ import CostBreakdownCard from '../components/CostBreakdownCard';
 
 export default function AuditDetailPage() {
   const { t } = useTranslation();
-  const { isSupervisor } = useRole();
   const { auditId } = useParams<{ auditId: string }>();
   const navigate = useNavigate();
   const [auditDetail, setAuditDetail] = useState<AuditDetail | null>(null);
@@ -139,8 +137,8 @@ export default function AuditDetailPage() {
           </motion.div>
         )}
 
-        {/* Desglose de costos de APIs (solo supervisores) */}
-        {isSupervisor && auditDetail.apiCosts && (
+        {/* Desglose de costos de APIs (Claude vs AssemblyAI) */}
+        {auditDetail.apiCosts && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}

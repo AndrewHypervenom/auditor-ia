@@ -1205,6 +1205,20 @@ export default function ReportsPage() {
            </div>
          </div>
        </div>
+
+       {/* Aviso: precio introductorio de Claude Sonnet 5 (evita sorpresas post 31-ago) */}
+       <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+         <p className="text-[11px] text-slate-400 leading-relaxed">
+           <span className="text-amber-300 font-semibold">Nota de precios — Claude Sonnet 5:</span> ahora usa el
+           precio <span className="text-slate-200 font-medium">introductorio $2 in / $10 out por 1M tokens</span>,
+           vigente <span className="text-amber-300 font-semibold">hasta el 31 de agosto de 2026</span>. Desde el
+           <span className="text-amber-300 font-semibold"> 1 de septiembre de 2026</span> aplica el precio de lista
+           <span className="text-slate-200 font-medium"> $3 in / $15 out</span> (≈1.5× la parte de Claude): los
+           <span className="text-violet-300 font-semibold"> ${claude.toFixed(4)}</span> de Claude pasarían a
+           ≈<span className="text-amber-300 font-semibold">${(claude * 1.5).toFixed(4)}</span>. AssemblyAI no cambia.
+           <span className="text-slate-500"> Es el costo real de aquí en adelante — lo mostramos para que no haya sorpresas.</span>
+         </p>
+       </div>
      </div>
    );
  })()}

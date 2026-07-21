@@ -42,6 +42,12 @@ const CLAUDE_PRICES: Record<string, ClaudeModelPrice> = {
 
 const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-5';
 
+// Precio introductorio de Claude Sonnet 5: $2/$10 por 1M (en vez de $3/$15)
+// vigente hasta el 2026-08-31. Después de esa fecha se revierte solo al precio
+// de lista. Cuadra la estimación con el cobro real de Anthropic durante el intro.
+const SONNET5_INTRO_PRICE: ClaudeModelPrice = { inputPer1M: 2.0, outputPer1M: 10.0 };
+const SONNET5_INTRO_END = Date.parse('2026-09-01T00:00:00Z');
+
 /** Parámetros para el costo total de una auditoría. */
 export interface CostCalcInput {
   /** Modelo de Claude usado (para tarifar). Por defecto CLAUDE_MODEL del entorno. */
@@ -85,9 +91,13 @@ class CostCalculatorService {
     const key = Object.keys(CLAUDE_PRICES)
       .filter(k => id.startsWith(k))
       .sort((a, b) => b.length - a.length)[0];
-    const price = key ? CLAUDE_PRICES[key] : CLAUDE_PRICES[DEFAULT_CLAUDE_MODEL];
+    let price = key ? CLAUDE_PRICES[key] : CLAUDE_PRICES[DEFAULT_CLAUDE_MODEL];
     if (!key) {
       logger.warn('[COSTOS] Modelo Claude no reconocido en tabla de precios, usando sonnet-5', { model: id });
+    }
+    // Precio introductorio de Sonnet 5 ($2/$10) mientras esté vigente.
+    if (id.startsWith('claude-sonnet-5') && Date.now() < SONNET5_INTRO_END) {
+      price = SONNET5_INTRO_PRICE;
     }
     return { model: id, price };
   }

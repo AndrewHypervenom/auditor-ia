@@ -1466,6 +1466,22 @@ export default function AdminDashboard() {
  </div>
  )}
 
+ {/* Aviso de precio introductorio de Claude Sonnet 5 (se auto-oculta tras el 31-ago-2026) */}
+ {new Date() < new Date('2026-09-01T00:00:00Z') && (
+ <div className="mb-5 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-2.5 flex items-start gap-2.5">
+ <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+ <p className="text-xs text-slate-400 leading-relaxed">
+ <span className="text-amber-300 font-semibold">Precio de Claude Sonnet 5:</span> ahora usa el
+ <span className="text-slate-200 font-medium"> introductorio $2 in / $10 out por 1M tokens</span>, vigente
+ <span className="text-amber-300 font-semibold"> hasta el 31 de agosto de 2026</span>. Desde el
+ <span className="text-amber-300 font-semibold"> 1 de septiembre de 2026</span> aplica el de lista
+ <span className="text-slate-200 font-medium"> $3 in / $15 out</span> — la parte de Claude de los costos subirá
+ <span className="text-amber-300 font-semibold"> ~1.5×</span> (AssemblyAI no cambia). Es el costo real de ahí en adelante,
+ lo avisamos para que no haya sorpresas.
+ </p>
+ </div>
+ )}
+
  {/* Audits List */}
  <div className="card">
  <h2 className="section-header">
