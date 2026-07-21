@@ -185,7 +185,8 @@ export default function ScriptsAdminPage() {
             title={t('scriptsAdmin.syncGpfHint')}
             className="flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
                        bg-blue-500/15 border border-blue-500/30 text-blue-300
-                       hover:bg-blue-500/25 disabled:opacity-40 transition-all duration-150"
+                       hover:bg-blue-500/25 hover:scale-[1.02] active:scale-[0.97] disabled:hover:scale-100
+                       disabled:opacity-40 transition-all duration-150"
           >
             {syncingGpf ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
             {t('scriptsAdmin.syncGpf')}
@@ -198,9 +199,12 @@ export default function ScriptsAdminPage() {
           {visibleTabs.map(({ key, icon: Icon, label, description, color }) => {
             const isActive = activeTab === key;
             return (
-              <button
+              <motion.button
                 key={key}
                 onClick={() => setActiveTab(key)}
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                 className={`group relative flex items-center gap-4 px-5 py-4 rounded-2xl border
                             text-left transition-all duration-300 overflow-hidden
                             ${isActive
@@ -278,7 +282,7 @@ export default function ScriptsAdminPage() {
                     ${color === 'blue' ? 'bg-brand-500/10' : color === 'teal' ? 'bg-teal-400' : color === 'amber' ? 'bg-amber-400' : color === 'rose' ? 'bg-rose-400' : 'bg-violet-400'}`}
                   />
                 )}
-              </button>
+              </motion.button>
             );
           })}
         </div>

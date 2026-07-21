@@ -879,7 +879,7 @@ app.get('/api/admin/users', authenticateUser, requireAdminOrSupervisor, async (r
 
 app.post('/api/admin/users', authenticateUser, requireAdminOrSupervisor, async (req: Request, res: Response) => {
  try {
- const { email, password, full_name, role } = req.body;
+ const { email, password, full_name, role, company_id } = req.body;
 
  if (!email || !password || !full_name || !role) {
  return res.status(400).json({ error: 'Todos los campos son requeridos' });
@@ -895,10 +895,16 @@ app.post('/api/admin/users', authenticateUser, requireAdminOrSupervisor, async (
  return res.status(403).json({ error: 'No tienes permisos para crear superadministradores' });
  }
 
- // company_id del nuevo usuario = company_id del usuario que lo crea
- const companyId = req.user!.company_id;
+ // Empresa destino del nuevo usuario:
+ //  - superadmin: la que elija en el body (obligatoria, ya que él no tiene company_id)
+ //  - lider: siempre su propia empresa (no puede crear en otras)
+ const companyId = req.user!.role === 'superadmin' ? company_id : req.user!.company_id;
  if (!companyId) {
- return res.status(400).json({ error: 'No hay empresa asociada al usuario creador' });
+ return res.status(400).json({
+   error: req.user!.role === 'superadmin'
+     ? 'Debes seleccionar una empresa para el nuevo usuario'
+     : 'No hay empresa asociada al usuario creador'
+ });
  }
 
  const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -945,21 +951,42 @@ app.post('/api/admin/users', authenticateUser, requireAdminOrSupervisor, async (
 app.put('/api/admin/users/:userId', authenticateUser, requireAdminOrSupervisor, async (req: Request, res: Response) => {
  try {
  const { userId } = req.params;
- const { email, full_name, role, password } = req.body;
+ const { email, full_name, role, password, is_active, company_id } = req.body;
 
  if (role) {
  const validRoles = ['superadmin', 'lider', 'auditor'];
  if (!validRoles.includes(role)) {
  return res.status(400).json({ error: 'Rol inválido' });
  }
+ // lider no puede promover a superadmin
+ if (req.user!.role === 'lider' && role === 'superadmin') {
+ return res.status(403).json({ error: 'No tienes permisos para asignar el rol de superadministrador' });
  }
+ }
+
+ // El lider solo puede editar usuarios de su propia empresa
+ if (req.user!.role === 'lider') {
+ const { data: target } = await supabaseAdmin
+ .from('users')
+ .select('company_id')
+ .eq('id', userId)
+ .single();
+ if (!target || target.company_id !== req.user!.company_id) {
+ return res.status(403).json({ error: 'No puedes editar usuarios de otra empresa' });
+ }
+ }
+
+ // Solo el superadmin puede reasignar la empresa de un usuario
+ const canChangeCompany = req.user!.role === 'superadmin' && company_id !== undefined;
 
  const { data: userData, error: dbError } = await supabaseAdmin
  .from('users')
  .update({
  ...(email && { email }),
  ...(full_name && { full_name }),
- ...(role && { role })
+ ...(role && { role }),
+ ...(typeof is_active === 'boolean' && { is_active }),
+ ...(canChangeCompany && { company_id })
  })
  .eq('id', userId)
  .select()

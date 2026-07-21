@@ -1,11 +1,12 @@
 // frontend/src/pages/CompaniesPage.tsx
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Stagger, StaggerItem, CountUp, EASE_SPRING } from '../lib/motion';
 // Gestión de empresas — solo accesible para admin (plataforma)
 
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
-import { Plus, Building2, Users, DollarSign, Settings, ChevronDown, ChevronUp, Edit2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Building2, CheckCircle2, DollarSign, FileText, Settings, ChevronDown, Edit2, ToggleLeft, ToggleRight } from 'lucide-react';
 import AppHeader from '../components/AppHeader';
 import { useAuth } from '../contexts/AuthContext';
 import { companyService } from '../services/api';
@@ -113,35 +114,97 @@ export default function CompaniesPage() {
     }
   };
 
+  const activeCount = companies.filter(c => c.is_active).length;
+  const monthCost = companies.reduce((s, c) => s + (c.usage_this_month?.total_cost ?? 0), 0);
+  const monthAudits = companies.reduce((s, c) => s + (c.usage_this_month?.total_audits ?? 0), 0);
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-brand-500/50 border-r-transparent" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900">
+    <div className="min-h-screen">
       <AppHeader title={t('companies.title')} />
 
       <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }} className="max-w-4xl mx-auto px-4 py-6 space-y-4">
 
+        {/* KPIs de plataforma */}
+        <Stagger className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <StaggerItem>
+            <div className="stat-card h-full">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-brand-500/10 rounded-lg"><Building2 className="w-5 h-5 text-brand-400" /></div>
+                <div>
+                  <p className="text-slate-400 text-xs">{t('companies.title')}</p>
+                  <p className="text-2xl font-bold text-white tabular-nums"><CountUp value={companies.length} /></p>
+                </div>
+              </div>
+            </div>
+          </StaggerItem>
+          <StaggerItem>
+            <div className="stat-card h-full bg-gradient-to-br from-green-900/20 to-emerald-900/20 border-green-500/30">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-600/20 rounded-lg"><CheckCircle2 className="w-5 h-5 text-green-400" /></div>
+                <div>
+                  <p className="text-slate-400 text-xs">{t('companies.active')}</p>
+                  <p className="text-2xl font-bold text-white tabular-nums"><CountUp value={activeCount} /></p>
+                </div>
+              </div>
+            </div>
+          </StaggerItem>
+          <StaggerItem>
+            <div className="stat-card h-full bg-gradient-to-br from-emerald-900/20 to-green-900/20 border-emerald-500/30">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-600/20 rounded-lg"><DollarSign className="w-5 h-5 text-emerald-400" /></div>
+                <div>
+                  <p className="text-slate-400 text-xs">{t('usage.title')}</p>
+                  <p className="text-2xl font-bold text-white tabular-nums"><CountUp value={monthCost} prefix="$" decimals={2} /></p>
+                </div>
+              </div>
+            </div>
+          </StaggerItem>
+          <StaggerItem>
+            <div className="stat-card h-full">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-brand-500/10 rounded-lg"><FileText className="w-5 h-5 text-brand-400" /></div>
+                <div>
+                  <p className="text-slate-400 text-xs">{t('companies.auditsLabel')}</p>
+                  <p className="text-2xl font-bold text-white tabular-nums"><CountUp value={monthAudits} /></p>
+                </div>
+              </div>
+            </div>
+          </StaggerItem>
+        </Stagger>
+
         {/* Header actions */}
         <div className="flex items-center justify-between">
           <p className="text-slate-400 text-sm">{companies.length} empresa(s) registrada(s)</p>
-          <button
+          <motion.button
             onClick={() => { setShowForm(true); setEditingId(null); setForm({ name: '', slug: '', integration_type: 'manual' }); }}
-            className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-400 text-black font-medium rounded-lg text-sm transition-colors"
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.96 }}
+            transition={EASE_SPRING}
+            className="flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-400 text-black font-medium rounded-lg text-sm transition-colors shadow-md shadow-brand-500/25"
           >
             <Plus className="w-4 h-4" />
             {t('companies.newCompany')}
-          </button>
+          </motion.button>
         </div>
 
         {/* Create / Edit Form */}
+        <AnimatePresence>
         {showForm && (
-          <div className="bg-slate-800/60 backdrop-blur-lg rounded-xl border border-slate-700/50 p-5">
+          <motion.div
+            initial={{ opacity: 0, height: 0, y: -8 }}
+            animate={{ opacity: 1, height: 'auto', y: 0 }}
+            exit={{ opacity: 0, height: 0, y: -8 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className="bg-slate-800/60 backdrop-blur-lg rounded-xl border border-slate-700/50 p-5 overflow-hidden"
+          >
             <h3 className="text-white font-semibold mb-4">
               {editingId ? t('companies.editCompany') : t('companies.newCompany')}
             </h3>
@@ -196,8 +259,9 @@ export default function CompaniesPage() {
                 </button>
               </div>
             </form>
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
 
         {/* Companies List */}
         {companies.length === 0 ? (
@@ -206,12 +270,12 @@ export default function CompaniesPage() {
             <p>{t('companies.noCompanies')}</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <Stagger className="space-y-3">
             {companies.map(company => (
-              <div
+              <StaggerItem
                 key={company.id}
                 className={`bg-slate-800/60 backdrop-blur-lg rounded-xl border transition-colors ${
-                  company.is_active ? 'border-slate-700/50' : 'border-slate-700/20 opacity-60'
+                  company.is_active ? 'border-slate-700/50 hover:border-brand-700/40' : 'border-slate-700/20 opacity-60'
                 }`}
               >
                 {/* Company row */}
@@ -243,15 +307,21 @@ export default function CompaniesPage() {
                   </div>
 
                   <div className="flex items-center gap-1">
-                    <button
+                    <motion.button
                       onClick={() => handleEditClick(company)}
+                      whileHover={{ scale: 1.12 }}
+                      whileTap={{ scale: 0.9 }}
+                      transition={EASE_SPRING}
                       className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
                       title={t('common.edit')}
                     >
                       <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
+                    </motion.button>
+                    <motion.button
                       onClick={() => handleToggleActive(company)}
+                      whileHover={{ scale: 1.12 }}
+                      whileTap={{ scale: 0.9 }}
+                      transition={EASE_SPRING}
                       className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
                       title={company.is_active ? 'Desactivar' : 'Activar'}
                     >
@@ -259,31 +329,41 @@ export default function CompaniesPage() {
                         ? <ToggleRight className="w-4 h-4 text-brand-400" />
                         : <ToggleLeft className="w-4 h-4" />
                       }
-                    </button>
-                    <button
+                    </motion.button>
+                    <motion.button
                       onClick={() => setExpandedId(expandedId === company.id ? null : company.id)}
+                      whileTap={{ scale: 0.9 }}
+                      transition={EASE_SPRING}
+                      animate={{ rotate: expandedId === company.id ? 180 : 0 }}
                       className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
                     >
-                      {expandedId === company.id
-                        ? <ChevronUp className="w-3.5 h-3.5" />
-                        : <ChevronDown className="w-3.5 h-3.5" />
-                      }
-                    </button>
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </motion.button>
                   </div>
                 </div>
 
                 {/* Expanded: límites de uso */}
+                <AnimatePresence initial={false}>
                 {expandedId === company.id && (
-                  <div className="border-t border-slate-700/50 p-4">
-                    <UsageLimitsEditor
-                      company={company}
-                      onSave={limits => handleSaveLimits(company.id, limits)}
-                    />
-                  </div>
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                    className="border-t border-slate-700/50 overflow-hidden"
+                  >
+                    <div className="p-4">
+                      <UsageLimitsEditor
+                        company={company}
+                        onSave={limits => handleSaveLimits(company.id, limits)}
+                      />
+                    </div>
+                  </motion.div>
                 )}
-              </div>
+                </AnimatePresence>
+              </StaggerItem>
             ))}
-          </div>
+          </Stagger>
         )}
       </motion.div>
     </div>

@@ -1,5 +1,6 @@
 ﻿// frontend/src/pages/ReportsPage.tsx
 import { motion } from 'motion/react';
+import { Reveal, Stagger, StaggerItem, CountUp } from '../lib/motion';
 // Página de reportes y análisis - VERSIÓN CON TODOS LOS GRÁFICOS SIEMPRE
 
 import { useState, useEffect } from 'react';
@@ -698,9 +699,9 @@ export default function ReportsPage() {
  </div>
 
  {/* KPI Cards Premium - Animación optimizada */}
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+ <Stagger className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
  {/* Total Auditorías */}
- <div className="group relative">
+ <StaggerItem className="group relative">
  <div className="absolute inset-0 bg-gradient-to-br from-brand-900/30 to-cyan-600/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
  <div className="relative stat-card bg-slate-800/50 backdrop-blur-sm border-brand-700/40 hover:border-brand-500/50/60 transition-all duration-300 transform hover:-translate-y-1 shadow-xl hover:shadow-brand-500/20">
  <div className="flex items-center justify-between mb-3">
@@ -709,7 +710,7 @@ export default function ReportsPage() {
  <FileText className="w-5 h-5 text-brand-400" />
  </div>
  </div>
- <div className="text-3xl font-bold text-brand-400 mb-2">{stats.totalAudits}</div>
+ <div className="text-3xl font-bold text-brand-400 mb-2 tabular-nums"><CountUp value={stats.totalAudits} /></div>
  <div className="flex items-center gap-2 text-xs text-slate-500">
  <div className="flex items-center gap-1">
  <TrendingUp className="w-3.5 h-3.5 text-green-400" />
@@ -718,10 +719,10 @@ export default function ReportsPage() {
  <span>{t('reportsPage.vsLastMonth')}</span>
  </div>
  </div>
- </div>
+ </StaggerItem>
 
  {/* Completadas */}
- <div className="group relative">
+ <StaggerItem className="group relative">
  <div className="absolute inset-0 bg-gradient-to-br from-green-600/10 to-emerald-600/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
  <div className="relative stat-card bg-slate-800/50 backdrop-blur-sm border-green-500/30 hover:border-green-400/60 transition-all duration-300 transform hover:-translate-y-1 shadow-xl hover:shadow-green-500/20">
  <div className="flex items-center justify-between mb-3">
@@ -730,17 +731,17 @@ export default function ReportsPage() {
  <CheckCircle2 className="w-5 h-5 text-green-400" />
  </div>
  </div>
- <div className="text-3xl font-bold text-green-400 mb-2">{stats.completedAudits}</div>
+ <div className="text-3xl font-bold text-green-400 mb-2 tabular-nums"><CountUp value={stats.completedAudits} /></div>
  <div className="text-xs text-slate-500">
  <span className="text-green-400 font-bold">
  {stats.totalAudits > 0 ? ((stats.completedAudits / stats.totalAudits) * 100).toFixed(1) : 0}%
  </span> {t('reportsPage.successRate')}
  </div>
  </div>
- </div>
+ </StaggerItem>
 
  {/* Score Promedio */}
- <div className="group relative">
+ <StaggerItem className="group relative">
  <div className="absolute inset-0 bg-gradient-to-br from-brand-900/20 to-brand-800/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
  <div className="relative stat-card bg-slate-800/50 backdrop-blur-sm border-brand-700/40 hover:border-brand-500/50 transition-all duration-300 transform hover:-translate-y-1 shadow-xl hover:shadow-brand-500/20">
  <div className="flex items-center justify-between mb-3">
@@ -749,19 +750,19 @@ export default function ReportsPage() {
  <Award className="w-5 h-5 text-brand-400" />
  </div>
  </div>
- <div className="text-3xl font-bold text-brand-400 mb-2">
- {stats.avgScore.toFixed(1)}%
+ <div className="text-3xl font-bold text-brand-400 mb-2 tabular-nums">
+ <CountUp value={stats.avgScore} decimals={1} suffix="%" />
  </div>
  <div className="flex items-center gap-2 text-xs text-slate-500">
  <Target className="w-3.5 h-3.5 text-brand-400" />
  <span>De {stats.auditsWithScores} evaluadas</span>
  </div>
  </div>
- </div>
+ </StaggerItem>
 
  {/* Costos Totales */}
  {isSupervisor && (
- <div className="group relative">
+ <StaggerItem className="group relative">
  <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/10 to-green-600/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
  <div className="relative stat-card bg-slate-800/50 backdrop-blur-sm border-emerald-500/30 hover:border-emerald-400/60 transition-all duration-300 transform hover:-translate-y-1 shadow-xl hover:shadow-emerald-500/20">
  <div className="flex items-center justify-between mb-3">
@@ -770,20 +771,20 @@ export default function ReportsPage() {
  <DollarSign className="w-5 h-5 text-emerald-400" />
  </div>
  </div>
- <div className="text-3xl font-bold text-emerald-400 mb-2">
- ${stats.totalCosts.toFixed(4)}
+ <div className="text-3xl font-bold text-emerald-400 mb-2 tabular-nums">
+ <CountUp value={stats.totalCosts} prefix="$" decimals={4} />
  </div>
  <div className="text-xs text-slate-500">
  {t('reportsPage.avgCost')} <span className="text-emerald-400 font-semibold">${stats.avgCost.toFixed(4)}</span>
  </div>
  </div>
- </div>
+ </StaggerItem>
  )}
- </div>
+ </Stagger>
  </div>
 
  {/* Gráficos principales - Primera fila */}
- <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+ <Reveal whenInView className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
  {/* Gráfico de Dona - {t('reportsPage.statusDistribution')} */}
  <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-brand-500/10 transform hover:-translate-y-1">
  <div className="flex items-center justify-between mb-4">
@@ -885,10 +886,10 @@ export default function ReportsPage() {
  </LineChart>
  </ResponsiveContainer>
  </div>
- </div>
+ </Reveal>
 
  {/* Gráficos principales - Segunda fila */}
- <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+ <Reveal whenInView className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
  {/* Gráfico de Barras - Top Agentes */}
  <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-brand-500/10 transform hover:-translate-y-1">
  <div className="flex items-center justify-between mb-4">
@@ -996,10 +997,10 @@ export default function ReportsPage() {
  </AreaChart>
  </ResponsiveContainer>
  </div>
- </div>
+ </Reveal>
 
  {/* Sección adicional - Gráficos de métricas - SIEMPRE SE MUESTRAN */}
- <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+ <Reveal whenInView className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
  {/* Gráfico Radar - {t('reportsPage.performanceMetrics')} */}
  <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-brand-500/10 transform hover:-translate-y-1">
  <div className="flex items-center justify-between mb-4">
@@ -1086,11 +1087,11 @@ export default function ReportsPage() {
  </RechartsPieChart>
  </ResponsiveContainer>
  </div>
- </div>
+ </Reveal>
 
  {/* Análisis de Costos Detallado Premium */}
  {isSupervisor && (
- <div className="card transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-500/10 transform hover:-translate-y-1">
+ <Reveal whenInView className="card transition-all duration-300 hover:shadow-2xl hover:shadow-emerald-500/10 transform hover:-translate-y-1">
  <div className="flex items-center justify-between mb-4">
  <h3 className="text-xl font-bold text-white flex items-center gap-2">
  <div className="p-2 bg-emerald-500/20 rounded-xl">
@@ -1113,8 +1114,8 @@ export default function ReportsPage() {
  <DollarSign className="w-5 h-5 text-emerald-400" />
  </div>
  </div>
- <div className="text-3xl font-bold text-emerald-400 mb-2">
- ${stats.totalCosts.toFixed(4)}
+ <div className="text-3xl font-bold text-emerald-400 mb-2 tabular-nums">
+ <CountUp value={stats.totalCosts} prefix="$" decimals={4} />
  </div>
  <div className="flex items-center gap-2 text-xs text-slate-500">
  <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
@@ -1137,8 +1138,8 @@ export default function ReportsPage() {
  <Activity className="w-5 h-5 text-brand-400" />
  </div>
  </div>
- <div className="text-3xl font-bold text-brand-400 mb-2">
- ${stats.avgCost.toFixed(4)}
+ <div className="text-3xl font-bold text-brand-400 mb-2 tabular-nums">
+ <CountUp value={stats.avgCost} prefix="$" decimals={4} />
  </div>
  <div className="flex items-center gap-1.5 text-xs">
  <TrendingDown className="w-3.5 h-3.5 text-green-400" />
@@ -1157,8 +1158,8 @@ export default function ReportsPage() {
  <Zap className="w-5 h-5 text-brand-400" />
  </div>
  </div>
- <div className="text-3xl font-bold text-brand-400 mb-2">
- ${stats.avgScore > 0 ? (stats.avgCost / (stats.avgScore / 100)).toFixed(4) : '0.0000'}
+ <div className="text-3xl font-bold text-brand-400 mb-2 tabular-nums">
+ <CountUp value={stats.avgScore > 0 ? (stats.avgCost / (stats.avgScore / 100)) : 0} prefix="$" decimals={4} />
  </div>
  <div className="flex items-center gap-1.5 text-xs">
  <Target className="w-3.5 h-3.5 text-brand-400" />
@@ -1186,7 +1187,7 @@ export default function ReportsPage() {
              <span className="text-slate-400 text-xs font-semibold uppercase tracking-wide">Claude (LLM)</span>
              <span className="text-violet-300 text-xs font-semibold">{claudePct.toFixed(1)}%</span>
            </div>
-           <div className="text-2xl font-bold text-violet-300 mb-1">${claude.toFixed(4)}</div>
+           <div className="text-2xl font-bold text-violet-300 mb-1 tabular-nums"><CountUp value={claude} prefix="$" decimals={4} /></div>
            <div className="text-[11px] text-slate-500 mb-2">Corrección · Sentimientos · Imágenes · Evaluación</div>
            <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
              <div className="h-full bg-gradient-to-r from-violet-500 to-purple-400 rounded-full transition-all duration-700" style={{ width: `${claudePct}%` }}></div>
@@ -1197,7 +1198,7 @@ export default function ReportsPage() {
              <span className="text-slate-400 text-xs font-semibold uppercase tracking-wide">AssemblyAI</span>
              <span className="text-cyan-300 text-xs font-semibold">{assemblyPct.toFixed(1)}%</span>
            </div>
-           <div className="text-2xl font-bold text-cyan-300 mb-1">${assembly.toFixed(4)}</div>
+           <div className="text-2xl font-bold text-cyan-300 mb-1 tabular-nums"><CountUp value={assembly} prefix="$" decimals={4} /></div>
            <div className="text-[11px] text-slate-500 mb-2">Transcripción de audio (Universal-3 Pro)</div>
            <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
              <div className="h-full bg-gradient-to-r from-cyan-500 to-sky-400 rounded-full transition-all duration-700" style={{ width: `${assemblyPct}%` }}></div>
@@ -1207,7 +1208,7 @@ export default function ReportsPage() {
      </div>
    );
  })()}
- </div>
+ </Reveal>
  )}
  </>
  )}

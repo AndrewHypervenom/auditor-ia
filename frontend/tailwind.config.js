@@ -20,6 +20,27 @@ export default {
           800: '#006e19',   // tints muy sutiles
           900: '#004a11',   // background tints
         },
+        // --- Paleta corporativa POSITIVO S+ (colores oficiales) ---
+        // Verde #10D451 · Magenta #B33D9E · Grises #E0EBE7 / #A1ADAD
+        corp: {
+          green:  '#10D451',
+          magenta: '#B33D9E',
+          grayl:  '#E0EBE7',   // cinza claro
+          graym:  '#A1ADAD',   // cinza medio
+        },
+        magenta: {
+          50:  '#f9edf5',
+          100: '#f2d6e8',
+          200: '#e6aed2',
+          300: '#d886bd',
+          400: '#c65fab',
+          500: '#B33D9E',   // magenta corporativo
+          600: '#93307f',
+          700: '#722562',
+          800: '#521a47',
+          900: '#33102c',
+          950: '#22101d',
+        },
         // --- Alias primary → brand (compatibilidad con clases existentes) ---
         primary: {
           50:  '#e8fff0',

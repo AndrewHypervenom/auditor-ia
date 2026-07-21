@@ -1,5 +1,6 @@
 ﻿// frontend/src/pages/SettingsPage.tsx
 import { motion } from 'motion/react';
+import { Stagger, StaggerItem, Reveal, EASE_SPRING } from '../lib/motion';
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -16,7 +17,6 @@ import {
   Eye,
   EyeOff,
   CheckCircle,
-  XCircle,
   Loader2,
   Info
 } from 'lucide-react';
@@ -187,61 +187,14 @@ export default function SettingsPage() {
         <div>
 
         {/* Status Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
-          <div className="card">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Brain className="w-5 h-5 text-brand-400" />
-                <div>
-                  <p className="text-sm text-slate-400">{t('settingsPage.openaiTitle')}</p>
-                  <p className="text-xs text-slate-500">Claude Sonnet 5</p>
-                </div>
-              </div>
-              {connectionStatus.anthropic ? (
-                <CheckCircle className="w-5 h-5 text-green-400" />
-              ) : (
-                <XCircle className="w-5 h-5 text-red-400" />
-              )}
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Mic className="w-5 h-5 text-brand-400" />
-                <div>
-                  <p className="text-sm text-slate-400">{t('settingsPage.assemblyaiTitle')}</p>
-                  <p className="text-xs text-slate-500">{t('settingsPage.transcription')}</p>
-                </div>
-              </div>
-              {connectionStatus.assemblyai ? (
-                <CheckCircle className="w-5 h-5 text-green-400" />
-              ) : (
-                <XCircle className="w-5 h-5 text-red-400" />
-              )}
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Database className="w-6 h-6 text-brand-400" />
-                <div>
-                  <p className="text-sm text-slate-400">{t('settingsPage.supabaseTitle')}</p>
-                  <p className="text-xs text-slate-500">{t('settingsPage.database')}</p>
-                </div>
-              </div>
-              {connectionStatus.supabase ? (
-                <CheckCircle className="w-5 h-5 text-green-400" />
-              ) : (
-                <XCircle className="w-5 h-5 text-red-400" />
-              )}
-            </div>
-          </div>
-        </div>
+        <Stagger className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+          <StatusCard icon={<Brain className="w-5 h-5 text-brand-400" />} title={t('settingsPage.openaiTitle')} subtitle="Claude Sonnet 5" connected={connectionStatus.anthropic} t={t} />
+          <StatusCard icon={<Mic className="w-5 h-5 text-brand-400" />} title={t('settingsPage.assemblyaiTitle')} subtitle={t('settingsPage.transcription')} connected={connectionStatus.assemblyai} t={t} />
+          <StatusCard icon={<Database className="w-6 h-6 text-brand-400" />} title={t('settingsPage.supabaseTitle')} subtitle={t('settingsPage.database')} connected={connectionStatus.supabase} t={t} />
+        </Stagger>
 
         {/* Configuration Form */}
-        <div className="card space-y-6">
+        <Reveal whenInView className="card space-y-6">
           {/* Anthropic (Claude) Config */}
           <div>
             <h3 className="section-header mb-4">Anthropic API (Claude)</h3>
@@ -253,7 +206,7 @@ export default function SettingsPage() {
               <button
                 onClick={() => testConnection('anthropic')}
                 disabled={testing === 'anthropic' || !config.anthropic_api_key}
-                className="flex items-center gap-2 px-3 py-1.5 bg-brand-500/10 text-brand-400 border border-brand-700/20 rounded-lg text-sm hover:bg-brand-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-3 py-1.5 bg-brand-500/10 text-brand-400 border border-brand-700/20 rounded-lg text-sm hover:bg-brand-500/20 transition-all duration-200 hover:scale-[1.02] active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 {testing === 'anthropic' ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -303,7 +256,7 @@ export default function SettingsPage() {
               <button
                 onClick={() => testConnection('assemblyai')}
                 disabled={testing === 'assemblyai' || !config.assemblyai_api_key}
-                className="flex items-center gap-2 px-3 py-1.5 bg-brand-500/10 text-brand-400 border border-brand-700/20 rounded-lg text-sm hover:bg-brand-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-3 py-1.5 bg-brand-500/10 text-brand-400 border border-brand-700/20 rounded-lg text-sm hover:bg-brand-500/20 transition-all duration-200 hover:scale-[1.02] active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 {testing === 'assemblyai' ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -353,7 +306,7 @@ export default function SettingsPage() {
               <button
                 onClick={() => testConnection('supabase')}
                 disabled={testing === 'supabase' || !config.supabase_url}
-                className="flex items-center gap-2 px-3 py-1.5 bg-brand-500/10 text-brand-400 border border-brand-700/20 rounded-lg text-sm hover:bg-brand-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-3 py-1.5 bg-brand-500/10 text-brand-400 border border-brand-700/20 rounded-lg text-sm hover:bg-brand-500/20 transition-all duration-200 hover:scale-[1.02] active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 {testing === 'supabase' ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -425,15 +378,27 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
-        </div>
+        </Reveal>
 
         {/* Save Button */}
         <div className="mt-6 flex justify-end">
-          <button
+          <motion.button
             onClick={handleSave}
             disabled={saving}
-            className="btn-primary flex items-center gap-2 px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+            whileHover={saving ? undefined : { scale: 1.02 }}
+            whileTap={saving ? undefined : { scale: 0.97 }}
+            transition={EASE_SPRING}
+            className="btn-primary flex items-center gap-2 px-6 py-3 relative overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
           >
+            {!saving && (
+              <motion.span
+                className="absolute inset-0 pointer-events-none"
+                style={{ background: 'linear-gradient(100deg, transparent 30%, rgba(255,255,255,0.35) 50%, transparent 70%)' }}
+                initial={{ x: '-120%' }}
+                animate={{ x: '120%' }}
+                transition={{ duration: 2.4, repeat: Infinity, repeatDelay: 2, ease: 'easeInOut' }}
+              />
+            )}
             {saving ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -445,10 +410,51 @@ export default function SettingsPage() {
                 {t('settingsPage.saveConfig')}
               </>
             )}
-          </button>
+          </motion.button>
         </div>
       </div>
       </motion.main>
     </div>
+  );
+}
+
+// Tarjeta de estado de conexión con pill animado + elevación al hover
+function StatusCard({
+  icon,
+  title,
+  subtitle,
+  connected,
+  t,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  connected: boolean;
+  t: (k: string) => string;
+}) {
+  return (
+    <StaggerItem>
+      <motion.div className="card h-full" whileHover={{ y: -4 }} transition={EASE_SPRING}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {icon}
+            <div>
+              <p className="text-sm text-slate-400">{title}</p>
+              <p className="text-xs text-slate-500">{subtitle}</p>
+            </div>
+          </div>
+          <span
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${
+              connected
+                ? 'bg-green-500/15 border-green-500/30 text-green-300'
+                : 'bg-red-500/15 border-red-500/30 text-red-300'
+            }`}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
+            {connected ? t('settingsPage.connected') : t('settingsPage.disconnected')}
+          </span>
+        </div>
+      </motion.div>
+    </StaggerItem>
   );
 }

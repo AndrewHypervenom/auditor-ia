@@ -124,21 +124,31 @@ export default function AuditDetailPage() {
       <motion.main initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
         {/* Info del creador */}
         {auditDetail.audit?.created_by_name && (
-          <div className="mb-4 px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl flex items-center gap-3 text-sm">
-            <UserCheck className="w-5 h-5 text-cyan-400 flex-shrink-0" />
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
+            className="mb-4 px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl flex items-center gap-3 text-sm"
+          >
+            <UserCheck className="w-5 h-5 text-brand-400 flex-shrink-0" />
             <span className="text-slate-400">{t('auditDetail.createdBy')}</span>
-            <span className="text-cyan-300 font-semibold">{auditDetail.audit.created_by_name}</span>
+            <span className="text-brand-300 font-semibold">{auditDetail.audit.created_by_name}</span>
             {auditDetail.audit.created_by_email && (
               <span className="text-slate-500">({auditDetail.audit.created_by_email})</span>
             )}
-          </div>
+          </motion.div>
         )}
 
         {/* Desglose de costos de APIs (solo supervisores) */}
         {isSupervisor && auditDetail.apiCosts && (
-          <div className="mb-4">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: 0.16 }}
+            className="mb-4"
+          >
             <CostBreakdownCard cost={auditDetail.apiCosts} />
-          </div>
+          </motion.div>
         )}
 
         <ResultsView

@@ -1,5 +1,6 @@
 // frontend/src/pages/BatchPage.tsx
 import { motion } from 'motion/react';
+import { Stagger, StaggerItem, fadeUp, CountUp, EASE_SPRING } from '../lib/motion';
 // Cola Nocturna — procesamiento por lotes con 50% de descuento (Claude Batch API)
 
 import { useState, useEffect, useCallback } from 'react';
@@ -78,7 +79,11 @@ function StatCard({ icon: Icon, label, value, sub, accent = false }: {
   icon: any; label: string; value: string; sub?: string; accent?: boolean;
 }) {
   return (
-    <div className={`rounded-2xl p-4 border flex flex-col gap-1 ${
+    <motion.div
+      variants={fadeUp}
+      whileHover={{ y: -4 }}
+      transition={EASE_SPRING}
+      className={`rounded-2xl p-4 border flex flex-col gap-1 ${
       accent
         ? 'bg-brand-500/10 border-brand-500/30'
         : 'bg-slate-800/60 border-slate-700/50'
@@ -87,11 +92,11 @@ function StatCard({ icon: Icon, label, value, sub, accent = false }: {
         <Icon className={`w-3.5 h-3.5 ${accent ? 'text-brand-400' : 'text-slate-400'}`} />
         {label}
       </div>
-      <span className={`text-2xl font-bold ${accent ? 'text-brand-300' : 'text-white'}`}>
-        {value}
+      <span className={`text-2xl font-bold tabular-nums ${accent ? 'text-brand-300' : 'text-white'}`}>
+        {/^\d+$/.test(value) ? <CountUp value={Number(value)} /> : value}
       </span>
       {sub && <span className="text-[11px] text-slate-500">{sub}</span>}
-    </div>
+    </motion.div>
   );
 }
 
@@ -468,7 +473,7 @@ export default function BatchPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 gap-3">
+        <Stagger className="grid grid-cols-2 gap-3">
           <StatCard
             icon={Package}
             label="En cola"
@@ -482,11 +487,14 @@ export default function BatchPage() {
             sub={totalFailed > 0 ? `${totalFailed} fallidos` : 'casos totales'}
             accent={totalCompleted > 0}
           />
-        </div>
+        </Stagger>
 
         {/* CTA — add cases */}
-        <button
+        <motion.button
           onClick={() => navigate('/audit/new')}
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
+          transition={EASE_SPRING}
           className="w-full rounded-2xl border border-dashed border-brand-500/40 bg-brand-500/5 hover:bg-brand-500/10 transition-colors py-4 px-5 flex items-center gap-3 text-left group"
         >
           <div className="w-9 h-9 rounded-xl bg-brand-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-brand-500/30 transition-colors">
@@ -499,7 +507,7 @@ export default function BatchPage() {
             </div>
           </div>
           <ChevronDown className="w-4 h-4 text-slate-500 -rotate-90 group-hover:text-brand-400 transition-colors" />
-        </button>
+        </motion.button>
 
         {/* Tabs */}
         <div className="flex gap-1 p-1 bg-slate-800/60 rounded-2xl border border-slate-700/50">
@@ -525,7 +533,7 @@ export default function BatchPage() {
             <span className="text-slate-400 text-sm">{t('batchPage.loading')}</span>
           </div>
         ) : (
-          <div className="space-y-3">
+          <Stagger className="space-y-3">
             {tab === 'active' && (
               activeJobs.length === 0 ? (
                 <div className="text-center py-12">
@@ -537,7 +545,7 @@ export default function BatchPage() {
                 </div>
               ) : (
                 activeJobs.map(job => (
-                  <BatchJobCard key={job.id} job={job} onRefresh={() => load(true)} />
+                  <StaggerItem key={job.id}><BatchJobCard job={job} onRefresh={() => load(true)} /></StaggerItem>
                 ))
               )
             )}
@@ -550,11 +558,11 @@ export default function BatchPage() {
                 </div>
               ) : (
                 historyJobs.map(job => (
-                  <BatchJobCard key={job.id} job={job} onRefresh={() => load(true)} />
+                  <StaggerItem key={job.id}><BatchJobCard job={job} onRefresh={() => load(true)} /></StaggerItem>
                 ))
               )
             )}
-          </div>
+          </Stagger>
         )}
 
         {/* Model & Limits Panel */}

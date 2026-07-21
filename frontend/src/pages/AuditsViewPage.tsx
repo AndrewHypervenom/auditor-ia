@@ -1,5 +1,6 @@
 ﻿// frontend/src/pages/AuditsViewPage.tsx
 import { motion } from 'motion/react';
+import { Stagger, StaggerItem, CountUp, fadeUp, EASE_SPRING } from '../lib/motion';
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -748,69 +749,69 @@ export default function AuditsViewPage() {
 
  <motion.main initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }} className="max-w-[1600px] mx-auto px-6 pt-5 pb-8">
  {/* KPI Cards mejorados */}
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-5">
- <div className="stat-card bg-slate-800/50 border-brand-700/40 hover:border-brand-500/50/60 transition-all">
+ <Stagger className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-5">
+ <StaggerItem className="stat-card bg-slate-800/50 border-brand-700/40 hover:border-brand-500/50/60 transition-all">
  <div className="flex items-center justify-between mb-2">
  <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">{t('auditsView.kpiTotal')}</span>
  <FileText className="w-4 h-4 text-brand-400" />
  </div>
- <div className="text-2xl font-bold text-brand-400">{stats.total}</div>
+ <div className="text-2xl font-bold text-brand-400 tabular-nums"><CountUp value={stats.total} /></div>
  <div className="text-xs text-slate-500 mt-1">{t('auditsView.kpiAudits')}</div>
- </div>
+ </StaggerItem>
 
- <div className="stat-card bg-slate-800/50 border-green-500/30 hover:border-green-400/60 transition-all">
+ <StaggerItem className="stat-card bg-slate-800/50 border-green-500/30 hover:border-green-400/60 transition-all">
  <div className="flex items-center justify-between mb-2">
  <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">{t('auditsView.kpiCompleted')}</span>
  <CheckCircle2 className="w-4 h-4 text-green-400" />
  </div>
- <div className="text-2xl font-bold text-green-400">{stats.completed}</div>
+ <div className="text-2xl font-bold text-green-400 tabular-nums"><CountUp value={stats.completed} /></div>
  <div className="text-xs text-slate-500 mt-1">
  {stats.total > 0 ? `${((stats.completed / stats.total) * 100).toFixed(1)}%` : '0%'} {t('auditsView.kpiOfTotal')}
  </div>
- </div>
+ </StaggerItem>
 
- <div className="stat-card bg-slate-800/50 border-yellow-500/30 hover:border-yellow-400/60 transition-all">
+ <StaggerItem className="stat-card bg-slate-800/50 border-yellow-500/30 hover:border-yellow-400/60 transition-all">
  <div className="flex items-center justify-between mb-2">
  <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">{t('auditsView.kpiProcessing')}</span>
  <Clock className="w-4 h-4 text-yellow-400" />
  </div>
- <div className="text-2xl font-bold text-yellow-400">{stats.processing}</div>
+ <div className="text-2xl font-bold text-yellow-400 tabular-nums"><CountUp value={stats.processing} /></div>
  <div className="text-xs text-slate-500 mt-1">{t('auditsView.kpiInProcess')}</div>
- </div>
+ </StaggerItem>
 
- <div className="stat-card bg-slate-800/50 border-red-500/30 hover:border-red-400/60 transition-all">
+ <StaggerItem className="stat-card bg-slate-800/50 border-red-500/30 hover:border-red-400/60 transition-all">
  <div className="flex items-center justify-between mb-2">
  <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">{t('auditsView.kpiErrors')}</span>
  <AlertCircle className="w-4 h-4 text-red-400" />
  </div>
- <div className="text-2xl font-bold text-red-400">{stats.errors}</div>
+ <div className="text-2xl font-bold text-red-400 tabular-nums"><CountUp value={stats.errors} /></div>
  <div className="text-xs text-slate-500 mt-1">{t('auditsView.kpiProblems')}</div>
- </div>
+ </StaggerItem>
 
- <div className="stat-card bg-slate-800/50 border-brand-700/40 hover:border-brand-500/50 transition-all">
+ <StaggerItem className="stat-card bg-slate-800/50 border-brand-700/40 hover:border-brand-500/50 transition-all">
  <div className="flex items-center justify-between mb-2">
  <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">{t('auditsView.kpiScoreAvg')}</span>
  <TrendingUp className="w-4 h-4 text-brand-400" />
  </div>
- <div className={`text-2xl font-bold ${getScoreColor(stats.avgScore)}`}>
- {stats.avgScore > 0 ? `${stats.avgScore.toFixed(1)}%` : 'N/A'}
+ <div className={`text-2xl font-bold tabular-nums ${getScoreColor(stats.avgScore)}`}>
+ {stats.avgScore > 0 ? <CountUp value={stats.avgScore} decimals={1} suffix="%" /> : 'N/A'}
  </div>
  <div className="text-xs text-slate-500 mt-1">{t('auditsView.kpiAvgScore')}</div>
- </div>
+ </StaggerItem>
 
  {isSupervisor && (
- <div className="stat-card bg-slate-800/50 border-emerald-500/30 hover:border-emerald-400/60 transition-all">
+ <StaggerItem className="stat-card bg-slate-800/50 border-emerald-500/30 hover:border-emerald-400/60 transition-all">
  <div className="flex items-center justify-between mb-2">
  <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">{t('auditsView.kpiCosts')}</span>
  <DollarSign className="w-4 h-4 text-emerald-400" />
  </div>
- <div className="text-2xl font-bold text-emerald-400">
- ${stats.totalCost.toFixed(2)}
+ <div className="text-2xl font-bold text-emerald-400 tabular-nums">
+ <CountUp value={stats.totalCost} prefix="$" decimals={2} />
  </div>
  <div className="text-xs text-slate-500 mt-1">{t('auditsView.kpiUsdTotal')}</div>
- </div>
+ </StaggerItem>
  )}
- </div>
+ </Stagger>
 
  {/* Barra de controles mejorada */}
  <div className="card mb-4">
@@ -995,12 +996,16 @@ export default function AuditsViewPage() {
  </div>
  ) : viewMode === 'grid' ? (
  /* Vista de Tarjetas mejorada */
- <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+ <Stagger className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
  {filteredAndSortedAudits.map((audit) => (
- <div
+ <motion.div
  key={audit.id}
+ variants={fadeUp}
+ whileHover={{ y: -4 }}
+ whileTap={{ scale: 0.99 }}
+ transition={EASE_SPRING}
  onClick={() => navigate(`/audit/${audit.id}`)}
- className="card hover:border-green-500/40 transition-all duration-300 cursor-pointer group"
+ className="card hover:border-green-500/40 transition-colors duration-300 cursor-pointer group"
  >
  {/* Header de la tarjeta */}
  <div className="flex items-start justify-between mb-4 pb-4 border-b border-slate-700/50">
@@ -1099,9 +1104,9 @@ export default function AuditsViewPage() {
  </button>
  )}
  </div>
- </div>
+ </motion.div>
  ))}
- </div>
+ </Stagger>
  ) : (
  /* Vista de Tabla mejorada */
  <div className="card overflow-hidden">

@@ -1,7 +1,9 @@
-﻿// frontend/src/components/ProcessingStatus.tsx
+// frontend/src/components/ProcessingStatus.tsx
 
 import { Loader2, CheckCircle2, Clock, Brain, FileSearch, Mic, FileSpreadsheet } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { motion } from 'motion/react';
+import { Stagger, StaggerItem } from '../lib/motion';
 
 interface ProcessingStatusProps {
  stage: string;
@@ -9,51 +11,18 @@ interface ProcessingStatusProps {
  message?: string;
 }
 
+// Gradiente corporativo: verde #10D451 (primario) → magenta #B33D9E (secundario)
+const CORP_GRADIENT = 'linear-gradient(90deg, #10D451, #B33D9E)';
+
 export default function ProcessingStatus({ stage, progress, message }: ProcessingStatusProps) {
  const { t } = useTranslation();
  const stages = [
- {
- id: 'upload',
- label: t('processingStatus.stageGpfData'),
- icon: Clock,
- duration: '~10s',
- color: 'blue'
- },
- {
- id: 'analysis',
- label: t('processingStatus.stageAnalyzing'),
- icon: FileSearch,
- duration: '~30s',
- color: 'pink'
- },
- {
- id: 'audio',
- label: t('processingStatus.stageAudio'),
- icon: Mic,
- duration: '~45s',
- color: 'purple'
- },
- {
- id: 'evaluation',
- label: t('processingStatus.stageEvaluation'),
- icon: Brain,
- duration: '~50s',
- color: 'green'
- },
- {
- id: 'excel',
- label: t('processingStatus.stageExcel'),
- icon: FileSpreadsheet,
- duration: '~5s',
- color: 'emerald'
- },
- {
- id: 'completed',
- label: t('processingStatus.stageCompleted'),
- icon: CheckCircle2,
- duration: '',
- color: 'emerald'
- }
+ { id: 'upload',     label: t('processingStatus.stageGpfData'),    icon: Clock,           duration: '~10s' },
+ { id: 'analysis',   label: t('processingStatus.stageAnalyzing'),  icon: FileSearch,      duration: '~30s' },
+ { id: 'audio',      label: t('processingStatus.stageAudio'),      icon: Mic,             duration: '~45s' },
+ { id: 'evaluation', label: t('processingStatus.stageEvaluation'), icon: Brain,           duration: '~50s' },
+ { id: 'excel',      label: t('processingStatus.stageExcel'),      icon: FileSpreadsheet, duration: '~5s'  },
+ { id: 'completed',  label: t('processingStatus.stageCompleted'),  icon: CheckCircle2,    duration: ''     },
  ];
 
  // Mapeo de posibles variantes de nombres de stage
@@ -74,151 +43,142 @@ export default function ProcessingStatus({ stage, progress, message }: Processin
 
  const normalizedStage = stageNormalizer[stage] || stage;
  const currentStageIndex = stages.findIndex(s => s.id === normalizedStage);
-
- const getStageColor = (color: string) => {
- const colors: Record<string, string> = {
- blue: 'from-brand-900/30 to-brand-800/30',
- purple: 'from-purple-500 to-purple-600',
- pink: 'from-pink-500 to-pink-600',
- green: 'from-green-500 to-green-600',
- emerald: 'from-emerald-500 to-emerald-600'
- };
- return colors[color] || colors.blue;
- };
+ const done = normalizedStage === 'completed';
 
  return (
- <div className="card animate-fadeIn max-w-3xl mx-auto">
+ <div className="card animate-fadeIn max-w-2xl mx-auto p-5">
  {/* Header */}
- <div className="text-center mb-5">
- {normalizedStage === 'completed' ? (
- <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 mb-4">
- <CheckCircle2 className="w-10 h-10 text-white" />
+ <div className="text-center mb-4">
+ {done ? (
+ <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-corp-green to-green-600 mb-3 shadow-glow">
+ <CheckCircle2 className="w-8 h-8 text-white" />
  </div>
  ) : (
- <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-brand-900/30 to-purple-500 mb-4 animate-pulse-ring">
- <Loader2 className="w-10 h-10 text-white animate-spin" />
+ <div className="relative inline-flex items-center justify-center mb-3">
+ <div className="absolute inset-0 rounded-2xl blur-lg opacity-60" style={{ background: CORP_GRADIENT }} />
+ <div className="relative w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: CORP_GRADIENT }}>
+ <Loader2 className="w-7 h-7 text-white animate-spin" />
+ </div>
  </div>
  )}
- <h2 className="text-2xl font-bold mb-2 bg-gradient-to-r from-brand-900/30 to-purple-400 bg-clip-text text-transparent">
- {normalizedStage === 'completed' ? t('processingStatus.completedTitle') : t('processingStatus.processingTitle')}
+ <h2 className="text-xl font-bold mb-1 bg-clip-text text-transparent" style={{ backgroundImage: CORP_GRADIENT }}>
+ {done ? t('processingStatus.completedTitle') : t('processingStatus.processingTitle')}
  </h2>
- <p className="text-slate-400">
- {normalizedStage === 'completed'
- ? t('processingStatus.completedMessage')
- : t('processingStatus.processingMessage')}
+ <p className="text-slate-400 text-sm">
+ {done ? t('processingStatus.completedMessage') : t('processingStatus.processingMessage')}
  </p>
  </div>
 
  {/* Progress Bar */}
- <div className="mb-10">
- <div className="flex items-center justify-between mb-3">
- <span className="text-sm font-semibold text-slate-300">
+ <div className="mb-6">
+ <div className="flex items-center justify-between mb-2">
+ <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
  {t('processingStatus.progressLabel')}
  </span>
- <span className="text-2xl font-bold bg-gradient-to-r from-brand-900/30 to-purple-400 bg-clip-text text-transparent">
+ <span className="text-xl font-bold tabular-nums bg-clip-text text-transparent" style={{ backgroundImage: CORP_GRADIENT }}>
  {progress}%
  </span>
  </div>
- <div className="relative w-full h-4 bg-slate-800 rounded-full overflow-hidden shadow-inner">
- <div
- className={`absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out shadow-glow ${
- normalizedStage === 'completed'
- ? 'bg-gradient-to-r from-green-500 via-emerald-500 to-green-400'
- : 'bg-gradient-to-r from-brand-900/30 via-purple-500 to-pink-500'
- }`}
- style={{ width: `${progress}%` }}
+ <div className="relative w-full h-2.5 bg-slate-800 rounded-full overflow-hidden shadow-inner">
+ <motion.div
+ className="absolute inset-y-0 left-0 rounded-full overflow-hidden"
+ style={{ background: done ? 'linear-gradient(90deg,#10D451,#1ADE50)' : CORP_GRADIENT }}
+ initial={false}
+ animate={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
+ transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
  >
- <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent animate-pulse"></div>
- </div>
+ {/* Brillo que recorre la barra */}
+ {!done && (
+ <motion.div
+ className="absolute inset-0"
+ style={{ background: 'linear-gradient(100deg, transparent 30%, rgba(255,255,255,0.4) 50%, transparent 70%)' }}
+ initial={{ x: '-100%' }}
+ animate={{ x: '100%' }}
+ transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+ />
+ )}
+ </motion.div>
  </div>
  </div>
 
  {/* Message del SSE */}
  {message && (
- <div className={`mb-4 p-4 rounded-xl ${
- normalizedStage === 'completed'
- ? 'bg-green-500/10 border border-green-500/30'
- : 'bg-brand-500/10 border border-brand-700/40'
+ <div className={`mb-4 px-4 py-2.5 rounded-lg border ${
+ done ? 'bg-corp-green/10 border-corp-green/30' : 'bg-magenta-500/10 border-magenta-500/25'
  }`}>
- <p className={`text-sm text-center font-medium ${
- normalizedStage === 'completed' ? 'text-green-300' : 'text-brand-300'
- }`}>
+ <p className={`text-sm text-center font-medium ${done ? 'text-corp-green' : 'text-magenta-300'}`}>
  {message}
  </p>
  </div>
  )}
 
  {/* Stages */}
- <div className="space-y-3">
+ <Stagger className="space-y-2">
  {stages.map((s, index) => {
- const isCompleted = index < currentStageIndex || normalizedStage === 'completed';
- const isCurrent = index === currentStageIndex && normalizedStage !== 'completed';
+ const isCompleted = index < currentStageIndex || done;
+ const isCurrent = index === currentStageIndex && !done;
  const Icon = s.icon;
 
  return (
- <div
+ <StaggerItem
  key={s.id}
- className={`relative flex items-center gap-4 p-5 rounded-xl transition-all duration-500 ${
- isCurrent 
- ? 'bg-gradient-to-r from-brand-900/30 to-purple-500/10 border-2 border-brand-700/40 scale-[1.02] shadow-glow' 
+ className={`relative flex items-center gap-3 p-3 rounded-xl border transition-colors duration-500 ${
+ isCurrent
+ ? 'border-corp-green/40 shadow-glow'
  : isCompleted
- ? 'bg-slate-800/50 border border-green-500/20'
- : 'bg-slate-900/30 border border-slate-800'
+ ? 'bg-slate-800/40 border-corp-green/15'
+ : 'bg-slate-900/30 border-slate-800'
  }`}
  >
+ {isCurrent && (
+ <div className="absolute inset-0 rounded-xl opacity-10 pointer-events-none" style={{ background: CORP_GRADIENT }} />
+ )}
+
  {/* Connector line */}
  {index < stages.length - 1 && (
- <div 
- className={`absolute left-7 top-full w-0.5 h-3 transition-colors duration-500 ${
- isCompleted ? 'bg-green-500' : isCurrent ? 'bg-brand-500' : 'bg-slate-700'
- }`}
- />
+ <div className={`absolute left-[26px] top-full w-0.5 h-2 transition-colors duration-500 ${
+ isCompleted ? 'bg-corp-green' : isCurrent ? 'bg-corp-green/50' : 'bg-slate-700'
+ }`} />
  )}
 
  {/* Icon */}
- <div className="flex-shrink-0">
+ <div className="relative flex-shrink-0">
  {isCompleted ? (
- <div className="w-14 h-14 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center shadow-lg transition-all duration-500">
- <CheckCircle2 className="w-7 h-7 text-white" />
+ <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-corp-green to-green-600 flex items-center justify-center shadow-lg">
+ <CheckCircle2 className="w-5 h-5 text-white" />
  </div>
  ) : isCurrent ? (
- <div className={`w-14 h-14 rounded-full bg-gradient-to-br ${getStageColor(s.color)} flex items-center justify-center shadow-glow animate-pulse-ring`}>
- <Icon className="w-7 h-7 text-white" />
+ <div className="w-11 h-11 rounded-xl flex items-center justify-center shadow-glow animate-pulse-ring" style={{ background: CORP_GRADIENT }}>
+ <Icon className="w-5 h-5 text-white" />
  </div>
  ) : (
- <div className="w-14 h-14 rounded-full border-2 border-slate-700 bg-slate-800/50 flex items-center justify-center">
- <Icon className="w-6 h-6 text-slate-500" />
+ <div className="w-11 h-11 rounded-xl border border-slate-700 bg-slate-800/50 flex items-center justify-center">
+ <Icon className="w-5 h-5 text-slate-500" />
  </div>
  )}
  </div>
 
  {/* Content */}
- <div className="flex-1 min-w-0">
- <div className="flex items-center gap-3 mb-1">
- <p className={`font-semibold text-lg transition-colors duration-500 ${
- isCurrent 
- ? 'text-white' 
- : isCompleted 
- ? 'text-green-300' 
- : 'text-slate-500'
+ <div className="relative flex-1 min-w-0">
+ <div className="flex items-center gap-2 flex-wrap">
+ <p className={`font-semibold text-sm transition-colors duration-500 ${
+ isCurrent ? 'text-white' : isCompleted ? 'text-corp-green' : 'text-slate-500'
  }`}>
  {s.label}
  </p>
  {isCompleted && (
- <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+ <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-corp-green/15 text-corp-green border border-corp-green/30">
  {t('processingStatus.completedBadge')}
  </span>
  )}
  {isCurrent && (
- <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-brand-500/10 text-brand-400 border border-brand-700/40 animate-pulse">
+ <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-magenta-500/15 text-magenta-300 border border-magenta-500/30 animate-pulse">
  {t('processingStatus.inProgress')}
  </span>
  )}
  </div>
  {s.duration && !isCompleted && (
- <p className={`text-sm ${
- isCurrent ? 'text-slate-400' : 'text-slate-600'
- }`}>
+ <p className={`text-xs mt-0.5 ${isCurrent ? 'text-slate-400' : 'text-slate-600'}`}>
  {s.duration}
  </p>
  )}
@@ -226,22 +186,22 @@ export default function ProcessingStatus({ stage, progress, message }: Processin
 
  {/* Loading spinner for current stage */}
  {isCurrent && (
- <div className="flex-shrink-0">
- <Loader2 className="w-5 h-5 text-brand-400 animate-spin" />
+ <div className="relative flex-shrink-0">
+ <Loader2 className="w-4 h-4 text-corp-green animate-spin" />
  </div>
  )}
- </div>
+ </StaggerItem>
  );
  })}
- </div>
+ </Stagger>
 
  {/* Footer info */}
- {normalizedStage !== 'completed' && (
- <div className="mt-8 p-4 bg-brand-500/5 border border-brand-700/20 rounded-xl">
+ {!done && (
+ <div className="mt-5 px-4 py-3 bg-corp-green/5 border border-corp-green/20 rounded-xl">
  <div className="flex items-start gap-3">
- <Clock className="w-5 h-5 text-brand-400 flex-shrink-0 mt-0.5" />
+ <Clock className="w-4 h-4 text-corp-green flex-shrink-0 mt-0.5" />
  <div>
- <p className="text-sm font-medium text-brand-400 mb-1">
+ <p className="text-xs font-semibold text-corp-green mb-0.5">
  {t('processingStatus.estimatedTime')}
  </p>
  <p className="text-xs text-slate-400">

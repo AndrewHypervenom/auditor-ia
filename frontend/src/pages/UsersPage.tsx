@@ -1,12 +1,13 @@
 ﻿// frontend/src/pages/UsersPage.tsx
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Stagger, MotionCard, CountUp, EASE_SPRING } from '../lib/motion';
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth, useRole } from '../contexts/AuthContext';
 import { supabase } from '../config/supabase';
-import { userService } from '../services/api';
+import { userService, companyService } from '../services/api';
 import AppHeader from '../components/AppHeader';
 import {
  Users,
@@ -15,7 +16,6 @@ import {
  Trash2,
  Search,
  Shield,
- Star,
  Eye,
  User as UserIcon,
  CheckCircle,
@@ -26,7 +26,9 @@ import {
  Mail,
  Calendar,
  Award,
- UserCheck
+ UserCheck,
+ Building2,
+ KeyRound
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { UserRole } from '../types/auth.types';
@@ -38,6 +40,12 @@ interface User {
  role: UserRole;
  is_active: boolean;
  created_at: string;
+ company_id: string | null;
+}
+
+interface Company {
+ id: string;
+ name: string;
 }
 
 interface UserFormData {
@@ -45,14 +53,16 @@ interface UserFormData {
  password: string;
  full_name: string;
  role: UserRole;
+ company_id: string;
 }
 
 export default function UsersPage() {
  const { t } = useTranslation();
  const navigate = useNavigate();
  const { profile } = useAuth();
- const { isAdmin, isSupervisor } = useRole();
+ const { isAdmin, isSupervisor, isSuperadmin } = useRole();
  const [users, setUsers] = useState<User[]>([]);
+ const [companies, setCompanies] = useState<Company[]>([]);
  const [loading, setLoading] = useState(true);
  const [searchTerm, setSearchTerm] = useState('');
  const [showCreateModal, setShowCreateModal] = useState(false);
@@ -64,12 +74,15 @@ export default function UsersPage() {
  email: '',
  password: '',
  full_name: '',
- role: 'auditor' as UserRole
+ role: 'auditor' as UserRole,
+ company_id: ''
  });
 
  const [editForm, setEditForm] = useState({
  full_name: '',
- role: 'auditor' as UserRole
+ role: 'auditor' as UserRole,
+ company_id: '',
+ password: ''
  });
 
  useEffect(() => {
@@ -81,7 +94,34 @@ export default function UsersPage() {
  }
 
  loadUsers();
+ // El superadmin gestiona usuarios de todas las empresas: necesita la lista
+ // para asignar/reasignar empresa y mostrar a qué empresa pertenece cada uno.
+ if (isSuperadmin) loadCompanies();
  }, [profile, isAdmin, isSupervisor]);
+
+ const loadCompanies = async () => {
+ try {
+ const data = await companyService.getAll();
+ setCompanies((data || []).map((c: any) => ({ id: c.id, name: c.name })));
+ } catch (error) {
+ console.error('Error loading companies:', error);
+ }
+ };
+
+ const companyName = (id: string | null) =>
+ companies.find(c => c.id === id)?.name || '—';
+
+ // Cerrar modales con Escape (detalle premium de teclado)
+ useEffect(() => {
+ const onKey = (e: KeyboardEvent) => {
+ if (e.key !== 'Escape') return;
+ setShowCreateModal(false);
+ setShowEditModal(false);
+ setEditingUser(null);
+ };
+ window.addEventListener('keydown', onKey);
+ return () => window.removeEventListener('keydown', onKey);
+ }, []);
 
  const loadUsers = async () => {
  try {
@@ -129,10 +169,22 @@ export default function UsersPage() {
  return;
  }
 
+ // El superadmin debe indicar a qué empresa pertenece el nuevo usuario
+ if (isSuperadmin && !newUser.company_id) {
+ toast.error(t('usersPage.selectCompany'));
+ return;
+ }
+
  try {
  setSubmitting(true);
- 
- await userService.createUser(newUser);
+
+ await userService.createUser({
+ email: newUser.email,
+ password: newUser.password,
+ full_name: newUser.full_name,
+ role: newUser.role,
+ ...(isSuperadmin && { company_id: newUser.company_id })
+ });
 
  toast.success(t('usersPage.created'));
  setShowCreateModal(false);
@@ -140,7 +192,8 @@ export default function UsersPage() {
  email: '',
  password: '',
  full_name: '',
- role: 'auditor'
+ role: 'auditor',
+ company_id: ''
  });
  loadUsers();
  } catch (error: any) {
@@ -158,10 +211,20 @@ export default function UsersPage() {
 
  if (!editingUser) return;
 
+ if (editForm.password && editForm.password.length < 6) {
+ toast.error(t('usersPage.passwordMin'));
+ return;
+ }
+
  try {
  setSubmitting(true);
 
- await userService.updateUser(editingUser.id, editForm);
+ await userService.updateUser(editingUser.id, {
+ full_name: editForm.full_name,
+ role: editForm.role,
+ ...(editForm.password && { password: editForm.password }),
+ ...(isSuperadmin && editForm.company_id && { company_id: editForm.company_id })
+ });
 
  toast.success(t('usersPage.updated'));
  setShowEditModal(false);
@@ -194,20 +257,18 @@ export default function UsersPage() {
  }
  };
 
+ // Activa/desactiva vía backend (respeta permisos y funciona cross-empresa
+ // para el superadmin, a diferencia del cliente supabase sujeto a RLS).
  const handleToggleActive = async (userId: string, currentStatus: boolean) => {
  try {
- const { error } = await supabase
- .from('users')
- .update({ is_active: !currentStatus })
- .eq('id', userId);
-
- if (error) throw error;
+ await userService.updateUser(userId, { is_active: !currentStatus });
 
  toast.success(!currentStatus ? t('usersPage.activated') : t('usersPage.deactivated'));
  loadUsers();
  } catch (error: any) {
  console.error('Error toggling user status:', error);
- toast.error(t('usersPage.loadError'));
+ const message = error.response?.data?.error || error.message || t('usersPage.loadError');
+ toast.error(message);
  }
  };
 
@@ -256,7 +317,9 @@ export default function UsersPage() {
  setEditingUser(user);
  setEditForm({
  full_name: user.full_name || '',
- role: user.role
+ role: user.role,
+ company_id: user.company_id || '',
+ password: ''
  });
  setShowEditModal(true);
  };
@@ -315,32 +378,44 @@ export default function UsersPage() {
  </div>
 
  <div className="flex items-center gap-4">
- <div className="stat-card">
+ <motion.div
+ className="stat-card"
+ initial={{ opacity: 0, y: 10 }}
+ animate={{ opacity: 1, y: 0 }}
+ transition={{ ...EASE_SPRING, delay: 0.05 }}
+ whileHover={{ y: -3 }}
+ >
  <div className="flex items-center gap-3">
  <div className="p-2 bg-brand-500/10 rounded-lg">
  <Users className="w-5 h-5 text-brand-400" />
  </div>
  <div>
  <p className="text-slate-400 text-xs">{isSupervisor ? t('usersPage.totalAnalysts') : t('usersPage.totalUsers')}</p>
- <p className="text-2xl font-bold text-white">{filteredUsers.length}</p>
+ <p className="text-2xl font-bold text-white tabular-nums"><CountUp value={filteredUsers.length} /></p>
  </div>
  </div>
- </div>
+ </motion.div>
 
  {!isSupervisor && (
- <div className="stat-card bg-gradient-to-br from-green-900/20 to-emerald-900/20 border-green-500/30">
+ <motion.div
+ className="stat-card bg-gradient-to-br from-green-900/20 to-emerald-900/20 border-green-500/30"
+ initial={{ opacity: 0, y: 10 }}
+ animate={{ opacity: 1, y: 0 }}
+ transition={{ ...EASE_SPRING, delay: 0.12 }}
+ whileHover={{ y: -3 }}
+ >
  <div className="flex items-center gap-3">
  <div className="p-2 bg-green-600/20 rounded-lg">
  <CheckCircle className="w-5 h-5 text-green-400" />
  </div>
  <div>
  <p className="text-slate-400 text-xs">{t('usersPage.active')}</p>
- <p className="text-2xl font-bold text-white">
- {users.filter(u => u.is_active).length}
+ <p className="text-2xl font-bold text-white tabular-nums">
+ <CountUp value={users.filter(u => u.is_active).length} />
  </p>
  </div>
  </div>
- </div>
+ </motion.div>
  )}
  </div>
  </div>
@@ -358,11 +433,12 @@ export default function UsersPage() {
  </p>
  </div>
  ) : (
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+ <Stagger className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
  {filteredUsers.map((user) => (
- <div
+ <MotionCard
  key={user.id}
- className="group relative p-5 bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-[#1e1e32] rounded-xl hover:border-brand-700/40 transition-all duration-300 hover:shadow-lg hover:shadow-brand-500/10"
+ lift={false}
+ className="group relative p-5 bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-[#1e1e32] rounded-xl hover:border-brand-700/40 transition-colors duration-300 hover:shadow-lg hover:shadow-brand-500/10"
  >
  {/* Status Badge */}
  <div className="absolute top-3 right-3">
@@ -410,42 +486,84 @@ export default function UsersPage() {
  <Calendar className="w-4 h-4 text-slate-500" />
  <span className="text-slate-400">{formatDate(user.created_at)}</span>
  </div>
+ {isSuperadmin && (
+ <div className="flex items-center gap-2 text-sm">
+ <Building2 className="w-4 h-4 text-slate-500" />
+ <span className="text-slate-400 truncate">{companyName(user.company_id)}</span>
+ </div>
+ )}
  </div>
 
  {/* Actions - Solo para Admin */}
  {isAdmin && (
  <div className="flex items-center gap-2 pt-4 border-t border-[#1e1e32]">
- <button
+ <motion.button
  onClick={() => openEditModal(user)}
+ whileHover={{ scale: 1.03 }}
+ whileTap={{ scale: 0.96 }}
+ transition={EASE_SPRING}
  className="flex-1 px-3 py-2 bg-brand-500/10 hover:bg-brand-500/30 border border-brand-700/40 text-brand-300 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium"
  title={t('usersPage.editTooltip')}
  >
  <Edit className="w-4 h-4" />
  {t('usersPage.editBtn')}
- </button>
+ </motion.button>
  {user.id !== profile?.id && (
- <button
+ <motion.button
+ onClick={() => handleToggleActive(user.id, user.is_active)}
+ whileHover={{ scale: 1.06 }}
+ whileTap={{ scale: 0.94 }}
+ transition={EASE_SPRING}
+ className={`px-3 py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 text-sm font-medium border ${
+ user.is_active
+ ? 'bg-amber-600/20 hover:bg-amber-600/30 border-amber-500/30 text-amber-300'
+ : 'bg-green-600/20 hover:bg-green-600/30 border-green-500/30 text-green-300'
+ }`}
+ title={user.is_active ? t('usersPage.deactivateTooltip') : t('usersPage.activateTooltip')}
+ >
+ {user.is_active ? <XCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+ </motion.button>
+ )}
+ {user.id !== profile?.id && (
+ <motion.button
  onClick={() => handleDeleteUser(user.id, user.email)}
- className="flex-1 px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-300 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+ whileHover={{ scale: 1.06 }}
+ whileTap={{ scale: 0.94 }}
+ transition={EASE_SPRING}
+ className="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-300 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium"
  title={t('usersPage.deleteTooltip')}
  >
  <Trash2 className="w-4 h-4" />
- Eliminar
- </button>
+ </motion.button>
  )}
  </div>
  )}
- </div>
+ </MotionCard>
  ))}
- </div>
+ </Stagger>
  )}
  </div>
  </motion.main>
 
  {/* Modal Crear Usuario - Solo Admin */}
+ <AnimatePresence>
  {showCreateModal && isAdmin && (
- <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
- <div className="bg-[#141424] rounded-2xl p-6 max-w-md w-full border border-[#1e1e32] shadow-2xl">
+ <motion.div
+ className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+ initial={{ opacity: 0 }}
+ animate={{ opacity: 1 }}
+ exit={{ opacity: 0 }}
+ transition={{ duration: 0.2 }}
+ onClick={() => setShowCreateModal(false)}
+ >
+ <motion.div
+ className="bg-[#141424] rounded-2xl p-6 max-w-md w-full border border-[#1e1e32] shadow-2xl"
+ initial={{ opacity: 0, scale: 0.94, y: 16 }}
+ animate={{ opacity: 1, scale: 1, y: 0 }}
+ exit={{ opacity: 0, scale: 0.96, y: 8 }}
+ transition={EASE_SPRING}
+ onClick={(e) => e.stopPropagation()}
+ >
  <div className="flex items-center justify-between mb-4">
  <h2 className="text-xl font-bold text-white">{t('usersPage.createTitle')}</h2>
  <button
@@ -507,6 +625,26 @@ export default function UsersPage() {
  </select>
  </div>
 
+ {isSuperadmin && (
+ <div>
+ <label className="block text-sm text-slate-400 mb-2">{t('usersPage.companyLabel')}</label>
+ <div className="relative">
+ <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4 pointer-events-none" />
+ <select
+ value={newUser.company_id}
+ onChange={(e) => setNewUser(prev => ({ ...prev, company_id: e.target.value }))}
+ className="input pl-9"
+ required
+ >
+ <option value="">{t('usersPage.selectCompany')}</option>
+ {companies.map((c) => (
+ <option key={c.id} value={c.id}>{c.name}</option>
+ ))}
+ </select>
+ </div>
+ </div>
+ )}
+
  <div className="flex gap-3 mt-6">
  <button
  type="button"
@@ -534,14 +672,30 @@ export default function UsersPage() {
  </button>
  </div>
  </form>
- </div>
- </div>
+ </motion.div>
+ </motion.div>
  )}
+ </AnimatePresence>
 
  {/* Modal Editar Usuario - Solo Admin */}
+ <AnimatePresence>
  {showEditModal && editingUser && isAdmin && (
- <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
- <div className="bg-[#141424] rounded-2xl p-6 max-w-md w-full border border-[#1e1e32] shadow-2xl">
+ <motion.div
+ className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+ initial={{ opacity: 0 }}
+ animate={{ opacity: 1 }}
+ exit={{ opacity: 0 }}
+ transition={{ duration: 0.2 }}
+ onClick={() => { setShowEditModal(false); setEditingUser(null); }}
+ >
+ <motion.div
+ className="bg-[#141424] rounded-2xl p-6 max-w-md w-full border border-[#1e1e32] shadow-2xl"
+ initial={{ opacity: 0, scale: 0.94, y: 16 }}
+ animate={{ opacity: 1, scale: 1, y: 0 }}
+ exit={{ opacity: 0, scale: 0.96, y: 8 }}
+ transition={EASE_SPRING}
+ onClick={(e) => e.stopPropagation()}
+ >
  <div className="flex items-center justify-between mb-4">
  <h2 className="text-xl font-bold text-white">{t('usersPage.editTitle')}</h2>
  <button
@@ -596,6 +750,42 @@ export default function UsersPage() {
  )}
  </div>
 
+ {isSuperadmin && (
+ <div>
+ <label className="block text-sm text-slate-400 mb-2">{t('usersPage.companyLabel')}</label>
+ <div className="relative">
+ <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4 pointer-events-none" />
+ <select
+ value={editForm.company_id}
+ onChange={(e) => setEditForm(prev => ({ ...prev, company_id: e.target.value }))}
+ className="input pl-9"
+ >
+ <option value="">{t('usersPage.selectCompany')}</option>
+ {companies.map((c) => (
+ <option key={c.id} value={c.id}>{c.name}</option>
+ ))}
+ </select>
+ </div>
+ </div>
+ )}
+
+ <div>
+ <label className="block text-sm text-slate-400 mb-2">{t('usersPage.resetPasswordLabel')}</label>
+ <div className="relative">
+ <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-4 h-4 pointer-events-none" />
+ <input
+ type="password"
+ value={editForm.password}
+ onChange={(e) => setEditForm(prev => ({ ...prev, password: e.target.value }))}
+ className="input pl-9"
+ placeholder={t('usersPage.resetPasswordPlaceholder')}
+ minLength={6}
+ autoComplete="new-password"
+ />
+ </div>
+ <p className="text-xs text-slate-500 mt-1">{t('usersPage.resetPasswordNote')}</p>
+ </div>
+
  <div className="flex gap-3 mt-6">
  <button
  type="button"
@@ -626,9 +816,10 @@ export default function UsersPage() {
  </button>
  </div>
  </form>
- </div>
- </div>
+ </motion.div>
+ </motion.div>
  )}
+ </AnimatePresence>
  </div>
  );
 }

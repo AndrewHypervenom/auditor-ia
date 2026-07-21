@@ -1,5 +1,6 @@
 // frontend/src/pages/IntegrationsPage.tsx
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Reveal, EASE_SPRING } from '../lib/motion';
 //
 // Página de Integraciones internas por empresa (Fase 2 multi-tenant).
 // El lider edita los endpoints internos de SU empresa (companies.integration_config);
@@ -130,18 +131,18 @@ export default function IntegrationsPage() {
       <motion.main initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }} className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div>
           {/* Encabezado */}
-          <div className="card mb-5">
+          <motion.div className="card mb-5" whileHover={{ y: -3 }} transition={EASE_SPRING}>
             <div className="flex items-center gap-3">
-              <Plug className="w-5 h-5 text-brand-400" />
+              <div className="p-2 bg-brand-500/10 rounded-lg"><Plug className="w-5 h-5 text-brand-400" /></div>
               <div>
                 <p className="text-sm text-slate-300">{companyName || t('integrationsPage.yourCompany')}</p>
                 <p className="text-xs text-slate-500">{t('integrationsPage.subtitle')}</p>
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Formulario */}
-          <div className="card space-y-6">
+          <Reveal whenInView className="card space-y-6">
             {/* Tipo de integración */}
             <div className="space-y-2">
               <h3 className="section-header mb-2">{t('integrationsPage.typeTitle')}</h3>
@@ -160,9 +161,16 @@ export default function IntegrationsPage() {
               </div>
             </div>
 
+            <AnimatePresence initial={false}>
             {integrationType === 'gpf' && (
-              <>
-                <div className="border-t border-[#1e1e32]"></div>
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                className="overflow-hidden"
+              >
+                <div className="border-t border-[#1e1e32] mb-6"></div>
 
                 <div className="space-y-4">
                   <h3 className="section-header mb-2">{t('integrationsPage.gpfTitle')}</h3>
@@ -264,17 +272,30 @@ export default function IntegrationsPage() {
                     <p>{t('integrationsPage.gpfHint')}</p>
                   </div>
                 </div>
-              </>
+              </motion.div>
             )}
-          </div>
+            </AnimatePresence>
+          </Reveal>
 
           {/* Guardar */}
           <div className="mt-6 flex justify-end">
-            <button
+            <motion.button
               onClick={handleSave}
               disabled={saving}
-              className="btn-primary flex items-center gap-2 px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+              whileHover={saving ? undefined : { scale: 1.02 }}
+              whileTap={saving ? undefined : { scale: 0.97 }}
+              transition={EASE_SPRING}
+              className="btn-primary flex items-center gap-2 px-6 py-3 relative overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
             >
+              {!saving && (
+                <motion.span
+                  className="absolute inset-0 pointer-events-none"
+                  style={{ background: 'linear-gradient(100deg, transparent 30%, rgba(255,255,255,0.35) 50%, transparent 70%)' }}
+                  initial={{ x: '-120%' }}
+                  animate={{ x: '120%' }}
+                  transition={{ duration: 2.4, repeat: Infinity, repeatDelay: 2, ease: 'easeInOut' }}
+                />
+              )}
               {saving ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
@@ -286,7 +307,7 @@ export default function IntegrationsPage() {
                   {t('integrationsPage.save')}
                 </>
               )}
-            </button>
+            </motion.button>
           </div>
         </div>
       </motion.main>

@@ -634,7 +634,7 @@ export default function NewAuditPage() {
  <button
  onClick={() => handleLoadAttentions()}
  disabled={loadingAttentions}
- className="px-6 py-3 bg-brand-500 text-black rounded-lg font-semibold  disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg flex items-center gap-2"
+ className="px-6 py-3 bg-brand-500 hover:bg-brand-400 text-black rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-brand-500/25 hover:shadow-brand-500/40 hover:scale-[1.02] active:scale-[0.98] disabled:hover:scale-100 flex items-center gap-2"
  >
  {loadingAttentions ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
  {loadingAttentions ? t('newAudit.loading') : t('newAudit.loadCases')}

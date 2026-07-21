@@ -1,6 +1,6 @@
 ﻿// frontend/src/pages/AdminDashboard.tsx
 import { motion } from 'motion/react';
-import { CountUp } from '../lib/motion';
+import { CountUp, Stagger, fadeUp, EASE_SPRING } from '../lib/motion';
 // Dashboard para Administrador - Control total del sistema con datos reales
 
 import { useState, useEffect, useMemo } from 'react';
@@ -516,10 +516,10 @@ export default function AdminDashboard() {
  return (
  <div className="space-y-6">
  {/* Banner de sección */}
- <div className="p-5 bg-gradient-to-r from-teal-900/30 to-emerald-900/20 border border-teal-500/30 rounded-xl">
+ <div className="p-5 bg-gradient-to-r from-brand-900/30 to-emerald-900/20 border border-brand-500/30 rounded-xl">
  <div className="flex items-center gap-3">
- <div className="p-2 bg-teal-500/20 rounded-lg">
- <Globe className="w-6 h-6 text-teal-400" />
+ <div className="p-2 bg-brand-500/20 rounded-lg">
+ <Globe className="w-6 h-6 text-brand-400" />
  </div>
  <div>
  <h2 className="text-lg font-bold text-white">{t('adminDash.gpfApiTitle')}</h2>
@@ -546,28 +546,28 @@ export default function AdminDashboard() {
  <p className="text-xs font-semibold text-slate-300 mb-3 uppercase tracking-wide">{t('gpfConsole.guideTitle')}</p>
  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
  <div className="flex items-start gap-2">
- <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-600 text-white text-xs flex items-center justify-center font-bold">1</span>
+ <span className="flex-shrink-0 w-5 h-5 rounded-full bg-brand-600 text-white text-xs flex items-center justify-center font-bold">1</span>
  <div>
  <p className="text-xs font-medium text-slate-300">{t('gpfConsole.step1Title')}</p>
  <p className="text-xs text-slate-500">{t('gpfConsole.step1Desc')}</p>
  </div>
  </div>
  <div className="flex items-start gap-2">
- <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-600 text-white text-xs flex items-center justify-center font-bold">2</span>
+ <span className="flex-shrink-0 w-5 h-5 rounded-full bg-brand-600 text-white text-xs flex items-center justify-center font-bold">2</span>
  <div>
  <p className="text-xs font-medium text-slate-300">{t('gpfConsole.step2Title')}</p>
  <p className="text-xs text-slate-500">{t('gpfConsole.step2Desc')}</p>
  </div>
  </div>
  <div className="flex items-start gap-2">
- <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-600 text-white text-xs flex items-center justify-center font-bold">3</span>
+ <span className="flex-shrink-0 w-5 h-5 rounded-full bg-brand-600 text-white text-xs flex items-center justify-center font-bold">3</span>
  <div>
  <p className="text-xs font-medium text-slate-300">{t('gpfConsole.step3Title')}</p>
  <p className="text-xs text-slate-500">{t('gpfConsole.step3Desc')}</p>
  </div>
  </div>
  <div className="flex items-start gap-2">
- <span className="flex-shrink-0 w-5 h-5 rounded-full bg-teal-600 text-white text-xs flex items-center justify-center font-bold">4</span>
+ <span className="flex-shrink-0 w-5 h-5 rounded-full bg-brand-600 text-white text-xs flex items-center justify-center font-bold">4</span>
  <div>
  <p className="text-xs font-medium text-slate-300">{t('gpfConsole.step4Title')}</p>
  <p className="text-xs text-slate-500">{t('gpfConsole.step4Desc')}</p>
@@ -578,14 +578,14 @@ export default function AdminDashboard() {
  <div><span className="text-slate-400 font-medium">{t('gpfConsole.testLabel')}</span> classic-routinely-beagle.ngrok-free.app</div>
  <div><span className="text-slate-400 font-medium">{t('gpfConsole.prodLabel')}</span> gpf.prevencion.algartech.com.mx:6443</div>
  <div><span className="text-slate-400 font-medium">{t('gpfConsole.authLabel')}</span> X-App-Token + Bearer token (obtenido en paso 2)</div>
- <div><span className="text-slate-400 font-medium">{t('gpfConsole.formatLabel')}</span> {t('gpfConsole.formatDesc')} <code className="text-teal-400">data</code>, <code className="text-teal-400">error</code>, <code className="text-teal-400">is_success</code>, <code className="text-teal-400">status</code></div>
+ <div><span className="text-slate-400 font-medium">{t('gpfConsole.formatLabel')}</span> {t('gpfConsole.formatDesc')} <code className="text-brand-400">data</code>, <code className="text-brand-400">error</code>, <code className="text-brand-400">is_success</code>, <code className="text-brand-400">status</code></div>
  </div>
  </div>
 
  {/* PASO 1: Ambiente y Autenticación */}
  <div className="card">
  <h3 className="section-header">
- <Key className="w-5 h-5 text-teal-400" />
+ <Key className="w-5 h-5 text-brand-400" />
  <span>{t('gpfConsole.step1Header')}</span>
  </h3>
 
@@ -596,7 +596,7 @@ export default function AdminDashboard() {
  <div className="flex rounded-lg overflow-hidden border border-slate-700">
  <button
  onClick={() => { setGpfEnv('test'); setGpfToken(''); setGpfTokenUser(null); setGpfResponse(null); }}
- className={`flex-1 py-2 text-sm font-medium transition-all ${gpfEnv === 'test' ? 'bg-teal-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+ className={`flex-1 py-2 text-sm font-medium transition-all ${gpfEnv === 'test' ? 'bg-brand-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
  >
  {t('adminDash.testEnv')}
  </button>
@@ -615,7 +615,7 @@ export default function AdminDashboard() {
  {/* Token actual */}
  <div className="md:col-span-2">
  <label className="block text-xs font-medium text-slate-400 mb-1.5">
- {t('gpfConsole.sessionToken')} {gpfTokenUser && <span className="text-teal-400 ml-1">· {gpfTokenUser.name} ({gpfTokenUser.email})</span>}
+ {t('gpfConsole.sessionToken')} {gpfTokenUser && <span className="text-brand-400 ml-1">· {gpfTokenUser.name} ({gpfTokenUser.email})</span>}
  </label>
  <div className="flex gap-2">
  <div className="flex-1 relative">
@@ -624,7 +624,7 @@ export default function AdminDashboard() {
  value={gpfToken}
  onChange={(e) => setGpfToken(e.target.value)}
  placeholder={t('gpfConsole.tokenPlaceholder')}
- className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-300 font-mono placeholder-slate-600 focus:outline-none focus:border-teal-500"
+ className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-300 font-mono placeholder-slate-600 focus:outline-none focus:border-brand-500"
  />
  </div>
  {gpfToken && (
@@ -643,7 +643,7 @@ export default function AdminDashboard() {
  <button
  onClick={handleGpfLogin}
  disabled={gpfLoginLoading}
- className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
+ className="flex items-center gap-2 px-5 py-2.5 bg-brand-500 hover:bg-brand-400 active:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed text-black font-semibold rounded-lg transition-all duration-200 shadow-md shadow-brand-500/25 hover:shadow-lg hover:shadow-brand-500/30 hover:scale-[1.02] active:scale-[0.98]"
  >
  {gpfLoginLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
  {gpfLoginLoading ? t('adminDash.authenticating') : t('adminDash.getToken')}
@@ -653,7 +653,7 @@ export default function AdminDashboard() {
  {/* PASO 2: Probar Endpoints */}
  <div className="card">
  <h3 className="section-header">
- <Terminal className="w-5 h-5 text-teal-400" />
+ <Terminal className="w-5 h-5 text-brand-400" />
  <span>{t('gpfConsole.step2Header')}</span>
  {!gpfToken && <span className="ml-auto text-xs text-yellow-400 font-normal flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {t('gpfConsole.requiresToken')}</span>}
  </h3>
@@ -669,9 +669,9 @@ export default function AdminDashboard() {
  title={ep.confirmed ? ep.path : t('gpfConsole.unconfirmedRoute', { path: ep.path })}
  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
  gpfEndpoint === ep.path
- ? 'bg-teal-500/20 border-teal-500/60 text-teal-300'
+ ? 'bg-brand-500/20 border-brand-500/60 text-brand-300'
  : ep.confirmed
- ? 'bg-slate-800 border-slate-700 text-slate-400 hover:border-teal-500/40 hover:text-slate-300'
+ ? 'bg-slate-800 border-slate-700 text-slate-400 hover:border-brand-500/40 hover:text-slate-300'
  : 'bg-slate-800/50 border-slate-700/50 text-slate-500 hover:border-slate-600'
  }`}
  >
@@ -690,7 +690,7 @@ export default function AdminDashboard() {
  <select
  value={gpfMethod}
  onChange={(e) => setGpfMethod(e.target.value)}
- className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-teal-500"
+ className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-brand-500"
  >
  <option value="GET">GET</option>
  <option value="POST">POST</option>
@@ -703,7 +703,7 @@ export default function AdminDashboard() {
  value={gpfEndpoint}
  onChange={(e) => setGpfEndpoint(e.target.value)}
  placeholder="/api/login"
- className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 font-mono focus:outline-none focus:border-teal-500"
+ className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 font-mono focus:outline-none focus:border-brand-500"
  />
  </div>
  </div>
@@ -716,7 +716,7 @@ export default function AdminDashboard() {
  value={gpfQueryString}
  onChange={(e) => setGpfQueryString(e.target.value)}
  placeholder={t('gpfConsole.queryPlaceholder')}
- className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 font-mono focus:outline-none focus:border-teal-500"
+ className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 font-mono focus:outline-none focus:border-brand-500"
  />
  </div>
 
@@ -732,11 +732,11 @@ export default function AdminDashboard() {
  value={gpfIdAtencion}
  onChange={(e) => setGpfIdAtencion(e.target.value)}
  placeholder={t('gpfConsole.egId')}
- className="w-full px-3 py-2 bg-slate-800 border border-teal-500/50 rounded-lg text-sm text-slate-300 font-mono focus:outline-none focus:border-teal-400"
+ className="w-full px-3 py-2 bg-slate-800 border border-brand-500/50 rounded-lg text-sm text-slate-300 font-mono focus:outline-none focus:border-brand-400"
  />
  {gpfIdAtencion && (
  <p className="text-xs text-slate-500 mt-1 font-mono">
- {t('gpfConsole.finalUrl')} <span className="text-teal-400">{gpfEndpoint}{gpfIdAtencion}</span>
+ {t('gpfConsole.finalUrl')} <span className="text-brand-400">{gpfEndpoint}{gpfIdAtencion}</span>
  </p>
  )}
  </div>
@@ -751,7 +751,7 @@ export default function AdminDashboard() {
  onChange={(e) => setGpfBody(e.target.value)}
  rows={6}
  spellCheck={false}
- className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-300 font-mono focus:outline-none focus:border-teal-500 resize-y"
+ className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-300 font-mono focus:outline-none focus:border-brand-500 resize-y"
  />
  </div>
  )}
@@ -759,7 +759,7 @@ export default function AdminDashboard() {
  <button
  onClick={handleGpfRequest}
  disabled={gpfRequestLoading || !gpfEndpoint}
- className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
+ className="flex items-center gap-2 px-5 py-2.5 bg-brand-500 hover:bg-brand-400 active:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed text-black font-semibold rounded-lg transition-all duration-200 shadow-md shadow-brand-500/25 hover:shadow-lg hover:shadow-brand-500/30 hover:scale-[1.02] active:scale-[0.98]"
  >
  {gpfRequestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
  {gpfRequestLoading ? t('adminDash.executing') : t('adminDash.executeRequest')}
@@ -768,10 +768,15 @@ export default function AdminDashboard() {
 
  {/* Respuesta */}
  {hasResponse && gpfResponse && (
- <div className="card">
+ <motion.div
+ className="card"
+ initial={{ opacity: 0, y: 12 }}
+ animate={{ opacity: 1, y: 0 }}
+ transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+ >
  <div className="flex items-center justify-between mb-4">
  <h3 className="section-header mb-0">
- <Activity className="w-5 h-5 text-teal-400" />
+ <Activity className="w-5 h-5 text-brand-400" />
  <span>{t('adminDash.response')}</span>
  </h3>
  <div className="flex items-center gap-3">
@@ -822,13 +827,13 @@ export default function AdminDashboard() {
  <div className="ml-auto flex items-center rounded-lg overflow-hidden border border-slate-700">
  <button
  onClick={() => setGpfTableView(false)}
- className={`px-3 py-1 text-xs font-medium transition-all ${!gpfTableView ? 'bg-teal-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+ className={`px-3 py-1 text-xs font-medium transition-all ${!gpfTableView ? 'bg-brand-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
  >
  JSON
  </button>
  <button
  onClick={() => setGpfTableView(true)}
- className={`px-3 py-1 text-xs font-medium transition-all ${gpfTableView ? 'bg-teal-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
+ className={`px-3 py-1 text-xs font-medium transition-all ${gpfTableView ? 'bg-brand-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}
  >
  Tabla
  </button>
@@ -851,7 +856,7 @@ export default function AdminDashboard() {
  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
  {(responseData.captures as string[]).map((url: string, idx: number) => (
  <a key={idx} href={url} target="_blank" rel="noopener noreferrer"
- className="block rounded-lg overflow-hidden border border-slate-700 hover:border-teal-500/60 transition-all group"
+ className="block rounded-lg overflow-hidden border border-slate-700 hover:border-brand-500/60 transition-all group"
  >
  <img
  src={url}
@@ -862,7 +867,7 @@ export default function AdminDashboard() {
  (e.target as HTMLImageElement).nextElementSibling!.classList.remove('hidden');
  }}
  />
- <div className="hidden px-2 py-3 text-xs text-teal-400 font-mono break-all bg-slate-800/80">
+ <div className="hidden px-2 py-3 text-xs text-brand-400 font-mono break-all bg-slate-800/80">
  {url}
  </div>
  <p className="text-xs text-slate-500 px-2 py-1 bg-slate-900 truncate" title={url}>
@@ -996,7 +1001,7 @@ export default function AdminDashboard() {
  <tr key={idx} className={`border-b border-slate-800 hover:bg-slate-800/50 transition-colors ${idx % 2 === 0 ? '' : 'bg-slate-900/30'}`}>
  <td className="px-3 py-2 text-slate-500 font-mono">{idx + 1}</td>
  <td className="px-3 py-2 text-slate-400 whitespace-nowrap">{c.date ?? '—'}</td>
- <td className="px-3 py-2 text-teal-400 whitespace-nowrap">{c.agent ?? '—'}</td>
+ <td className="px-3 py-2 text-brand-400 whitespace-nowrap">{c.agent ?? '—'}</td>
  <td className="px-3 py-2 text-slate-300">{c.comment ?? '—'}</td>
  </tr>
  ))}
@@ -1032,7 +1037,7 @@ export default function AdminDashboard() {
  <tr key={idx} className={`border-b border-slate-800 hover:bg-slate-800/50 transition-colors ${idx % 2 === 0 ? '' : 'bg-slate-900/30'}`}>
  <td className="px-3 py-2 text-slate-500 font-mono">{idx + 1}</td>
  <td className="px-3 py-2 text-slate-400 whitespace-nowrap">{v.date ?? '—'}</td>
- <td className="px-3 py-2 text-teal-400 whitespace-nowrap">{v.agent ?? '—'}</td>
+ <td className="px-3 py-2 text-brand-400 whitespace-nowrap">{v.agent ?? '—'}</td>
  <td className="px-3 py-2">
  {v.resultado === true || v.resultado === 'true' ? (
  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-semibold">
@@ -1078,18 +1083,18 @@ export default function AdminDashboard() {
  )}
  </>
  )}
- </div>
+ </motion.div>
  )}
 
  {/* PASO 3: Exportación Excel */}
  <div className="card">
  <h3 className="section-header">
- <FileDown className="w-5 h-5 text-teal-400" />
+ <FileDown className="w-5 h-5 text-brand-400" />
  <span>{t('gpfConsole.step3Header')}</span>
  {!gpfToken && <span className="ml-auto text-xs text-yellow-400 font-normal flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {t('gpfConsole.requiresToken')}</span>}
  </h3>
  <p className="text-xs text-slate-500 mb-4">
- {t('gpfConsole.exportDescPre')} <span className="text-teal-400 font-medium">initial_date</span> {t('gpfConsole.exportDescAnd')} <span className="text-teal-400 font-medium">final_date</span> {t('gpfConsole.exportDescPost')}
+ {t('gpfConsole.exportDescPre')} <span className="text-brand-400 font-medium">initial_date</span> {t('gpfConsole.exportDescAnd')} <span className="text-brand-400 font-medium">final_date</span> {t('gpfConsole.exportDescPost')}
  </p>
 
  {/* Fechas */}
@@ -1104,7 +1109,7 @@ export default function AdminDashboard() {
  type="date"
  value={gpfExportForm.initial_date}
  onChange={(e) => setGpfExportForm(f => ({ ...f, initial_date: e.target.value }))}
- className="w-full pl-9 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-teal-500"
+ className="w-full pl-9 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-brand-500"
  />
  </div>
  </div>
@@ -1118,7 +1123,7 @@ export default function AdminDashboard() {
  type="date"
  value={gpfExportForm.final_date}
  onChange={(e) => setGpfExportForm(f => ({ ...f, final_date: e.target.value }))}
- className="w-full pl-9 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-teal-500"
+ className="w-full pl-9 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-brand-500"
  />
  </div>
  </div>
@@ -1133,7 +1138,7 @@ export default function AdminDashboard() {
  value={gpfExportForm.phone}
  onChange={(e) => setGpfExportForm(f => ({ ...f, phone: e.target.value }))}
  placeholder={t('common.optional')}
- className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-teal-500"
+ className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-brand-500"
  />
  </div>
  <div>
@@ -1143,7 +1148,7 @@ export default function AdminDashboard() {
  value={gpfExportForm.case_number}
  onChange={(e) => setGpfExportForm(f => ({ ...f, case_number: e.target.value }))}
  placeholder={t('common.optional')}
- className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-teal-500"
+ className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-brand-500"
  />
  </div>
  <div>
@@ -1153,7 +1158,7 @@ export default function AdminDashboard() {
  value={gpfExportForm.qualification}
  onChange={(e) => setGpfExportForm(f => ({ ...f, qualification: e.target.value }))}
  placeholder={t('gpfConsole.qualNamePlaceholder')}
- className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-teal-500"
+ className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-brand-500"
  />
  </div>
  <div>
@@ -1163,7 +1168,7 @@ export default function AdminDashboard() {
  value={gpfExportForm.agent}
  onChange={(e) => setGpfExportForm(f => ({ ...f, agent: e.target.value }))}
  placeholder="email@ejemplo.com"
- className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-teal-500"
+ className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-brand-500"
  />
  </div>
  <div>
@@ -1171,7 +1176,7 @@ export default function AdminDashboard() {
  <select
  value={gpfExportForm.date_type}
  onChange={(e) => setGpfExportForm(f => ({ ...f, date_type: e.target.value as '' | 'alta' | 'edicion' }))}
- className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-teal-500"
+ className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 focus:outline-none focus:border-brand-500"
  >
  <option value="">{t('gpfConsole.noFilter')}</option>
  <option value="alta">alta</option>
@@ -1184,7 +1189,7 @@ export default function AdminDashboard() {
  <button
  onClick={handleGpfGenerateExport}
  disabled={gpfExportLoading || !gpfExportForm.initial_date || !gpfExportForm.final_date}
- className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all"
+ className="flex items-center gap-2 px-5 py-2.5 bg-brand-500 hover:bg-brand-400 active:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed text-black font-semibold rounded-lg transition-all duration-200 shadow-md shadow-brand-500/25 hover:shadow-lg hover:shadow-brand-500/30 hover:scale-[1.02] active:scale-[0.98]"
  >
  {gpfExportLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
  {gpfExportLoading ? t('reportsPage.generating') : t('gpfConsole.generateExport')}
@@ -1217,13 +1222,13 @@ export default function AdminDashboard() {
  value={gpfExportIdInput}
  onChange={(e) => { setGpfExportIdInput(e.target.value); setGpfExportId(null); }}
  placeholder={t('gpfConsole.egExportId')}
- className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 font-mono focus:outline-none focus:border-teal-500"
+ className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 font-mono focus:outline-none focus:border-brand-500"
  />
  </div>
  <button
  onClick={handleGpfDownloadExport}
  disabled={gpfDownloadLoading || gpfExportProgress === 100 || (!gpfExportId && !gpfExportIdInput.trim())}
- className="flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all whitespace-nowrap"
+ className="flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all duration-200 shadow-md shadow-emerald-500/20 hover:shadow-lg hover:shadow-emerald-500/30 hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap"
  >
  {gpfDownloadLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
  {gpfDownloadLoading ? t('gpfConsole.querying') : t('common.download')}
@@ -1238,7 +1243,7 @@ export default function AdminDashboard() {
  <span className="text-xs text-slate-500">{t('gpfConsole.clickDownloadAgain')}</span>
  </div>
  <div className="w-full bg-slate-700 rounded-full h-1.5">
- <div className="bg-teal-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${gpfExportProgress}%` }} />
+ <div className="bg-brand-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${gpfExportProgress}%` }} />
  </div>
  </div>
  )}
@@ -1305,7 +1310,7 @@ export default function AdminDashboard() {
  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
  <button
  onClick={() => navigate('/users')}
- className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-brand-900/20 to-brand-800/20 border-brand-700/40"
+ className="stat-card hover:scale-[1.02] active:scale-[0.97] transition-all duration-200 cursor-pointer bg-gradient-to-br from-brand-900/20 to-brand-800/20 border-brand-700/40"
  >
  <div className="flex items-center gap-4">
  <div className="p-2.5 bg-brand-500/10 rounded-lg">
@@ -1320,7 +1325,7 @@ export default function AdminDashboard() {
 
  <button
  onClick={() => navigate('/settings')}
- className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-slate-800/40 to-slate-700/40 border-slate-600/30"
+ className="stat-card hover:scale-[1.02] active:scale-[0.97] transition-all duration-200 cursor-pointer bg-gradient-to-br from-slate-800/40 to-slate-700/40 border-slate-600/30"
  >
  <div className="flex items-center gap-4">
  <div className="p-3 bg-slate-600/20 rounded-xl">
@@ -1335,7 +1340,7 @@ export default function AdminDashboard() {
 
  <button
  onClick={() => navigate('/scripts-admin')}
- className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-emerald-900/20 to-emerald-800/20 border-emerald-500/30"
+ className="stat-card hover:scale-[1.02] active:scale-[0.97] transition-all duration-200 cursor-pointer bg-gradient-to-br from-emerald-900/20 to-emerald-800/20 border-emerald-500/30"
  >
  <div className="flex items-center gap-4">
  <div className="p-3 bg-emerald-500/20 rounded-xl">
@@ -1350,7 +1355,7 @@ export default function AdminDashboard() {
 
  <button
  onClick={() => navigate('/reports')}
- className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-purple-900/20 to-purple-800/20 border-purple-500/30"
+ className="stat-card hover:scale-[1.02] active:scale-[0.97] transition-all duration-200 cursor-pointer bg-gradient-to-br from-purple-900/20 to-purple-800/20 border-purple-500/30"
  >
  <div className="flex items-center gap-4">
  <div className="p-3 bg-purple-500/20 rounded-xl">
@@ -1365,7 +1370,7 @@ export default function AdminDashboard() {
 
  <button
  onClick={() => navigate('/audits')}
- className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-green-900/20 to-green-800/20 border-green-500/30"
+ className="stat-card hover:scale-[1.02] active:scale-[0.97] transition-all duration-200 cursor-pointer bg-gradient-to-br from-green-900/20 to-green-800/20 border-green-500/30"
  >
  <div className="flex items-center gap-4">
  <div className="p-3 bg-green-500/20 rounded-xl">
@@ -1380,7 +1385,7 @@ export default function AdminDashboard() {
 
  <button
  onClick={() => navigate('/companies')}
- className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-cyan-900/20 to-cyan-800/20 border-cyan-500/30"
+ className="stat-card hover:scale-[1.02] active:scale-[0.97] transition-all duration-200 cursor-pointer bg-gradient-to-br from-cyan-900/20 to-cyan-800/20 border-cyan-500/30"
  >
  <div className="flex items-center gap-4">
  <div className="p-3 bg-cyan-500/20 rounded-xl">
@@ -1395,7 +1400,7 @@ export default function AdminDashboard() {
 
  <button
  onClick={() => navigate('/integrations')}
- className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-amber-900/20 to-amber-800/20 border-amber-500/30"
+ className="stat-card hover:scale-[1.02] active:scale-[0.97] transition-all duration-200 cursor-pointer bg-gradient-to-br from-amber-900/20 to-amber-800/20 border-amber-500/30"
  >
  <div className="flex items-center gap-4">
  <div className="p-3 bg-amber-500/20 rounded-xl">
@@ -1552,14 +1557,18 @@ export default function AdminDashboard() {
  </button>
  </div>
  ) : (
- <div className="space-y-4">
+ <Stagger className="space-y-4">
  {filteredAudits.map((audit) => {
  if (!audit) return null; // Protección adicional
 
  return (
- <div
+ <motion.div
  key={audit.id}
- className={`audit-card border transition-all ${
+ variants={fadeUp}
+ whileHover={{ y: -2 }}
+ whileTap={{ scale: 0.995 }}
+ transition={EASE_SPRING}
+ className={`audit-card border transition-colors ${
    isEmptyBatchEval(audit)
      ? 'border-amber-500/25 bg-amber-500/5'
      : isBatchAudit(audit)
@@ -1698,10 +1707,10 @@ export default function AdminDashboard() {
  </button>
  </div>
  </div>
- </div>
+ </motion.div>
  );
  })}
- </div>
+ </Stagger>
  )}
  </div>
  </>
@@ -1717,8 +1726,8 @@ export default function AdminDashboard() {
          onClick={() => setShowGpfPanel(!showGpfPanel)}
          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs transition-all ${
            showGpfPanel
-             ? 'bg-teal-500/20 border border-teal-500/50 text-teal-300'
-             : 'bg-slate-800 border border-slate-700 text-slate-400 hover:border-teal-500/50'
+             ? 'bg-brand-500/20 border border-brand-500/50 text-brand-300'
+             : 'bg-slate-800 border border-slate-700 text-slate-400 hover:border-brand-500/50'
          }`}
          title={t('adminDash.gpfApiTitle')}
        >

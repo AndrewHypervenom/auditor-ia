@@ -1106,11 +1106,11 @@ export const userService = {
  const response = await api.get('/admin/users');
  return response.data;
  },
- async createUser(userData: { email: string; password: string; full_name: string; role: string }) {
+ async createUser(userData: { email: string; password: string; full_name: string; role: string; company_id?: string }) {
  const response = await api.post('/admin/users', userData);
  return response.data;
  },
- async updateUser(userId: string, userData: { full_name?: string; role?: string; is_active?: boolean }) {
+ async updateUser(userId: string, userData: { full_name?: string; role?: string; is_active?: boolean; password?: string; company_id?: string }) {
  const response = await api.put(`/admin/users/${userId}`, userData);
  return response.data;
  },

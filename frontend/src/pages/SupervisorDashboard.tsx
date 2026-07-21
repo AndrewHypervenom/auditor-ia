@@ -1,6 +1,6 @@
 ﻿// frontend/src/pages/SupervisorDashboard.tsx
 import { motion } from 'motion/react';
-import { CountUp } from '../lib/motion';
+import { CountUp, Stagger, fadeUp, EASE_SPRING } from '../lib/motion';
 // Dashboard para Supervisor (Consulta Amplia) Puede ELIMINAR auditorías, acceso a costos
 
 import { useState, useEffect } from 'react';
@@ -322,7 +322,7 @@ export default function SupervisorDashboard() {
  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
  <button
  onClick={() => navigate('/audits')}
- className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-brand-900/40 to-brand-800/40 border-brand-700/40"
+ className="stat-card hover:scale-[1.02] active:scale-[0.97] transition-all duration-200 cursor-pointer bg-gradient-to-br from-brand-900/40 to-brand-800/40 border-brand-700/40"
  >
  <div className="flex items-center gap-4">
  <div className="p-2.5 bg-brand-500/10 rounded-lg">
@@ -337,7 +337,7 @@ export default function SupervisorDashboard() {
 
  <button
  onClick={() => navigate('/reports')}
- className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-green-900/40 to-green-800/40 border-green-500/30"
+ className="stat-card hover:scale-[1.02] active:scale-[0.97] transition-all duration-200 cursor-pointer bg-gradient-to-br from-green-900/40 to-green-800/40 border-green-500/30"
  >
  <div className="flex items-center gap-4">
  <div className="p-3 bg-green-600/20 rounded-xl">
@@ -352,7 +352,7 @@ export default function SupervisorDashboard() {
 
  <button
  onClick={() => navigate('/referencia')}
- className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-violet-900/40 to-violet-800/40 border-violet-700/40"
+ className="stat-card hover:scale-[1.02] active:scale-[0.97] transition-all duration-200 cursor-pointer bg-gradient-to-br from-violet-900/40 to-violet-800/40 border-violet-700/40"
  >
  <div className="flex items-center gap-4">
  <div className="p-3 bg-violet-600/20 rounded-xl">
@@ -367,7 +367,7 @@ export default function SupervisorDashboard() {
 
  <button
  onClick={() => navigate('/integrations')}
- className="stat-card hover:scale-[1.02] transition-all duration-200 cursor-pointer bg-gradient-to-br from-amber-900/40 to-amber-800/40 border-amber-700/40"
+ className="stat-card hover:scale-[1.02] active:scale-[0.97] transition-all duration-200 cursor-pointer bg-gradient-to-br from-amber-900/40 to-amber-800/40 border-amber-700/40"
  >
  <div className="flex items-center gap-4">
  <div className="p-3 bg-amber-600/20 rounded-xl">
@@ -402,14 +402,18 @@ export default function SupervisorDashboard() {
  </p>
  </div>
  ) : (
- <div className="space-y-4">
+ <Stagger className="space-y-4">
  {audits.slice(0, 10).map((audit) => {
  const evaluations = getEvaluations(audit);
- 
+
  return (
- <div
+ <motion.div
  key={audit.id}
- className="audit-card"
+ variants={fadeUp}
+ whileHover={{ y: -2 }}
+ whileTap={{ scale: 0.995 }}
+ transition={EASE_SPRING}
+ className="audit-card transition-colors"
  >
  <div className="flex items-start justify-between">
  <div className="flex-1" onClick={() => navigate(`/audit/${audit.id}`)} style={{ cursor: 'pointer' }}>
@@ -525,10 +529,10 @@ export default function SupervisorDashboard() {
  )}
  </div>
  </div>
- </div>
+ </motion.div>
  );
  })}
- 
+
  {audits.length > 10 && (
  <div className="text-center pt-4">
  <button
@@ -539,7 +543,7 @@ export default function SupervisorDashboard() {
  </button>
  </div>
  )}
- </div>
+ </Stagger>
  )}
  </div>
  </motion.main>
