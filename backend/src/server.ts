@@ -2993,15 +2993,29 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
  } catch (error: any) {
  logger.error(' Error processing GPF audit:', error);
 
- if (auditId) {
- await databaseService.markAuditError(auditId, error.message);
+ // Mensaje claro para errores de cuenta / API key de Claude (Anthropic),
+ // que si no aparecen como un 500 con JSON crudo poco entendible.
+ const raw = String(error?.message ?? '');
+ let friendly: string | null = null;
+ if (/organization has been disabled/i.test(raw)) {
+   friendly = 'La cuenta de Claude (Anthropic) está deshabilitada. Revisa la facturación / estado de la organización en console.anthropic.com, o cambia la API key en Configuración → Anthropic API (Claude).';
+ } else if (/invalid x-api-key|authentication_error|permission_error|\b401\b|\b403\b/i.test(raw)) {
+   friendly = 'La API key de Claude es inválida, fue revocada o no tiene permisos. Actualízala en Configuración → Anthropic API (Claude).';
+ } else if (/credit balance is too low|billing|insufficient|payment/i.test(raw)) {
+   friendly = 'La cuenta de Claude no tiene créditos / saldo suficiente. Revisa la facturación en console.anthropic.com.';
  }
 
- progressBroadcaster.progress(sseClientId, 'error', 0, `Error: ${error.message}`);
+ const userMessage = friendly ?? error.message;
+
+ if (auditId) {
+ await databaseService.markAuditError(auditId, userMessage);
+ }
+
+ progressBroadcaster.progress(sseClientId, 'error', 0, `Error: ${userMessage}`);
  cleanupTempFiles(tempFilePaths);
 
  res.status(500).json({
- error: 'Error procesando auditoría GPF',
+ error: friendly ?? 'Error procesando auditoría GPF',
  details: error.message,
  auditId
  });
