@@ -13,6 +13,8 @@ import {
 import AppHeader from '../components/AppHeader';
 import DateRangeFilter from '../components/DateRangeFilter';
 import toast from 'react-hot-toast';
+import { motion, AnimatePresence } from 'motion/react';
+import { fadeUp, staggerParent, springSoft, CountUp } from '../lib/motion';
 
 const isBatchAudit = (audit: Audit) => audit.audio_filename === 'gpf-batch';
 
@@ -48,14 +50,19 @@ function matchesScore(pct: number | undefined, sf: ScoreFilter) {
   return pct < 60;
 }
 
-function StatCard({ label, value, sub, icon: Icon, accent = false }: {
+function StatCard({ label, value, sub, icon: Icon, accent = false, suffix }: {
   label: string; value: string | number; sub?: string;
-  icon: React.ElementType; accent?: boolean;
+  icon: React.ElementType; accent?: boolean; suffix?: string;
 }) {
   return (
-    <div className={`rounded-2xl border p-4 flex items-center gap-4 ${
-      accent ? 'bg-brand-500/8 border-brand-500/25' : 'bg-slate-800/60 border-slate-700/50'
-    }`}>
+    <motion.div
+      variants={fadeUp}
+      whileHover={{ y: -4, scale: 1.02 }}
+      transition={springSoft}
+      className={`rounded-2xl border p-4 flex items-center gap-4 ${
+        accent ? 'bg-brand-500/8 border-brand-500/25' : 'bg-slate-800/60 border-slate-700/50'
+      }`}
+    >
       <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
         accent ? 'bg-brand-500/20' : 'bg-slate-700/60'
       }`}>
@@ -63,10 +70,14 @@ function StatCard({ label, value, sub, icon: Icon, accent = false }: {
       </div>
       <div>
         <div className="text-xs text-slate-500 font-medium">{label}</div>
-        <div className={`text-2xl font-bold leading-tight ${accent ? 'text-brand-300' : 'text-white'}`}>{value}</div>
+        <div className={`text-2xl font-bold leading-tight tabular-nums ${accent ? 'text-brand-300' : 'text-white'}`}>
+          {typeof value === 'number'
+            ? <CountUp value={value} suffix={suffix} />
+            : value}
+        </div>
         {sub && <div className="text-[11px] text-slate-600">{sub}</div>}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -85,7 +96,15 @@ function AuditCard({ audit, onView, onDownload }: {
   const isMonitoreo = (audit.call_type || '').toUpperCase() === 'MONITOREO';
 
   return (
-    <div className={`rounded-2xl border overflow-hidden transition-all hover:shadow-lg group ${
+    <motion.div
+      layout
+      variants={fadeUp}
+      initial="hidden"
+      animate="show"
+      exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.18 } }}
+      whileHover={{ y: -2 }}
+      transition={springSoft}
+      className={`rounded-2xl border overflow-hidden transition-shadow hover:shadow-lg group ${
       audit.status === 'error'
         ? 'bg-red-500/5 border-red-500/20'
         : batch
@@ -216,7 +235,7 @@ function AuditCard({ audit, onView, onDownload }: {
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -346,42 +365,45 @@ export default function AnalystDashboard() {
       />
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-5">
-        <div className="grid grid-cols-3 gap-3">
+        <motion.div className="grid grid-cols-3 gap-3" variants={staggerParent} initial="hidden" animate="show">
           <StatCard icon={FileText} label={t('analyst.statsTotal')} value={audits.length} sub={t('analyst.statAudits')} />
           <StatCard icon={CheckCircle2} label={t('analyst.statsCompleted')} value={completed.length}
             sub={`${batchAudits.length} ${t('analyst.statBatch')}`} />
-          <StatCard icon={TrendingUp} label={t('analyst.statsAvg')} value={`${avgScore}%`}
+          <StatCard icon={TrendingUp} label={t('analyst.statsAvg')} value={avgScore} suffix="%"
             sub={t('analyst.statScore')} accent={avgScore >= 75} />
-        </div>
+        </motion.div>
 
-        <div className="grid grid-cols-3 gap-3">
-          <button onClick={() => navigate('/audit/new')}
-            className="rounded-2xl border border-brand-500/30 bg-brand-500/8 hover:bg-brand-500/15 transition-all p-4 text-left group">
+        <motion.div className="grid grid-cols-3 gap-3" variants={staggerParent} initial="hidden" animate="show">
+          <motion.button onClick={() => navigate('/audit/new')}
+            variants={fadeUp} whileHover={{ y: -4, scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={springSoft}
+            className="rounded-2xl border border-brand-500/30 bg-brand-500/8 hover:bg-brand-500/15 transition-colors p-4 text-left group">
             <div className="w-9 h-9 rounded-xl bg-brand-500/20 flex items-center justify-center mb-3 group-hover:bg-brand-500/30 transition-colors">
               <Plus className="w-5 h-5 text-brand-400" />
             </div>
             <div className="text-white font-semibold text-sm">{t('analyst.newAudit')}</div>
             <div className="text-slate-500 text-xs mt-0.5">{t('analyst.processNow')}</div>
-          </button>
+          </motion.button>
 
-          <button onClick={() => navigate('/reports')}
-            className="rounded-2xl border border-slate-700/50 bg-slate-800/40 hover:bg-slate-800/70 transition-all p-4 text-left group">
+          <motion.button onClick={() => navigate('/reports')}
+            variants={fadeUp} whileHover={{ y: -4, scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={springSoft}
+            className="rounded-2xl border border-slate-700/50 bg-slate-800/40 hover:bg-slate-800/70 transition-colors p-4 text-left group">
             <div className="w-9 h-9 rounded-xl bg-slate-700/60 flex items-center justify-center mb-3 group-hover:bg-slate-700 transition-colors">
               <BarChart3 className="w-5 h-5 text-slate-400" />
             </div>
             <div className="text-white font-semibold text-sm">{t('nav.reports')}</div>
             <div className="text-slate-500 text-xs mt-0.5">{t('reports.export')}</div>
-          </button>
+          </motion.button>
 
-          <button onClick={() => navigate('/scripts-admin')}
-            className="rounded-2xl border border-emerald-500/30 bg-emerald-500/8 hover:bg-emerald-500/15 transition-all p-4 text-left group">
+          <motion.button onClick={() => navigate('/scripts-admin')}
+            variants={fadeUp} whileHover={{ y: -4, scale: 1.02 }} whileTap={{ scale: 0.98 }} transition={springSoft}
+            className="rounded-2xl border border-emerald-500/30 bg-emerald-500/8 hover:bg-emerald-500/15 transition-colors p-4 text-left group">
             <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center mb-3 group-hover:bg-emerald-500/30 transition-colors">
               <BookOpen className="w-5 h-5 text-emerald-400" />
             </div>
             <div className="text-white font-semibold text-sm">{t('scripts.title')}</div>
             <div className="text-slate-500 text-xs mt-0.5">{t('analyst.criteriaScripts') ?? 'Guiones y rúbricas'}</div>
-          </button>
-        </div>
+          </motion.button>
+        </motion.div>
 
         <div className="space-y-3">
           <div className="flex items-center gap-3">
@@ -490,13 +512,15 @@ export default function AnalystDashboard() {
               )}
             </div>
           ) : (
-            <div className="space-y-2.5">
-              {filtered.map(audit => (
-                <AuditCard key={audit.id} audit={audit}
-                  onView={() => navigate(`/audit/${audit.id}`)}
-                  onDownload={handleDownloadExcel} />
-              ))}
-            </div>
+            <motion.div className="space-y-2.5" variants={staggerParent} initial="hidden" animate="show">
+              <AnimatePresence mode="popLayout">
+                {filtered.map(audit => (
+                  <AuditCard key={audit.id} audit={audit}
+                    onView={() => navigate(`/audit/${audit.id}`)}
+                    onDownload={handleDownloadExcel} />
+                ))}
+              </AnimatePresence>
+            </motion.div>
           )}
         </div>
       </main>

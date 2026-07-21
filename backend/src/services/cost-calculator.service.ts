@@ -20,10 +20,10 @@ class CostCalculatorService {
  (this.ASSEMBLYAI_U3PRO_PER_HOUR + this.ASSEMBLYAI_DIARIZATION_PER_HOUR) / 60; // ≈ $0.00383/min
 
  // ============================================
- // PRECIOS OPENAI GPT-4o (Enero 2026)
+ // PRECIOS CLAUDE SONNET 5 (Julio 2026)
  // ============================================
- private readonly GPT4O_INPUT_COST_PER_1M = 2.50; // $2.50 por 1M tokens de input
- private readonly GPT4O_OUTPUT_COST_PER_1M = 10.00; // $10.00 por 1M tokens de output
+ private readonly LLM_INPUT_COST_PER_1M = 3.00; // $3.00 por 1M tokens de input
+ private readonly LLM_OUTPUT_COST_PER_1M = 15.00; // $15.00 por 1M tokens de output
 
  /**
  * Calcular costo de transcripción de AssemblyAI
@@ -65,8 +65,8 @@ class CostCalculatorService {
  outputTokens: number;
  cost: number;
  } {
- const inputCost = (totalInputTokens / 1_000_000) * this.GPT4O_INPUT_COST_PER_1M;
- const outputCost = (totalOutputTokens / 1_000_000) * this.GPT4O_OUTPUT_COST_PER_1M;
+ const inputCost = (totalInputTokens / 1_000_000) * this.LLM_INPUT_COST_PER_1M;
+ const outputCost = (totalOutputTokens / 1_000_000) * this.LLM_OUTPUT_COST_PER_1M;
  const totalCost = inputCost + outputCost;
 
  logger.info(' Image analysis cost calculated', {
@@ -97,8 +97,8 @@ class CostCalculatorService {
  outputTokens: number;
  cost: number;
  } {
- const inputCost = (inputTokens / 1_000_000) * this.GPT4O_INPUT_COST_PER_1M;
- const outputCost = (outputTokens / 1_000_000) * this.GPT4O_OUTPUT_COST_PER_1M;
+ const inputCost = (inputTokens / 1_000_000) * this.LLM_INPUT_COST_PER_1M;
+ const outputCost = (outputTokens / 1_000_000) * this.LLM_OUTPUT_COST_PER_1M;
  const totalCost = inputCost + outputCost;
 
  logger.info(' Evaluation cost calculated', {
@@ -175,19 +175,19 @@ class CostCalculatorService {
  • Duración: ${costs.assemblyai.audioDurationMinutes} minutos
  • Costo: $${costs.assemblyai.totalCost.toFixed(4)}
 
- OpenAI GPT-4o (Análisis de Imágenes):
+ Claude Sonnet 5 (Análisis de Imágenes):
  • Imágenes: ${costs.openai.images.count}
  • Input tokens: ${costs.openai.images.inputTokens.toLocaleString()}
  • Output tokens: ${costs.openai.images.outputTokens.toLocaleString()}
  • Costo: $${costs.openai.images.cost.toFixed(4)}
 
- OpenAI GPT-4o (Evaluación):
+ Claude Sonnet 5 (Evaluación):
  • Input tokens: ${costs.openai.evaluation.inputTokens.toLocaleString()}
  • Output tokens: ${costs.openai.evaluation.outputTokens.toLocaleString()}
  • Costo: $${costs.openai.evaluation.cost.toFixed(4)}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- TOTAL OPENAI: $${costs.openai.totalCost.toFixed(4)}
+ TOTAL LLM (CLAUDE): $${costs.openai.totalCost.toFixed(4)}
  COSTO TOTAL: $${costs.totalCost.toFixed(4)} USD
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  `.trim();

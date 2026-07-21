@@ -1,4 +1,5 @@
 // frontend/src/pages/CompaniesPage.tsx
+import { motion } from 'motion/react';
 // Gestión de empresas — solo accesible para admin (plataforma)
 
 import { useState, useEffect, useCallback } from 'react';
@@ -124,7 +125,7 @@ export default function CompaniesPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900">
       <AppHeader title={t('companies.title')} />
 
-      <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
+      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }} className="max-w-4xl mx-auto px-4 py-6 space-y-4">
 
         {/* Header actions */}
         <div className="flex items-center justify-between">
@@ -284,7 +285,7 @@ export default function CompaniesPage() {
             ))}
           </div>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }

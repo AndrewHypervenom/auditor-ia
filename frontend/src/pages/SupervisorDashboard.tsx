@@ -1,4 +1,6 @@
 ﻿// frontend/src/pages/SupervisorDashboard.tsx
+import { motion } from 'motion/react';
+import { CountUp } from '../lib/motion';
 // Dashboard para Supervisor (Consulta Amplia) Puede ELIMINAR auditorías, acceso a costos
 
 import { useState, useEffect } from 'react';
@@ -254,7 +256,7 @@ export default function SupervisorDashboard() {
    }
  />
 
- <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+ <motion.main initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
  {/* Stats Cards - CON COSTOS */}
  {loadingStats ? (
  <div className="flex items-center justify-center py-8">
@@ -267,7 +269,7 @@ export default function SupervisorDashboard() {
  <span className="text-slate-400 text-sm font-medium">{t('supervisor.totalAudits')}</span>
  <FileText className="w-5 h-5 text-brand-400" />
  </div>
- <div className="text-2xl font-bold text-white">{stats.totalAudits}</div>
+ <div className="text-2xl font-bold text-white tabular-nums"><CountUp value={stats.totalAudits} /></div>
  <div className="text-sm text-slate-500 mt-1">
  {stats.completedAudits} {t('supervisor.completed')}
  </div>
@@ -278,8 +280,8 @@ export default function SupervisorDashboard() {
  <span className="text-slate-400 text-sm font-medium">{t('supervisor.avgScore')}</span>
  <TrendingUp className="w-5 h-5 text-brand-400" />
  </div>
- <div className="text-2xl font-bold text-white">
- {Math.round(stats.averageScore)}%
+ <div className="text-2xl font-bold text-white tabular-nums">
+ <CountUp value={Math.round(stats.averageScore)} suffix="%" />
  </div>
  <div className="text-sm text-slate-500 mt-1">
  {t('supervisor.ofCompletedAudits')}
@@ -291,7 +293,7 @@ export default function SupervisorDashboard() {
  <span className="text-slate-400 text-sm font-medium">{t('supervisor.thisMonth')}</span>
  <Calendar className="w-5 h-5 text-cyan-400" />
  </div>
- <div className="text-2xl font-bold text-white">{stats.thisMonthAudits}</div>
+ <div className="text-2xl font-bold text-white tabular-nums"><CountUp value={stats.thisMonthAudits} /></div>
  <div className="text-sm text-slate-500 mt-1">
  {t('supervisor.auditsDone')}
  </div>
@@ -302,8 +304,8 @@ export default function SupervisorDashboard() {
  <span className="text-slate-400 text-sm font-medium">{t('supervisor.totalCosts')}</span>
  <DollarSign className="w-5 h-5 text-green-400" />
  </div>
- <div className="text-2xl font-bold text-white">
- {formatCurrency(stats.totalCosts)}
+ <div className="text-2xl font-bold text-white tabular-nums">
+ <CountUp value={stats.totalCosts} format={formatCurrency} />
  </div>
  <div className="text-sm text-slate-500 mt-1">
  {t('supervisor.apiInvestment')}
@@ -540,7 +542,7 @@ export default function SupervisorDashboard() {
  </div>
  )}
  </div>
- </main>
+ </motion.main>
  </div>
  );
 }

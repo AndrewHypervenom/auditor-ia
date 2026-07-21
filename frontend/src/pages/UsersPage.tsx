@@ -1,4 +1,5 @@
 ﻿// frontend/src/pages/UsersPage.tsx
+import { motion } from 'motion/react';
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -283,7 +284,7 @@ export default function UsersPage() {
  />
 
  {/* Main Content */}
- <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+ <motion.main initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
  {/* Info Banner */}
  {isSupervisor && (
  <div className="mb-4 p-4 bg-brand-500/10 border border-brand-700/40 rounded-xl">
@@ -439,7 +440,7 @@ export default function UsersPage() {
  </div>
  )}
  </div>
- </main>
+ </motion.main>
 
  {/* Modal Crear Usuario - Solo Admin */}
  {showCreateModal && isAdmin && (

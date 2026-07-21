@@ -1,21 +1,31 @@
 //backend/src/services/evaluator.service.ts
 
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../utils/logger.js';
 import type { AuditInput, TranscriptResult, ImageAnalysis, EvaluationResult } from '../types/index.js';
 import type { EvaluationBlock } from '../config/evaluation-criteria.js';
 import { getDatabaseService } from './database.service.js';
 import * as fs from 'fs';
 
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? 'claude-sonnet-5';
+
 class EvaluatorService {
- private client: OpenAI;
+ private client: Anthropic;
 
  constructor() {
- const apiKey = process.env.OPENAI_API_KEY;
+ const apiKey = process.env.ANTHROPIC_API_KEY;
  if (!apiKey) {
- throw new Error('OPENAI_API_KEY is not configured');
+ throw new Error('ANTHROPIC_API_KEY is not configured');
  }
- this.client = new OpenAI({ apiKey });
+ this.client = new Anthropic({ apiKey });
+ }
+
+ /** Extrae el texto concatenado de los bloques de texto de una respuesta de Claude. */
+ private extractText(message: Anthropic.Message): string {
+ return message.content
+ .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+ .map(b => b.text)
+ .join('');
  }
 
  async evaluate(
@@ -412,20 +422,20 @@ class EvaluatorService {
  const ext = imagePath.split('.').pop()?.toLowerCase();
  const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
 
- const response = await this.client.chat.completions.create({
- model: 'gpt-5.4-mini',
-
- temperature: 0,
- seed: 42,
+ const response = await this.client.messages.create({
+ model: CLAUDE_MODEL,
+ max_tokens: 4096,
+ thinking: { type: 'disabled' },
  messages: [
  {
  role: 'user',
  content: [
  {
- type: 'image_url',
- image_url: {
- url: `data:${mimeType};base64,${imageBase64}`,
- detail: 'high'
+ type: 'image',
+ source: {
+ type: 'base64',
+ media_type: mimeType as 'image/png' | 'image/jpeg',
+ data: imageBase64
  }
  },
  {
@@ -439,14 +449,14 @@ class EvaluatorService {
 
  // NUEVO: Capturar tokens de uso
  if (response.usage) {
- totalInputTokens += response.usage.prompt_tokens;
- totalOutputTokens += response.usage.completion_tokens;
- logger.info(` Image ${i + 1} analysis tokens: ${response.usage.prompt_tokens} input + ${response.usage.completion_tokens} output`);
+ totalInputTokens += response.usage.input_tokens;
+ totalOutputTokens += response.usage.output_tokens;
+ logger.info(` Image ${i + 1} analysis tokens: ${response.usage.input_tokens} input + ${response.usage.output_tokens} output`);
  }
 
- const content = response.choices[0]?.message?.content;
+ const content = this.extractText(response);
  if (!content) {
- throw new Error('Empty response from OpenAI');
+ throw new Error('Empty response from Claude');
  }
 
  // Limpieza robusta
@@ -696,42 +706,51 @@ REGLAS:
  auditInput.gpfData
  );
 
- const evaluationSystemPrompt = await getDatabaseService().getPromptByKey('evaluation_system') ?? '';
+ const evaluationSystemPromptBase = await getDatabaseService().getPromptByKey('evaluation_system') ?? '';
+ // Claude no tiene response_format json_object: reforzar salida JSON pura.
+ const evaluationSystemPrompt = `${evaluationSystemPromptBase}\n\nIMPORTANTE: Responde ÚNICAMENTE con un objeto JSON válido, sin markdown, sin fences \`\`\`, sin texto antes ni después.`;
 
- const response = await this.client.chat.completions.create({
- model: 'gpt-5.4-mini',
+ const response = await this.client.messages.create({
+ model: CLAUDE_MODEL,
+ max_tokens: 8192,
+ thinking: { type: 'disabled' },
+ system: evaluationSystemPrompt,
  messages: [
- {
- role: 'system',
- content: evaluationSystemPrompt
- },
  {
  role: 'user',
  content: prompt
  }
- ],
- temperature: 0,
- seed: 12345,
-
- response_format: { type: 'json_object' }
+ ]
  });
 
  // NUEVO: Capturar tokens de evaluación
  const tokensUsed = {
- input: response.usage?.prompt_tokens || 0,
- output: response.usage?.completion_tokens || 0
+ input: response.usage?.input_tokens || 0,
+ output: response.usage?.output_tokens || 0
  };
 
  logger.info(` Evaluation tokens: ${tokensUsed.input} input + ${tokensUsed.output} output`);
 
- const content = response.choices[0]?.message?.content;
+ const content = this.extractText(response);
  if (!content) {
- throw new Error('No response from OpenAI');
+ throw new Error('No response from Claude');
+ }
+
+ // Limpieza defensiva: Claude puede envolver el JSON en fences o añadir preámbulo.
+ let cleaned = content.trim();
+ cleaned = cleaned.replace(/```json\n?/gi, '').replace(/```\n?/g, '').replace(/^﻿/, '').trim();
+ // Recortar a los límites del objeto JSON por si hay texto antes/después.
+ const firstBrace = cleaned.indexOf('{');
+ const lastBrace = cleaned.lastIndexOf('}');
+ if (firstBrace > 0 || (lastBrace >= 0 && lastBrace < cleaned.length - 1)) {
+ if (firstBrace >= 0 && lastBrace > firstBrace) {
+ cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+ }
  }
 
  // NUEVO: Retornar evaluación, tokens Y tópicos manuales
  return {
- evaluation: JSON.parse(content),
+ evaluation: JSON.parse(cleaned),
  tokensUsed,
  manualTopics
  };

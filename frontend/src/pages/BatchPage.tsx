@@ -1,5 +1,6 @@
 // frontend/src/pages/BatchPage.tsx
-// Cola Nocturna — procesamiento por lotes con 50% de descuento (OpenAI Batch API)
+import { motion } from 'motion/react';
+// Cola Nocturna — procesamiento por lotes con 50% de descuento (Claude Batch API)
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -256,7 +257,7 @@ function BatchJobCard({ job, onRefresh }: { job: BatchJob; onRefresh: () => void
               : `${job.failed_count} caso(s) no generaron resultados`}
           </div>
           <p className="text-amber-400/80 leading-relaxed">
-            Esto ocurre cuando el tipo de llamada no tiene criterios configurados o cuando OpenAI
+            Esto ocurre cuando el tipo de llamada no tiene criterios configurados o cuando Claude
             devolvió una evaluación vacía. Revisa el detalle de cada caso para ver el error exacto.
           </p>
         </div>
@@ -439,7 +440,7 @@ export default function BatchPage() {
         }
       />
 
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }} className="max-w-2xl mx-auto px-4 py-6 space-y-6">
 
         {/* Hero banner */}
         <div
@@ -617,11 +618,11 @@ export default function BatchPage() {
             </div>
             <div className="flex items-start gap-1.5">
               <Zap className="w-3 h-3 text-blue-400 flex-shrink-0 mt-0.5" />
-              <span>OpenAI procesa en hasta 24 h. Los resultados aparecen en "Historial" una vez completados.</span>
+              <span>Claude procesa en hasta 24 h. Los resultados aparecen en "Historial" una vez completados.</span>
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

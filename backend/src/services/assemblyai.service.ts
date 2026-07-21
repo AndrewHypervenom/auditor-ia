@@ -171,23 +171,20 @@ class AssemblyAIService {
  const utteranceCount = result.utterances?.length || 0;
  
  // ===============================================
- // FALLBACK A WHISPER SI CONFIANZA ES BAJA
+ // VERIFICACIÓN DE CONFIANZA (sin fallback)
  // ===============================================
+ // El fallback a Whisper (OpenAI) fue eliminado en la migración a Claude,
+ // que no ofrece speech-to-text. Si la confianza es baja solo se registra.
  const confidenceThreshold = parseFloat(process.env.ASR_CONFIDENCE_THRESHOLD ?? '0.75');
- const enableWhisperFallback = process.env.ENABLE_WHISPER_FALLBACK !== 'false';
-
  if (
- enableWhisperFallback &&
  result.confidence !== null &&
  result.confidence !== undefined &&
  result.confidence < confidenceThreshold
  ) {
- logger.warn('[ASSEMBLYAI] Confianza baja — activando fallback con Whisper (gpt-4o-transcribe)', {
+ logger.warn('[ASSEMBLYAI] Confianza baja en la transcripción (sin fallback disponible)', {
  confianza: (result.confidence * 100).toFixed(1) + '%',
  umbral: (confidenceThreshold * 100).toFixed(0) + '%',
  });
- const { getWhisperService } = await import('./whisper.service.js');
- return getWhisperService().transcribe(audioPath);
  }
 
  // Advertencia si el texto es muy corto

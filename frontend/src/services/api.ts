@@ -1034,7 +1034,7 @@ export interface BatchLimits {
 
 // Constantes de límites (mirror del backend) para cálculos client-side sin llamada de red
 export const BATCH_LIMITS_CLIENT = {
-  MODEL: 'gpt-5.4-mini',
+  MODEL: 'claude-sonnet-5',
   CONTEXT_WINDOW_TOKENS: 400_000,
   MAX_OUTPUT_TOKENS: 128_000,
   MAX_FILE_SIZE_MB: 200,

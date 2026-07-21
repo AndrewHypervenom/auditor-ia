@@ -1,4 +1,5 @@
 ﻿// frontend/src/pages/AuditDetailPage.tsx
+import { motion } from 'motion/react';
 
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -117,7 +118,7 @@ export default function AuditDetailPage() {
       <AppHeader showBack onBack={() => navigate('/dashboard')} title={t('auditDetail.title')} />
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+      <motion.main initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
         {/* Info del creador */}
         {auditDetail.audit?.created_by_name && (
           <div className="mb-4 px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl flex items-center gap-3 text-sm">
@@ -138,7 +139,7 @@ export default function AuditDetailPage() {
           onNewAudit={handleNewAudit}
           onScoresSaved={handleScoresSaved}
         />
-      </main>
+      </motion.main>
     </div>
   );
 }

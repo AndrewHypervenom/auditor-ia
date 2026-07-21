@@ -1,8 +1,9 @@
 // frontend/src/pages/IntegrationsPage.tsx
+import { motion } from 'motion/react';
 //
 // Página de Integraciones internas por empresa (Fase 2 multi-tenant).
 // El lider edita los endpoints internos de SU empresa (companies.integration_config);
-// el superadmin puede ver/editar la suya. Las APIs globales (OpenAI/AssemblyAI) NO
+// el superadmin puede ver/editar la suya. Las APIs globales (Claude/AssemblyAI) NO
 // se gestionan aquí — viven en /settings (solo superadmin).
 
 import { useEffect, useState } from 'react';
@@ -126,7 +127,7 @@ export default function IntegrationsPage() {
     <div className="min-h-screen">
       <AppHeader showBack onBack={() => navigate('/dashboard')} title={t('integrationsPage.title')} />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <motion.main initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }} className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div>
           {/* Encabezado */}
           <div className="card mb-5">
@@ -288,7 +289,7 @@ export default function IntegrationsPage() {
             </button>
           </div>
         </div>
-      </main>
+      </motion.main>
     </div>
   );
 }

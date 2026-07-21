@@ -1,4 +1,5 @@
 ﻿// frontend/src/pages/NewAuditPage.tsx
+import { motion } from 'motion/react';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -448,7 +449,7 @@ export default function NewAuditPage() {
          call_date: getAttentionDate(att) || undefined,
        })),
      });
-     // Enviar inmediatamente a OpenAI (fire-and-forget en el backend)
+     // Enviar inmediatamente a Claude (fire-and-forget en el backend)
      batchService.submitJob(job.id).catch(() => {});
      toast.success(t('newAudit.batchSent', { count: selected.length }));
      setShowBatchModal(false);
@@ -618,7 +619,7 @@ export default function NewAuditPage() {
  <div className="min-h-screen">
  <AppHeader showBack onBack={() => navigate('/')} title={t('newAudit.pageTitle')} />
 
- <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+ <motion.main initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
 
  {/* ── SELECTING STATE ────────────────────────────────────────────────── */}
  {state === 'selecting' && (
@@ -1180,7 +1181,7 @@ export default function NewAuditPage() {
                <AlertTriangle className="w-3 h-3 text-red-400 flex-shrink-0 mt-0.5" />
                <span className="text-red-400">
                  Superas el límite máximo de {BATCH_LIMITS_CLIENT.HARD_MAX_CASES} casos (~{(BATCH_LIMITS_CLIENT.HARD_MAX_CASES * BATCH_LIMITS_CLIENT.ESTIMATED_MB_PER_CASE).toFixed(0)} MB).
-                 OpenAI rechazará el archivo (límite 200 MB). Divide en lotes.
+                 Claude rechazará el archivo (límite 200 MB). Divide en lotes.
                </span>
              </>
            ) : isOverRecommended ? (
@@ -1746,7 +1747,7 @@ export default function NewAuditPage() {
  </div>
  )}
 
- </main>
+ </motion.main>
  </div>
  );
 }

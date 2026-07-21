@@ -1,4 +1,5 @@
 ﻿// frontend/src/pages/ScriptsAdminPage.tsx
+import { motion } from 'motion/react';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -171,7 +172,7 @@ export default function ScriptsAdminPage() {
   return (
     <div className="min-h-screen text-white">
       <AppHeader showBack onBack={() => navigate('/dashboard')} title={t('reference.pageTitle')} />
-      <div className="max-w-5xl mx-auto px-6 py-6">
+      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }} className="max-w-5xl mx-auto px-6 py-6">
 
         {/* ── Description + acción global ── */}
         <div className="mb-4 flex items-start justify-between gap-4">
@@ -296,7 +297,7 @@ export default function ScriptsAdminPage() {
           }
         </div>
 
-      </div>
+      </motion.div>
     </div>
   );
 }

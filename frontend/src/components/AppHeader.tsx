@@ -4,6 +4,7 @@
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
+import { motion } from 'motion/react';
 import LanguageSelector from './LanguageSelector';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -53,24 +54,34 @@ export default function AppHeader({
           {/* IZQUIERDA: ‹ Volver ó Logo */}
           <div className="flex items-center gap-2 flex-shrink-0 z-10">
             {showBack ? (
-              <button
+              <motion.button
                 onClick={handleBack}
                 className="btn-ghost flex items-center gap-0.5 text-xs py-1 px-2 -ml-1"
+                whileHover={{ x: -2 }}
+                whileTap={{ scale: 0.95 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
               >
                 <ChevronLeft className="w-4 h-4 -mr-0.5" />
                 {resolvedBackLabel}
-              </button>
+              </motion.button>
             ) : (
               /* Logo S+ — visible solo en dashboards (sin botón Volver) */
-              <div className="relative flex-shrink-0">
-                <div
+              <motion.div
+                className="relative flex-shrink-0"
+                whileHover={{ scale: 1.08, rotate: -3 }}
+                whileTap={{ scale: 0.92 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+              >
+                <motion.div
                   className="absolute inset-0 rounded-lg blur-sm"
                   style={{ background: 'rgba(0, 214, 50, 0.18)' }}
+                  animate={{ opacity: [0.5, 1, 0.5] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
                 />
                 <div className="relative w-7 h-7 rounded-lg overflow-hidden ring-1 ring-brand-500/30">
                   <img src="/logo.jpg" alt="S+" className="w-full h-full object-cover" />
                 </div>
-              </div>
+              </motion.div>
             )}
           </div>
 

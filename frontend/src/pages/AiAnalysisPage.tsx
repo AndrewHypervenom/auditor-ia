@@ -1,4 +1,5 @@
 ﻿// frontend/src/pages/AiAnalysisPage.tsx
+import { motion } from 'motion/react';
 // Vista de referencia del caso GPF — se abre en nueva pestaña al confirmar auditoría.
 // Muestra la misma información que la vista "confirming" de NewAuditPage, solo lectura.
 // El procesamiento real (audio, imágenes, Excel) ocurre en la pestaña original.
@@ -163,7 +164,7 @@ export default function AiAnalysisPage() {
       <AppHeader showBack onBack={() => window.close()} backLabel={t('common.close')} title={t('aiAnalysis.title')} />
 
       {/* Contenido */}
-      <main className="max-w-5xl mx-auto px-4 py-6">
+      <motion.main initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }} className="max-w-5xl mx-auto px-4 py-6">
         {/* Context bar — case info */}
         <div className="flex items-center gap-3 mb-6 px-4 py-3 bg-slate-900/60 border border-slate-800 rounded-xl">
           <div className="p-1.5 rounded-lg bg-purple-600/20 border border-purple-500/30 flex-shrink-0">
@@ -426,7 +427,7 @@ export default function AiAnalysisPage() {
             </div>
           )}
         </div>
-      </main>
+      </motion.main>
 
       {/* Lightbox */}
       {lightboxOpen && detail && detail.imageUrls.length > 0 && (

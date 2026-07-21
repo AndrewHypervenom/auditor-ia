@@ -1,4 +1,5 @@
 ﻿// frontend/src/pages/ReportsPage.tsx
+import { motion } from 'motion/react';
 // Página de reportes y análisis - VERSIÓN CON TODOS LOS GRÁFICOS SIEMPRE
 
 import { useState, useEffect } from 'react';
@@ -641,7 +642,7 @@ export default function ReportsPage() {
  <AppHeader showBack onBack={() => navigate('/dashboard')} title={t('reportsPage.title')} />
 
  {/* Main Content */}
- <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+ <motion.main initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
  {loading ? (
  <div className="flex flex-col items-center justify-center py-20 gap-4">
  <Loader2 className="w-12 h-12 text-brand-400 animate-spin" />
@@ -1164,7 +1165,7 @@ export default function ReportsPage() {
  )}
  </>
  )}
- </main>
+ </motion.main>
  </div>
  );
 }

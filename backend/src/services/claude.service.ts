@@ -1,20 +1,30 @@
-//backend/src/services/openai.service.ts
+//backend/src/services/claude.service.ts
 
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../utils/logger.js';
 import type { ImageAnalysis, SentimentResult, TranscriptWord } from '../types/index.js';
 import * as fs from 'fs';
 import { getDatabaseService } from './database.service.js';
 
-class OpenAIService {
- private client: OpenAI;
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? 'claude-sonnet-5';
+
+class ClaudeService {
+ private client: Anthropic;
 
  constructor() {
- const apiKey = process.env.OPENAI_API_KEY;
+ const apiKey = process.env.ANTHROPIC_API_KEY;
  if (!apiKey) {
- throw new Error('OPENAI_API_KEY is not configured');
+ throw new Error('ANTHROPIC_API_KEY is not configured');
  }
- this.client = new OpenAI({ apiKey });
+ this.client = new Anthropic({ apiKey });
+ }
+
+ /** Extrae el texto concatenado de los bloques de texto de una respuesta de Claude. */
+ private extractText(message: Anthropic.Message): string {
+ return message.content
+ .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+ .map(b => b.text)
+ .join('');
  }
 
  async analyzeImage(imagePath: string): Promise<ImageAnalysis & { usage?: { input_tokens: number; output_tokens: number } }> {
@@ -26,20 +36,20 @@ class OpenAIService {
  const ext = imagePath.split('.').pop()?.toLowerCase();
  const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
 
- const response = await this.client.chat.completions.create({
- model: 'gpt-5.4-mini',
-
- temperature: 0,
- seed: 42,
+ const response = await this.client.messages.create({
+ model: CLAUDE_MODEL,
+ max_tokens: 4096,
+ thinking: { type: 'disabled' },
  messages: [
  {
  role: 'user',
  content: [
  {
- type: 'image_url',
- image_url: {
- url: `data:${mimeType};base64,${imageBase64}`,
- detail: 'high'
+ type: 'image',
+ source: {
+ type: 'base64',
+ media_type: mimeType as 'image/png' | 'image/jpeg',
+ data: imageBase64
  }
  },
  {
@@ -51,16 +61,16 @@ class OpenAIService {
  ]
  });
 
- const content = response.choices[0]?.message?.content;
+ const content = this.extractText(response);
  if (!content) {
- throw new Error('No response from OpenAI');
+ throw new Error('No response from Claude');
  }
 
  // Limpieza robusta del JSON
  let cleanedContent = content.trim();
  cleanedContent = cleanedContent.replace(/```json\n?/gi, '');
  cleanedContent = cleanedContent.replace(/```\n?/g, '');
- cleanedContent = cleanedContent.replace(/^\uFEFF/, '');
+ cleanedContent = cleanedContent.replace(/^﻿/, '');
  cleanedContent = cleanedContent.replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, '\\\\');
 
  const parsed = JSON.parse(cleanedContent);
@@ -70,8 +80,8 @@ class OpenAIService {
  confidence: parsed.confidence,
  criticalFieldsFound: Object.keys(parsed.critical_fields || {}).length,
  totalFieldsFound: Object.keys(parsed.data || {}).length,
- inputTokens: response.usage?.prompt_tokens || 0,
- outputTokens: response.usage?.completion_tokens || 0
+ inputTokens: response.usage?.input_tokens || 0,
+ outputTokens: response.usage?.output_tokens || 0
  });
 
  return {
@@ -83,8 +93,8 @@ class OpenAIService {
  },
  confidence: parsed.confidence,
  usage: {
- input_tokens: response.usage?.prompt_tokens || 0,
- output_tokens: response.usage?.completion_tokens || 0
+ input_tokens: response.usage?.input_tokens || 0,
+ output_tokens: response.usage?.output_tokens || 0
  }
  };
 
@@ -134,18 +144,16 @@ class OpenAIService {
  if (!text || text.length < 10) return text;
 
  try {
- logger.info('[OPENAI] Iniciando post-corrección de transcripción', { longitud: text.length });
+ logger.info('[CLAUDE] Iniciando post-corrección de transcripción', { longitud: text.length });
 
  const systemContent = await getDatabaseService().getPromptByKey('transcription_correction') ?? '';
 
- const response = await this.client.chat.completions.create({
- model: 'gpt-5.4-mini',
- temperature: 0,
+ const response = await this.client.messages.create({
+ model: CLAUDE_MODEL,
+ max_tokens: 16000,
+ thinking: { type: 'disabled' },
+ system: systemContent,
  messages: [
- {
- role: 'system',
- content: systemContent
- },
  {
  role: 'user',
  content: text
@@ -153,14 +161,14 @@ class OpenAIService {
  ]
  });
 
- const corrected = response.choices[0]?.message?.content?.trim();
- const tokens = response.usage?.total_tokens ?? 0;
+ const corrected = this.extractText(response).trim();
+ const tokens = (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0);
 
- logger.info('[OPENAI] Post-corrección completada', { tokens, cambios: corrected !== text });
+ logger.info('[CLAUDE] Post-corrección completada', { tokens, cambios: corrected !== text });
 
  return corrected || text;
  } catch (error: any) {
- logger.warn('[OPENAI] Post-corrección falló, usando texto original', { error: error.message });
+ logger.warn('[CLAUDE] Post-corrección falló, usando texto original', { error: error.message });
  return text;
  }
  }
@@ -183,38 +191,36 @@ class OpenAIService {
  const items = utterances.slice(0, 400);
 
  try {
- logger.info('[OPENAI] Iniciando análisis de sentimientos', { frases: items.length });
+ logger.info('[CLAUDE] Iniciando análisis de sentimientos', { frases: items.length });
 
  const numberedList = items
  .map((u, i) => `${i}|${u.speaker}|${u.text}`)
  .join('\n');
 
- const response = await this.client.chat.completions.create({
- model: 'gpt-5.4-mini',
- temperature: 0,
- seed: 42,
- response_format: { type: 'json_object' },
- messages: [
- {
- role: 'system',
- content: `Eres un analista de sentimientos para llamadas de call center bancario en español/portugués.
+ const response = await this.client.messages.create({
+ model: CLAUDE_MODEL,
+ max_tokens: 8192,
+ thinking: { type: 'disabled' },
+ system: `Eres un analista de sentimientos para llamadas de call center bancario en español/portugués.
 Recibirás frases de una llamada en formato "indice|hablante|texto" (una por línea).
 Clasifica el sentimiento de CADA frase desde la perspectiva emocional del hablante:
 - POSITIVE: amabilidad, satisfacción, agradecimiento, acuerdo, alivio
 - NEGATIVE: molestia, frustración, queja, preocupación, rechazo, urgencia ansiosa
 - NEUTRAL: información factual, preguntas operativas, protocolo estándar
 
-Responde ÚNICAMENTE con JSON válido:
+Responde ÚNICAMENTE con JSON válido (sin markdown, sin texto adicional):
 {"sentiments": [{"i": 0, "s": "NEUTRAL", "c": 0.95}, ...]}
 donde "i" es el índice, "s" el sentimiento y "c" la confianza (0-1).
-Incluye TODOS los índices, en orden.`
- },
+Incluye TODOS los índices, en orden.`,
+ messages: [
  { role: 'user', content: numberedList }
  ]
  });
 
- const raw = response.choices[0]?.message?.content?.trim() ?? '{}';
- const parsed = JSON.parse(raw);
+ let raw = this.extractText(response).trim();
+ // Limpieza defensiva de fences por si el modelo los añade
+ raw = raw.replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
+ const parsed = JSON.parse(raw || '{}');
  const sentiments: Array<{ i: number; s: string; c: number }> = parsed.sentiments || [];
 
  const validSentiments = new Set(['POSITIVE', 'NEUTRAL', 'NEGATIVE']);
@@ -238,11 +244,11 @@ Incluye TODOS los índices, en orden.`
  });
 
  const usage = {
- inputTokens: response.usage?.prompt_tokens ?? 0,
- outputTokens: response.usage?.completion_tokens ?? 0
+ inputTokens: response.usage?.input_tokens ?? 0,
+ outputTokens: response.usage?.output_tokens ?? 0
  };
 
- logger.success('[OPENAI] Análisis de sentimientos completado', {
+ logger.success('[CLAUDE] Análisis de sentimientos completado', {
  frases: results.length,
  positivas: results.filter(r => r.sentiment === 'POSITIVE').length,
  negativas: results.filter(r => r.sentiment === 'NEGATIVE').length,
@@ -251,7 +257,7 @@ Incluye TODOS los índices, en orden.`
 
  return { results, usage };
  } catch (error: any) {
- logger.warn('[OPENAI] Análisis de sentimientos falló, continuando sin sentimientos', {
+ logger.warn('[CLAUDE] Análisis de sentimientos falló, continuando sin sentimientos', {
  error: error.message
  });
  return { results: [], usage: emptyUsage };
@@ -296,19 +302,20 @@ Reglas:
 - Si no aplica para este tipo de llamada, aplica:false`;
 
  try {
- logger.info('[OPENAI] Generando bloques de criterios', { callType, mode });
- const response = await this.client.chat.completions.create({
- model: 'gpt-5.4-mini',
- temperature: 0.4,
+ logger.info('[CLAUDE] Generando bloques de criterios', { callType, mode });
+ const response = await this.client.messages.create({
+ model: CLAUDE_MODEL,
+ max_tokens: 4096,
+ thinking: { type: 'disabled' },
  messages: [{ role: 'user', content: systemPrompt }]
  });
- const content = response.choices[0]?.message?.content?.trim() ?? '{}';
+ const content = this.extractText(response).trim();
  const cleaned = content.replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
- const parsed = JSON.parse(cleaned);
- logger.info('[OPENAI] Criterios generados', { blocks: parsed.blocks?.length, tokens: response.usage?.total_tokens });
+ const parsed = JSON.parse(cleaned || '{}');
+ logger.info('[CLAUDE] Criterios generados', { blocks: parsed.blocks?.length, tokens: (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0) });
  return { blocks: Array.isArray(parsed.blocks) ? parsed.blocks : [] };
  } catch (error: any) {
- logger.error('[OPENAI] Error generando criterios', { error: error.message });
+ logger.error('[CLAUDE] Error generando criterios', { error: error.message });
  throw error;
  }
  }
@@ -340,31 +347,36 @@ Incluye TODOS los campos relevantes visibles en la imagen que sean útiles para 
 Prioriza los campos que el usuario mencionó.`;
 
  try {
- logger.info('[OPENAI] Analizando captura para configuración de sistema', { systemName });
- const response = await this.client.chat.completions.create({
- model: 'gpt-5.4-mini',
- temperature: 0.3,
+ logger.info('[CLAUDE] Analizando captura para configuración de sistema', { systemName });
+ const response = await this.client.messages.create({
+ model: CLAUDE_MODEL,
+ max_tokens: 4096,
+ thinking: { type: 'disabled' },
  messages: [{
  role: 'user',
  content: [
  {
- type: 'image_url',
- image_url: { url: `data:${mimeType};base64,${imageBase64}`, detail: 'high' }
+ type: 'image',
+ source: {
+ type: 'base64',
+ media_type: (mimeType === 'image/png' ? 'image/png' : 'image/jpeg') as 'image/png' | 'image/jpeg',
+ data: imageBase64
+ }
  },
  { type: 'text', text: systemPrompt }
  ]
  }]
  });
- const content = response.choices[0]?.message?.content?.trim() ?? '{}';
+ const content = this.extractText(response).trim();
  const cleaned = content.replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
- const parsed = JSON.parse(cleaned);
- logger.info('[OPENAI] Screenshot analizado', { fields: parsed.fields?.length, tokens: response.usage?.total_tokens });
+ const parsed = JSON.parse(cleaned || '{}');
+ logger.info('[CLAUDE] Screenshot analizado', { fields: parsed.fields?.length, tokens: (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0) });
  return {
  detection_hints: parsed.detection_hints ?? '',
  fields: Array.isArray(parsed.fields) ? parsed.fields : [],
  };
  } catch (error: any) {
- logger.error('[OPENAI] Error analizando screenshot', { error: error.message });
+ logger.error('[CLAUDE] Error analizando screenshot', { error: error.message });
  throw error;
  }
  }
@@ -384,22 +396,23 @@ Responde SOLO con JSON válido, sin markdown, sin explicaciones adicionales. For
 {"detection_hints": "...", "suggested_fields": [{"field_name": "...", "description": "...", "example": "..."}]}`;
 
  try {
- logger.info('[OPENAI] Generando hints para sistema de imagen', { systemName });
- const response = await this.client.chat.completions.create({
- model: 'gpt-5.4-mini',
- temperature: 0.3,
+ logger.info('[CLAUDE] Generando hints para sistema de imagen', { systemName });
+ const response = await this.client.messages.create({
+ model: CLAUDE_MODEL,
+ max_tokens: 2048,
+ thinking: { type: 'disabled' },
  messages: [{ role: 'user', content: systemPrompt }]
  });
- const content = response.choices[0]?.message?.content?.trim() ?? '{}';
+ const content = this.extractText(response).trim();
  const cleaned = content.replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
- const parsed = JSON.parse(cleaned);
- logger.info('[OPENAI] Hints generados', { tokens: response.usage?.total_tokens });
+ const parsed = JSON.parse(cleaned || '{}');
+ logger.info('[CLAUDE] Hints generados', { tokens: (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0) });
  return {
  detection_hints: parsed.detection_hints ?? '',
  suggested_fields: Array.isArray(parsed.suggested_fields) ? parsed.suggested_fields : [],
  };
  } catch (error: any) {
- logger.error('[OPENAI] Error generando hints de sistema', { error: error.message });
+ logger.error('[CLAUDE] Error generando hints de sistema', { error: error.message });
  throw error;
  }
  }
@@ -423,60 +436,64 @@ INSTRUCCIONES PARA GENERAR EL PROMPT:
 El usuario te describirá en lenguaje natural lo que debe verificarse. Genera la instrucción técnica lista para usar.`;
 
  try {
- logger.info('[OPENAI] Generando instrucción de criterio', { topic, callType });
+ logger.info('[CLAUDE] Generando instrucción de criterio', { topic, callType });
 
- const response = await this.client.chat.completions.create({
- model: 'gpt-5.4-mini',
- temperature: 0.3,
+ const response = await this.client.messages.create({
+ model: CLAUDE_MODEL,
+ max_tokens: 2048,
+ thinking: { type: 'disabled' },
+ system: systemPrompt,
  messages: [
- { role: 'system', content: systemPrompt },
  { role: 'user', content: description }
  ]
  });
 
- const result = response.choices[0]?.message?.content?.trim() ?? '';
- logger.info('[OPENAI] Instrucción generada', { tokens: response.usage?.total_tokens });
+ const result = this.extractText(response).trim();
+ logger.info('[CLAUDE] Instrucción generada', { tokens: (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0) });
  return result;
  } catch (error: any) {
- logger.error('[OPENAI] Error generando instrucción de criterio', { error: error.message });
+ logger.error('[CLAUDE] Error generando instrucción de criterio', { error: error.message });
  throw error;
  }
  }
 }
 
-export { OpenAIService };
+export { ClaudeService };
 
-let instance: OpenAIService | null = null;
-export const getOpenAIService = () => {
+let instance: ClaudeService | null = null;
+export const getClaudeService = () => {
  if (!instance) {
- instance = new OpenAIService();
+ instance = new ClaudeService();
  }
  return instance;
 };
 
-export const openAIService = {
+export const claudeService = {
  analyzeImage: async (imagePath: string) => {
- return getOpenAIService().analyzeImage(imagePath);
+ return getClaudeService().analyzeImage(imagePath);
  },
  analyzeMultipleImages: async (imagePaths: string[]) => {
- return getOpenAIService().analyzeMultipleImages(imagePaths);
+ return getClaudeService().analyzeMultipleImages(imagePaths);
  },
  correctTranscription: async (text: string) => {
- return getOpenAIService().correctTranscription(text);
+ return getClaudeService().correctTranscription(text);
  },
  analyzeSentiment: async (utterances: TranscriptWord[]) => {
- return getOpenAIService().analyzeSentiment(utterances);
+ return getClaudeService().analyzeSentiment(utterances);
  },
  generateCriterionPrompt: async (description: string, topic: string, callType: string) => {
- return getOpenAIService().generateCriterionPrompt(description, topic, callType);
+ return getClaudeService().generateCriterionPrompt(description, topic, callType);
  },
  generateImageSystemHints: async (systemName: string, userDescription: string) => {
- return getOpenAIService().generateImageSystemHints(systemName, userDescription);
+ return getClaudeService().generateImageSystemHints(systemName, userDescription);
  },
  analyzeScreenshotForConfig: async (imageBase64: string, mimeType: string, systemName: string, userDescription: string) => {
- return getOpenAIService().analyzeScreenshotForConfig(imageBase64, mimeType, systemName, userDescription);
+ return getClaudeService().analyzeScreenshotForConfig(imageBase64, mimeType, systemName, userDescription);
  },
  generateCriteriaBlocks: async (description: string, callType: string, mode: string, availableSystems: string[]) => {
- return getOpenAIService().generateCriteriaBlocks(description, callType, mode, availableSystems);
+ return getClaudeService().generateCriteriaBlocks(description, callType, mode, availableSystems);
  }
 };
+
+// Alias de compatibilidad: los llamadores existentes siguen usando `openAIService`.
+export const openAIService = claudeService;

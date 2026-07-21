@@ -1,4 +1,5 @@
 ﻿// frontend/src/pages/AuditsViewPage.tsx
+import { motion } from 'motion/react';
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -745,7 +746,7 @@ export default function AuditsViewPage() {
  }
  />
 
- <main className="max-w-[1600px] mx-auto px-6 pt-5 pb-8">
+ <motion.main initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }} className="max-w-[1600px] mx-auto px-6 pt-5 pb-8">
  {/* KPI Cards mejorados */}
  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-5">
  <div className="stat-card bg-slate-800/50 border-brand-700/40 hover:border-brand-500/50/60 transition-all">
@@ -1247,7 +1248,7 @@ export default function AuditsViewPage() {
  </div>
  </div>
  )}
- </main>
+ </motion.main>
  </div>
  );
 }

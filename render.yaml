@@ -12,7 +12,7 @@ services:
       - key: PORT
         value: 3000
       # Las siguientes variables se configuran manualmente en el dashboard de Render:
-      # OPENAI_API_KEY
+      # ANTHROPIC_API_KEY
       # ASSEMBLYAI_API_KEY
       # SUPABASE_URL
       # SUPABASE_ANON_KEY

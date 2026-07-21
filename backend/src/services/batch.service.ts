@@ -1,14 +1,14 @@
 // backend/src/services/batch.service.ts
-// Procesa auditorías en lote con OpenAI Batch API (50% de descuento)
+// Procesa auditorías en lote con la Batches API de Claude (50% de descuento)
 
-import OpenAI, { toFile } from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
 import { gpfTokenService } from './gpf-token.service.js';
 import { gpfDataService } from './gpf-data.service.js';
 import { gpfConfigService } from './gpf-config.service.js';
 import { assemblyAIService } from './assemblyai.service.js';
-import { openAIService } from './openai.service.js';
+import { openAIService } from './claude.service.js';
 import { downloadImagesToTemp } from '../utils/image-downloader.js';
 import { buildSyntheticTranscript } from '../utils/synthetic-transcript.js';
 import { buildSentimentSummary } from '../utils/sentiment.js';
@@ -20,20 +20,32 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
-// ─── Límites documentados de OpenAI Batch API (gpt-5.4-mini) ─────────────────
+// ─── Límites documentados de la Batches API de Claude (claude-sonnet-5) ───────
 export const BATCH_LIMITS = {
-  MODEL: 'gpt-5.4-mini',
-  CONTEXT_WINDOW_TOKENS: 400_000,
+  MODEL: process.env.CLAUDE_MODEL ?? 'claude-sonnet-5',
+  CONTEXT_WINDOW_TOKENS: 1_000_000,
   MAX_OUTPUT_TOKENS: 128_000,
-  MAX_FILE_SIZE_MB: 200,          // Límite duro de OpenAI
-  MAX_REQUESTS_PER_BATCH: 50_000, // Límite de solicitudes por lote
+  MAX_REQUEST_SIZE_MB: 256,        // Límite del lote en Claude (256 MB / 100k requests)
+  MAX_REQUESTS_PER_BATCH: 100_000, // Límite de solicitudes por lote
   // Estimaciones por caso (5 imágenes × 400 KB promedio en base64)
-  ESTIMATED_MB_PER_CASE: 2.0,     // ~5 imgs × 400 KB base64 = ~2 MB/caso
-  RECOMMENDED_MAX_CASES: 50,      // Conservador (~100 MB, margen de seguridad)
-  HARD_MAX_CASES: 90,             // ~180 MB de los 200 permitidos
-  PRICING_INPUT_PER_M: 0.375,     // USD/1M tokens en batch
-  PRICING_OUTPUT_PER_M: 2.25,     // USD/1M tokens en batch
+  ESTIMATED_MB_PER_CASE: 2.0,      // ~5 imgs × 400 KB base64 = ~2 MB/caso
+  RECOMMENDED_MAX_CASES: 50,       // Conservador (~100 MB, margen de seguridad)
+  HARD_MAX_CASES: 120,             // ~240 MB de los 256 permitidos
+  PRICING_INPUT_PER_M: 1.5,        // USD/1M tokens en batch (50% de $3.00)
+  PRICING_OUTPUT_PER_M: 7.5,       // USD/1M tokens en batch (50% de $15.00)
 } as const;
+
+// max_tokens por request de lote (obligatorio en Claude)
+const BATCH_IMAGE_MAX_TOKENS = 4096;
+const BATCH_EVAL_MAX_TOKENS = 8192;
+
+/** Extrae el texto concatenado de los bloques de texto de un mensaje de Claude. */
+function extractClaudeText(message: Anthropic.Message): string {
+  return (message.content ?? [])
+    .filter((b: any) => b?.type === 'text')
+    .map((b: any) => b.text as string)
+    .join('');
+}
 
 interface BatchItemInput {
   gpf_attention_id: string;
@@ -57,12 +69,12 @@ interface CreateBatchJobParams {
 const ESTIMATED_COST_PER_CASE_USD = 0.025;
 
 class BatchService {
-  private openai: OpenAI;
+  private claude: Anthropic;
 
   constructor() {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
-    this.openai = new OpenAI({ apiKey });
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not configured');
+    this.claude = new Anthropic({ apiKey });
   }
 
   // ─── CRUD ─────────────────────────────────────────────────────────────────
@@ -154,9 +166,9 @@ class BatchService {
 
     if (job?.openai_batch_id && job.status === 'submitted') {
       try {
-        await this.openai.batches.cancel(job.openai_batch_id);
+        await this.claude.messages.batches.cancel(job.openai_batch_id);
       } catch (e) {
-        logger.warn('Could not cancel OpenAI batch', { jobId });
+        logger.warn('Could not cancel Claude batch', { jobId });
       }
     }
 
@@ -190,9 +202,7 @@ class BatchService {
 
     const batchRequests: Array<{
       custom_id: string;
-      method: string;
-      url: string;
-      body: any;
+      params: Anthropic.MessageCreateParamsNonStreaming;
     }> = [];
 
     const tempFiles: string[] = [];
@@ -237,20 +247,19 @@ class BatchService {
 
               batchRequests.push({
                 custom_id: `${item.id}__img__${i}`,
-                method: 'POST',
-                url: '/v1/chat/completions',
-                body: {
+                params: {
                   model,
-                  temperature: 0,
-                  seed: 42,
+                  max_tokens: BATCH_IMAGE_MAX_TOKENS,
+                  thinking: { type: 'disabled' },
                   messages: [{
                     role: 'user',
                     content: [
                       {
-                        type: 'image_url',
-                        image_url: {
-                          url: `data:${mimeType};base64,${imageBase64}`,
-                          detail: 'high',
+                        type: 'image',
+                        source: {
+                          type: 'base64',
+                          media_type: mimeType as 'image/png' | 'image/jpeg',
+                          data: imageBase64,
                         },
                       },
                       { type: 'text', text: imageAnalysisPrompt },
@@ -385,15 +394,13 @@ class BatchService {
 
           batchRequests.push({
             custom_id: `${item.id}__eval`,
-            method: 'POST',
-            url: '/v1/chat/completions',
-            body: {
+            params: {
               model,
-              temperature: 0,
-              seed: 42,
-              response_format: { type: 'json_object' },
+              max_tokens: BATCH_EVAL_MAX_TOKENS,
+              thinking: { type: 'disabled' },
+              // Claude no tiene response_format json_object: reforzar salida JSON pura.
+              system: `${evaluationSystemPrompt}\n\nIMPORTANTE: Responde ÚNICAMENTE con un objeto JSON válido, sin markdown, sin fences \`\`\`, sin texto antes ni después.`,
               messages: [
-                { role: 'system', content: evaluationSystemPrompt },
                 { role: 'user', content: evalUserContent },
               ],
             },
@@ -442,39 +449,26 @@ class BatchService {
         return;
       }
 
-      // Crear archivo JSONL y subir a OpenAI
-      const jsonlContent = batchRequests.map(r => JSON.stringify(r)).join('\n');
-      const jsonlBuffer = Buffer.from(jsonlContent, 'utf-8');
-
-      logger.info('Uploading batch JSONL to OpenAI', {
+      // Crear el batch en Claude (array de requests directo, sin archivo JSONL)
+      const approxBytes = batchRequests.reduce((s, r) => s + JSON.stringify(r).length, 0);
+      logger.info('Creating Claude batch', {
         jobId,
         requests: batchRequests.length,
-        sizeKB: (jsonlBuffer.length / 1024).toFixed(1),
+        sizeMB: (approxBytes / 1024 / 1024).toFixed(2),
       });
 
-      const uploadedFile = await this.openai.files.create({
-        file: await toFile(jsonlBuffer, 'batch_input.jsonl', { type: 'application/jsonl' }),
-        purpose: 'batch',
+      const claudeBatch = await this.claude.messages.batches.create({
+        requests: batchRequests,
       });
 
-      logger.info('Batch file uploaded', { fileId: uploadedFile.id });
+      logger.success('Claude batch created', { claudeBatchId: claudeBatch.id });
 
-      // Crear el batch en OpenAI
-      const openAIBatch = await this.openai.batches.create({
-        input_file_id: uploadedFile.id,
-        endpoint: '/v1/chat/completions',
-        completion_window: '24h',
-        metadata: { batch_job_id: jobId },
-      });
-
-      logger.success('OpenAI batch created', { openAIBatchId: openAIBatch.id });
-
+      // Se reutiliza la columna openai_batch_id para almacenar el id del batch de Claude.
       await supabaseAdmin
         .from('batch_jobs')
         .update({
           status: 'submitted',
-          openai_batch_id: openAIBatch.id,
-          openai_input_file_id: uploadedFile.id,
+          openai_batch_id: claudeBatch.id,
           submitted_at: new Date().toISOString(),
         })
         .eq('id', jobId);
@@ -494,73 +488,55 @@ class BatchService {
     if (!job) throw new Error('Batch job no encontrado');
 
     if (!job.openai_batch_id) {
-      return { status: job.status, message: 'El lote aún no ha sido enviado a OpenAI' };
+      return { status: job.status, message: 'El lote aún no ha sido enviado a Claude' };
     }
 
     if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
       return { status: job.status, message: 'El lote ya ha sido procesado' };
     }
 
-    const openAIBatch = await this.openai.batches.retrieve(job.openai_batch_id);
-    logger.info('OpenAI batch status', { jobId, openAIStatus: openAIBatch.status });
+    const claudeBatch = await this.claude.messages.batches.retrieve(job.openai_batch_id);
+    logger.info('Claude batch status', { jobId, status: claudeBatch.processing_status });
 
-    if (openAIBatch.status === 'completed') {
-      await this.processBatchResults(job, openAIBatch);
+    if (claudeBatch.processing_status === 'ended') {
+      await this.processBatchResults(job, claudeBatch);
       return { status: 'completed', message: 'Lote completado y auditorías procesadas' };
     }
 
-    if (openAIBatch.status === 'failed' || openAIBatch.status === 'expired' || openAIBatch.status === 'cancelled') {
-      await this.markJobFailed(jobId, `OpenAI batch status: ${openAIBatch.status}`);
-      return { status: 'failed', message: `El lote falló en OpenAI: ${openAIBatch.status}` };
-    }
-
-    const completed = openAIBatch.request_counts?.completed ?? 0;
-    const total = openAIBatch.request_counts?.total ?? 0;
+    const rc = claudeBatch.request_counts;
+    const done = (rc?.succeeded ?? 0) + (rc?.errored ?? 0) + (rc?.canceled ?? 0) + (rc?.expired ?? 0);
+    const total = done + (rc?.processing ?? 0);
     const itemCount = job.batch_items?.length ?? job.item_count ?? '?';
     const progressMsg = total > 0
-      ? `${completed}/${total} requests listos`
-      : 'OpenAI recibiendo el lote…';
+      ? `${done}/${total} requests listos`
+      : 'Claude recibiendo el lote…';
     return {
       status: 'submitted',
-      message: `OpenAI procesando ${itemCount} caso(s) — ${progressMsg}`,
+      message: `Claude procesando ${itemCount} caso(s) — ${progressMsg}`,
     };
   }
 
-  private async processBatchResults(job: any, openAIBatch: any): Promise<void> {
-    if (!openAIBatch.output_file_id) {
-      await this.markJobFailed(job.id, 'OpenAI batch completado sin output_file_id');
-      return;
-    }
+  private async processBatchResults(job: any, claudeBatch: any): Promise<void> {
+    logger.info('Downloading batch results from Claude', { jobId: job.id });
 
-    logger.info('Downloading batch results from OpenAI', { jobId: job.id });
-
-    const fileResponse = await this.openai.files.content(openAIBatch.output_file_id);
-    const resultsText = await fileResponse.text();
-
-    // Parsear JSONL de resultados exitosos
-    const resultMap = new Map<string, any>();
-    for (const line of resultsText.split('\n').filter(l => l.trim())) {
-      try {
-        const result = JSON.parse(line);
-        resultMap.set(result.custom_id, result);
-      } catch {}
-    }
-
-    // Parsear JSONL de errores (requests que OpenAI rechazó)
+    // Los resultados de Claude llegan desordenados → mapear por custom_id.
+    const resultMap = new Map<string, Anthropic.Message>();
     const errorMap = new Map<string, string>();
-    if (openAIBatch.error_file_id) {
-      try {
-        const errResponse = await this.openai.files.content(openAIBatch.error_file_id);
-        const errText = await errResponse.text();
-        for (const line of errText.split('\n').filter(l => l.trim())) {
-          try {
-            const r = JSON.parse(line);
-            errorMap.set(r.custom_id, r.error?.message || 'Request rechazada por OpenAI');
-          } catch {}
-        }
-        if (errorMap.size > 0) logger.warn('Batch error file had failed requests', { count: errorMap.size });
-      } catch {}
+
+    for await (const entry of await this.claude.messages.batches.results(claudeBatch.id)) {
+      const cid = entry.custom_id;
+      const r: any = entry.result;
+      if (r?.type === 'succeeded') {
+        resultMap.set(cid, r.message as Anthropic.Message);
+      } else if (r?.type === 'errored') {
+        errorMap.set(cid, r.error?.error?.message ?? r.error?.type ?? 'Request rechazada por Claude');
+      } else if (r?.type === 'canceled') {
+        errorMap.set(cid, 'Request cancelada');
+      } else if (r?.type === 'expired') {
+        errorMap.set(cid, 'Request expirada');
+      }
     }
+    if (errorMap.size > 0) logger.warn('Batch had failed requests', { count: errorMap.size });
 
     const databaseService = getDatabaseService();
     const items: any[] = job.batch_items ?? [];
@@ -576,11 +552,11 @@ class BatchService {
         const imageResults: any[] = [];
         let imgIdx = 0;
         while (resultMap.has(`${item.id}__img__${imgIdx}`)) {
-          const imgResult = resultMap.get(`${item.id}__img__${imgIdx}`);
-          if (imgResult?.response?.body?.choices?.[0]?.message?.content) {
+          const imgMsg = resultMap.get(`${item.id}__img__${imgIdx}`)!;
+          const imgText = extractClaudeText(imgMsg);
+          if (imgText) {
             try {
-              let content = imgResult.response.body.choices[0].message.content.trim();
-              content = content.replace(/```json\n?/gi, '').replace(/```\n?/g, '');
+              const content = imgText.trim().replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
               imageResults.push(JSON.parse(content));
             } catch {}
           }
@@ -588,18 +564,23 @@ class BatchService {
         }
 
         // Resultado de evaluación del batch
-        const evalResult = resultMap.get(`${item.id}__eval`);
-        if (!evalResult?.response?.body?.choices?.[0]?.message?.content) {
-          const openAIError = errorMap.get(`${item.id}__eval`);
-          throw new Error(openAIError
-            ? `OpenAI rechazó la evaluación: ${openAIError}`
+        const evalMsg = resultMap.get(`${item.id}__eval`);
+        const evalText = evalMsg ? extractClaudeText(evalMsg) : '';
+        if (!evalText) {
+          const claudeError = errorMap.get(`${item.id}__eval`);
+          throw new Error(claudeError
+            ? `Claude rechazó la evaluación: ${claudeError}`
             : 'No se encontró resultado de evaluación en el lote');
         }
 
-        const evalContent = evalResult.response.body.choices[0].message.content;
+        // Limpieza defensiva del JSON de evaluación.
+        let cleanedEval = evalText.trim().replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
+        const fb = cleanedEval.indexOf('{');
+        const lb = cleanedEval.lastIndexOf('}');
+        if (fb >= 0 && lb > fb) cleanedEval = cleanedEval.slice(fb, lb + 1);
         let evaluation: any;
         try {
-          evaluation = JSON.parse(evalContent);
+          evaluation = JSON.parse(cleanedEval);
         } catch {
           throw new Error('Respuesta de evaluación no es JSON válido');
         }
@@ -1064,7 +1045,7 @@ REGLA CRÍTICA: Los campos "block" y "topic" deben ser EXACTAMENTE iguales a los
    */
   maxCasesForFileLimit(avgImagesPerCase = 5): number {
     const mbPerCase = avgImagesPerCase * 0.4;
-    return Math.floor((BATCH_LIMITS.MAX_FILE_SIZE_MB * 0.9) / mbPerCase); // 90% del límite
+    return Math.floor((BATCH_LIMITS.MAX_REQUEST_SIZE_MB * 0.9) / mbPerCase); // 90% del límite
   }
 }
 

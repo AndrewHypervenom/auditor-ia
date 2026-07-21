@@ -1,4 +1,6 @@
 ﻿// frontend/src/pages/AdminDashboard.tsx
+import { motion } from 'motion/react';
+import { CountUp } from '../lib/motion';
 // Dashboard para Administrador - Control total del sistema con datos reales
 
 import { useState, useEffect, useMemo } from 'react';
@@ -1414,7 +1416,7 @@ export default function AdminDashboard() {
  <span className="text-slate-400 text-sm font-medium">{t('adminDash.totalUsers')}</span>
  <Users className="w-5 h-5 text-indigo-400" />
  </div>
- <div className="text-2xl font-bold text-white">{systemStats.totalUsers}</div>
+ <div className="text-2xl font-bold text-white tabular-nums"><CountUp value={systemStats.totalUsers} /></div>
  <div className="text-xs text-slate-500 mt-1">{systemStats.activeUsers} {t('adminDash.activeUsers')}</div>
  </div>
 
@@ -1423,7 +1425,7 @@ export default function AdminDashboard() {
  <span className="text-slate-400 text-sm font-medium">{t('adminDash.totalAudits')}</span>
  <FileText className="w-5 h-5 text-brand-400" />
  </div>
- <div className="text-2xl font-bold text-white">{systemStats.totalAudits}</div>
+ <div className="text-2xl font-bold text-white tabular-nums"><CountUp value={systemStats.totalAudits} /></div>
  </div>
 
  <div className="stat-card">
@@ -1431,7 +1433,7 @@ export default function AdminDashboard() {
  <span className="text-slate-400 text-sm font-medium">{t('adminDash.completedAudits')}</span>
  <CheckCircle2 className="w-5 h-5 text-green-400" />
  </div>
- <div className="text-2xl font-bold text-white">{systemStats.completedAudits}</div>
+ <div className="text-2xl font-bold text-white tabular-nums"><CountUp value={systemStats.completedAudits} /></div>
  </div>
 
  <div className="stat-card bg-gradient-to-br from-emerald-900/20 to-green-900/20 border-emerald-500/30">
@@ -1439,8 +1441,8 @@ export default function AdminDashboard() {
  <span className="text-slate-400 text-sm font-medium">{t('adminDash.totalCosts')}</span>
  <DollarSign className="w-5 h-5 text-emerald-400" />
  </div>
- <div className="text-2xl font-bold text-emerald-400">
- ${systemStats.totalCosts.toFixed(4)}
+ <div className="text-2xl font-bold text-emerald-400 tabular-nums">
+ <CountUp value={systemStats.totalCosts} prefix="$" decimals={4} />
  </div>
  <div className="text-xs text-slate-500 mt-1">{t('adminDash.usd')}</div>
  </div>
@@ -1454,7 +1456,7 @@ export default function AdminDashboard() {
  <span className="text-slate-400 text-sm font-medium">{t('adminDash.averageScore')}</span>
  <TrendingUp className="w-5 h-5 text-brand-400" />
  </div>
- <div className="text-2xl font-bold text-white">{systemStats.averageScore}%</div>
+ <div className="text-2xl font-bold text-white tabular-nums"><CountUp value={systemStats.averageScore} suffix="%" /></div>
  </div>
  </div>
  )}
@@ -1740,9 +1742,9 @@ export default function AdminDashboard() {
  />
 
  {/* Main Content */}
- <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+ <motion.main initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
  {showGpfPanel ? renderGpfPanel() : renderNormalView()}
- </main>
+ </motion.main>
  </div>
  );
 }

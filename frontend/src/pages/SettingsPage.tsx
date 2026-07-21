@@ -1,4 +1,5 @@
 ﻿// frontend/src/pages/SettingsPage.tsx
+import { motion } from 'motion/react';
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -22,7 +23,7 @@ import {
 import toast from 'react-hot-toast';
 
 interface SystemConfig {
-  openai_api_key: string;
+  anthropic_api_key: string;
   assemblyai_api_key: string;
   supabase_url: string;
   supabase_anon_key: string;
@@ -37,14 +38,14 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
   const [showKeys, setShowKeys] = useState({
-    openai: false,
+    anthropic: false,
     assemblyai: false,
     supabase_anon: false,
     supabase_service: false
   });
 
   const [config, setConfig] = useState<SystemConfig>({
-    openai_api_key: '',
+    anthropic_api_key: '',
     assemblyai_api_key: '',
     supabase_url: '',
     supabase_anon_key: '',
@@ -52,7 +53,7 @@ export default function SettingsPage() {
   });
 
   const [connectionStatus, setConnectionStatus] = useState({
-    openai: false,
+    anthropic: false,
     assemblyai: false,
     supabase: false
   });
@@ -96,7 +97,7 @@ export default function SettingsPage() {
       if (response.ok) {
         const health = await response.json();
         setConnectionStatus({
-          openai: health.openai || false,
+          anthropic: health.anthropic || false,
           assemblyai: health.assemblyai || false,
           supabase: health.supabase || false
         });
@@ -132,7 +133,7 @@ export default function SettingsPage() {
     }
   };
 
-  const testConnection = async (service: 'openai' | 'assemblyai' | 'supabase') => {
+  const testConnection = async (service: 'anthropic' | 'assemblyai' | 'supabase') => {
     try {
       setTesting(service);
       const response = await fetch(`/api/admin/test/${service}`, {
@@ -182,7 +183,7 @@ export default function SettingsPage() {
     <div className="min-h-screen">
       <AppHeader showBack onBack={() => navigate('/dashboard')} title={t('settingsPage.title')} />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <motion.main initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }} className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div>
 
         {/* Status Cards */}
@@ -193,10 +194,10 @@ export default function SettingsPage() {
                 <Brain className="w-5 h-5 text-brand-400" />
                 <div>
                   <p className="text-sm text-slate-400">{t('settingsPage.openaiTitle')}</p>
-                  <p className="text-xs text-slate-500">GPT-4o</p>
+                  <p className="text-xs text-slate-500">Claude Sonnet 5</p>
                 </div>
               </div>
-              {connectionStatus.openai ? (
+              {connectionStatus.anthropic ? (
                 <CheckCircle className="w-5 h-5 text-green-400" />
               ) : (
                 <XCircle className="w-5 h-5 text-red-400" />
@@ -241,20 +242,20 @@ export default function SettingsPage() {
 
         {/* Configuration Form */}
         <div className="card space-y-6">
-          {/* OpenAI Config */}
+          {/* Anthropic (Claude) Config */}
           <div>
-            <h3 className="section-header mb-4">OpenAI API</h3>
+            <h3 className="section-header mb-4">Anthropic API (Claude)</h3>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Brain className="w-5 h-5 text-brand-400" />
                 <span className="text-sm text-slate-400">{t('settingsPage.gptDesc')}</span>
               </div>
               <button
-                onClick={() => testConnection('openai')}
-                disabled={testing === 'openai' || !config.openai_api_key}
+                onClick={() => testConnection('anthropic')}
+                disabled={testing === 'anthropic' || !config.anthropic_api_key}
                 className="flex items-center gap-2 px-3 py-1.5 bg-brand-500/10 text-brand-400 border border-brand-700/20 rounded-lg text-sm hover:bg-brand-500/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {testing === 'openai' ? (
+                {testing === 'anthropic' ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <CheckCircle className="w-4 h-4" />
@@ -269,22 +270,22 @@ export default function SettingsPage() {
               </label>
               <div className="relative">
                 <input
-                  type={showKeys.openai ? 'text' : 'password'}
-                  value={config.openai_api_key}
-                  onChange={(e) => setConfig(prev => ({ ...prev, openai_api_key: e.target.value }))}
-                  placeholder="sk-..."
+                  type={showKeys.anthropic ? 'text' : 'password'}
+                  value={config.anthropic_api_key}
+                  onChange={(e) => setConfig(prev => ({ ...prev, anthropic_api_key: e.target.value }))}
+                  placeholder="sk-ant-..."
                   className="input pr-12"
                 />
                 <button
-                  onClick={() => toggleShowKey('openai')}
+                  onClick={() => toggleShowKey('anthropic')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
                 >
-                  {showKeys.openai ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showKeys.anthropic ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
               <div className="flex items-start gap-2 text-xs text-slate-500">
                 <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <p>{t('settingsPage.getKeyAt')} <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">platform.openai.com</a></p>
+                <p>{t('settingsPage.getKeyAt')} <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">console.anthropic.com</a></p>
               </div>
             </div>
           </div>
@@ -447,7 +448,7 @@ export default function SettingsPage() {
           </button>
         </div>
       </div>
-      </main>
+      </motion.main>
     </div>
   );
 }

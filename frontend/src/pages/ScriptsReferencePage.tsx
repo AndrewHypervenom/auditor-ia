@@ -1,4 +1,5 @@
 // frontend/src/pages/ScriptsReferencePage.tsx
+import { motion } from 'motion/react';
 // Vista de consulta (solo lectura) — Criterios, Scripts y Plantilla GPF
 
 import { useState, useEffect, useCallback } from 'react';
@@ -123,7 +124,7 @@ export default function ScriptsReferencePage() {
   return (
     <div className="min-h-screen text-white">
       <AppHeader showBack onBack={() => navigate(-1)} title={t('reference.pageTitle')} subtitle={t('reference.readOnly')} />
-      <div className="max-w-5xl mx-auto px-6 py-6">
+      <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.06 }} className="max-w-5xl mx-auto px-6 py-6">
 
         <p className="mb-4 text-sm text-slate-400 leading-relaxed">
           {t('reference.intro')}
@@ -250,7 +251,7 @@ export default function ScriptsReferencePage() {
           }
         </div>
 
-      </div>
+      </motion.div>
     </div>
   );
 }

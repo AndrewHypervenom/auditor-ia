@@ -12,7 +12,7 @@ import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from './utils/logger.js';
 import { assemblyAIService } from './services/assemblyai.service.js';
-import { openAIService } from './services/openai.service.js';
+import { openAIService } from './services/claude.service.js';
 import { evaluatorService } from './services/evaluator.service.js';
 import { excelService } from './services/excel.service.js';
 import { databaseService } from './services/database.service.js';
@@ -147,7 +147,7 @@ app.get('/health', (req, res) => {
  res.json({
  status: 'ok',
  timestamp: new Date().toISOString(),
- openai: !!process.env.OPENAI_API_KEY,
+ anthropic: !!process.env.ANTHROPIC_API_KEY,
  assemblyai: !!process.env.ASSEMBLYAI_API_KEY,
  supabase: !!process.env.SUPABASE_URL
  });
@@ -1024,7 +1024,7 @@ app.delete('/api/admin/users/:userId', authenticateUser, requireAdmin, async (re
 app.get('/api/admin/config', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
  try {
  res.json({
- openai_api_key: process.env.OPENAI_API_KEY || '',
+ anthropic_api_key: process.env.ANTHROPIC_API_KEY || '',
  assemblyai_api_key: process.env.ASSEMBLYAI_API_KEY || '',
  supabase_url: process.env.SUPABASE_URL || '',
  supabase_anon_key: process.env.SUPABASE_ANON_KEY || '',
@@ -1038,15 +1038,15 @@ app.get('/api/admin/config', authenticateUser, requireAdmin, async (req: Request
 
 app.put('/api/admin/config', authenticateUser, requireAdmin, async (req: Request, res: Response) => {
  try {
- const { 
- openai_api_key, 
- assemblyai_api_key, 
- supabase_url, 
- supabase_anon_key, 
- supabase_service_role_key 
+ const {
+ anthropic_api_key,
+ assemblyai_api_key,
+ supabase_url,
+ supabase_anon_key,
+ supabase_service_role_key
  } = req.body;
 
- if (openai_api_key !== undefined) process.env.OPENAI_API_KEY = openai_api_key;
+ if (anthropic_api_key !== undefined) process.env.ANTHROPIC_API_KEY = anthropic_api_key;
  if (assemblyai_api_key !== undefined) process.env.ASSEMBLYAI_API_KEY = assemblyai_api_key;
  if (supabase_url !== undefined) process.env.SUPABASE_URL = supabase_url;
  if (supabase_anon_key !== undefined) process.env.SUPABASE_ANON_KEY = supabase_anon_key;
@@ -1070,8 +1070,8 @@ app.put('/api/admin/config', authenticateUser, requireAdmin, async (req: Request
  }
  };
 
- if (openai_api_key !== undefined) {
- envContent = updateEnvVar(envContent, 'OPENAI_API_KEY', openai_api_key);
+ if (anthropic_api_key !== undefined) {
+ envContent = updateEnvVar(envContent, 'ANTHROPIC_API_KEY', anthropic_api_key);
  }
  if (assemblyai_api_key !== undefined) {
  envContent = updateEnvVar(envContent, 'ASSEMBLYAI_API_KEY', assemblyai_api_key);
@@ -1101,17 +1101,22 @@ app.get('/api/admin/test/:service', authenticateUser, requireAdmin, async (req: 
  const { service } = req.params;
 
  switch (service) {
- case 'openai':
+ case 'anthropic':
  try {
- const response = await fetch('https://api.openai.com/v1/models', {
+ const response = await fetch('https://api.anthropic.com/v1/models', {
  headers: {
- 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+ 'x-api-key': process.env.ANTHROPIC_API_KEY || '',
+ 'anthropic-version': '2023-06-01'
  }
  });
- 
+
  if (response.ok) {
- res.json({ success: true, message: 'Conexión exitosa con OpenAI' });
- } 
+ res.json({ success: true, message: 'Conexión exitosa con Claude (Anthropic)' });
+ } else if (response.status === 401) {
+ res.json({ success: false, error: 'API key inválida' });
+ } else {
+ res.json({ success: false, error: `Respuesta inesperada: ${response.status}` });
+ }
  } catch (error) {
  const errorMessage = error instanceof Error ? error.message : 'Error de conexión';
  res.json({ success: false, error: errorMessage });
@@ -3127,7 +3132,7 @@ app.get('/api/batch/savings-estimate', authenticateUser, (req: Request, res: Res
       model: BATCH_LIMITS.MODEL,
       context_window_tokens: BATCH_LIMITS.CONTEXT_WINDOW_TOKENS,
       max_output_tokens: BATCH_LIMITS.MAX_OUTPUT_TOKENS,
-      max_file_size_mb: BATCH_LIMITS.MAX_FILE_SIZE_MB,
+      max_file_size_mb: BATCH_LIMITS.MAX_REQUEST_SIZE_MB,
       max_requests_per_batch: BATCH_LIMITS.MAX_REQUESTS_PER_BATCH,
       recommended_max_cases: BATCH_LIMITS.RECOMMENDED_MAX_CASES,
       hard_max_cases: BATCH_LIMITS.HARD_MAX_CASES,
@@ -3398,7 +3403,7 @@ app.listen(PORT, () => {
  logger.info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
  logger.info(` Environment: ${process.env.NODE_ENV || 'development'}`);
  logger.info(` CORS origins: ${allowedOrigins.join(', ')}`);
- logger.info(` OpenAI API: ${process.env.OPENAI_API_KEY ? ' Configured' : ' Missing'}`);
+ logger.info(` Anthropic API: ${process.env.ANTHROPIC_API_KEY ? ' Configured' : ' Missing'}`);
  logger.info(` AssemblyAI API: ${process.env.ASSEMBLYAI_API_KEY ? ' Configured' : ' Missing'}`);
  logger.info(` Supabase: ${process.env.SUPABASE_URL ? ' Configured' : ' Missing'}`);
  logger.info(` Excel storage: Database (base64)`);
