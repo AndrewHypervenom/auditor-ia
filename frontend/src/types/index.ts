@@ -38,6 +38,10 @@ export interface DetailedScore {
   observations: string;
   evidences: string[];
   requiresManualReview?: boolean;
+  /** El rubro se marcó como No Aplica: sale del numerador y del denominador. */
+  notApplicable?: boolean;
+  /** Escala discreta vigente del rubro (-100 / 0 / 5 / N/A). */
+  scoreOptions?: import('../lib/scoring').ScoreOption[] | null;
 }
 
 export interface EvaluationResult {

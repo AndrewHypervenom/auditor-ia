@@ -26,6 +26,7 @@ import { gpfConfigService } from './services/gpf-config.service.js';
 import { buildSyntheticTranscript } from './utils/synthetic-transcript.js';
 import { downloadImagesToTemp } from './utils/image-downloader.js';
 import { gpfFetch } from './utils/gpf-fetch.js';
+import { computeScoreTotals, normalizeScoreOptions, type DetailedScore } from './utils/scoring.js';
 import { supabase, supabaseAdmin } from './config/supabase.js';
 import { progressBroadcaster } from './services/progress-broadcaster.js';
 import type { AuditInput } from './types/index.js';
@@ -704,26 +705,16 @@ app.patch('/api/audits/:auditId/scores', authenticateUser, async (req: Request, 
  try {
  const { auditId } = req.params;
  if (!(await ensureAuditCompany(req, res, auditId))) return;
- const { detailedScores } = req.body as { detailedScores: Array<{ criterion: string; score: number; maxScore: number; observations: string; criticality?: string; requiresManualReview?: boolean }> };
+ const { detailedScores } = req.body as { detailedScores: DetailedScore[] };
 
  if (!Array.isArray(detailedScores) || detailedScores.length === 0) {
  return res.status(400).json({ error: 'detailedScores es requerido y debe ser un array no vacío' });
  }
 
- // Recalcular totales
- const totalScore = detailedScores.reduce((sum, s) => sum + (s.score ?? 0), 0);
- const maxPossibleScore = detailedScores.reduce((sum, s) => sum + (s.maxScore ?? 0), 0);
- const rawPercentage = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0;
-
- // Reevaluar fallo crítico — excluir ítems de validación manual (score 0 es su estado inicial, no una falla)
- const failedCritical = detailedScores.filter(s =>
-   s.criticality === 'Crítico' &&
-   s.score === 0 &&
-   !s.requiresManualReview &&
-   !(typeof s.observations === 'string' && s.observations.includes('Requiere validación manual'))
- ).map(s => s.criterion);
- const criticalFailure = failedCritical.length > 0;
- const percentage = criticalFailure ? 0 : rawPercentage;
+ // Recalcular totales con las reglas de escala discreta:
+ // los rubros N/A quedan fuera del cálculo y un valor negativo reprueba la auditoría.
+ const { totalScore, maxPossibleScore, percentage, criticalFailure, failedCriticalCriteria: failedCritical } =
+   computeScoreTotals(detailedScores);
 
  const { error } = await supabaseAdmin
  .from('evaluations')
@@ -1337,7 +1328,7 @@ app.delete('/api/admin/blocks/:id', authenticateUser, requireAdminOrAnalyst, asy
 
 app.post('/api/admin/criteria', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
-    const { block_id, topic, criticality, points, applies, what_to_look_for, validation_source, criteria_order, requires_manual_review } = req.body;
+    const { block_id, topic, criticality, points, applies, what_to_look_for, validation_source, criteria_order, requires_manual_review, score_options } = req.body;
     if (!block_id || !topic) {
       return res.status(400).json({ error: 'block_id y topic son requeridos' });
     }
@@ -1350,7 +1341,8 @@ app.post('/api/admin/criteria', authenticateUser, requireAdminOrAnalyst, async (
       what_to_look_for,
       validation_source: Array.isArray(validation_source) ? validation_source : [],
       criteria_order: criteria_order ?? 0,
-      requires_manual_review: requires_manual_review === true
+      requires_manual_review: requires_manual_review === true,
+      score_options: normalizeScoreOptions(score_options)
     });
     res.status(201).json(criteria);
   } catch (error: any) {
@@ -1380,7 +1372,7 @@ app.post('/api/admin/criteria/generate-prompt', authenticateUser, requireAdminOr
 app.put('/api/admin/criteria/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { topic, criticality, points, applies, what_to_look_for, validation_source, criteria_order, is_active, requires_manual_review, tipo_cierre_overrides } = req.body;
+    const { topic, criticality, points, applies, what_to_look_for, validation_source, criteria_order, is_active, requires_manual_review, tipo_cierre_overrides, score_options } = req.body;
     const payload: Record<string, any> = {};
     if (topic !== undefined) payload.topic = topic;
     if (criticality !== undefined) payload.criticality = criticality;
@@ -1392,6 +1384,9 @@ app.put('/api/admin/criteria/:id', authenticateUser, requireAdminOrAnalyst, asyn
     if (is_active !== undefined) payload.is_active = is_active;
     if (requires_manual_review !== undefined) payload.requires_manual_review = requires_manual_review;
     if (tipo_cierre_overrides !== undefined) payload.tipo_cierre_overrides = tipo_cierre_overrides;
+    // normalizeScoreOptions devuelve null si vienen menos de 2 opciones válidas
+    // → el rubro regresa a la escala numérica 0..points.
+    if (score_options !== undefined) payload.score_options = normalizeScoreOptions(score_options);
     const criteria = await databaseService.updateCriteria(id, payload);
     res.json(criteria);
   } catch (error: any) {

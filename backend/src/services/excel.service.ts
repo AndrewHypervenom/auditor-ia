@@ -658,6 +658,11 @@ class ExcelService {
 
  const justification = score.observations || score.justification || '';
 
+ // N/A elegido por el analista en la escala del rubro: no cuenta en el total
+ if (score.notApplicable === true) {
+ return { value: 'N/A', reason: justification || 'Marcado como No Aplica', isCritical: false };
+ }
+
  if (topic.criticality === 'Crítico') {
  // Para críticos: mostrar "Cumple" o "No Cumple"
  const cumple = score.score > 0;
@@ -742,7 +747,11 @@ class ExcelService {
 
  if (typeof result.value === 'number') {
  const maxPoints = typeof topic.points === 'number' ? topic.points : 0;
- if (result.value === maxPoints) {
+ if (result.value < 0) {
+ // Opción reprobatoria de la escala (p. ej. -100) - rojo fuerte
+ cellD.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF0000' } };
+ cellD.font = { size: 10, bold: true, color: { argb: WHITE_FONT } };
+ } else if (result.value === maxPoints) {
  // Puntaje completo - verde suave
  cellD.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4EDDA' } };
  cellD.font = { size: 10, bold: true, color: { argb: 'FF155724' } };
@@ -755,6 +764,9 @@ class ExcelService {
  cellD.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } };
  cellD.font = { size: 10, bold: true, color: { argb: 'FF856404' } };
  }
+ } else if (result.value === 'N/A') {
+ cellD.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+ cellD.font = { size: 10, bold: true, color: { argb: 'FF666666' } };
  } else if (result.value === 'Sin evaluar') {
  cellD.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
  cellD.font = { size: 9, italic: true, color: { argb: 'FF666666' } };

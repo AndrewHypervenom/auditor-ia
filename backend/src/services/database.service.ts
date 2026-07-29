@@ -2,6 +2,7 @@
 
 import { supabaseAdmin } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
+import { normalizeScoreOptions, resolveMaxScore } from '../utils/scoring.js';
 import type { 
   AuditInput, 
   TranscriptResult, 
@@ -578,18 +579,25 @@ class DatabaseService {
         try {
           const currentCriteria = await this.getCriteriaForCallType(audit.call_type, audit.sub_calificacion || undefined);
           const topicCriticalityMap = new Map<string, string>();
+          const topicScoreOptionsMap = new Map<string, any>();
           for (const block of currentCriteria) {
             for (const t of (block.topics || [])) {
               topicCriticalityMap.set(t.topic, t.criticality || '-');
+              topicScoreOptionsMap.set(t.topic, (t as any).scoreOptions ?? null);
             }
           }
           if (topicCriticalityMap.size > 0) {
+            // Re-sincronizar criticidad y escala de calificación con la rúbrica vigente:
+            // si el cliente actualiza las opciones de un rubro, el visor las refleja
+            // sin alterar los puntajes ya asignados.
             evaluation.detailed_scores = evaluation.detailed_scores.map((s: any) => {
               const topic = (s.criterion ?? '').replace(/^\[.*?\]\s*/, '');
-              const currentCriticality = topicCriticalityMap.get(topic);
-              return currentCriticality !== undefined
-                ? { ...s, criticality: currentCriticality }
-                : s;
+              if (!topicCriticalityMap.has(topic)) return s;
+              return {
+                ...s,
+                criticality: topicCriticalityMap.get(topic),
+                scoreOptions: topicScoreOptionsMap.get(topic) ?? null,
+              };
             });
           }
           // Re-ordenar para que coincida con el orden actual de bloques/criterios en BD.
@@ -615,20 +623,22 @@ class DatabaseService {
                 return {
                   criterion: k,
                   score: 0,
-                  maxScore: meta.points === null ? 0 : meta.points,
+                  maxScore: resolveMaxScore(meta.points, meta.scoreOptions),
                   observations: 'Requiere validación manual — este criterio no puede evaluarse automáticamente a partir de las capturas de pantalla.',
                   criticality: meta.criticality || '-',
                   requiresManualReview: true,
+                  scoreOptions: meta.scoreOptions ?? null,
                 };
               }
               if (meta?.applies) {
                 return {
                   criterion: k,
                   score: 0,
-                  maxScore: meta.points === null ? 0 : meta.points,
+                  maxScore: resolveMaxScore(meta.points, meta.scoreOptions),
                   observations: 'Criterio no evaluado en la auditoría original — asigna el puntaje manualmente.',
                   criticality: meta.criticality || '-',
                   requiresManualReview: false,
+                  scoreOptions: meta.scoreOptions ?? null,
                 };
               }
               return null;
@@ -913,6 +923,7 @@ class DatabaseService {
           let whatToLookFor: string = c.what_to_look_for || '';
           let validationSource: string[] = c.validation_source || [];
           let requiresManualReview: boolean = c.requires_manual_review ?? false;
+          let scoreOptions = normalizeScoreOptions(c.score_options);
           if (subCalificacion && c.tipo_cierre_overrides) {
             const ov = c.tipo_cierre_overrides[subCalificacion];
             if (ov) {
@@ -920,6 +931,7 @@ class DatabaseService {
               if (ov.what_to_look_for !== undefined) whatToLookFor = ov.what_to_look_for || '';
               if (ov.validation_source !== undefined) validationSource = ov.validation_source || [];
               if (ov.requires_manual_review !== undefined) requiresManualReview = ov.requires_manual_review;
+              if (ov.score_options !== undefined) scoreOptions = normalizeScoreOptions(ov.score_options);
             }
           }
           return {
@@ -929,7 +941,8 @@ class DatabaseService {
             applies,
             whatToLookFor,
             validationSource,
-            requiresManualReview
+            requiresManualReview,
+            scoreOptions
           };
         })
       });
@@ -1023,6 +1036,7 @@ class DatabaseService {
     validation_source?: string[];
     criteria_order: number;
     requires_manual_review?: boolean;
+    score_options?: unknown;
   }): Promise<any> {
     const { data, error } = await supabaseAdmin
       .from('evaluation_criteria')
@@ -1045,6 +1059,7 @@ class DatabaseService {
     is_active: boolean;
     requires_manual_review: boolean;
     tipo_cierre_overrides: Record<string, unknown>;
+    score_options: unknown;
   }>): Promise<any> {
     const { data, error } = await supabaseAdmin
       .from('evaluation_criteria')

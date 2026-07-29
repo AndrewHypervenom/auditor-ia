@@ -3,6 +3,7 @@
 import axios from 'axios';
 import { supabase } from '../config/supabase';
 import type { AuditFormData, EvaluationResult, APICostsDB } from '../types';
+import type { ScoreOption } from '../lib/scoring';
 
 // CONFIGURACIÓN MEJORADA DE LA URL DEL BACKEND
 const getApiBaseUrl = (): string => {
@@ -717,6 +718,7 @@ export interface CriteriaItemOverride {
   what_to_look_for?: string | null;
   validation_source?: string[] | null;
   requires_manual_review?: boolean;
+  score_options?: ScoreOption[] | null;
 }
 
 export interface CriteriaItem {
@@ -727,6 +729,8 @@ export interface CriteriaItem {
   points: number | null;
   applies: boolean;
   requires_manual_review: boolean;
+  /** Escala discreta de calificación. null = escala numérica 0..points. */
+  score_options?: ScoreOption[] | null;
   what_to_look_for: string | null;
   validation_source: string[] | null;
   tipo_cierre_overrides?: Record<string, CriteriaItemOverride>;

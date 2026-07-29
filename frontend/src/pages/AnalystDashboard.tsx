@@ -290,17 +290,27 @@ export default function AnalystDashboard() {
   const completed = audits.filter(a => a?.status === 'completed');
   const batchAudits = audits.filter(a => a && isBatchAudit(a));
 
-  const avgScore = useMemo(() => {
-    const withScore = completed.filter(a => {
-      const e = Array.isArray(a.evaluations) ? a.evaluations : [];
-      return e.length > 0;
-    });
-    if (!withScore.length) return 0;
-    const sum = withScore.reduce((s, a) => {
-      const e = Array.isArray(a.evaluations) ? a.evaluations : [];
-      return s + (e[0]?.percentage ?? 0);
-    }, 0);
-    return Math.round(sum / withScore.length);
+  // Score acumulado: Σ puntos obtenidos / Σ puntos posibles.
+  // Sustituye al promedio simple de porcentajes, que daba el mismo peso a una
+  // auditoría de 20 puntos que a una de 120 pese a la ponderación de la rúbrica.
+  const scoreSummary = useMemo(() => {
+    const withScore = completed
+      .map(a => (Array.isArray(a.evaluations) ? a.evaluations[0] : undefined))
+      .filter((e): e is NonNullable<typeof e> => Boolean(e));
+
+    if (!withScore.length) return { accumulated: 0, average: 0, earned: 0, possible: 0, count: 0 };
+
+    const earned = withScore.reduce((s, e) => s + (e.total_score ?? 0), 0);
+    const possible = withScore.reduce((s, e) => s + (e.max_possible_score ?? 0), 0);
+    const average = withScore.reduce((s, e) => s + (e.percentage ?? 0), 0) / withScore.length;
+
+    return {
+      accumulated: possible > 0 ? Math.round(Math.max(0, (earned / possible) * 100)) : 0,
+      average: Math.round(average),
+      earned,
+      possible,
+      count: withScore.length,
+    };
   }, [completed]);
 
   const categories = useMemo(() => {
@@ -369,8 +379,20 @@ export default function AnalystDashboard() {
           <StatCard icon={FileText} label={t('analyst.statsTotal')} value={audits.length} sub={t('analyst.statAudits')} />
           <StatCard icon={CheckCircle2} label={t('analyst.statsCompleted')} value={completed.length}
             sub={`${batchAudits.length} ${t('analyst.statBatch')}`} />
-          <StatCard icon={TrendingUp} label={t('analyst.statsAvg')} value={avgScore} suffix="%"
-            sub={t('analyst.statScore')} accent={avgScore >= 75} />
+          <StatCard
+            icon={TrendingUp}
+            label={t('analyst.statsAccumulated')}
+            value={scoreSummary.accumulated}
+            suffix="%"
+            sub={scoreSummary.possible > 0
+              ? t('analyst.statAccumulatedSub', {
+                  earned: scoreSummary.earned,
+                  possible: scoreSummary.possible,
+                  average: scoreSummary.average,
+                })
+              : t('analyst.statScore')}
+            accent={scoreSummary.accumulated >= 75}
+          />
         </motion.div>
 
         <motion.div className="grid grid-cols-3 gap-3" variants={staggerParent} initial="hidden" animate="show">

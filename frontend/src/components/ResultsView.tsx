@@ -12,6 +12,61 @@ import { toast } from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { auditService } from '../services/api';
 import type { EvaluationResult } from '../types';
+import {
+  computeScoreTotals,
+  isManualItem as isManualScore,
+  isNotApplicable,
+  normalizeScoreOptions,
+  type DetailedScore,
+  type ScoreOption,
+} from '../lib/scoring';
+
+/** Edición pendiente de un rubro: puntaje elegido y si quedó marcado como N/A. */
+interface ScoreEdit {
+  score: number;
+  notApplicable: boolean;
+}
+
+// ── Selector de escala discreta (-100 / 0 / 5 / N/A) ─────────────────────────
+function ScoreOptionPicker({
+  options, current, isNA, accent, onPick,
+}: {
+  options: ScoreOption[];
+  current: number;
+  isNA: boolean;
+  accent: 'brand' | 'amber';
+  onPick: (value: number | null) => void;
+}) {
+  const activeClass = accent === 'amber'
+    ? 'bg-amber-500 text-black border-amber-400'
+    : 'bg-brand-500 text-black border-brand-400';
+
+  return (
+    <div className="flex items-center gap-1 flex-wrap justify-end max-w-[220px]">
+      {options.map(option => {
+        const isNAOption = option.value === null;
+        const isActive = isNAOption ? isNA : (!isNA && option.value === current);
+        const isNegative = option.value !== null && option.value < 0;
+        return (
+          <button
+            key={option.label}
+            type="button"
+            onClick={() => onPick(option.value)}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold tabular-nums border transition-colors ${
+              isActive
+                ? activeClass
+                : isNegative
+                  ? 'bg-red-500/10 border-red-500/30 text-red-300 hover:bg-red-500/20'
+                  : 'bg-dark-bg border-dark-border text-slate-400 hover:text-white hover:border-slate-500'
+            }`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 interface ResultsViewProps {
   result: EvaluationResult;
@@ -109,7 +164,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
 
   const [localScores, setLocalScores] = useState<any[]>(result.detailedScores ?? []);
   const [savedPercentage, setSavedPercentage] = useState<number>(result.percentage ?? 0);
-  const [scoreEdits, setScoreEdits] = useState<Record<number, number>>({});
+  const [scoreEdits, setScoreEdits] = useState<Record<number, ScoreEdit>>({});
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editInputValue, setEditInputValue] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
@@ -131,34 +186,38 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
   };
 
   // ── Cálculos en tiempo real ──────────────────────────────────────────────────
-  const currentScores = localScores.map((s: any, i: number) => ({
-    ...s,
-    score: scoreEdits[i] !== undefined ? scoreEdits[i] : (s.score ?? 0),
-    _globalIndex: i,
-  }));
-
-  const currentTotal = currentScores.reduce((sum: number, s: any) => sum + (s.score ?? 0), 0);
-  const currentMax   = currentScores.reduce((sum: number, s: any) => sum + (s.maxScore ?? 0), 0);
-  const rawPct       = currentMax > 0 ? (currentTotal / currentMax) * 100 : 0;
+  const currentScores = localScores.map((s: any, i: number) => {
+    const edit = scoreEdits[i];
+    return {
+      ...s,
+      score: edit !== undefined ? edit.score : (s.score ?? 0),
+      notApplicable: edit !== undefined ? edit.notApplicable : (s.notApplicable === true),
+      _globalIndex: i,
+    };
+  });
 
   const hasEdits = Object.keys(scoreEdits).length > 0;
 
-  const isManualItem = (s: any): boolean =>
-    s.requiresManualReview === true ||
-    ((s.score ?? 0) === 0 && typeof s.observations === 'string' &&
-      s.observations.includes('Requiere validación manual'));
+  const isManualItem = (s: any): boolean => isManualScore(s as DetailedScore);
 
-  const criticalFailed  = currentScores.filter((s: any) => !isManualItem(s) && s.criticality === 'Crítico' && (s.score ?? 0) === 0);
-  // hasCriticalFail: detectado en tiempo real por criterios críticos no-manuales en 0
+  // Totales con las reglas de escala: los N/A salen del cálculo y un valor
+  // negativo de la escala discreta reprueba la auditoría.
+  const totals = computeScoreTotals(currentScores as DetailedScore[]);
+  const currentTotal = totals.totalScore;
+  const currentMax   = totals.maxPossibleScore;
+  const rawPct       = totals.rawPercentage;
+
+  const criticalFailed = currentScores.filter((s: any) => totals.failedCriticalCriteria.includes(s.criterion));
+  // hasCriticalFail: detectado en tiempo real sobre los criterios visibles.
   // El fallback de savedPercentage===0 solo aplica si hay criterios críticos en la lista (evita falsos positivos por bugs previos)
   const hasCriticalItemsInList = currentScores.some((s: any) => !isManualItem(s) && s.criticality === 'Crítico');
-  const hasCriticalFail = criticalFailed.length > 0 || (!hasEdits && savedPercentage === 0 && rawPct > 0 && hasCriticalItemsInList);
+  const hasCriticalFail = totals.criticalFailure || (!hasEdits && savedPercentage === 0 && rawPct > 0 && hasCriticalItemsInList);
   const currentPct      = hasCriticalFail ? 0 : rawPct;
   // displayPct: muestra el porcentaje guardado en BD cuando no hay ediciones activas
   const displayPct      = hasEdits ? currentPct : savedPercentage;
 
   const criticalOnly = currentScores.filter(
-    (s: any) => s.criticality === 'Crítico' && typeof s.maxScore === 'number' && s.maxScore > 0
+    (s: any) => s.criticality === 'Crítico' && !isNotApplicable(s) && typeof s.maxScore === 'number' && s.maxScore > 0
   );
   const criticalPct =
     criticalOnly.length > 0
@@ -167,7 +226,12 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
       : null;
 
   // ── Clasificar criterios ─────────────────────────────────────────────────────
-  const getCriterionStatus = (score: number, maxScore: number): 'passed' | 'partial' | 'failed' => {
+  const getCriterionStatus = (s: any): 'passed' | 'partial' | 'failed' | 'na' => {
+    if (isNotApplicable(s)) return 'na';
+    const score = s.score ?? 0;
+    const maxScore = s.maxScore ?? 0;
+    // Opción reprobatoria de una escala discreta (-100): siempre falla
+    if (score < 0) return 'failed';
     if (maxScore === 0) return 'passed';
     const pct = (score / maxScore) * 100;
     if (pct >= 80) return 'passed';
@@ -176,12 +240,12 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
   };
 
   const filterCounts = useMemo(() => {
-    const counts = { passed: 0, partial: 0, failed: 0, critical: 0, manual: 0 };
+    const counts = { passed: 0, partial: 0, failed: 0, critical: 0, manual: 0, na: 0 };
     currentScores.forEach((s: any) => {
       if (isManualItem(s)) {
         counts.manual++;
       } else {
-        counts[getCriterionStatus(s.score ?? 0, s.maxScore ?? 0)]++;
+        counts[getCriterionStatus(s)]++;
         if (s.criticality === 'Crítico') counts.critical++;
       }
     });
@@ -196,7 +260,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
       const block = m ? m[1] : 'General';
       if (!acc[block]) acc[block] = [];
       const isManual = isManualItem(score);
-      const status = isManual ? 'manual' : getCriterionStatus(score.score ?? 0, score.maxScore ?? 0);
+      const status = isManual ? 'manual' : getCriterionStatus(score);
       const isCrit = !isManual && score.criticality === 'Crítico';
       if (
         filter === 'all' ||
@@ -236,7 +300,17 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
   const cancelEdit  = () => { setEditingIndex(null); setEditInputValue(''); };
   const confirmEdit = (idx: number, max: number) => {
     const v = parseInt(editInputValue, 10);
-    if (!isNaN(v) && v >= 0 && v <= max) setScoreEdits(prev => ({ ...prev, [idx]: v }));
+    if (!isNaN(v) && v >= 0 && v <= max) {
+      setScoreEdits(prev => ({ ...prev, [idx]: { score: v, notApplicable: false } }));
+    }
+    setEditingIndex(null); setEditInputValue('');
+  };
+  /** Elige una opción de la escala discreta. `null` marca el rubro como N/A. */
+  const pickScoreOption = (idx: number, value: number | null) => {
+    setScoreEdits(prev => ({
+      ...prev,
+      [idx]: value === null ? { score: 0, notApplicable: true } : { score: value, notApplicable: false },
+    }));
     setEditingIndex(null); setEditInputValue('');
   };
   const discardEdits = () => { setScoreEdits({}); setEditingIndex(null); setEditInputValue(''); };
@@ -250,6 +324,8 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
           criterion: s.criterion, score: s.score, maxScore: s.maxScore,
           observations: s.observations, criticality: s.criticality || '-',
           requiresManualReview: s.requiresManualReview ?? false,
+          notApplicable: s.notApplicable === true,
+          scoreOptions: s.scoreOptions ?? null,
         }))
       );
       setLocalScores(currentScores.map((s: any) => ({ ...s })));
@@ -320,7 +396,10 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
   };
 
   // Ícono de estado inequívoco por criterio
-  const StatusIcon = ({ score, maxScore, isCritical }: { score: number; maxScore: number; isCritical: boolean }) => {
+  const StatusIcon = ({ score, maxScore, isCritical, isNA }: { score: number; maxScore: number; isCritical: boolean; isNA?: boolean }) => {
+    if (isNA)            return <MinusCircle  className="w-4 h-4 text-slate-500 flex-shrink-0" />;
+    // Opción reprobatoria de una escala discreta (p. ej. -100)
+    if (score < 0)       return <ShieldAlert  className="w-4 h-4 text-red-400 flex-shrink-0" />;
     const pct = maxScore > 0 ? (score / maxScore) * 100 : 100;
     const isCriticalZero = isCritical && score === 0;
     if (isCriticalZero)  return <ShieldAlert  className="w-4 h-4 text-red-400 flex-shrink-0" />;
@@ -633,12 +712,15 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
           </div>
         ) : (
           visibleBlocks.map(([block, scores], blockIdx) => {
-            const blockTotal         = scores.reduce((s: number, x: any) => s + (x.score ?? 0), 0);
-            const blockMax           = scores.reduce((s: number, x: any) => s + (x.maxScore ?? 0), 0);
-            const blockPct           = blockMax > 0 ? (blockTotal / blockMax) * 100 : 0;
-            const blockFails         = scores.filter((s: any) => !isManualItem(s) && getCriterionStatus(s.score ?? 0, s.maxScore ?? 0) === 'failed').length;
-            const blockCritical      = scores.filter((s: any) => !isManualItem(s) && s.criticality === 'Crítico').length;
-            const blockCriticalFailed = scores.filter((s: any) => !isManualItem(s) && s.criticality === 'Crítico' && (s.score ?? 0) === 0).length;
+            // Los rubros marcados como N/A no cuentan en el subtotal del bloque
+            const blockCounted       = scores.filter((s: any) => !isNotApplicable(s));
+            const blockTotals        = computeScoreTotals(blockCounted as DetailedScore[]);
+            const blockTotal         = blockTotals.totalScore;
+            const blockMax           = blockTotals.maxPossibleScore;
+            const blockPct           = blockTotals.rawPercentage;
+            const blockFails         = blockCounted.filter((s: any) => !isManualItem(s) && getCriterionStatus(s) === 'failed').length;
+            const blockCritical      = blockCounted.filter((s: any) => !isManualItem(s) && s.criticality === 'Crítico').length;
+            const blockCriticalFailed = blockTotals.failedCriticalCriteria.length;
 
             return (
               <div key={block} className={blockIdx > 0 ? 'border-t border-dark-border/70' : ''}>
@@ -686,15 +768,18 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                     const isEditing     = editingIndex === idx;
                     const safeScore     = score.score ?? 0;
                     const safeMax       = score.maxScore ?? 0;
+                    const isNA          = isNotApplicable(score);
                     const pct           = safeMax > 0 ? Math.round((safeScore / safeMax) * 100) : 0;
-                    const isCritZero    = isCritical && safeScore === 0;
+                    // Escala discreta del rubro: si existe, sustituye al input numérico
+                    const options       = normalizeScoreOptions(score.scoreOptions);
+                    const isCritZero    = isCritical && !isNA && !options && safeScore === 0;
                     const name          = (score.criterion ?? '').replace(/\[.*?\]\s*/, '');
                     const observations  = score.observations ?? score.justification ?? '';
                     const evidence      = Array.isArray(score.evidence) ? score.evidence : [];
                     const hasComment    = Boolean(comments[score.criterion]);
                     const hasDetail     = Boolean(observations) || evidence.length > 0 || hasComment || Boolean(auditId);
                     const isExpanded    = isCriterionExpanded(idx, safeScore, safeMax, isManual);
-                    const status        = getCriterionStatus(safeScore, safeMax);
+                    const status        = getCriterionStatus(score);
 
                     // ── Fila de validación manual ────────────────────────
                     if (isManual) {
@@ -725,7 +810,16 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                               </div>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
-                              {isEditing ? (
+                              {options ? (
+                                // Escala discreta: el analista elige de la lista cerrada del rubro
+                                <ScoreOptionPicker
+                                  options={options}
+                                  current={safeScore}
+                                  isNA={isNA}
+                                  accent="amber"
+                                  onPick={(value) => pickScoreOption(idx, value)}
+                                />
+                              ) : isEditing ? (
                                 <div className="flex items-center gap-2">
                                   <div className="flex flex-col gap-1">
                                     <div className="flex items-center gap-1.5">
@@ -802,6 +896,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                       <div
                         key={idx}
                         className={`transition-colors border-l-2 ${
+                          status === 'na' ? 'bg-slate-800/20 hover:bg-slate-800/30 border-l-slate-600/40 opacity-60' :
                           isCritZero  ? 'bg-red-950/20 hover:bg-red-950/25 border-l-red-500/60'   :
                           isCritical  ? 'bg-red-950/8  hover:bg-red-950/12  border-l-brand-500/40' :
                           status === 'failed'  ? 'bg-red-950/8 hover:bg-red-950/12 border-l-transparent'   :
@@ -813,7 +908,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                         <div className="flex items-center gap-3 px-4 py-2.5">
                           {/* Ícono de estado (siempre visible) */}
                           <div className="flex-shrink-0">
-                            <StatusIcon score={safeScore} maxScore={safeMax} isCritical={isCritical} />
+                            <StatusIcon score={safeScore} maxScore={safeMax} isCritical={isCritical} isNA={isNA} />
                           </div>
 
                           {/* Nombre + badges */}
@@ -826,6 +921,11 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                               }`}>
                                 {name}
                               </span>
+                              {isNA && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold flex-shrink-0 bg-slate-500/15 text-slate-300 border border-slate-500/30">
+                                  <MinusCircle className="w-3 h-3" /> {t('resultsView.notApplicableBadge')}
+                                </span>
+                              )}
                               {isCritical && (
                                 <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-bold flex-shrink-0 ${
                                   isCritZero
@@ -850,7 +950,37 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
 
                           {/* Score + acciones (lado derecho) */}
                           <div className="flex items-center gap-2 flex-shrink-0">
-                            {isEditing ? (
+                            {options ? (
+                              // ── Escala discreta (-100 / 0 / 5 / N/A) ─────
+                              <>
+                                <span className={`text-xs tabular-nums font-semibold w-14 text-right ${
+                                  isNA ? 'text-slate-500' :
+                                  status === 'failed' ? 'text-red-400' :
+                                  status === 'partial' ? 'text-yellow-400' : 'text-brand-400'
+                                }`}>
+                                  {isNA ? t('resultsView.notApplicableBadge') : `${safeScore}/${safeMax} pts`}
+                                </span>
+                                <ScoreOptionPicker
+                                  options={options}
+                                  current={safeScore}
+                                  isNA={isNA}
+                                  accent="brand"
+                                  onPick={(value) => pickScoreOption(idx, value)}
+                                />
+                                {hasDetail && (
+                                  <button
+                                    onClick={() => toggleCriterion(idx, isExpanded)}
+                                    className="p-1.5 rounded-lg text-slate-600 hover:text-slate-300 transition-colors"
+                                    title={isExpanded ? t('resultsView.hideJustification') : t('resultsView.showJustification')}
+                                  >
+                                    {isExpanded
+                                      ? <ChevronUp   className="w-3.5 h-3.5" />
+                                      : <ChevronDown className="w-3.5 h-3.5" />
+                                    }
+                                  </button>
+                                )}
+                              </>
+                            ) : isEditing ? (
                               // ── Modo edición ─────────────────────────────
                               <div className="flex items-center gap-2">
                                 <div className="flex flex-col gap-1">

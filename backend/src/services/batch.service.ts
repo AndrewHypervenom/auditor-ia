@@ -16,6 +16,14 @@ import { excelService } from './excel.service.js';
 import { costCalculatorService } from './cost-calculator.service.js';
 import { getDatabaseService } from './database.service.js';
 import { gpfFetch } from '../utils/gpf-fetch.js';
+import {
+  computeScoreTotals,
+  hasScoreOptions,
+  resolveMaxScore,
+  snapToNearestOption,
+  type DetailedScore,
+  type ScoreOption,
+} from '../utils/scoring.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -873,8 +881,9 @@ class BatchService {
           block: block.blockName,
           topic: t.topic,
           criticality: t.criticality ?? '-',
-          maxScore: t.points === 'n/a' ? 0 : (t.points as number ?? 0),
+          maxScore: resolveMaxScore(t.points, t.scoreOptions),
           whatToLookFor: t.whatToLookFor || '',
+          scoreOptions: t.scoreOptions ?? null,
         }))
     );
 
@@ -885,9 +894,16 @@ class BatchService {
       .map(([k, v]) => `- ${k}: ${v}`)
       .join('\n');
 
-    const topicsSection = topicsToEvaluate.map((t: any, i: number) =>
-      `${i + 1}. ${t.topic}\n   Bloque: ${t.block}\n   Puntos máximos: ${t.maxScore}\n   Criticidad: ${t.criticality}\n   Qué buscar: ${t.whatToLookFor || 'Evaluar según contexto'}`
-    ).join('\n\n');
+    const topicsSection = topicsToEvaluate.map((t: any, i: number) => {
+      // Escala cerrada: el modelo debe elegir uno de los valores configurados.
+      const usable = hasScoreOptions(t.scoreOptions)
+        ? (t.scoreOptions as ScoreOption[]).filter(o => o.value !== null)
+        : [];
+      const scaleLine = usable.length > 0
+        ? `\n   ESCALA CERRADA — "score" debe ser exactamente uno de: ${usable.map(o => o.value).join(', ')} (sin valores intermedios)`
+        : '';
+      return `${i + 1}. ${t.topic}\n   Bloque: ${t.block}\n   Puntos máximos: ${t.maxScore}\n   Criticidad: ${t.criticality}${scaleLine}\n   Qué buscar: ${t.whatToLookFor || 'Evaluar según contexto'}`;
+    }).join('\n\n');
 
     return `# AUDITORÍA DE ATENCIÓN
 
@@ -959,7 +975,8 @@ REGLA CRÍTICA: Los campos "block" y "topic" deben ser EXACTAMENTE iguales a los
       (block.topics || [])
         .filter((t: any) => t.applies)
         .map((t: any) => {
-          const maxScore = t.points === 'n/a' ? 0 : (t.points as number ?? 0);
+          const scoreOptions = t.scoreOptions ?? null;
+          const maxScore = resolveMaxScore(t.points, scoreOptions);
           if (t.requiresManualReview) {
             return {
               criterion: `[${block.blockName}] ${t.topic}`,
@@ -968,17 +985,21 @@ REGLA CRÍTICA: Los campos "block" y "topic" deben ser EXACTAMENTE iguales a los
               observations: 'Requiere validación manual',
               criticality: t.criticality || '-',
               requiresManualReview: true,
+              scoreOptions,
             };
           }
           const ai = aiResultMap.get(`${norm(block.blockName)}|||${norm(t.topic)}`)
             ?? aiByTopic.get(norm(t.topic));
           if (ai) consumed.add(ai);
+          const rawScore = ai?.score ?? 0;
           return {
             criterion: `[${block.blockName}] ${t.topic}`,
-            score: ai?.score ?? 0,
-            maxScore: ai?.max_score ?? maxScore,
+            // Con escala discreta se ajusta el valor del modelo y el denominador lo manda la rúbrica
+            score: hasScoreOptions(scoreOptions) ? snapToNearestOption(rawScore, scoreOptions) : rawScore,
+            maxScore: scoreOptions ? maxScore : (ai?.max_score ?? maxScore),
             observations: ai?.justification ?? (ai ? '' : 'No evaluado por el modelo'),
             criticality: topicCriticalityMap.get(norm(t.topic)) || '-',
+            scoreOptions,
           };
         })
     ).filter(Boolean);
@@ -1003,12 +1024,13 @@ REGLA CRÍTICA: Los campos "block" y "topic" deben ser EXACTAMENTE iguales a los
       }
     }
 
-    const totalScore = rawEval.total_score ?? rawEval.totalScore ??
-      detailedScores.reduce((s: number, d: any) => s + (d?.score ?? 0), 0);
-    const maxPossibleScore = rawEval.max_possible_score ?? rawEval.maxPossibleScore ??
-      detailedScores.reduce((s: number, d: any) => s + (d?.maxScore ?? 0), 0);
-    const percentage = rawEval.percentage ??
-      (maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0);
+    // Los totales salen de los criterios guardados, no de los que reporta el modelo:
+    // con escala discreta los puntajes se ajustan y los N/A salen del denominador.
+    const { totalScore, maxPossibleScore, percentage, criticalFailure, failedCriticalCriteria } =
+      computeScoreTotals(detailedScores as DetailedScore[]);
+    if (criticalFailure) {
+      logger.warn('Batch: falla crítica detectada — resultado forzado a 0', { failedCriticalCriteria });
+    }
 
     const keyMoments = (rawEval.key_moments ?? rawEval.keyMoments ?? []).map((m: any) => ({
       timestamp: m.timestamp ?? '',
@@ -1024,6 +1046,8 @@ REGLA CRÍTICA: Los campos "block" y "topic" deben ser EXACTAMENTE iguales a los
       observations: rawEval.observations ?? rawEval.observaciones ?? '',
       recommendations: rawEval.recommendations ?? rawEval.recomendaciones ?? [],
       keyMoments,
+      criticalFailure,
+      failedCriticalCriteria: criticalFailure ? failedCriticalCriteria : undefined,
       usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
     };
   }

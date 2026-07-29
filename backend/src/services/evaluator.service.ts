@@ -5,6 +5,14 @@ import { logger } from '../utils/logger.js';
 import type { AuditInput, TranscriptResult, ImageAnalysis, EvaluationResult } from '../types/index.js';
 import type { EvaluationBlock } from '../config/evaluation-criteria.js';
 import { getDatabaseService } from './database.service.js';
+import {
+  computeScoreTotals,
+  hasScoreOptions,
+  resolveMaxScore,
+  snapToNearestOption,
+  type DetailedScore,
+  type ScoreOption,
+} from '../utils/scoring.js';
 import * as fs from 'fs';
 
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? 'claude-sonnet-5';
@@ -137,16 +145,19 @@ class EvaluatorService {
        if (t.requiresManualReview) {
          return manualMap.get(criterionKey) ?? null;
        }
-       const maxScore = t.points === 'n/a' ? 0 : (t.points as number ?? 0);
+       const scoreOptions = (t as any).scoreOptions ?? null;
+       const maxScore = resolveMaxScore(t.points, scoreOptions);
        const ai = matcher.match(block.blockName, t.topic);
        if (ai) {
          return {
            // Usar el nombre de la BD (no el del modelo): el visor reordena por esta clave
            criterion: criterionKey,
-           score: ai.score ?? 0,
-           maxScore: ai.max_score ?? maxScore,
+           // Con escala discreta el denominador lo manda la rúbrica, no el modelo
+           score: this.applyScoreOptions(ai.score ?? 0, scoreOptions),
+           maxScore: scoreOptions ? maxScore : (ai.max_score ?? maxScore),
            observations: ai.justification ?? '',
            criticality: topicCriticalityMap.get(t.topic) || '-',
+           scoreOptions,
          };
        }
        logger.warn('Criterio sin evaluación del modelo — se conserva en 0', { block: block.blockName, topic: t.topic });
@@ -156,10 +167,11 @@ class EvaluatorService {
          maxScore,
          observations: 'No evaluado por el modelo — asigna el puntaje manualmente.',
          criticality: topicCriticalityMap.get(t.topic) || '-',
+         scoreOptions,
        };
      })
      .filter(Boolean)
- ) as Array<{ criterion: string; score: number; maxScore: number; observations: string; criticality: string; requiresManualReview?: boolean }>;
+ ) as DetailedScore[];
 
  // Conservar evaluaciones del modelo que no coincidieron con ningún criterio de la BD
  for (const ev of evaluationsArr) {
@@ -175,21 +187,15 @@ class EvaluatorService {
    }
  }
 
- // PASO 4b: Verificar si algún criterio crítico obtuvo 0 (sobre los scores ya matcheados;
- // los criterios sin evaluación del modelo no cuentan como fallo crítico)
- const failedCriticalCriteria: string[] = detailedScores
-   .filter((d: any) => !d.requiresManualReview && d.criticality === 'Crítico' && d.maxScore > 0 && d.score === 0
-     && !String(d.observations).startsWith('No evaluado por el modelo'))
-   .map((d: any) => d.criterion);
-
- const criticalFailure = failedCriticalCriteria.length > 0;
+ // PASO 4b: Totales y falla crítica con las reglas de escala (ver utils/scoring.ts).
+ // Los criterios sin evaluación del modelo y los N/A nunca cuentan como fallo.
+ const totals = computeScoreTotals(detailedScores);
+ const { failedCriticalCriteria, criticalFailure } = totals;
 
  // Totales consistentes con los criterios guardados (no los que reporta el modelo)
- const computedTotal = detailedScores.reduce((s: number, d: any) => s + (d.score ?? 0), 0);
- const computedMax = detailedScores.reduce((s: number, d: any) => s + (d.maxScore ?? 0), 0);
- evaluation.total_score = computedTotal;
- evaluation.max_possible_score = computedMax;
- evaluation.percentage = criticalFailure ? 0 : (computedMax > 0 ? (computedTotal / computedMax) * 100 : 0);
+ evaluation.total_score = totals.totalScore;
+ evaluation.max_possible_score = totals.maxPossibleScore;
+ evaluation.percentage = totals.percentage;
  if (criticalFailure) {
    logger.warn('Critical failure detected — result forced to 0', { failedCriticalCriteria });
  }
@@ -347,12 +353,13 @@ class EvaluatorService {
      block.topics.filter((t: any) => t.applies || t.requiresManualReview).map((t: any) => {
        const criterionKey = `[${block.blockName}] ${t.topic}`;
        if (t.requiresManualReview) return manualMap.get(criterionKey) ?? null;
-       const maxScore = t.points === 'n/a' ? 0 : (t.points as number ?? 0);
+       const scoreOptions = (t as any).scoreOptions ?? null;
+       const maxScore = resolveMaxScore(t.points, scoreOptions);
        const ai = matcher.match(block.blockName, t.topic);
-       if (ai) return { criterion: criterionKey, score: ai.score ?? 0, maxScore: ai.max_score ?? maxScore, observations: ai.justification ?? '', criticality: topicCriticalityMap.get(t.topic) || '-' };
-       return { criterion: criterionKey, score: 0, maxScore, observations: 'No evaluado por el modelo — asigna el puntaje manualmente.', criticality: topicCriticalityMap.get(t.topic) || '-' };
+       if (ai) return { criterion: criterionKey, score: this.applyScoreOptions(ai.score ?? 0, scoreOptions), maxScore: scoreOptions ? maxScore : (ai.max_score ?? maxScore), observations: ai.justification ?? '', criticality: topicCriticalityMap.get(t.topic) || '-', scoreOptions };
+       return { criterion: criterionKey, score: 0, maxScore, observations: 'No evaluado por el modelo — asigna el puntaje manualmente.', criticality: topicCriticalityMap.get(t.topic) || '-', scoreOptions };
      }).filter(Boolean)
-   ) as Array<{ criterion: string; score: number; maxScore: number; observations: string; criticality: string; requiresManualReview?: boolean }>;
+   ) as DetailedScore[];
 
    // Conservar evaluaciones del modelo sin criterio coincidente
    for (const ev of evaluationsArr) {
@@ -361,17 +368,12 @@ class EvaluatorService {
      }
    }
 
-   const failedCriticalCriteria: string[] = detailedScores
-     .filter((d: any) => !d.requiresManualReview && d.criticality === 'Crítico' && d.maxScore > 0 && d.score === 0
-       && !String(d.observations).startsWith('No evaluado por el modelo'))
-     .map((d: any) => d.criterion);
-   const criticalFailure = failedCriticalCriteria.length > 0;
+   const totals = computeScoreTotals(detailedScores);
+   const { failedCriticalCriteria, criticalFailure } = totals;
 
-   const computedTotal = detailedScores.reduce((s: number, d: any) => s + (d.score ?? 0), 0);
-   const computedMax = detailedScores.reduce((s: number, d: any) => s + (d.maxScore ?? 0), 0);
-   evaluation.total_score = computedTotal;
-   evaluation.max_possible_score = computedMax;
-   evaluation.percentage = criticalFailure ? 0 : (computedMax > 0 ? (computedTotal / computedMax) * 100 : 0);
+   evaluation.total_score = totals.totalScore;
+   evaluation.max_possible_score = totals.maxPossibleScore;
+   evaluation.percentage = totals.percentage;
 
    const keyMoments = (evaluation.key_moments || []).map((m: any) => ({ timestamp: m.timestamp, type: m.event, description: m.description }));
 
@@ -639,6 +641,19 @@ REGLAS:
  }
 
  /**
+ * Ajusta el puntaje que devolvió el modelo a la escala discreta del rubro.
+ * Sin escala configurada, el valor pasa tal cual.
+ */
+ private applyScoreOptions(score: number, scoreOptions: ScoreOption[] | null): number {
+   if (!hasScoreOptions(scoreOptions)) return score;
+   const snapped = snapToNearestOption(score, scoreOptions);
+   if (snapped !== score) {
+     logger.warn('Puntaje del modelo ajustado a la escala del rubro', { original: score, ajustado: snapped });
+   }
+   return snapped;
+ }
+
+ /**
  * MEJORADO: Evaluación con matching más preciso y captura de tokens
  */
  private async evaluateWithEnhancedMatching(
@@ -650,7 +665,7 @@ REGLAS:
  ): Promise<{
  evaluation: any;
  tokensUsed: { input: number; output: number };
- manualTopics: Array<{ criterion: string; score: number; maxScore: number; observations: string; criticality: string; requiresManualReview: boolean }>;
+ manualTopics: DetailedScore[];
  }> {
  // Separar tópicos manuales (la IA no los evalúa) de los que sí se evalúan
  const manualTopics = criteria.flatMap(block =>
@@ -659,10 +674,11 @@ REGLAS:
  .map((topic: any) => ({
  criterion: `[${block.blockName}] ${topic.topic}`,
  score: 0,
- maxScore: topic.points === 'n/a' ? 0 : (topic.points as number),
+ maxScore: resolveMaxScore(topic.points, topic.scoreOptions),
  observations: 'Requiere validación manual — este criterio no puede evaluarse automáticamente a partir de las capturas de pantalla.',
  criticality: topic.criticality,
  requiresManualReview: true,
+ scoreOptions: topic.scoreOptions ?? null,
  }))
  );
 
@@ -673,9 +689,10 @@ REGLAS:
  block: block.blockName,
  topic: topic.topic,
  criticality: topic.criticality,
- maxScore: topic.points as number,
+ maxScore: resolveMaxScore(topic.points, topic.scoreOptions),
  whatToLookFor: topic.whatToLookFor || '',
  validationSource: topic.validationSource || [],
+ scoreOptions: topic.scoreOptions ?? null,
  system: this.getSystemFromBlock(block.blockName)
  }))
  );
@@ -917,6 +934,20 @@ ${topics.map((t, i) => {
   const sourceRule: string = Array.isArray(t.validationSource) && t.validationSource.length > 0
    ? `OBLIGATORIO: evalúa ÚNICAMENTE usando la(s) fuente(s): ${sourceLabels}. Si esa fuente no tiene evidencia → 0 puntos.`
    : 'Puedes usar cualquier evidencia disponible.';
+  // Escala discreta: el modelo solo puede elegir de la lista cerrada del rubro.
+  const options: ScoreOption[] | null = t.scoreOptions ?? null;
+  const usableOptions = hasScoreOptions(options)
+    ? options.filter(o => o.value !== null)
+    : null;
+  const scoringRule: string = usableOptions && usableOptions.length > 0
+    ? `ESCALA CERRADA — "score" debe ser EXACTAMENTE uno de estos valores: ${usableOptions.map(o => o.value).join(', ')}
+- Evidencia completa en la fuente correcta → ${Math.max(...usableOptions.map(o => o.value as number))}
+- Evidencia ausente o contradictoria → ${Math.min(...usableOptions.map(o => o.value as number))}
+- NO inventes valores intermedios ni puntos parciales fuera de la escala.
+- NO uses N/A: si el rubro no aplica, califícalo con el valor más bajo y explícalo en la justificación; el analista lo marcará como N/A.`
+    : `- Si encuentras la evidencia específica en la fuente correcta → ${t.maxScore} puntos
+- Si la evidencia es parcial → Otorga puntos parciales proporcionalmente
+- Si NO hay evidencia en la fuente requerida o contradice → 0 puntos`;
   return `
 ┌────────────────────────────────────┐
 ${i + 1}. ${t.topic}
@@ -933,9 +964,7 @@ QUÉ BUSCAR:
 ${t.whatToLookFor || 'Revisar evidencia relacionada con este criterio en la fuente indicada.'}
 
 CRITERIO DE CALIFICACIÓN:
-- Si encuentras la evidencia específica en la fuente correcta → ${t.maxScore} puntos
-- Si la evidencia es parcial → Otorga puntos parciales proporcionalmente
-- Si NO hay evidencia en la fuente requerida o contradice → 0 puntos
+${scoringRule}
 `; }).join('\n\n')}
 
 ╔═════════════════════════════════════╗

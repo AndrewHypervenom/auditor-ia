@@ -70,17 +70,148 @@ import ModeSelector, { type AdminMode } from '../components/ModeSelector';
 import CallTypeSelectorShared from '../components/CallTypeSelector';
 import { useCallTypesConfig, invalidateCallTypesConfigCache } from '../hooks/useCallTypesConfig';
 import { useSubcalificaciones } from '../hooks/useSubcalificaciones';
+import {
+  DEFAULT_SCORE_OPTIONS,
+  RECOMMENDED_SCORE_OPTIONS,
+  normalizeScoreOptions,
+  type ScoreOption,
+} from '../lib/scoring';
 
 // ─── Helpers ────────────────────────────────────────────────
 
-// Valores rápidos de calificación por rubro (además del campo libre).
+// Valores rápidos para los puntos máximos del rubro (además del campo libre).
 // 'n/a' se guarda como points=null; el resto se parsea a número.
+// Ojo: esto es el DENOMINADOR del rubro, no las opciones que ve el analista —
+// esas se configuran aparte con ScoreOptionsEditor.
 const POINTS_PRESETS: { value: string; label: string }[] = [
-  { value: '-100', label: '-100' },
-  { value: '0', label: '0' },
+  { value: '1', label: '1' },
+  { value: '3', label: '3' },
   { value: '5', label: '5' },
+  { value: '10', label: '10' },
   { value: 'n/a', label: 'N/A' },
 ];
+
+/**
+ * Editor de la escala de calificación del rubro.
+ *
+ * Apagado → el analista califica con un numérico entre 0 y los puntos máximos.
+ * Encendido → elige de una lista cerrada, p. ej. -100 / 0 / 5 / N/A.
+ *   · N/A saca al rubro del numerador y del denominador.
+ *   · Un valor negativo es la opción reprobatoria: manda la auditoría a 0%.
+ */
+function ScoreOptionsEditor({
+  value, onChange,
+}: {
+  value: ScoreOption[] | null;
+  onChange: (options: ScoreOption[] | null) => void;
+}) {
+  const { t } = useTranslation();
+  const enabled = Array.isArray(value) && value.length > 0;
+
+  const updateOption = (index: number, patch: Partial<ScoreOption>) => {
+    if (!Array.isArray(value)) return;
+    onChange(value.map((o, i) => (i === index ? { ...o, ...patch } : o)));
+  };
+
+  const removeOption = (index: number) => {
+    if (!Array.isArray(value)) return;
+    const next = value.filter((_, i) => i !== index);
+    onChange(next.length > 0 ? next : null);
+  };
+
+  const addOption = () => {
+    onChange([...(value ?? []), { value: 0, label: '0' }]);
+  };
+
+  const tooFew = enabled && value.length < RECOMMENDED_SCORE_OPTIONS;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-200">
+          {t('scriptsAdmin.scoreOptionsLabel')}
+          <InfoTooltip text={t('scriptsAdmin.scoreOptionsTooltip')} />
+        </label>
+        <button
+          type="button"
+          onClick={() => onChange(enabled ? null : [...DEFAULT_SCORE_OPTIONS])}
+          className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+            enabled
+              ? 'bg-brand-500/20 border-brand-500/40 text-brand-300'
+              : 'bg-slate-900/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          {enabled ? t('scriptsAdmin.scoreOptionsOn') : t('scriptsAdmin.scoreOptionsOff')}
+        </button>
+      </div>
+
+      {!enabled ? (
+        <p className="text-[11px] text-slate-500">{t('scriptsAdmin.scoreOptionsDisabledHint')}</p>
+      ) : (
+        <div className="space-y-2">
+          {value.map((option, index) => {
+            const isNA = option.value === null;
+            return (
+              <div key={index} className="flex items-center gap-2">
+                <input
+                  value={isNA ? 'N/A' : String(option.value)}
+                  onChange={(e) => {
+                    const text = e.target.value.trim();
+                    const isNAText = text === '' || text.toLowerCase() === 'n/a' || text.toLowerCase() === 'na';
+                    const parsed = Number(text);
+                    updateOption(index, {
+                      value: isNAText || !Number.isFinite(parsed) ? null : parsed,
+                      label: text || 'N/A',
+                    });
+                  }}
+                  placeholder={t('scriptsAdmin.scoreOptionValuePlaceholder')}
+                  className={`w-24 bg-slate-900/80 border rounded-xl px-3 py-2 text-sm text-center font-semibold tabular-nums
+                             focus:outline-none focus:ring-1 focus:ring-brand-500/20 transition-colors ${
+                    isNA
+                      ? 'border-slate-700/60 text-slate-400'
+                      : option.value! < 0
+                        ? 'border-red-700/50 text-red-300'
+                        : 'border-slate-700/60 text-white'
+                  }`}
+                />
+                <input
+                  value={option.label}
+                  onChange={(e) => updateOption(index, { label: e.target.value })}
+                  placeholder={t('scriptsAdmin.scoreOptionLabelPlaceholder')}
+                  className="flex-1 bg-slate-900/80 border border-slate-700/60 rounded-xl px-3 py-2 text-sm text-white
+                             focus:outline-none focus:border-brand-600/60 focus:ring-1 focus:ring-brand-500/20
+                             placeholder:text-slate-600 transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeOption(index)}
+                  className="p-2 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                  title={t('scriptsAdmin.scoreOptionRemove')}
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={addOption}
+            className="flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 transition-colors"
+          >
+            <Plus size={12} />
+            {t('scriptsAdmin.scoreOptionAdd')}
+          </button>
+
+          {tooFew && (
+            <p className="text-[11px] text-amber-400">{t('scriptsAdmin.scoreOptionsTooFew', { count: RECOMMENDED_SCORE_OPTIONS })}</p>
+          )}
+          <p className="text-[11px] text-slate-500">{t('scriptsAdmin.scoreOptionsHint')}</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function groupByCallType<T extends { call_type: string }>(items: T[]): Record<string, T[]> {
   return items.reduce((acc, item) => {
@@ -1743,6 +1874,9 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
   const [validationSource, setValidationSource] = useState<string[]>(
     existingOverride?.validation_source !== undefined ? (existingOverride.validation_source ?? []) : (item.validation_source ?? [])
   );
+  const [scoreOptions, setScoreOptions] = useState<ScoreOption[] | null>(
+    normalizeScoreOptions(item.score_options)
+  );
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -1762,6 +1896,7 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
           applies,
           what_to_look_for: whatToLookFor,
           validation_source: validationSource,
+          score_options: scoreOptions,
         });
       }
       toast.success(t('scriptsAdmin.criterionUpdated'));
@@ -1880,6 +2015,8 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
                   </select>
                 </div>
               </div>
+
+              <ScoreOptionsEditor value={scoreOptions} onChange={setScoreOptions} />
             </>
           )}
 
@@ -2626,6 +2763,9 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
       ? (existingOverride.validation_source ?? [])
       : (item.validation_source ?? [])
   );
+  const [scoreOptions, setScoreOptions] = useState<ScoreOption[] | null>(
+    normalizeScoreOptions(item.score_options)
+  );
   const [saving, setSaving] = useState(false);
   const [availableImageSystems, setAvailableImageSystems] = useState<import('../services/api').ImageSystem[]>([]);
 
@@ -2677,6 +2817,7 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
           applies,
           what_to_look_for: whatToLookFor,
           validation_source: validationSource,
+          score_options: scoreOptions,
         });
       }
       toast.success(t('scriptsAdmin.criterionUpdated'));
@@ -2843,6 +2984,11 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Opciones de calificación */}
+          {!isSubcalMode && (
+            <ScoreOptionsEditor value={scoreOptions} onChange={setScoreOptions} />
           )}
 
           {/* Aplica */}
