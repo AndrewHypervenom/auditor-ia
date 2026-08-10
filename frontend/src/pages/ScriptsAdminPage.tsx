@@ -2773,6 +2773,23 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
     imageSystemsService.getAll().then(sys => setAvailableImageSystems(sys.filter(s => s.is_active !== false)));
   }, []);
 
+  // Modal: cerrar con Escape
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
+  // Modal: bloquear el scroll del fondo mientras está abierto.
+  // Efecto aparte de Escape: `onClose` cambia en cada render y volver a
+  // ejecutar esto capturaría 'hidden' como valor previo, dejando la página
+  // bloqueada al cerrar.
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, []);
+
   const hasImages = validationSource.some(s => s === 'imagenes' || s.startsWith('imagenes:'));
   const specificSystems = validationSource.filter(s => s.startsWith('imagenes:')).map(s => s.slice(9));
 
@@ -2849,12 +2866,17 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
   return (
     <>
       {/* Overlay */}
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 animate-fadeIn" onClick={onClose} />
 
-      {/* Drawer panel */}
-      <div className="fixed right-0 top-0 h-screen w-[480px] max-w-[calc(100vw-2rem)]
-                      bg-slate-950 border-l border-slate-800/60 z-50 flex flex-col
-                      overflow-hidden animate-slideFromRight shadow-2xl">
+      {/* Modal centrado */}
+      <div
+        className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-3 sm:p-6 pointer-events-none"
+        role="dialog"
+        aria-modal="true"
+      >
+      <div className="pointer-events-auto w-full max-w-3xl max-h-[calc(100vh-1.5rem)] sm:max-h-[88vh]
+                      bg-slate-950 border border-slate-800/60 rounded-2xl z-50 flex flex-col
+                      overflow-hidden animate-modalIn shadow-2xl shadow-black/50">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800/60">
@@ -2897,8 +2919,13 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
           </div>
         )}
 
-        {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        {/* Scrollable content — dos columnas en pantallas anchas */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className={isSubcalMode ? 'space-y-5' : 'grid lg:grid-cols-2 gap-x-6 gap-y-5 items-start'}>
+
+          {/* Columna izquierda: definición del criterio (solo en modo base) */}
+          {!isSubcalMode && (
+          <div className="space-y-5">
 
           {/* ¿Qué verifica? */}
           {!isSubcalMode && (
@@ -2990,6 +3017,12 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
           {!isSubcalMode && (
             <ScoreOptionsEditor value={scoreOptions} onChange={setScoreOptions} />
           )}
+
+          </div>
+          )}
+
+          {/* Columna derecha: cómo la IA evalúa el criterio */}
+          <div className="space-y-5">
 
           {/* Aplica */}
           <div
@@ -3136,20 +3169,12 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
             />
           </div>
 
+          </div>
+        </div>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-800/60 flex gap-2">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl
-                       bg-brand-500/15 border border-brand-700/30 text-brand-300 text-sm font-semibold
-                       hover:bg-brand-500/25 disabled:opacity-50 transition-all duration-150"
-          >
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-            {saving ? t('common.saving') : t('scripts.saveChanges')}
-          </button>
+        <div className="px-6 py-4 border-t border-slate-800/60 flex gap-2 justify-end">
           <button
             onClick={onClose}
             disabled={saving}
@@ -3159,7 +3184,18 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
           >
             {t('common.cancel')}
           </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl
+                       bg-brand-500/15 border border-brand-700/30 text-brand-300 text-sm font-semibold
+                       hover:bg-brand-500/25 disabled:opacity-50 transition-all duration-150"
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+            {saving ? t('common.saving') : t('scripts.saveChanges')}
+          </button>
         </div>
+      </div>
       </div>
     </>
   );

@@ -14,6 +14,51 @@ import type {
   SentimentSummary
 } from '../types/index.js';
 
+/**
+ * `evaluation_criteria.score_options` se agrega por migración (20260728_score_options.sql).
+ * Si la BD todavía no la tiene, PostgREST responde 42703/PGRST204 y toda la
+ * administración de criterios se cae con 500. Reintentamos sin esa columna para
+ * que crear/editar criterios siga funcionando, y avisamos una sola vez en el log.
+ */
+let scoreOptionsColumnMissing = false;
+
+function isMissingScoreOptionsColumn(error: any): boolean {
+  if (!error) return false;
+  const code = error.code;
+  const message = String(error.message ?? '');
+  return (code === '42703' || code === 'PGRST204') && message.includes('score_options');
+}
+
+async function runWithoutMissingScoreOptions<T extends Record<string, any>>(
+  body: T,
+  run: (body: Record<string, any>) => PromiseLike<{ data: any; error: any }>
+): Promise<any> {
+  const strip = (source: T) => {
+    const { score_options, ...rest } = source;
+    return rest;
+  };
+
+  if (scoreOptionsColumnMissing) {
+    const { data, error } = await run(strip(body));
+    if (error) throw error;
+    return data;
+  }
+
+  const { data, error } = await run(body);
+  if (!error) return data;
+
+  if (!isMissingScoreOptionsColumn(error) || !('score_options' in body)) throw error;
+
+  scoreOptionsColumnMissing = true;
+  logger.warn(
+    'La columna evaluation_criteria.score_options no existe: se guarda el criterio sin escala discreta. ' +
+    'Aplica supabase/migrations/20260728_score_options.sql para habilitar las opciones de calificación.'
+  );
+  const retry = await run(strip(body));
+  if (retry.error) throw retry.error;
+  return retry.data;
+}
+
 interface CreateAuditParams {
   userId: string;
   companyId?: string | null;
@@ -1038,14 +1083,26 @@ class DatabaseService {
     requires_manual_review?: boolean;
     score_options?: unknown;
   }): Promise<any> {
-    const { data, error } = await supabaseAdmin
-      .from('evaluation_criteria')
-      .insert(payload)
-      .select()
-      .single();
-    if (error) throw error;
+    // evaluation_criteria.company_id es NOT NULL: se hereda del bloque contenedor,
+    // que es la única fuente de verdad del tenant al que pertenece el criterio.
+    const companyId = await this.getBlockCompanyId(payload.block_id);
+    const row = { ...payload, ...(companyId ? { company_id: companyId } : {}) };
+
+    const data = await runWithoutMissingScoreOptions(row, (body) =>
+      supabaseAdmin.from('evaluation_criteria').insert(body).select().single()
+    );
     this.invalidateCriteriaCache();
     return data;
+  }
+
+  private async getBlockCompanyId(blockId: string): Promise<string | null> {
+    const { data, error } = await supabaseAdmin
+      .from('evaluation_blocks')
+      .select('company_id')
+      .eq('id', blockId)
+      .single();
+    if (error) throw error;
+    return data?.company_id ?? null;
   }
 
   async updateCriteria(id: string, payload: Partial<{
@@ -1061,13 +1118,9 @@ class DatabaseService {
     tipo_cierre_overrides: Record<string, unknown>;
     score_options: unknown;
   }>): Promise<any> {
-    const { data, error } = await supabaseAdmin
-      .from('evaluation_criteria')
-      .update(payload)
-      .eq('id', id)
-      .select()
-      .single();
-    if (error) throw error;
+    const data = await runWithoutMissingScoreOptions(payload, (body) =>
+      supabaseAdmin.from('evaluation_criteria').update(body).eq('id', id).select().single()
+    );
     this.invalidateCriteriaCache();
     return data;
   }
