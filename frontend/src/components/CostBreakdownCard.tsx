@@ -1,10 +1,12 @@
 // frontend/src/components/CostBreakdownCard.tsx
 // Desglose de costos de una auditoría por API (Claude / AssemblyAI) y por paso.
-import { DollarSign, Cpu, AudioLines, Info, CalendarClock } from 'lucide-react';
+import { DollarSign, Cpu, AudioLines, Info, CalendarClock, Hash, Type } from 'lucide-react';
 import type { APICostsDB } from '../types';
 
 interface Props {
   cost: APICostsDB;
+  /** Texto de la transcripción, para contar palabras del audio. */
+  transcript?: string;
 }
 
 const n = (v: unknown): number => {
@@ -14,6 +16,18 @@ const n = (v: unknown): number => {
 
 const money = (v: unknown): string => `$${n(v).toFixed(4)}`;
 
+// Miles con separador (1.234.567) y forma compacta para los hints (12.3k).
+const num = (v: unknown): string => n(v).toLocaleString('es-MX');
+const compact = (v: unknown): string => {
+  const x = n(v);
+  if (x >= 1_000_000) return `${(x / 1_000_000).toFixed(1)}M`;
+  if (x >= 1_000) return `${(x / 1_000).toFixed(1)}k`;
+  return String(x);
+};
+
+const countWords = (text?: string): number =>
+  text ? (text.trim().match(/\S+/g) ?? []).length : 0;
+
 // ── Precio introductorio de Claude Sonnet 5 ────────────────────────────────
 // $2/$10 por 1M (intro) vs $3/$15 (lista). El de lista es exactamente 1.5× el
 // introductorio, así que el costo a precio de lista = costo intro × 1.5.
@@ -22,7 +36,7 @@ const LIST_OVER_INTRO = 1.5;          // 3/2 = 15/10
 const INTRO_PRICE = { input: 2, output: 10 };
 const LIST_PRICE = { input: 3, output: 15 };
 
-export default function CostBreakdownCard({ cost }: Props) {
+export default function CostBreakdownCard({ cost, transcript }: Props) {
   const assemblyai = n(cost.assemblyai_cost);
   const correction = n(cost.claude_correction_cost);
   const sentiment = n(cost.claude_sentiment_cost);
@@ -47,12 +61,45 @@ export default function CostBreakdownCard({ cost }: Props) {
   const claudePct = total > 0 ? (claudeTotal / total) * 100 : 0;
   const assemblyPct = total > 0 ? (assemblyai / total) * 100 : 0;
 
-  const claudeSteps: { label: string; value: number; hint?: string }[] = [
-    { label: 'Corrección de transcripción', value: correction },
-    { label: 'Análisis de sentimientos', value: sentiment },
-    { label: 'Análisis de imágenes', value: images, hint: cost.openai_images_count ? `${cost.openai_images_count} img` : undefined },
-    { label: 'Evaluación con criterios', value: evaluation },
+  // ── Tokens por paso ──────────────────────────────────────────────────────
+  const claudeSteps: { label: string; value: number; hint?: string; inTok: number; outTok: number }[] = [
+    {
+      label: 'Corrección de transcripción',
+      value: correction,
+      inTok: n(cost.claude_correction_input_tokens),
+      outTok: n(cost.claude_correction_output_tokens),
+    },
+    {
+      label: 'Análisis de sentimientos',
+      value: sentiment,
+      inTok: n(cost.claude_sentiment_input_tokens),
+      outTok: n(cost.claude_sentiment_output_tokens),
+    },
+    {
+      label: 'Análisis de imágenes',
+      value: images,
+      hint: cost.openai_images_count ? `${cost.openai_images_count} img` : undefined,
+      inTok: n(cost.openai_images_input_tokens),
+      outTok: n(cost.openai_images_output_tokens),
+    },
+    {
+      label: 'Evaluación con criterios',
+      value: evaluation,
+      inTok: n(cost.openai_evaluation_input_tokens),
+      outTok: n(cost.openai_evaluation_output_tokens),
+    },
   ];
+
+  const inputTokens = claudeSteps.reduce((s, x) => s + x.inTok, 0);
+  const outputTokens = claudeSteps.reduce((s, x) => s + x.outTok, 0);
+  const totalTokens = inputTokens + outputTokens;
+  const hasTokens = totalTokens > 0;
+
+  // Palabras del audio transcrito (fuente real del texto que se procesó).
+  const transcriptWords = countWords(transcript);
+  // Referencia útil: ~1.3 tokens por palabra en español, así que la relación
+  // tokens/palabra explica por qué el prompt pesa más que la transcripción.
+  const tokensPerWord = transcriptWords > 0 ? totalTokens / transcriptWords : 0;
 
   return (
     <div className="card">
@@ -88,15 +135,29 @@ export default function CostBreakdownCard({ cost }: Props) {
           </div>
           <div className="space-y-1.5">
             {claudeSteps.map((s) => (
-              <div key={s.label} className="flex items-center justify-between text-xs">
+              <div key={s.label} className="flex items-start justify-between text-xs gap-3">
                 <span className="text-slate-400">
                   {s.label}
                   {s.hint && <span className="text-slate-600"> · {s.hint}</span>}
+                  {(s.inTok > 0 || s.outTok > 0) && (
+                    <span className="block text-[10px] text-slate-600 tabular-nums">
+                      {compact(s.inTok)} in · {compact(s.outTok)} out
+                    </span>
+                  )}
                 </span>
                 <span className="text-slate-300 tabular-nums">{money(s.value)}</span>
               </div>
             ))}
           </div>
+
+          {hasTokens && (
+            <div className="mt-3 pt-2 border-t border-violet-500/20 flex items-center justify-between text-xs">
+              <span className="flex items-center gap-1.5 text-slate-400">
+                <Hash className="w-3.5 h-3.5 text-violet-400" /> Tokens totales
+              </span>
+              <span className="text-violet-200 tabular-nums font-semibold">{num(totalTokens)}</span>
+            </div>
+          )}
         </div>
 
         {/* AssemblyAI */}
@@ -118,10 +179,56 @@ export default function CostBreakdownCard({ cost }: Props) {
                 <span className="text-slate-300 tabular-nums">{n(cost.assemblyai_duration_minutes).toFixed(2)} min</span>
               </div>
             )}
+            {transcriptWords > 0 && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400">Palabras transcritas</span>
+                <span className="text-slate-300 tabular-nums">{num(transcriptWords)}</span>
+              </div>
+            )}
             <div className="text-[11px] text-slate-600 pt-1">Universal-3 Pro · diarización</div>
           </div>
         </div>
       </div>
+
+      {/* ── Consumo: tokens y palabras ─────────────────────────────────────── */}
+      {(hasTokens || transcriptWords > 0) && (
+        <div className="mt-4 p-4 bg-slate-800/40 border border-[#1e1e32] rounded-xl">
+          <div className="flex items-center gap-2 mb-3">
+            <Hash className="w-4 h-4 text-slate-400" />
+            <span className="text-sm font-semibold text-slate-300">Consumo de esta auditoría</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <div className="text-[11px] text-slate-500">Tokens de entrada</div>
+              <div className="text-base font-bold text-violet-300 tabular-nums">{num(inputTokens)}</div>
+            </div>
+            <div>
+              <div className="text-[11px] text-slate-500">Tokens de salida</div>
+              <div className="text-base font-bold text-violet-300 tabular-nums">{num(outputTokens)}</div>
+            </div>
+            <div>
+              <div className="text-[11px] text-slate-500">Tokens totales</div>
+              <div className="text-base font-bold text-slate-100 tabular-nums">{num(totalTokens)}</div>
+            </div>
+            <div>
+              <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                <Type className="w-3 h-3" /> Palabras transcritas
+              </div>
+              <div className="text-base font-bold text-cyan-300 tabular-nums">
+                {transcriptWords > 0 ? num(transcriptWords) : '—'}
+              </div>
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-500 mt-2.5">
+            Los tokens son de Claude (todos los pasos: corrección, sentimientos, imágenes y evaluación) y son
+            lo que se cobra. Las palabras son las del audio transcrito.
+            {tokensPerWord > 0 && (
+              <> Relación: <span className="text-slate-300 tabular-nums">{tokensPerWord.toFixed(1)} tokens por palabra</span> —
+              es mayor a 1 porque cada paso reenvía la transcripción junto con los criterios y las instrucciones.</>
+            )}
+          </p>
+        </div>
+      )}
 
       {/* ── Aviso de precio introductorio de Claude Sonnet 5 ────────────────── */}
       {isSonnet5 && (

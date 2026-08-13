@@ -148,7 +148,10 @@ export default function AuditDetailPage() {
             transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: 0.16 }}
             className="mb-4"
           >
-            <CostBreakdownCard cost={auditDetail.apiCosts} />
+            <CostBreakdownCard
+              cost={auditDetail.apiCosts}
+              transcript={auditDetail.transcription?.full_text}
+            />
           </motion.div>
         )}
 
