@@ -16,7 +16,7 @@ const MIN_LENGTH = 8;
 export default function ChangePasswordPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user, mustChangePassword, refreshSession, signOut } = useAuth();
+  const { user, mustChangePassword, signOut } = useAuth();
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -47,13 +47,16 @@ export default function ChangePasswordPage() {
         ...(mustChangePassword ? {} : { current_password: currentPassword }),
       });
 
-      // Renovar el JWT para que must_change_password quede en false
-      await refreshSession();
+      // Supabase revoca el refresh token al cambiar la contraseña, así que
+      // refrescar la sesión falla con 400. En su lugar iniciamos sesión de nuevo
+      // con la contraseña recién creada: eso emite un JWT limpio, ya sin el flag.
+      const { error: signInError } = user?.email
+        ? await supabase.auth.signInWithPassword({ email: user.email, password: newPassword })
+        : { error: new Error('missing email') };
 
-      // Si el proyecto revoca sesiones al cambiar la contraseña, el refresh puede
-      // fallar y el token seguiría marcado: en ese caso, pedir un login limpio.
-      const { data } = await supabase.auth.getSession();
-      if (data.session?.user?.app_metadata?.must_change_password === true) {
+      if (signInError) {
+        // Caso raro (p. ej. rate limit): la contraseña ya quedó cambiada,
+        // solo hay que volver a entrar manualmente.
         toast.success(t('changePassword.successRelogin'));
         await signOut();
         navigate('/login', { replace: true });
@@ -61,7 +64,9 @@ export default function ChangePasswordPage() {
       }
 
       toast.success(t('changePassword.success'));
-      navigate('/dashboard', { replace: true });
+      // Recarga completa: AuthContext se reinicializa con la sesión nueva y evita
+      // que el guard lea el token viejo (todavía marcado) durante la transición.
+      window.location.replace('/dashboard');
     } catch (error: any) {
       const message = error.response?.data?.error || error.message || t('changePassword.error');
       toast.error(message);
