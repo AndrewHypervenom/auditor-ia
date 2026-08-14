@@ -68,17 +68,21 @@ export default function LoginPage() {
  const { t } = useTranslation();
  const navigate = useNavigate();
  const location = useLocation();
- const { signIn, user, profile, loading: authLoading } = useAuth();
+ const { signIn, user, profile, loading: authLoading, mustChangePassword } = useAuth();
  const [email, setEmail] = useState('');
  const [password, setPassword] = useState('');
  const [loading, setLoading] = useState(false);
 
  useEffect(() => {
    if (!authLoading && user && profile) {
+     if (mustChangePassword) {
+       navigate('/change-password', { replace: true });
+       return;
+     }
      const from = (location.state as any)?.from?.pathname || '/dashboard';
      navigate(from, { replace: true });
    }
- }, [user, profile, authLoading, navigate, location]);
+ }, [user, profile, authLoading, mustChangePassword, navigate, location]);
 
  const handleSubmit = async (e: React.FormEvent) => {
    e.preventDefault();
@@ -100,6 +104,12 @@ export default function LoginPage() {
      if (!session || !session.user) {
        toast.error(t('auth.accountDeactivated'));
        setLoading(false);
+       return;
+     }
+
+     // Contraseña temporal → el usuario debe definir la suya antes de entrar
+     if (session.user.app_metadata?.must_change_password === true) {
+       navigate('/change-password', { replace: true });
        return;
      }
 

@@ -7,6 +7,7 @@ import { EASE } from './lib/motion';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import SupervisorDashboard from './pages/SupervisorDashboard';
 import AnalystDashboard from './pages/AnalystDashboard';
@@ -40,6 +41,16 @@ function AnimatedRoutes() {
         <Routes location={location}>
           {/* Ruta pÃºblica */}
           <Route path="/login" element={<LoginPage />} />
+
+          {/* Cambio de contraseña (obligatorio tras una contraseña temporal) */}
+          <Route
+            path="/change-password"
+            element={
+              <ProtectedRoute>
+                <ChangePasswordPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Dashboard - Todos los roles autenticados */}
           <Route

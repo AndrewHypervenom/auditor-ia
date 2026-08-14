@@ -28,6 +28,7 @@ import { downloadImagesToTemp } from './utils/image-downloader.js';
 import { gpfFetch } from './utils/gpf-fetch.js';
 import { computeScoreTotals, normalizeScoreOptions, type DetailedScore } from './utils/scoring.js';
 import { supabase, supabaseAdmin } from './config/supabase.js';
+import { createClient } from '@supabase/supabase-js';
 import { progressBroadcaster } from './services/progress-broadcaster.js';
 import type { AuditInput } from './types/index.js';
 import statsRoutes from './routes/stats.routes.js';
@@ -842,6 +843,37 @@ app.delete('/api/audits/:auditId', authenticateUser, async (req: Request, res: R
 // ADMIN USER MANAGEMENT
 // ============================================
 
+/**
+ * Genera una contraseña temporal legible y fácil de dictar/copiar.
+ * Formato: Xxxx-9999-Xxxx (sin caracteres ambiguos como l/I/0/O).
+ */
+const TEMP_PWD_ALPHABET = 'abcdefghjkmnpqrstuvwxyz';
+const TEMP_PWD_DIGITS = '23456789';
+
+function generateTempPassword(): string {
+ const pick = (chars: string, n: number) =>
+ Array.from({ length: n }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+
+ const block = () => {
+ const word = pick(TEMP_PWD_ALPHABET, 4);
+ return word[0].toUpperCase() + word.slice(1);
+ };
+
+ return `${block()}-${pick(TEMP_PWD_DIGITS, 4)}-${block()}`;
+}
+
+/**
+ * Marca/desmarca en app_metadata (no editable por el propio usuario) que la
+ * contraseña actual es temporal y debe cambiarse en el próximo inicio de sesión.
+ * El flag viaja dentro del JWT, así que el frontend lo lee de la sesión.
+ */
+async function setMustChangePassword(userId: string, value: boolean) {
+ const { data } = await supabaseAdmin.auth.admin.getUserById(userId);
+ await supabaseAdmin.auth.admin.updateUserById(userId, {
+ app_metadata: { ...(data?.user?.app_metadata || {}), must_change_password: value }
+ });
+}
+
 app.get('/api/admin/users', authenticateUser, requireAdminOrSupervisor, async (req: Request, res: Response) => {
  try {
  let query = supabaseAdmin
@@ -870,10 +902,19 @@ app.get('/api/admin/users', authenticateUser, requireAdminOrSupervisor, async (r
 
 app.post('/api/admin/users', authenticateUser, requireAdminOrSupervisor, async (req: Request, res: Response) => {
  try {
- const { email, password, full_name, role, company_id } = req.body;
+ const { email, password, full_name, role, company_id, generate_password } = req.body;
 
- if (!email || !password || !full_name || !role) {
+ if (!email || !full_name || !role) {
  return res.status(400).json({ error: 'Todos los campos son requeridos' });
+ }
+
+ // Contraseña temporal: si el admin no escribe una (o pide generarla), el
+ // backend la genera y obliga al usuario a cambiarla en su primer ingreso.
+ const useTempPassword = generate_password === true || !password;
+ const finalPassword = useTempPassword ? generateTempPassword() : password;
+
+ if (!useTempPassword && String(password).length < 6) {
+ return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
  }
 
  const validRoles = ['superadmin', 'lider', 'auditor'];
@@ -900,17 +941,20 @@ app.post('/api/admin/users', authenticateUser, requireAdminOrSupervisor, async (
 
  const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
  email,
- password,
+ password: finalPassword,
  email_confirm: true,
  user_metadata: {
  full_name,
  role
+ },
+ app_metadata: {
+ must_change_password: useTempPassword
  }
  });
 
  if (authError) {
  logger.error('Error creating user in auth:', authError);
- return res.status(500).json({ error: 'Error al crear usuario en autenticación' });
+ return res.status(400).json({ error: authError.message || 'Error al crear usuario en autenticación' });
  }
 
  const { data: userData, error: dbError } = await supabaseAdmin
@@ -931,8 +975,14 @@ app.post('/api/admin/users', authenticateUser, requireAdminOrSupervisor, async (
  return res.status(500).json({ error: 'Error al crear usuario en base de datos' });
  }
 
- logger.success('User created successfully', { userId: userData.id, email });
- res.status(201).json(userData);
+ logger.success('User created successfully', { userId: userData.id, email, tempPassword: useTempPassword });
+ // La contraseña temporal solo se devuelve aquí, en texto plano y una única vez:
+ // no queda almacenada en ningún lado (Supabase guarda solo el hash).
+ res.status(201).json({
+ ...userData,
+ temp_password: useTempPassword ? finalPassword : null,
+ must_change_password: useTempPassword
+ });
  } catch (error: any) {
  logger.error('Error creating user:', error);
  res.status(500).json({ error: 'Error al crear usuario' });
@@ -1004,6 +1054,118 @@ app.put('/api/admin/users/:userId', authenticateUser, requireAdminOrSupervisor, 
  } catch (error: any) {
  logger.error('Error updating user:', error);
  res.status(500).json({ error: 'Error al actualizar usuario' });
+ }
+});
+
+/**
+ * Regenera una contraseña temporal para un usuario existente y lo obliga a
+ * definir una propia en el siguiente inicio de sesión. Devuelve la contraseña
+ * en claro una única vez para que el admin pueda entregarla.
+ */
+app.post('/api/admin/users/:userId/reset-password', authenticateUser, requireAdminOrSupervisor, async (req: Request, res: Response) => {
+ try {
+ const { userId } = req.params;
+
+ const { data: target, error: targetError } = await supabaseAdmin
+ .from('users')
+ .select('id, email, full_name, company_id, role')
+ .eq('id', userId)
+ .single();
+
+ if (targetError || !target) {
+ return res.status(404).json({ error: 'Usuario no encontrado' });
+ }
+
+ // El lider solo puede restablecer contraseñas de su propia empresa
+ if (req.user!.role === 'lider' && target.company_id !== req.user!.company_id) {
+ return res.status(403).json({ error: 'No puedes gestionar usuarios de otra empresa' });
+ }
+
+ const tempPassword = generateTempPassword();
+
+ const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+ password: tempPassword
+ });
+
+ if (authError) {
+ logger.error('Error resetting password:', authError);
+ return res.status(400).json({ error: authError.message || 'Error al restablecer la contraseña' });
+ }
+
+ await setMustChangePassword(userId, true);
+
+ logger.success('Temp password issued', { userId, email: target.email });
+ res.json({
+ id: target.id,
+ email: target.email,
+ full_name: target.full_name,
+ temp_password: tempPassword,
+ must_change_password: true
+ });
+ } catch (error: any) {
+ logger.error('Error resetting password:', error);
+ res.status(500).json({ error: 'Error al restablecer la contraseña' });
+ }
+});
+
+/**
+ * Cambio de contraseña por el propio usuario.
+ * - Si la contraseña actual es temporal (must_change_password), no se pide la
+ *   anterior: el usuario acaba de usarla para entrar.
+ * - En cualquier otro caso se exige la contraseña actual para evitar que un
+ *   token robado permita secuestrar la cuenta.
+ */
+app.post('/api/auth/change-password', authenticateUser, async (req: Request, res: Response) => {
+ try {
+ const { new_password, current_password } = req.body;
+
+ if (!new_password || String(new_password).length < 8) {
+ return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 8 caracteres' });
+ }
+
+ const { data: authUser, error: getError } = await supabaseAdmin.auth.admin.getUserById(req.user!.id);
+ if (getError || !authUser?.user) {
+ return res.status(500).json({ error: 'No se pudo verificar el usuario' });
+ }
+
+ const mustChange = authUser.user.app_metadata?.must_change_password === true;
+
+ if (!mustChange) {
+ if (!current_password) {
+ return res.status(400).json({ error: 'Debes ingresar tu contraseña actual' });
+ }
+ // Cliente efímero: verificar credenciales sin tocar la sesión del cliente compartido
+ const verifier = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!, {
+ auth: { autoRefreshToken: false, persistSession: false }
+ });
+ const { error: signInError } = await verifier.auth.signInWithPassword({
+ email: req.user!.email,
+ password: current_password
+ });
+ if (signInError) {
+ return res.status(400).json({ error: 'La contraseña actual no es correcta' });
+ }
+ }
+
+ if (current_password && current_password === new_password) {
+ return res.status(400).json({ error: 'La nueva contraseña debe ser distinta de la actual' });
+ }
+
+ const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(req.user!.id, {
+ password: new_password,
+ app_metadata: { ...(authUser.user.app_metadata || {}), must_change_password: false }
+ });
+
+ if (updateError) {
+ logger.error('Error changing own password:', updateError);
+ return res.status(400).json({ error: updateError.message || 'Error al cambiar la contraseña' });
+ }
+
+ logger.success('Password changed by user', { userId: req.user!.id });
+ res.json({ success: true });
+ } catch (error: any) {
+ logger.error('Error changing password:', error);
+ res.status(500).json({ error: 'Error al cambiar la contraseña' });
  }
 });
 

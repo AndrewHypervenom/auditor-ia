@@ -1110,8 +1110,20 @@ export const userService = {
  const response = await api.get('/admin/users');
  return response.data;
  },
- async createUser(userData: { email: string; password: string; full_name: string; role: string; company_id?: string }) {
+ async createUser(userData: {
+ email: string;
+ password?: string;
+ full_name: string;
+ role: string;
+ company_id?: string;
+ generate_password?: boolean;
+ }): Promise<{ id: string; email: string; full_name: string; temp_password: string | null; must_change_password: boolean }> {
  const response = await api.post('/admin/users', userData);
+ return response.data;
+ },
+ // Genera una nueva contraseña temporal (se devuelve en claro una sola vez)
+ async resetPassword(userId: string): Promise<{ id: string; email: string; full_name: string; temp_password: string }> {
+ const response = await api.post(`/admin/users/${userId}/reset-password`);
  return response.data;
  },
  async updateUser(userId: string, userData: { full_name?: string; role?: string; is_active?: boolean; password?: string; company_id?: string }) {
@@ -1120,6 +1132,14 @@ export const userService = {
  },
  async deleteUser(userId: string) {
  const response = await api.delete(`/admin/users/${userId}`);
+ return response.data;
+ }
+};
+
+// Cambio de contraseña por el propio usuario (flujo de contraseña temporal)
+export const authService = {
+ async changePassword(payload: { new_password: string; current_password?: string }) {
+ const response = await api.post('/auth/change-password', payload);
  return response.data;
  }
 };

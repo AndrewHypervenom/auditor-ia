@@ -17,7 +17,7 @@ export function ProtectedRoute({
  requirePermission,
 }: ProtectedRouteProps) {
  const { t } = useTranslation();
- const { user, profile, loading, hasPermission } = useAuth();
+ const { user, profile, loading, hasPermission, mustChangePassword } = useAuth();
  const location = useLocation();
 
  // Spinner solo durante la carga inicial (primer login o caché expirada)
@@ -33,6 +33,11 @@ export function ProtectedRoute({
  // Sin sesión activa ni caché de perfil → redirigir al login
  if (!user && !profile) {
  return <Navigate to="/login" state={{ from: location }} replace />;
+ }
+
+ // Contraseña temporal: no se puede usar la app hasta definir una propia
+ if (mustChangePassword && location.pathname !== '/change-password') {
+ return <Navigate to="/change-password" replace />;
  }
 
  // Si no hay perfil (caché expirada y fallo de carga desde DB), mostrar error

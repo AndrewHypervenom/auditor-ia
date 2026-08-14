@@ -14,6 +14,10 @@ interface AuthContextType {
  session: Session | null;
  loading: boolean;
  sessionTimeRemaining: number;
+ /** La contraseña actual es temporal: hay que definir una propia antes de usar la app */
+ mustChangePassword: boolean;
+ /** Refresca el JWT para que app_metadata (must_change_password) quede al día */
+ refreshSession: () => Promise<void>;
  signIn: (email: string, password: string) => Promise<void>;
  signOut: () => Promise<void>;
  hasPermission: (permission: string) => boolean;
@@ -354,6 +358,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  }, [session]);
 
  // ============================================
+ // CONTRASEÑA TEMPORAL
+ // ============================================
+ // El flag vive en app_metadata (solo escribible con service_role) y viaja
+ // dentro del JWT, así que basta con leerlo de la sesión activa.
+ const mustChangePassword = user?.app_metadata?.must_change_password === true;
+
+ const refreshSession = useCallback(async () => {
+ const { data, error } = await supabase.auth.refreshSession();
+ if (error) return;
+ if (data.session) {
+ setSession(data.session);
+ setUser(data.session.user);
+ }
+ }, []);
+
+ // ============================================
  // SIGN IN
  // ============================================
  const signIn = async (email: string, password: string) => {
@@ -415,6 +435,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  session,
  loading,
  sessionTimeRemaining,
+ mustChangePassword,
+ refreshSession,
  signIn,
  signOut,
  hasPermission,

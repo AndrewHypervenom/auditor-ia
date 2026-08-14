@@ -28,7 +28,11 @@ import {
  Award,
  UserCheck,
  Building2,
- KeyRound
+ KeyRound,
+ Copy,
+ Check,
+ Link2,
+ RefreshCw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { UserRole } from '../types/auth.types';
@@ -56,6 +60,52 @@ interface UserFormData {
  company_id: string;
 }
 
+// Credenciales de acceso mostradas una sola vez tras crear/restablecer un usuario
+interface IssuedCredentials {
+ email: string;
+ full_name?: string | null;
+ password: string;
+}
+
+/** Botón de copiar con feedback visual (se vuelve verde 2s) */
+function CopyButton({ value, label }: { value: string; label: string }) {
+ const [copied, setCopied] = useState(false);
+
+ const copy = async () => {
+ try {
+ await navigator.clipboard.writeText(value);
+ } catch {
+ // Contextos sin permiso de portapapeles (http): fallback con textarea oculto
+ const ta = document.createElement('textarea');
+ ta.value = value;
+ ta.style.position = 'fixed';
+ ta.style.opacity = '0';
+ document.body.appendChild(ta);
+ ta.select();
+ document.execCommand('copy');
+ document.body.removeChild(ta);
+ }
+ setCopied(true);
+ setTimeout(() => setCopied(false), 2000);
+ };
+
+ return (
+ <button
+ type="button"
+ onClick={copy}
+ title={label}
+ aria-label={label}
+ className={`flex-shrink-0 p-2 rounded-lg border transition-colors ${
+ copied
+ ? 'bg-green-500/20 border-green-500/40 text-green-300'
+ : 'bg-slate-800/60 border-[#1e1e32] text-slate-400 hover:text-white hover:border-brand-700/40'
+ }`}
+ >
+ {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+ </button>
+ );
+}
+
 export default function UsersPage() {
  const { t } = useTranslation();
  const navigate = useNavigate();
@@ -69,7 +119,14 @@ export default function UsersPage() {
  const [showEditModal, setShowEditModal] = useState(false);
  const [editingUser, setEditingUser] = useState<User | null>(null);
  const [submitting, setSubmitting] = useState(false);
- 
+ // Contraseña temporal generada por el backend: se muestra una única vez
+ const [credentials, setCredentials] = useState<IssuedCredentials | null>(null);
+ const [autoPassword, setAutoPassword] = useState(true);
+ const [resettingId, setResettingId] = useState<string | null>(null);
+
+ // URL que se entrega al usuario para iniciar sesión
+ const loginUrl = `${window.location.origin}/login`;
+
  const [newUser, setNewUser] = useState<UserFormData>({
  email: '',
  password: '',
@@ -159,12 +216,12 @@ export default function UsersPage() {
  e.preventDefault();
  
  // Validaciones
- if (!newUser.email || !newUser.password || !newUser.full_name) {
+ if (!newUser.email || !newUser.full_name || (!autoPassword && !newUser.password)) {
  toast.error(t('usersPage.fillFields'));
  return;
  }
 
- if (newUser.password.length < 6) {
+ if (!autoPassword && newUser.password.length < 6) {
  toast.error(t('usersPage.passwordMin'));
  return;
  }
@@ -178,16 +235,26 @@ export default function UsersPage() {
  try {
  setSubmitting(true);
 
- await userService.createUser({
+ const created = await userService.createUser({
  email: newUser.email,
- password: newUser.password,
  full_name: newUser.full_name,
  role: newUser.role,
+ ...(autoPassword ? { generate_password: true } : { password: newUser.password }),
  ...(isSuperadmin && { company_id: newUser.company_id })
  });
 
  toast.success(t('usersPage.created'));
  setShowCreateModal(false);
+
+ // Si el backend generó contraseña temporal, mostrarla para entregar al usuario
+ if (created?.temp_password) {
+ setCredentials({
+ email: created.email || newUser.email,
+ full_name: created.full_name || newUser.full_name,
+ password: created.temp_password
+ });
+ }
+
  setNewUser({
  email: '',
  password: '',
@@ -195,6 +262,7 @@ export default function UsersPage() {
  role: 'auditor',
  company_id: ''
  });
+ setAutoPassword(true);
  loadUsers();
  } catch (error: any) {
  console.error('Error creating user:', error);
@@ -236,6 +304,27 @@ export default function UsersPage() {
  toast.error(message);
  } finally {
  setSubmitting(false);
+ }
+ };
+
+ // Genera una nueva contraseña temporal y obliga al usuario a cambiarla al entrar
+ const handleResetPassword = async (user: User) => {
+ if (!confirm(t('usersPage.resetTempConfirm', { email: user.email }))) return;
+
+ try {
+ setResettingId(user.id);
+ const result = await userService.resetPassword(user.id);
+ setCredentials({
+ email: result.email || user.email,
+ full_name: result.full_name || user.full_name,
+ password: result.temp_password
+ });
+ toast.success(t('usersPage.resetTempDone'));
+ } catch (error: any) {
+ const message = error.response?.data?.error || error.message || t('usersPage.resetTempError');
+ toast.error(message);
+ } finally {
+ setResettingId(null);
  }
  };
 
@@ -508,6 +597,19 @@ export default function UsersPage() {
  <Edit className="w-4 h-4" />
  {t('usersPage.editBtn')}
  </motion.button>
+ <motion.button
+ onClick={() => handleResetPassword(user)}
+ disabled={resettingId === user.id}
+ whileHover={{ scale: 1.06 }}
+ whileTap={{ scale: 0.94 }}
+ transition={EASE_SPRING}
+ className="px-3 py-2 bg-amber-500/10 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 rounded-lg transition-colors flex items-center justify-center disabled:opacity-50"
+ title={t('usersPage.resetTempTooltip')}
+ >
+ {resettingId === user.id
+ ? <Loader2 className="w-4 h-4 animate-spin" />
+ : <RefreshCw className="w-4 h-4" />}
+ </motion.button>
  {user.id !== profile?.id && (
  <motion.button
  onClick={() => handleToggleActive(user.id, user.is_active)}
@@ -600,6 +702,22 @@ export default function UsersPage() {
  </div>
 
  <div>
+ <label className="flex items-start gap-3 p-3 rounded-xl border border-[#1e1e32] bg-slate-900/40 cursor-pointer hover:border-brand-700/40 transition-colors">
+ <input
+ type="checkbox"
+ checked={autoPassword}
+ onChange={(e) => setAutoPassword(e.target.checked)}
+ className="mt-0.5 w-4 h-4 accent-brand-500"
+ />
+ <span>
+ <span className="block text-sm text-slate-200">{t('usersPage.tempPasswordToggle')}</span>
+ <span className="block text-xs text-slate-500 mt-0.5">{t('usersPage.tempPasswordToggleHint')}</span>
+ </span>
+ </label>
+ </div>
+
+ {!autoPassword && (
+ <div>
  <label className="block text-sm text-slate-400 mb-2">{t('usersPage.passwordLabel')}</label>
  <input
  type="password"
@@ -611,6 +729,7 @@ export default function UsersPage() {
  minLength={6}
  />
  </div>
+ )}
 
  <div>
  <label className="block text-sm text-slate-400 mb-2">{t('usersPage.roleLabel')}</label>
@@ -820,6 +939,108 @@ export default function UsersPage() {
  </motion.div>
  )}
  </AnimatePresence>
+
+ {/* Modal de credenciales — la contraseña temporal solo se ve aquí, una vez */}
+ <AnimatePresence>
+ {credentials && (
+ <motion.div
+ className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+ initial={{ opacity: 0 }}
+ animate={{ opacity: 1 }}
+ exit={{ opacity: 0 }}
+ transition={{ duration: 0.2 }}
+ >
+ <motion.div
+ className="bg-[#141424] rounded-2xl p-6 max-w-md w-full border border-brand-700/40 shadow-2xl"
+ initial={{ opacity: 0, scale: 0.94, y: 16 }}
+ animate={{ opacity: 1, scale: 1, y: 0 }}
+ exit={{ opacity: 0, scale: 0.96, y: 8 }}
+ transition={EASE_SPRING}
+ >
+ <div className="flex items-center gap-3 mb-1">
+ <div className="p-2 bg-brand-500/15 rounded-lg">
+ <KeyRound className="w-5 h-5 text-brand-400" />
  </div>
+ <h2 className="text-lg font-bold text-white">{t('usersPage.credentialsTitle')}</h2>
+ </div>
+ <p className="text-xs text-slate-400 mb-5 ml-1">
+ {t('usersPage.credentialsSubtitle', { name: credentials.full_name || credentials.email })}
+ </p>
+
+ <div className="space-y-3">
+ {[
+ { icon: <Link2 className="w-4 h-4 text-slate-500" />, label: t('usersPage.credentialsUrl'), value: loginUrl },
+ { icon: <Mail className="w-4 h-4 text-slate-500" />, label: t('usersPage.emailLabel'), value: credentials.email },
+ { icon: <KeyRound className="w-4 h-4 text-brand-400" />, label: t('usersPage.credentialsTempPassword'), value: credentials.password },
+ ].map((row) => (
+ <div key={row.label} className="flex items-center gap-2">
+ <div className="flex-1 min-w-0 p-3 rounded-xl bg-slate-900/60 border border-[#1e1e32]">
+ <div className="flex items-center gap-2 mb-1">
+ {row.icon}
+ <span className="text-[11px] uppercase tracking-wide text-slate-500">{row.label}</span>
+ </div>
+ <p className="text-sm text-white font-mono break-all select-all">{row.value}</p>
+ </div>
+ <CopyButton value={row.value} label={t('usersPage.copy')} />
+ </div>
+ ))}
+ </div>
+
+ <div className="mt-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/25">
+ <p className="text-xs text-amber-200/90">{t('usersPage.credentialsWarning')}</p>
+ </div>
+
+ <div className="flex gap-3 mt-5">
+ <CopyAllButton
+ text={t('usersPage.credentialsMessage', {
+ name: credentials.full_name || credentials.email,
+ url: loginUrl,
+ email: credentials.email,
+ password: credentials.password
+ })}
+ label={t('usersPage.copyAll')}
+ copiedLabel={t('usersPage.copied')}
+ />
+ <button
+ onClick={() => setCredentials(null)}
+ className="flex-1 btn-primary"
+ >
+ {t('usersPage.credentialsDone')}
+ </button>
+ </div>
+ </motion.div>
+ </motion.div>
+ )}
+ </AnimatePresence>
+ </div>
+ );
+}
+
+/** Copia el mensaje completo (link + email + contraseña) listo para enviar */
+function CopyAllButton({ text, label, copiedLabel }: { text: string; label: string; copiedLabel: string }) {
+ const [copied, setCopied] = useState(false);
+
+ const copy = async () => {
+ try {
+ await navigator.clipboard.writeText(text);
+ } catch {
+ const ta = document.createElement('textarea');
+ ta.value = text;
+ ta.style.position = 'fixed';
+ ta.style.opacity = '0';
+ document.body.appendChild(ta);
+ ta.select();
+ document.execCommand('copy');
+ document.body.removeChild(ta);
+ }
+ setCopied(true);
+ setTimeout(() => setCopied(false), 2000);
+ };
+
+ return (
+ <button type="button" onClick={copy} className="flex-1 btn-secondary flex items-center justify-center gap-2">
+ {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+ {copied ? copiedLabel : label}
+ </button>
  );
 }

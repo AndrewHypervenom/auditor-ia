@@ -8,7 +8,7 @@ import { auditService, type Audit } from '../services/api';
 import {
   FileText, Plus, Download, Clock, CheckCircle2, AlertCircle,
   AlertTriangle, Loader2, TrendingUp, Eye, BarChart3, PhoneIncoming,
-  Monitor, Moon, Search, RefreshCw, LogOut, BookOpen,
+  Monitor, Moon, Search, RefreshCw, LogOut, BookOpen, KeyRound,
 } from 'lucide-react';
 import AppHeader from '../components/AppHeader';
 import DateRangeFilter from '../components/DateRangeFilter';
@@ -365,6 +365,10 @@ export default function AnalystDashboard() {
             <button onClick={() => loadAudits(true)} disabled={refreshing}
               className="btn-ghost p-2 rounded-xl" title={t('analyst.refresh')}>
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+            <button onClick={() => navigate('/change-password')}
+              className="btn-ghost p-2 rounded-xl text-slate-400" title={t('changePassword.title')}>
+              <KeyRound className="w-4 h-4" />
             </button>
             <button onClick={async () => { await signOut(); navigate('/login'); }}
               className="btn-ghost p-2 rounded-xl text-slate-400" title={t('analyst.logout')}>
