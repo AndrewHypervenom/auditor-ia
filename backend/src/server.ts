@@ -957,15 +957,18 @@ app.post('/api/admin/users', authenticateUser, requireAdminOrSupervisor, async (
  return res.status(400).json({ error: authError.message || 'Error al crear usuario en autenticación' });
  }
 
+ // upsert y no insert: un trigger sobre auth.users ya crea la fila en
+ // public.users con valores por defecto, así que aquí solo la corregimos
+ // con el rol y la empresa reales (si no existiera, la crea igual).
  const { data: userData, error: dbError } = await supabaseAdmin
  .from('users')
- .insert({
+ .upsert({
  id: authData.user.id,
  email,
  full_name,
  role,
  company_id: companyId
- })
+ }, { onConflict: 'id' })
  .select()
  .single();
 
