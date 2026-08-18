@@ -18,7 +18,7 @@ import { excelService } from './services/excel.service.js';
 import { databaseService } from './services/database.service.js';
 import { costCalculatorService } from './services/cost-calculator.service.js';
 import { buildSentimentSummary } from './utils/sentiment.js';
-import { authenticateUser, requireAdmin, requireAdminOrAnalyst, requireAdminOrSupervisor } from './middleware/auth.middleware.js';
+import { authenticateUser, requireAdmin, requireAdminOrAnalyst, requireAdminOrSupervisor, invalidateUserAuthCache } from './middleware/auth.middleware.js';
 import { checkUsageLimits } from './middleware/usage-limit.middleware.js';
 import { gpfTokenService } from './services/gpf-token.service.js';
 import { gpfDataService } from './services/gpf-data.service.js';
@@ -1052,6 +1052,9 @@ app.put('/api/admin/users/:userId', authenticateUser, requireAdminOrSupervisor, 
  });
  }
 
+ // La sesión cacheada del usuario quedó obsoleta (rol/empresa/estado)
+ invalidateUserAuthCache(userId);
+
  logger.success('User updated successfully', { userId });
  res.json(userData);
  } catch (error: any) {
@@ -1195,6 +1198,8 @@ app.delete('/api/admin/users/:userId', authenticateUser, requireAdmin, async (re
  if (authError) {
  logger.warn('Error deleting user from auth (user may not exist):', authError);
  }
+
+ invalidateUserAuthCache(userId);
 
  logger.success('User deleted successfully', { userId });
  res.json({ success: true, message: 'Usuario eliminado exitosamente' });

@@ -461,8 +461,10 @@ function ScriptsTab() {
   // Al cambiar de calificación o modo, volver al guion base
   useEffect(() => { setSelectedTipoCierre(null); }, [selectedCallType, mode]);
 
+  // No se vuelve a poner `loading` en true: `loading` arranca en true y solo se
+  // apaga tras la primera carga. Recargar tras guardar ya NO desmonta la lista
+  // (nada de skeleton, ni pérdida de secciones abiertas, ni salto al inicio).
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const data = await scriptsService.getAll();
       setScripts(data);
@@ -998,8 +1000,10 @@ function CriteriaTab() {
     }
   }, [availableCallTypes, selectedCallType]);
 
+  // No se vuelve a poner `loading` en true: `loading` arranca en true y solo se
+  // apaga tras la primera carga. Recargar tras guardar ya NO desmonta la lista
+  // (nada de skeleton, ni pérdida de secciones abiertas, ni salto al inicio).
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const data = await criteriaService.getAll();
       setBlocks(data);
@@ -1011,6 +1015,32 @@ function CriteriaTab() {
   }, [t]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Cada endpoint de guardado ya devuelve la fila actualizada, así que la lista
+  // se parchea en memoria en vez de volver a pedir TODOS los bloques con TODOS
+  // sus criterios. El cambio se ve al instante y no hay segunda ida al servidor.
+  const mutate = useMemo<CriteriaMutations>(() => ({
+    refresh: load,
+    addBlock: (block) =>
+      setBlocks((prev) => [...prev, { ...block, criteria: block.criteria ?? [] }]),
+    patchBlock: (blockId, patch) =>
+      setBlocks((prev) => prev.map((b) => (b.id === blockId ? { ...b, ...patch } : b))),
+    dropBlock: (blockId) =>
+      setBlocks((prev) => prev.filter((b) => b.id !== blockId)),
+    addCriteria: (blockId, item) =>
+      setBlocks((prev) => prev.map((b) =>
+        b.id === blockId ? { ...b, criteria: [...(b.criteria || []), item] } : b)),
+    patchCriteria: (blockId, criteriaId, patch) =>
+      setBlocks((prev) => prev.map((b) =>
+        b.id === blockId
+          ? { ...b, criteria: (b.criteria || []).map((c) => (c.id === criteriaId ? { ...c, ...patch } : c)) }
+          : b)),
+    dropCriteria: (blockId, criteriaId) =>
+      setBlocks((prev) => prev.map((b) =>
+        b.id === blockId
+          ? { ...b, criteria: (b.criteria || []).filter((c) => c.id !== criteriaId) }
+          : b)),
+  }), [load]);
 
   const grouped = groupByCallType(blocks.filter((b) => b.mode === mode));
   const currentBlocks = (grouped[selectedCallType] || []).sort((a, b) => a.block_order - b.block_order);
@@ -1035,14 +1065,14 @@ function CriteriaTab() {
       ? Math.max(...currentBlocks.map((b) => b.block_order)) + 1
       : 1;
     try {
-      await criteriaService.createBlock({
+      const created = await criteriaService.createBlock({
         call_type: selectedCallType,
         mode,
         block_name: t('scriptsAdmin.newBlockDefault'),
         block_order: newOrder,
       });
+      mutate.addBlock(created);
       toast.success(t('scriptsAdmin.blockAdded'));
-      load();
     } catch {
       toast.error(t('scriptsAdmin.blockAddError'));
     }
@@ -1111,7 +1141,7 @@ function CriteriaTab() {
 
       <div className="space-y-3">
         {currentBlocks.map((block) => (
-          <CriteriaBlockCard key={block.id} block={block} onUpdate={load} />
+          <CriteriaBlockCard key={block.id} block={block} mutate={mutate} />
         ))}
 
         {currentBlocks.length === 0 && (
@@ -1300,12 +1330,24 @@ function StatChip({ icon: Icon, label, color }: StatChipProps) {
 
 // ─── Card de un bloque de criterios ──────────────────────────
 
-interface CriteriaBlockCardProps {
-  block: CriteriaBlock;
-  onUpdate: () => void;
+/** Actualizaciones puntuales de la lista de bloques, sin recargar todo. */
+interface CriteriaMutations {
+  /** Recarga completa desde el servidor (solo para importaciones masivas). */
+  refresh: () => Promise<void> | void;
+  addBlock: (block: CriteriaBlock) => void;
+  patchBlock: (blockId: string, patch: Partial<CriteriaBlock>) => void;
+  dropBlock: (blockId: string) => void;
+  addCriteria: (blockId: string, item: CriteriaItem) => void;
+  patchCriteria: (blockId: string, criteriaId: string, patch: Partial<CriteriaItem>) => void;
+  dropCriteria: (blockId: string, criteriaId: string) => void;
 }
 
-function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
+interface CriteriaBlockCardProps {
+  block: CriteriaBlock;
+  mutate: CriteriaMutations;
+}
+
+function CriteriaBlockCard({ block, mutate }: CriteriaBlockCardProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -1337,24 +1379,29 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
       next = [...sectionTipoCierres, selectedTipoCierre];
       if (availableTipoCierres.every(tc => next.includes(tc))) next = [];
     }
+    const previous = block.applicable_tipo_cierres;
+    mutate.patchBlock(block.id, { applicable_tipo_cierres: next }); // optimista
     try {
       await criteriaService.updateBlock(block.id, { applicable_tipo_cierres: next });
       toast.success(t('scriptsAdmin.sectionScopeUpdated'));
-      onUpdate();
     } catch {
+      mutate.patchBlock(block.id, { applicable_tipo_cierres: previous });
       toast.error(t('scriptsAdmin.blockUpdateError'));
     }
   };
 
   const handleSaveBlock = async () => {
     setEditingName(false);
+    const previous = block.block_name;
+    if (nameValue === previous) return;
+    mutate.patchBlock(block.id, { block_name: nameValue }); // optimista
     try {
       await criteriaService.updateBlock(block.id, { block_name: nameValue });
       toast.success(t('scriptsAdmin.blockUpdated'));
-      onUpdate();
     } catch {
+      mutate.patchBlock(block.id, { block_name: previous });
       toast.error(t('scriptsAdmin.blockUpdateError'));
-      setNameValue(block.block_name);
+      setNameValue(previous);
     }
   };
 
@@ -1366,10 +1413,11 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
   const handleDeleteBlock = async () => {
     if (!confirm(t('scriptsAdmin.deleteBlockConfirm', { name: block.block_name }))) return;
     try {
+      mutate.dropBlock(block.id); // desaparece de inmediato
       await criteriaService.removeBlock(block.id);
       toast.success(t('scriptsAdmin.blockDeleted'));
-      onUpdate();
     } catch {
+      mutate.refresh(); // el borrado falló: restaurar desde el servidor
       toast.error(t('scriptsAdmin.blockDeleteError'));
     }
   };
@@ -1388,7 +1436,7 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
         validation_source: [],
         criteria_order: newOrder,
       });
-      onUpdate();
+      mutate.addCriteria(block.id, newItem);
       setDrawerCriteria(newItem);
     } catch {
       toast.error(t('scriptsAdmin.criterionAddError'));
@@ -1597,9 +1645,10 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
                   <CriteriaViewRow
                     key={c.id}
                     item={c}
+                    blockId={block.id}
                     selectedTipoCierre={selectedTipoCierre}
                     onEdit={() => setDrawerCriteria(c)}
-                    onUpdate={onUpdate}
+                    mutate={mutate}
                   />
                 ))}
               </tbody>
@@ -1622,7 +1671,7 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
           item={drawerCriteria}
           selectedTipoCierre={selectedTipoCierre}
           blockCallType={block.call_type}
-          onSave={() => { onUpdate(); setDrawerCriteria(null); }}
+          onSave={(patch) => { mutate.patchCriteria(block.id, drawerCriteria.id, patch); setDrawerCriteria(null); }}
           onClose={() => setDrawerCriteria(null)}
         />
       )}
@@ -1634,8 +1683,9 @@ function CriteriaBlockCard({ block, onUpdate }: CriteriaBlockCardProps) {
 
 interface CriteriaRowProps {
   item: CriteriaItem;
+  blockId: string;
   onEdit: () => void;
-  onUpdate: () => void;
+  mutate: CriteriaMutations;
   selectedTipoCierre: string | null;
 }
 
@@ -1650,7 +1700,7 @@ function getOverrideValue<K extends keyof CriteriaItemOverride>(
   return ov && ov[field] !== undefined ? ov[field] : base;
 }
 
-function CriteriaViewRow({ item, onEdit, onUpdate, selectedTipoCierre }: CriteriaRowProps) {
+function CriteriaViewRow({ item, blockId, onEdit, mutate, selectedTipoCierre }: CriteriaRowProps) {
   const { t } = useTranslation();
   const [wtlfExpanded, setWtlfExpanded] = useState(false);
 
@@ -1663,41 +1713,48 @@ function CriteriaViewRow({ item, onEdit, onUpdate, selectedTipoCierre }: Criteri
   const handleDelete = async () => {
     if (!confirm(t('scriptsAdmin.deleteCriterionConfirm', { name: item.topic }))) return;
     try {
+      mutate.dropCriteria(blockId, item.id); // desaparece de inmediato
       await criteriaService.removeCriteria(item.id);
       toast.success(t('scriptsAdmin.criterionDeleted'));
-      onUpdate();
     } catch {
+      mutate.refresh(); // el borrado falló: restaurar desde el servidor
       toast.error(t('scriptsAdmin.criterionDeleteError'));
     }
   };
 
-  const handleToggleApplies = async () => {
+  /** Alterna un booleano (base o del override de la subcalificación) pintando el
+   *  cambio al instante y revirtiéndolo solo si el servidor lo rechaza. */
+  const toggleField = async (
+    field: 'applies' | 'requires_manual_review',
+    nextValue: boolean
+  ) => {
+    const patch: Partial<CriteriaItem> = selectedTipoCierre
+      ? {
+          tipo_cierre_overrides: {
+            ...(item.tipo_cierre_overrides || {}),
+            [selectedTipoCierre]: {
+              ...(item.tipo_cierre_overrides?.[selectedTipoCierre] || {}),
+              [field]: nextValue,
+            },
+          },
+        }
+      : { [field]: nextValue };
+    const previous: Partial<CriteriaItem> = selectedTipoCierre
+      ? { tipo_cierre_overrides: item.tipo_cierre_overrides }
+      : { [field]: item[field] };
+
+    mutate.patchCriteria(blockId, item.id, patch);
     try {
-      if (selectedTipoCierre) {
-        const ov = { ...(item.tipo_cierre_overrides || {}), [selectedTipoCierre]: { ...(item.tipo_cierre_overrides?.[selectedTipoCierre] || {}), applies: !effectiveApplies } };
-        await criteriaService.updateCriteria(item.id, { tipo_cierre_overrides: ov });
-      } else {
-        await criteriaService.updateCriteria(item.id, { applies: !item.applies });
-      }
-      onUpdate();
+      await criteriaService.updateCriteria(item.id, patch);
     } catch {
+      mutate.patchCriteria(blockId, item.id, previous);
       toast.error(t('reference.updateError'));
     }
   };
 
-  const handleToggleManualReview = async () => {
-    try {
-      if (selectedTipoCierre) {
-        const ov = { ...(item.tipo_cierre_overrides || {}), [selectedTipoCierre]: { ...(item.tipo_cierre_overrides?.[selectedTipoCierre] || {}), requires_manual_review: !effectiveManual } };
-        await criteriaService.updateCriteria(item.id, { tipo_cierre_overrides: ov });
-      } else {
-        await criteriaService.updateCriteria(item.id, { requires_manual_review: !item.requires_manual_review });
-      }
-      onUpdate();
-    } catch {
-      toast.error(t('reference.updateError'));
-    }
-  };
+  const handleToggleApplies = () => toggleField('applies', !effectiveApplies);
+
+  const handleToggleManualReview = () => toggleField('requires_manual_review', !effectiveManual);
 
   return (
     <tr className="border-b border-slate-800/40 hover:bg-slate-800/20 group transition-colors duration-150">
@@ -1852,7 +1909,7 @@ function CriteriaViewRow({ item, onEdit, onUpdate, selectedTipoCierre }: Criteri
 
 interface CriteriaEditRowProps {
   item: CriteriaItem;
-  onSave: () => void;
+  onSave: (patch: Partial<CriteriaItem>) => void;
   onCancel: () => void;
   selectedTipoCierre: string | null;
 }
@@ -1882,25 +1939,25 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
   const handleSave = async () => {
     setSaving(true);
     try {
-      if (isSubcalMode) {
-        const newOverrides = {
-          ...(item.tipo_cierre_overrides || {}),
-          [selectedTipoCierre!]: { applies, what_to_look_for: whatToLookFor, validation_source: validationSource },
-        };
-        await criteriaService.updateCriteria(item.id, { tipo_cierre_overrides: newOverrides });
-      } else {
-        await criteriaService.updateCriteria(item.id, {
-          topic,
-          criticality,
-          points: points === 'n/a' ? null : parseInt(points, 10),
-          applies,
-          what_to_look_for: whatToLookFor,
-          validation_source: validationSource,
-          score_options: scoreOptions,
-        });
-      }
+      const patch: Partial<CriteriaItem> = isSubcalMode
+        ? {
+            tipo_cierre_overrides: {
+              ...(item.tipo_cierre_overrides || {}),
+              [selectedTipoCierre!]: { applies, what_to_look_for: whatToLookFor, validation_source: validationSource },
+            },
+          }
+        : {
+            topic,
+            criticality,
+            points: points === 'n/a' ? null : parseInt(points, 10),
+            applies,
+            what_to_look_for: whatToLookFor,
+            validation_source: validationSource,
+            score_options: scoreOptions,
+          };
+      await criteriaService.updateCriteria(item.id, patch);
       toast.success(t('scriptsAdmin.criterionUpdated'));
-      onSave();
+      onSave(patch);
     } catch {
       toast.error(t('scriptsAdmin.criterionSaveError'));
     } finally {
@@ -1916,7 +1973,7 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
       delete newOverrides[selectedTipoCierre];
       await criteriaService.updateCriteria(item.id, { tipo_cierre_overrides: newOverrides });
       toast.success(t('scriptsAdmin.configReset'));
-      onSave();
+      onSave({ tipo_cierre_overrides: newOverrides });
     } catch {
       toast.error(t('scriptsAdmin.resetError'));
     } finally {
@@ -2738,7 +2795,8 @@ interface CriteriaEditDrawerProps {
   item: CriteriaItem;
   selectedTipoCierre: string | null;
   blockCallType: string;
-  onSave: () => void;
+  /** Recibe solo los campos modificados, para parchear la fila sin recargar. */
+  onSave: (patch: Partial<CriteriaItem>) => void;
   onClose: () => void;
 }
 
@@ -2820,25 +2878,25 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
   const handleSave = async () => {
     setSaving(true);
     try {
-      if (isSubcalMode) {
-        const newOverrides = {
-          ...(item.tipo_cierre_overrides || {}),
-          [selectedTipoCierre!]: { applies, what_to_look_for: whatToLookFor, validation_source: validationSource },
-        };
-        await criteriaService.updateCriteria(item.id, { tipo_cierre_overrides: newOverrides });
-      } else {
-        await criteriaService.updateCriteria(item.id, {
-          topic,
-          criticality,
-          points: points === 'n/a' ? null : parseInt(points, 10),
-          applies,
-          what_to_look_for: whatToLookFor,
-          validation_source: validationSource,
-          score_options: scoreOptions,
-        });
-      }
+      const patch: Partial<CriteriaItem> = isSubcalMode
+        ? {
+            tipo_cierre_overrides: {
+              ...(item.tipo_cierre_overrides || {}),
+              [selectedTipoCierre!]: { applies, what_to_look_for: whatToLookFor, validation_source: validationSource },
+            },
+          }
+        : {
+            topic,
+            criticality,
+            points: points === 'n/a' ? null : parseInt(points, 10),
+            applies,
+            what_to_look_for: whatToLookFor,
+            validation_source: validationSource,
+            score_options: scoreOptions,
+          };
+      await criteriaService.updateCriteria(item.id, patch);
       toast.success(t('scriptsAdmin.criterionUpdated'));
-      onSave();
+      onSave(patch);
     } catch {
       toast.error(t('scriptsAdmin.criterionSaveError'));
     } finally {
@@ -2854,7 +2912,7 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
       delete newOverrides[selectedTipoCierre];
       await criteriaService.updateCriteria(item.id, { tipo_cierre_overrides: newOverrides });
       toast.success(t('scriptsAdmin.configReset'));
-      onSave();
+      onSave({ tipo_cierre_overrides: newOverrides });
     } catch {
       toast.error(t('scriptsAdmin.resetError'));
     } finally {
@@ -3286,8 +3344,10 @@ function AiPromptsTab() {
     }
   }, [availableCallTypes, callType]);
 
+  // No se vuelve a poner `loading` en true: `loading` arranca en true y solo se
+  // apaga tras la primera carga. Recargar tras guardar ya NO desmonta la lista
+  // (nada de skeleton, ni pérdida de secciones abiertas, ni salto al inicio).
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const data = await promptsService.getAll();
       setPrompts(data);
@@ -3576,8 +3636,10 @@ function VocabularioTab() {
   const [editCategory, setEditCategory] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
 
+  // No se vuelve a poner `loading` en true: `loading` arranca en true y solo se
+  // apaga tras la primera carga. Recargar tras guardar ya NO desmonta la lista
+  // (nada de skeleton, ni pérdida de secciones abiertas, ni salto al inicio).
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const data = await wordBoostService.getAll();
       setTerms(data);
@@ -4210,8 +4272,10 @@ function ImageSystemsTab() {
   const [showImporter, setShowImporter] = useState(false);
   const [newSystem, setNewSystem] = useState({ system_name: '', description: '', detection_hints: '' });
 
+  // No se vuelve a poner `loading` en true: `loading` arranca en true y solo se
+  // apaga tras la primera carga. Recargar tras guardar ya NO desmonta la lista
+  // (nada de skeleton, ni pérdida de secciones abiertas, ni salto al inicio).
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const data = await imageSystemsService.getAll();
       setSystems(data);
@@ -5129,8 +5193,10 @@ function CallTypesTab() {
 
   const ALL_MODES = ['INBOUND', 'MONITOREO'];
 
+  // No se vuelve a poner `loading` en true: `loading` arranca en true y solo se
+  // apaga tras la primera carga. Recargar tras guardar ya NO desmonta la lista
+  // (nada de skeleton, ni pérdida de secciones abiertas, ni salto al inicio).
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const data = await callTypesConfigService.getAll();
       setItems(data);
@@ -5501,8 +5567,10 @@ function BinesAdminTab() {
   const [newForm, setNewForm] = useState({ ...emptyBinForm });
   const [saving, setSaving] = useState(false);
 
+  // No se vuelve a poner `loading` en true: `loading` arranca en true y solo se
+  // apaga tras la primera carga. Recargar tras guardar ya NO desmonta la lista
+  // (nada de skeleton, ni pérdida de secciones abiertas, ni salto al inicio).
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       setItems(await binesService.getAll());
     } catch {

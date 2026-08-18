@@ -20,6 +20,80 @@ declare global {
   }
 }
 
+// ── Caché de sesión en memoria ───────────────────────────────
+// Cada request pagaba 3 viajes de red a Supabase (getUser + select users +
+// update last_login_at). En pantallas de administración eso multiplicaba la
+// latencia percibida de cada guardado. Guardamos el usuario resuelto por token
+// durante un lapso corto: los cambios de rol/empresa/estado se propagan al
+// expirar la entrada, o de inmediato vía invalidateUserAuthCache().
+type CachedUser = NonNullable<Express.Request['user']>;
+
+interface AuthCacheEntry {
+  user: CachedUser;
+  expiresAt: number;
+}
+
+const AUTH_CACHE_TTL_MS = 60 * 1000;
+const AUTH_CACHE_MAX_ENTRIES = 5000;
+const authCache = new Map<string, AuthCacheEntry>();
+
+// last_login_at es en la práctica un "visto por última vez": no necesita
+// escribirse en cada request. Se escribe como mucho una vez cada 10 minutos
+// por usuario y sin bloquear la respuesta.
+const LAST_SEEN_THROTTLE_MS = 10 * 60 * 1000;
+const lastSeenWrittenAt = new Map<string, number>();
+
+/** Invalida la sesión cacheada de un usuario (cambio de rol, baja, etc.). */
+export function invalidateUserAuthCache(userId?: string): void {
+  if (!userId) {
+    authCache.clear();
+    return;
+  }
+  for (const [token, entry] of authCache) {
+    if (entry.user.id === userId) authCache.delete(token);
+  }
+}
+
+function getCachedUser(token: string): CachedUser | null {
+  const entry = authCache.get(token);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    authCache.delete(token);
+    return null;
+  }
+  return entry.user;
+}
+
+function setCachedUser(token: string, user: CachedUser): void {
+  // Purga barata: al llegar al tope se limpian las entradas ya vencidas y,
+  // si aún no alcanza, se descartan las más antiguas (Map preserva inserción).
+  if (authCache.size >= AUTH_CACHE_MAX_ENTRIES) {
+    const now = Date.now();
+    for (const [k, v] of authCache) if (v.expiresAt <= now) authCache.delete(k);
+    while (authCache.size >= AUTH_CACHE_MAX_ENTRIES) {
+      const oldest = authCache.keys().next().value;
+      if (oldest === undefined) break;
+      authCache.delete(oldest);
+    }
+  }
+  authCache.set(token, { user, expiresAt: Date.now() + AUTH_CACHE_TTL_MS });
+}
+
+/** Marca actividad del usuario sin bloquear la respuesta ni escribir de más. */
+function touchLastSeen(userId: string): void {
+  const now = Date.now();
+  const previous = lastSeenWrittenAt.get(userId) ?? 0;
+  if (now - previous < LAST_SEEN_THROTTLE_MS) return;
+  lastSeenWrittenAt.set(userId, now);
+  void supabaseAdmin
+    .from('users')
+    .update({ last_login_at: new Date(now).toISOString() })
+    .eq('id', userId)
+    .then(({ error }) => {
+      if (error) logger.warn('No se pudo actualizar last_login_at', { userId, error: error.message });
+    });
+}
+
 /**
  * Middleware para verificar JWT de Supabase y extraer información del usuario
  */
@@ -37,6 +111,14 @@ export const authenticateUser = async (
  }
 
  const token = authHeader.substring(7); // Remover "Bearer "
+
+ // Sesión ya resuelta hace poco → sin viajes a Supabase
+ const cached = getCachedUser(token);
+ if (cached) {
+ req.user = cached;
+ touchLastSeen(cached.id);
+ return next();
+ }
 
  // Verificar token con Supabase
  const { data: { user }, error } = await supabase.auth.getUser(token);
@@ -102,11 +184,8 @@ export const authenticateUser = async (
  return res.status(403).json({ error: 'User account is inactive' });
  }
 
- // Actualizar last_login_at
- await supabaseAdmin
- .from('users')
- .update({ last_login_at: new Date().toISOString() })
- .eq('id', user.id);
+ // Actualizar last_login_at (throttled, sin bloquear la respuesta)
+ touchLastSeen(user.id);
 
  // Agregar usuario al request
  req.user = {
@@ -116,6 +195,8 @@ export const authenticateUser = async (
  full_name: profile?.full_name || undefined,
  company_id: profile?.company_id ?? null
  };
+
+ setCachedUser(token, req.user);
 
  logger.info(' User authenticated', { 
  userId: req.user.id, 
