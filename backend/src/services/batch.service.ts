@@ -27,6 +27,8 @@ import {
   type ScoreOption,
 } from '../utils/scoring.js';
 import { normTopic } from '../utils/matching.js';
+import { computeCallTiming, formatCallTimingForPrompt } from '../utils/call-timing.js';
+import type { TranscriptWord } from '../types/index.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -294,6 +296,10 @@ class BatchService {
 
           // ── Audio: descargar + transcribir con AssemblyAI (igual que tiempo real) ──
           let finalTranscriptText = syntheticTranscript.text;
+          // Las utterances traen start/end por intervención: son la única fuente
+          // para los rubros que miden tiempos de espera. Se guardan aquí porque no
+          // sobreviven hasta processBatchResults.
+          let transcriptUtterances: TranscriptWord[] = [];
           // Metadatos de costo de los pasos en tiempo real (corrección + sentimientos + AssemblyAI).
           // Se persisten en batch_items.cost_meta para calcular el costo real en processBatchResults.
           const costMeta = {
@@ -335,6 +341,7 @@ class BatchService {
                 tempFiles.push(localAudioPath);
                 logger.info('Batch: transcribing audio with AssemblyAI', { itemId: item.id, sizeMB: (audioBuffer.length / 1024 / 1024).toFixed(2) });
                 const rawTranscript = await assemblyAIService.transcribe(localAudioPath);
+                transcriptUtterances = rawTranscript?.utterances ?? [];
                 costMeta.assemblyaiDurationSeconds = rawTranscript?.audio_duration ?? 0;
                 if (rawTranscript?.text) {
                   const corrected = await openAIService.correctTranscription(rawTranscript.text);
@@ -413,7 +420,7 @@ class BatchService {
           }
 
           const evaluationSystemPrompt = await databaseService.getPromptByKey('evaluation_system') ?? '';
-          const evalUserContent = this.buildBatchEvalPrompt(item, attentionObject, criteria, { text: finalTranscriptText });
+          const evalUserContent = this.buildBatchEvalPrompt(item, attentionObject, criteria, { text: finalTranscriptText }, transcriptUtterances);
 
           batchRequests.push({
             custom_id: `${item.id}__eval`,
@@ -875,7 +882,8 @@ class BatchService {
     item: any,
     attentionObject: any,
     criteria: any[],
-    syntheticTranscript: { text: string }
+    syntheticTranscript: { text: string },
+    utterances?: TranscriptWord[],
   ): string {
     const topicsToEvaluate = criteria.flatMap((block: any) =>
       (block.topics || [])
@@ -925,6 +933,9 @@ TRANSCRIPCIÓN / EVIDENCIA VERBAL
 ═══════════════════════════════════════
 ${syntheticTranscript.text.substring(0, 8000) || 'Sin transcripción disponible'}
 
+MÉTRICAS DE TIEMPO DE LA LLAMADA (AssemblyAI):
+${formatCallTimingForPrompt(computeCallTiming(utterances))}
+
 ═══════════════════════════════════════
 TÓPICOS A EVALUAR (${topicsToEvaluate.length} criterios)
 ═══════════════════════════════════════
@@ -942,7 +953,8 @@ REGLA CRÍTICA: Los campos "block" y "topic" deben ser EXACTAMENTE iguales a los
       "topic": "<nombre exacto del tópico>",
       "score": <puntos obtenidos>,
       "max_score": <puntos máximos del tópico>,
-      "justification": "Evidencia concreta encontrada y conclusión."
+      "justification": "Evidencia concreta encontrada y conclusión.",
+      "recommendation": "Si el puntaje NO es el máximo: qué debe hacer el auditor o el agente para que el rubro quede correcto. Di QUÉ falta y DÓNDE debería estar. Si la evidencia existe pero en una fuente distinta a la exigida (p. ej. está en GPF y el rubro exige Imágenes), dilo explícitamente y pide validación manual. Cadena vacía si obtuvo el puntaje completo."
     }
   ],
   "total_score": <suma de todos los scores>,
@@ -1008,6 +1020,7 @@ REGLA CRÍTICA: Los campos "block" y "topic" deben ser EXACTAMENTE iguales a los
               : snapToAllOrNothing(rawScore, effectiveMax),
             maxScore: effectiveMax,
             observations: ai?.justification ?? (ai ? '' : 'No evaluado por el modelo'),
+            recommendation: ai?.recommendation ?? '',
             criticality: topicCriticalityMap.get(norm(t.topic)) || '-',
             scoreOptions,
           };

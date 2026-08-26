@@ -17,6 +17,7 @@ import {
   type ScoreOption,
 } from '../utils/scoring.js';
 import { normTopic } from '../utils/matching.js';
+import { computeCallTiming, formatCallTimingForPrompt, type CallTimingMetrics } from '../utils/call-timing.js';
 import * as fs from 'fs';
 
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? 'claude-sonnet-5';
@@ -163,6 +164,7 @@ class EvaluatorService {
            score: this.applyScoreOptions(ai.score ?? 0, scoreOptions, effectiveMax),
            maxScore: effectiveMax,
            observations: ai.justification ?? '',
+           recommendation: ai.recommendation ?? '',
            criticality: topicCriticalityMap.get(t.topic) || '-',
            scoreOptions,
          };
@@ -423,7 +425,7 @@ class EvaluatorService {
          // El denominador SIEMPRE lo manda la rubrica de la BD: si se tomara el
          // max_score del modelo, un valor inventado (p. ej. 2.5) mete decimales.
          const effectiveMax = maxScore;
-         return { criterion: criterionKey, score: this.applyScoreOptions(ai.score ?? 0, scoreOptions, effectiveMax), maxScore: effectiveMax, observations: ai.justification ?? '', criticality: topicCriticalityMap.get(t.topic) || '-', scoreOptions };
+         return { criterion: criterionKey, score: this.applyScoreOptions(ai.score ?? 0, scoreOptions, effectiveMax), maxScore: effectiveMax, observations: ai.justification ?? '', recommendation: ai.recommendation ?? '', criticality: topicCriticalityMap.get(t.topic) || '-', scoreOptions };
        }
        return { criterion: criterionKey, score: 0, maxScore, observations: 'No evaluado por el modelo — asigna el puntaje manualmente.', criticality: topicCriticalityMap.get(t.topic) || '-', scoreOptions };
      }).filter(Boolean)
@@ -810,7 +812,8 @@ REGLAS:
  maxPossibleScore,
  transcript.text,
  scriptSteps,
- auditInput.gpfData
+ auditInput.gpfData,
+ computeCallTiming(transcript.utterances),
  );
 
  const evaluationSystemPromptBase = await getDatabaseService().getPromptByKey('evaluation_system') ?? '';
@@ -874,7 +877,8 @@ REGLAS:
  maxScore: number,
  transcriptText: string,
  scriptSteps?: any,
- gpfData?: AuditInput['gpfData']
+ gpfData?: AuditInput['gpfData'],
+ timing?: CallTimingMetrics | null,
  ): string {
  // Formatear evidencia estructurada de forma más clara
  const structuredEvidence = Object.entries(visualEvidence)
@@ -999,6 +1003,10 @@ Cada tópico indica "Validar en". DEBES respetar estrictamente esa fuente:
 - "Llamada/Transcripción" → usa SOLO la sección EVIDENCIA VERBAL (Transcripción)
 - Múltiples fuentes → usa TODAS las fuentes indicadas
 - Si la fuente requerida no tiene evidencia → 0 puntos (NO busques en otras fuentes)
+- PERO si al revisar el resto del material ves que esa evidencia SÍ existe en otra fuente
+  (por ejemplo el dato está en GPF y el criterio exige Imágenes), debes decirlo en
+  "recommendation": nombra la fuente donde sí aparece y qué habría que revisar o ajustar.
+  El puntaje sigue siendo 0, pero el auditor tiene que enterarse de que el dato existe.
 
 ${gpfSection}
 
@@ -1017,6 +1025,10 @@ ${verbalEvidence.slice(0, 40).join('\n')}
 
 TRANSCRIPCIÓN COMPLETA:
 ${transcriptText || 'Sin transcripción disponible'}
+
+MÉTRICAS DE TIEMPO DE LA LLAMADA (AssemblyAI):
+Estas métricas forman parte de la fuente "Llamada/Transcripción".
+${formatCallTimingForPrompt(timing ?? null)}
 
 ╔═════════════════════════════════════╗
 SCRIPT OFICIAL DE REFERENCIA (${auditInput.callType})
@@ -1089,6 +1101,7 @@ Responde con JSON válido siguiendo este formato:
  "score": 0 o los puntos completos del tópico (nunca un valor intermedio),
  "max_score": puntos_maximos,
  "justification": "EVIDENCIA CONCRETA ENCONTRADA: [cita campos específicos]. Por lo tanto, [conclusión].",
+ "recommendation": "Qué debe hacer el auditor o el agente para que este rubro quede correcto. Vacío si el rubro obtuvo el puntaje completo.",
  "evidence": [
  "data.campo1: valor - Fuente: Sistema X, Imagen Y",
  "data.campo2: valor - Fuente: Transcripción, minuto Z",
@@ -1126,7 +1139,16 @@ Responde con JSON válido siguiendo este formato:
 5. Si otorgas puntos completos, explica QUÉ evidencia lo sustenta
 6. NO seas conservador si la evidencia existe
 7. SÉ preciso y específico en cada evaluación
-8. En "block" y "topic" usa el texto EXACTO como aparece en la sección TÓPICOS A EVALUAR. No cambies mayúsculas, tildes ni abrevies.`;
+8. En "block" y "topic" usa el texto EXACTO como aparece en la sección TÓPICOS A EVALUAR. No cambies mayúsculas, tildes ni abrevies.
+9. RECOMENDACIÓN por rubro: siempre que el puntaje NO sea el máximo, completa "recommendation" con una
+   indicación accionable y concreta para el auditor. Reglas:
+   - Di QUÉ falta y DÓNDE debería estar ("en la captura de VCAS debe verse el comentario …").
+   - Si la evidencia existe pero en una fuente distinta a la exigida, dilo explícitamente:
+     "el dato SÍ aparece en GPF (campo …), pero este rubro exige Imágenes VCAS: validar manualmente
+     o revisar la fuente configurada para el criterio".
+   - Si el rubro no se puede medir con el material disponible, dilo y pide validación manual.
+   - Nada de frases genéricas tipo "mejorar el proceso": debe poder ejecutarse tal cual está escrita.
+   - Si el rubro obtuvo el puntaje completo, deja "recommendation" como cadena vacía.`;
  }
 
  // Matching rules are now driven entirely by the 'whatToLookFor' field in evaluation_criteria (BD).
