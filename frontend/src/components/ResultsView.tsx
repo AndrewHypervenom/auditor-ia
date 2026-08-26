@@ -5,7 +5,7 @@ import {
   Target, ChevronDown, ChevronUp, PhoneIncoming, Monitor, Pencil, Check,
   X, Save, RotateCcw, AlertTriangle, ShieldAlert, Plus, ChevronsUpDown,
   MinusCircle, XCircle, ClipboardList, MessageSquare, Copy, Loader2,
-  Smile, Frown, Meh, HeartPulse
+  Smile, Frown, Meh, HeartPulse, Lightbulb
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
@@ -775,6 +775,7 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                     const isCritZero    = isCritical && !isNA && !options && safeScore === 0;
                     const name          = (score.criterion ?? '').replace(/\[.*?\]\s*/, '');
                     const observations  = score.observations ?? score.justification ?? '';
+                    const recommendation = (score as any).recommendation ?? '';
                     const evidence      = Array.isArray(score.evidence) ? score.evidence : [];
                     const hasComment    = Boolean(comments[score.criterion]);
                     const hasDetail     = Boolean(observations) || evidence.length > 0 || hasComment || Boolean(auditId);
@@ -1084,6 +1085,18 @@ export default function ResultsView({ result, auditId, caseId, callType, onDownl
                                   <FileText className="w-3 h-3" /> {t('resultsView.aiReasoning')}
                                 </p>
                                 <p className="text-sm text-slate-300 leading-relaxed">{observations}</p>
+                              </div>
+                            )}
+
+                            {/* Recomendación por rubro: qué hacer para que quede correcto.
+                                La IA la completa solo cuando el rubro no obtuvo el puntaje
+                                completo, e indica si la evidencia está en otra fuente. */}
+                            {recommendation && (
+                              <div className="mb-2.5 p-3 rounded-lg border border-amber-500/25 bg-amber-500/[0.06]">
+                                <p className="text-xs font-semibold text-amber-500/90 uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                                  <Lightbulb className="w-3 h-3" /> {t('resultsView.aiRecommendation')}
+                                </p>
+                                <p className="text-sm text-slate-300 leading-relaxed">{recommendation}</p>
                               </div>
                             )}
 

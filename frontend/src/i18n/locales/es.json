@@ -1101,6 +1101,7 @@
     "showJustification": "Ver justificación",
     "hideJustification": "Ocultar justificación",
     "aiReasoning": "Justificación de la IA",
+    "aiRecommendation": "Recomendación de la IA",
     "evidenceFound": "Evidencia encontrada",
     "saveSuccess": "Puntajes guardados",
     "saveError": "Error al guardar",
