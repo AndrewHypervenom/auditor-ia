@@ -1020,7 +1020,13 @@ class DatabaseService {
 
     if (companyId) blocksQuery = blocksQuery.eq('company_id', companyId);
 
-    const { data: blocks, error: blocksError } = await blocksQuery.order('block_order', { ascending: true });
+    // Desempate por id: hay call_types con la rúbrica entera duplicada y el mismo
+    // block_order en ambas copias. Sin un segundo criterio de orden, cuál copia
+    // gana depende del orden que devuelva Postgres y la evaluación puede cambiar
+    // entre corridas del mismo caso.
+    const { data: blocks, error: blocksError } = await blocksQuery
+      .order('block_order', { ascending: true })
+      .order('id', { ascending: true });
 
     if (blocksError) {
       throw new Error(`Error al cargar bloques de criterios desde la BD: ${blocksError.message}`);
