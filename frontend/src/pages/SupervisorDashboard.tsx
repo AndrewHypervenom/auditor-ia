@@ -33,6 +33,7 @@ import {
  Plug
 } from 'lucide-react';
 import AppHeader from '../components/AppHeader';
+import AuditErrorNote from '../components/AuditErrorNote';
 import toast from 'react-hot-toast';
 
 interface Stats {
@@ -457,6 +458,10 @@ export default function SupervisorDashboard() {
  <p className="text-cyan-300 font-medium truncate">{audit.created_by_name || t('supervisor.unknown')}</p>
  </div>
  </div>
+
+ {audit.status === 'error' && (
+ <AuditErrorNote message={audit.error_message} className="mt-4" />
+ )}
 
  {/* âœ… RENDERIZADO SEGURO de evaluations y costos */}
  {evaluations.length > 0 && (

@@ -8,6 +8,37 @@ import { getDatabaseService } from './database.service.js';
 
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? 'claude-sonnet-5';
 
+/**
+ * Contexto por defecto de las capturas que audita la IA. Es deliberadamente
+ * genérico: cada empresa lo ajusta a su realidad (banca, seguros, retail, CRM…)
+ * desde Administración → Pantallas de proceso.
+ */
+export const DEFAULT_IMAGE_DOMAIN = 'una pantalla de un sistema o aplicativo interno';
+
+export interface ScreenshotAnalysisField {
+ field_name: string;
+ description: string;
+ example: string;
+ how_to_evaluate: string;
+ /** Si conviene extraerlo por defecto (la IA lo razona por campo). */
+ recommended: boolean;
+ /** Una frase que explica por qué conviene (o no) extraerlo. */
+ reason: string;
+ /** Dato personal del cliente: nunca se recomienda por defecto. */
+ sensitive: boolean;
+}
+
+export interface ScreenshotAnalysis {
+ /** Nombre propuesto para la pantalla (o el que indicó el usuario). */
+ proposed_system_name: string;
+ /** Pantalla ya configurada con la que coincide, o null si es nueva. */
+ matched_system: string | null;
+ match_confidence: number;
+ screen_summary: string;
+ detection_hints: string;
+ fields: ScreenshotAnalysisField[];
+}
+
 class ClaudeService {
  private client: Anthropic;
 
@@ -330,31 +361,68 @@ Reglas:
  async analyzeScreenshotForConfig(
  imageBase64: string,
  mimeType: string,
- systemName: string,
- userDescription: string
- ): Promise<{ detection_hints: string; fields: Array<{ field_name: string; description: string; example: string; how_to_evaluate: string }> }> {
- const systemPrompt = `Eres un experto en sistemas bancarios de call center en México.
-Analiza esta captura de pantalla del sistema "${systemName}".
-El usuario quiere que la IA extraiga: "${userDescription}"
+ opts: {
+  systemName?: string;
+  userDescription?: string;
+  domainContext?: string;
+  existingSystems?: Array<{ system_name: string; description?: string; detection_hints?: string }>;
+ } = {}
+ ): Promise<ScreenshotAnalysis> {
+ const systemName = (opts.systemName ?? '').trim();
+ const userDescription = (opts.userDescription ?? '').trim();
+ const domain = (opts.domainContext ?? '').trim() || DEFAULT_IMAGE_DOMAIN;
+ const existing = opts.existingSystems ?? [];
 
-Genera en JSON válido (sin markdown):
+ // Cuando el usuario sube la captura sin decir a qué pantalla pertenece, la IA
+ // decide si coincide con alguna ya configurada o si hay que crear una nueva.
+ const catalogo = existing.length > 0
+  ? existing.map(s => `- ${s.system_name}: ${(s.detection_hints || s.description || '').slice(0, 300)}`).join('\n')
+  : '(todavía no hay pantallas configuradas)';
+
+ const systemPrompt = `Eres un experto en auditoría de calidad de atención al cliente.
+Analiza esta captura de ${domain}.
+
+${systemName
+  ? `El usuario dice que esta captura pertenece a la pantalla "${systemName}".`
+  : `El usuario NO indicó a qué pantalla pertenece. Decide si coincide con alguna de las pantallas ya configuradas o si es una pantalla nueva.
+
+PANTALLAS YA CONFIGURADAS:
+${catalogo}`}
+
+${userDescription
+  ? `El usuario quiere que la IA extraiga: "${userDescription}"`
+  : 'El usuario no dio indicaciones: propón tú los campos que valgan la pena auditar.'}
+
+Genera SOLO JSON válido (sin markdown):
 {
-  "detection_hints": "Texto visual que identifica esta pantalla con certeza (3-4 oraciones: títulos, colores, secciones visibles, layout característico)",
+  "proposed_system_name": "NOMBRE CORTO EN MAYÚSCULAS (2-3 palabras) que describa la pantalla; si coincide con una ya configurada, usa ese mismo nombre",
+  "matched_system": "nombre exacto de la pantalla configurada con la que coincide, o null si es nueva",
+  "match_confidence": 0.0,
+  "screen_summary": "Una sola frase en español: qué muestra esta pantalla y para qué sirve",
+  "detection_hints": "Texto visual que identifica esta pantalla con certeza (3-4 oraciones: títulos, secciones visibles, layout característico)",
   "fields": [
     {
       "field_name": "nombre_en_snake_case",
       "description": "Qué representa este campo (en español)",
-      "example": "Valor exacto visible en la imagen o valor típico",
-      "how_to_evaluate": "Qué debe verificar la IA sobre este campo para evaluar al agente (en español, 1-2 oraciones)"
+      "example": "Valor exacto visible en la imagen",
+      "how_to_evaluate": "Qué debe verificar la IA sobre este campo para evaluar al agente (en español, 1-2 oraciones)",
+      "recommended": true,
+      "reason": "Por qué conviene (o no) extraer este campo, en una sola frase corta y concreta",
+      "sensitive": false
     }
   ]
 }
 
-Incluye TODOS los campos relevantes visibles en la imagen que sean útiles para evaluar si el agente hizo su trabajo correctamente.
-Prioriza los campos que el usuario mencionó.`;
+REGLAS PARA LOS CAMPOS:
+1. Extrae TODOS los campos visibles que aporten algo, entre 5 y 12.
+2. "recommended": true solo para los que de verdad sirven para auditar al agente (identificadores del caso, estados/resultados de la gestión, fechas, texto libre que el agente escribió). Los campos de relleno, códigos internos o datos decorativos van con recommended: false.
+3. "sensitive": true para datos personales del cliente (nombre completo, documento, teléfono, dirección, número de tarjeta). Esos SIEMPRE van con recommended: false.
+4. "reason" debe ayudar a decidir, no repetir la descripción. Frases como "Es el identificador que amarra la llamada con el registro" o "Dato interno, rara vez se contrasta contra la llamada".
+5. Prioriza y marca como recomendados los campos que el usuario mencionó.
+6. "example" debe ser el valor EXACTO que ves en la imagen; si no se ve, cadena vacía.`;
 
  try {
- logger.info('[CLAUDE] Analizando captura para configuración de sistema', { systemName });
+ logger.info('[CLAUDE] Analizando captura para configuración de sistema', { systemName: systemName || '(sin nombre)', existing: existing.length });
  const response = await this.client.messages.create({
  model: CLAUDE_MODEL,
  max_tokens: 4096,
@@ -377,10 +445,30 @@ Prioriza los campos que el usuario mencionó.`;
  const content = this.extractText(response).trim();
  const cleaned = content.replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
  const parsed = JSON.parse(cleaned || '{}');
- logger.info('[CLAUDE] Screenshot analizado', { fields: parsed.fields?.length, tokens: (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0) });
+ logger.info('[CLAUDE] Screenshot analizado', { fields: parsed.fields?.length, matched: parsed.matched_system, tokens: (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0) });
+
+ // La coincidencia solo vale si apunta a una pantalla que existe de verdad.
+ const matched = typeof parsed.matched_system === 'string'
+  ? (existing.find(s => s.system_name.toUpperCase() === parsed.matched_system.trim().toUpperCase())?.system_name ?? null)
+  : null;
+
+ const rawFields = Array.isArray(parsed.fields) ? parsed.fields : [];
  return {
+ proposed_system_name: (parsed.proposed_system_name ?? systemName ?? '').toString().trim().toUpperCase(),
+ matched_system: matched,
+ match_confidence: matched ? Number(parsed.match_confidence) || 0 : 0,
+ screen_summary: (parsed.screen_summary ?? '').toString(),
  detection_hints: parsed.detection_hints ?? '',
- fields: Array.isArray(parsed.fields) ? parsed.fields : [],
+ fields: rawFields.map((f: any) => ({
+  field_name: (f.field_name ?? '').toString(),
+  description: (f.description ?? '').toString(),
+  example: (f.example ?? '').toString(),
+  how_to_evaluate: (f.how_to_evaluate ?? '').toString(),
+  // Un dato personal nunca se recomienda por defecto, aunque la IA insista.
+  recommended: f.sensitive === true ? false : f.recommended !== false,
+  reason: (f.reason ?? '').toString(),
+  sensitive: f.sensitive === true,
+ })),
  };
  } catch (error: any) {
  logger.error('[CLAUDE] Error analizando screenshot', { error: error.message });
@@ -388,16 +476,17 @@ Prioriza los campos que el usuario mencionó.`;
  }
  }
 
- async generateImageSystemHints(systemName: string, userDescription: string): Promise<{ detection_hints: string; suggested_fields: Array<{ field_name: string; description: string; example?: string }> }> {
- const systemPrompt = `Eres un experto en sistemas bancarios de call center de México.
-Tu tarea es ayudar a configurar un sistema de IA que detecta y extrae información de capturas de pantalla de sistemas bancarios internos.
+ async generateImageSystemHints(systemName: string, userDescription: string, domainContext?: string): Promise<{ detection_hints: string; suggested_fields: Array<{ field_name: string; description: string; example?: string }> }> {
+ const domain = (domainContext ?? '').trim() || DEFAULT_IMAGE_DOMAIN;
+ const systemPrompt = `Eres un experto en auditoría de calidad de atención al cliente.
+Tu tarea es ayudar a configurar un sistema de IA que detecta y extrae información de capturas de ${domain}.
 
-El sistema bancario se llama: "${systemName}"
-El usuario describe el sistema así: "${userDescription}"
+La pantalla se llama: "${systemName}"
+El usuario la describe así: "${userDescription}"
 
 Genera:
-1. "detection_hints": Texto que aparece VISUALMENTE en la pantalla de este sistema y permite identificarlo con certeza (nombres de campos, títulos, menús, colores). Máximo 3 oraciones cortas.
-2. "suggested_fields": Lista de 3-6 campos clave que este sistema muestra y que son relevantes para evaluar llamadas de auditoría de fraude. Cada campo debe tener: field_name (en inglés, snake_case), description (en español), example (valor de ejemplo real).
+1. "detection_hints": Texto que aparece VISUALMENTE en esta pantalla y permite identificarla con certeza (nombres de campos, títulos, menús, layout). Máximo 3 oraciones cortas.
+2. "suggested_fields": Lista de 3-6 campos clave que esta pantalla muestra y que son relevantes para auditar la gestión del agente. Cada campo debe tener: field_name (snake_case), description (en español), example (valor de ejemplo real).
 
 Responde SOLO con JSON válido, sin markdown, sin explicaciones adicionales. Formato:
 {"detection_hints": "...", "suggested_fields": [{"field_name": "...", "description": "...", "example": "..."}]}`;
@@ -491,11 +580,20 @@ export const claudeService = {
  generateCriterionPrompt: async (description: string, topic: string, callType: string) => {
  return getClaudeService().generateCriterionPrompt(description, topic, callType);
  },
- generateImageSystemHints: async (systemName: string, userDescription: string) => {
- return getClaudeService().generateImageSystemHints(systemName, userDescription);
+ generateImageSystemHints: async (systemName: string, userDescription: string, domainContext?: string) => {
+ return getClaudeService().generateImageSystemHints(systemName, userDescription, domainContext);
  },
- analyzeScreenshotForConfig: async (imageBase64: string, mimeType: string, systemName: string, userDescription: string) => {
- return getClaudeService().analyzeScreenshotForConfig(imageBase64, mimeType, systemName, userDescription);
+ analyzeScreenshotForConfig: async (
+ imageBase64: string,
+ mimeType: string,
+ opts: {
+  systemName?: string;
+  userDescription?: string;
+  domainContext?: string;
+  existingSystems?: Array<{ system_name: string; description?: string; detection_hints?: string }>;
+ } = {}
+ ) => {
+ return getClaudeService().analyzeScreenshotForConfig(imageBase64, mimeType, opts);
  },
  generateCriteriaBlocks: async (description: string, callType: string, mode: string, availableSystems: string[]) => {
  return getClaudeService().generateCriteriaBlocks(description, callType, mode, availableSystems);

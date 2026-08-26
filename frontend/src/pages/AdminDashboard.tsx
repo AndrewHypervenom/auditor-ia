@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { auditService, gpfService, getAuditTotalCost, type Audit, type GpfProxyResponse } from '../services/api';
 import { FileDown, CalendarRange } from 'lucide-react';
 import AppHeader from '../components/AppHeader';
+import AuditErrorNote from '../components/AuditErrorNote';
 import {
  Sparkles,
  LogOut,
@@ -63,6 +64,16 @@ const matchesScore = (pct: number | undefined, sf: ScoreFilter) => {
  if (sf === 'regular') return pct >= 60 && pct < 75;
  return pct < 60;
 };
+/** Calificacion y subcalificacion de la auditoria (GPF manda, call_type de respaldo). */
+const getCalificacion = (audit: Audit) => {
+  const gpf = audit.gpf_data?.attentionFields ?? {};
+  return String(audit.calificacion || gpf['Calificacion'] || gpf['Calificación'] || audit.call_type || '').trim();
+};
+const getSubCalificacion = (audit: Audit) => {
+  const gpf = audit.gpf_data?.attentionFields ?? {};
+  return String(audit.sub_calificacion || gpf['Sub-calificacion'] || gpf['Sub-calificación'] || '').trim();
+};
+
 const isEmptyBatchEval = (audit: Audit) => {
   if (!isBatchAudit(audit) || audit.status !== 'completed') return false;
   const evals = Array.isArray(audit.evaluations) ? audit.evaluations : [];
@@ -170,16 +181,17 @@ export default function AdminDashboard() {
  list = list.filter(a =>
  a.executive_name?.toLowerCase().includes(q) ||
  a.executive_id?.toLowerCase().includes(q) ||
- a.client_id?.toLowerCase().includes(q) ||
+ getCalificacion(a).toLowerCase().includes(q) ||
+ getSubCalificacion(a).toLowerCase().includes(q) ||
  a.created_by_name?.toLowerCase().includes(q)
  );
  }
  return list;
  }, [audits, search, dateFrom, dateTo, scoreFilter, categoryFilter]);
 
- const loadAudits = async () => {
+ const loadAudits = async (silent = false) => {
  try {
- setLoading(true);
+ if (!silent) setLoading(true);
  const response = await auditService.getUserAudits();
  
  // Verificar que response y response.audits existen
@@ -197,7 +209,7 @@ export default function AdminDashboard() {
  console.error(error);
  setAudits([]); // Asegurar array vacío en caso de error
  } finally {
- setLoading(false);
+ if (!silent) setLoading(false);
  }
  };
 
@@ -254,13 +266,17 @@ export default function AdminDashboard() {
  return;
  }
 
+ const previous = audits;
  try {
  setDeletingId(auditId);
  await auditService.deleteAudit(auditId);
+ // La fila desaparece de inmediato; el refresco de fondo trae el estado real.
+ setAudits(prev => prev.filter(a => a.id !== auditId));
  toast.success(t('adminDash.deleteSuccess'));
- await loadAudits();
- await loadSystemStats(); // Recargar estadísticas después de eliminar
+ // Toda la vista se recarga: lista y tarjetas de estadísticas (totales y costos).
+ await Promise.all([loadAudits(true), loadSystemStats()]);
  } catch (error) {
+ setAudits(previous); // el borrado fallo: se restaura la fila
  toast.error(t('audits.deleteError'));
  } finally {
  setDeletingId(null);
@@ -1614,6 +1630,10 @@ export default function AdminDashboard() {
  )}
  </div>
 
+ {audit.status === 'error' && (
+   <AuditErrorNote message={audit.error_message} className="mb-3" />
+ )}
+
  {isEmptyBatchEval(audit) && (
    <div className="mb-3 flex items-start gap-2 text-[11px] text-amber-400/80 bg-amber-500/8 border border-amber-500/20 rounded-lg px-3 py-2">
      <AlertTriangle className="w-3 h-3 mt-0.5 flex-shrink-0" />
@@ -1626,16 +1646,29 @@ export default function AdminDashboard() {
  <span className="text-slate-500">{t('adminDash.executiveId')}</span>
  <p className="text-slate-300 font-medium">{audit.executive_id}</p>
  </div>
- <div>
- <span className="text-slate-500">{t('adminDash.client')}</span>
- {audit.client_id ? (
+ <div className="min-w-0">
+ <span className="text-slate-500">{t('adminDash.rating')}</span>
+ {getCalificacion(audit) ? (
  <p className="mt-0.5">
- <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-brand-500/10 border border-brand-500/30 text-brand-300 font-semibold">
- {audit.client_id}
+ <span
+ title={getCalificacion(audit)}
+ className="inline-flex items-center max-w-full truncate px-2 py-0.5 rounded-md bg-brand-500/10 border border-brand-500/30 text-brand-300 font-semibold"
+ >
+ {getCalificacion(audit)}
  </span>
  </p>
  ) : (
  <p className="text-slate-300 font-medium">—</p>
+ )}
+ {getSubCalificacion(audit) && (
+ <p className="mt-1">
+ <span
+ title={`${t('adminDash.subRating')} ${getSubCalificacion(audit)}`}
+ className="inline-flex items-center max-w-full truncate px-2 py-0.5 rounded-md bg-slate-500/10 border border-slate-500/25 text-slate-300 text-xs"
+ >
+ {getSubCalificacion(audit)}
+ </span>
+ </p>
  )}
  </div>
  <div>

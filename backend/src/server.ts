@@ -12,10 +12,10 @@ import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from './utils/logger.js';
 import { assemblyAIService } from './services/assemblyai.service.js';
-import { openAIService } from './services/claude.service.js';
+import { openAIService, DEFAULT_IMAGE_DOMAIN } from './services/claude.service.js';
 import { evaluatorService } from './services/evaluator.service.js';
 import { excelService } from './services/excel.service.js';
-import { databaseService } from './services/database.service.js';
+import { databaseService, runEvaluationWrite } from './services/database.service.js';
 import { costCalculatorService } from './services/cost-calculator.service.js';
 import { buildSentimentSummary } from './utils/sentiment.js';
 import { authenticateUser, requireAdmin, requireAdminOrAnalyst, requireAdminOrSupervisor, invalidateUserAuthCache } from './middleware/auth.middleware.js';
@@ -138,8 +138,10 @@ app.use((req: Request, res: Response, next: NextFunction) => {
  next();
 });
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Las capturas de pantalla viajan en base64 dentro del JSON (análisis de
+// imágenes), así que el límite por defecto de 100 kB de Express no alcanza.
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 // ELIMINADO: Ya no se sirven archivos estáticos desde results
 // app.use('/results', express.static(resultsDir));
@@ -717,19 +719,16 @@ app.patch('/api/audits/:auditId/scores', authenticateUser, async (req: Request, 
  const { totalScore, maxPossibleScore, percentage, criticalFailure, failedCriticalCriteria: failedCritical } =
    computeScoreTotals(detailedScores);
 
- const { error } = await supabaseAdmin
- .from('evaluations')
- .update({
+ try {
+ await runEvaluationWrite({
  detailed_scores: detailedScores,
  total_score: criticalFailure ? 0 : totalScore,
  max_possible_score: maxPossibleScore,
  percentage
- })
- .eq('audit_id', auditId);
-
- if (error) {
+ }, (body) => supabaseAdmin.from('evaluations').update(body).eq('audit_id', auditId));
+ } catch (error: any) {
  logger.error('Error updating scores', error);
- return res.status(500).json({ error: 'Error al actualizar puntajes en la base de datos' });
+ return res.status(500).json({ error: `Error al actualizar puntajes en la base de datos: ${error?.message ?? 'desconocido'}` });
  }
 
  logger.success('Scores updated manually', { auditId, totalScore, percentage, criticalFailure });
@@ -1379,7 +1378,13 @@ app.get('/api/admin/scripts', authenticateUser, async (req: Request, res: Respon
 app.get('/api/admin/scripts/:callType', authenticateUser, async (req: Request, res: Response) => {
   try {
     const callType = decodeURIComponent(req.params.callType);
-    const scripts = await databaseService.getScriptsForCallType(callType);
+    // Aislamiento por empresa: sin company_id se devolverían los guiones de todos
+    // los clientes que compartan el mismo call_type.
+    const scripts = await databaseService.getScriptsForCallType(
+      callType,
+      undefined,
+      req.user!.company_id ?? undefined,
+    );
     res.json(scripts);
   } catch (error: any) {
     logger.error('Error fetching scripts by call type:', error);
@@ -1506,7 +1511,9 @@ app.post('/api/admin/criteria', authenticateUser, requireAdminOrAnalyst, async (
       block_id,
       topic,
       criticality: criticality ?? '-',
-      points: points === 'n/a' || points === null ? null : Number(points),
+      // Puntos siempre enteros: un rubro con medio punto genera totales decimales
+      // que la columna evaluations.total_score (INTEGER) rechaza.
+      points: points === 'n/a' || points === null ? null : Math.round(Number(points)),
       applies: applies !== false,
       what_to_look_for,
       validation_source: Array.isArray(validation_source) ? validation_source : [],
@@ -1546,7 +1553,7 @@ app.put('/api/admin/criteria/:id', authenticateUser, requireAdminOrAnalyst, asyn
     const payload: Record<string, any> = {};
     if (topic !== undefined) payload.topic = topic;
     if (criticality !== undefined) payload.criticality = criticality;
-    if (points !== undefined) payload.points = points === 'n/a' || points === null ? null : Number(points);
+    if (points !== undefined) payload.points = points === 'n/a' || points === null ? null : Math.round(Number(points));
     if (applies !== undefined) payload.applies = applies;
     if (what_to_look_for !== undefined) payload.what_to_look_for = what_to_look_for;
     if (validation_source !== undefined) payload.validation_source = Array.isArray(validation_source) ? validation_source : [];
@@ -1841,18 +1848,37 @@ app.post('/api/admin/criteria/generate-blocks', authenticateUser, requireAdminOr
 app.post('/api/admin/image-systems/analyze-screenshot', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { image_base64, mime_type, system_name, user_description } = req.body;
-    if (!image_base64 || !system_name) {
-      return res.status(400).json({ error: 'image_base64 y system_name son requeridos' });
+    // system_name es opcional: sin él, la IA decide si la captura coincide con
+    // alguna pantalla ya configurada o si hay que crear una nueva.
+    if (!image_base64) {
+      return res.status(400).json({ error: 'image_base64 es requerido' });
     }
+    const companyId = req.user!.role === 'superadmin' ? undefined : (req.user!.company_id ?? undefined);
+    const systems = await databaseService.getImageSystems(companyId);
+    const domainContext = await databaseService.getImageDomainContext(companyId);
+
     const result = await openAIService.analyzeScreenshotForConfig(
       image_base64,
       mime_type || 'image/png',
-      system_name,
-      user_description || ''
+      {
+        systemName: system_name || undefined,
+        userDescription: user_description || '',
+        domainContext: domainContext ?? undefined,
+        existingSystems: systems
+          .filter((s: any) => s.is_active !== false)
+          .map((s: any) => ({ system_name: s.system_name, description: s.description, detection_hints: s.detection_hints })),
+      }
     );
     res.json(result);
   } catch (error: any) {
     logger.error('Error analizando screenshot:', error);
+    // Un fallo de la API de Claude (key inválida, organización deshabilitada,
+    // cuota agotada) no es culpa de la imagen: dilo tal cual para no mandar al
+    // usuario a recortar capturas cuando el problema es la cuenta.
+    const upstream = error?.error?.error?.message ?? error?.error?.message;
+    if (typeof error?.status === 'number' && upstream) {
+      return res.status(502).json({ error: `La API de Claude rechazó la petición: ${upstream}` });
+    }
     res.status(500).json({ error: 'Error al analizar imagen con IA' });
   }
 });
@@ -1863,11 +1889,52 @@ app.post('/api/admin/image-systems/generate-hints', authenticateUser, requireAdm
     if (!system_name || !description?.trim()) {
       return res.status(400).json({ error: 'system_name y description son requeridos' });
     }
-    const result = await openAIService.generateImageSystemHints(system_name, description.trim());
+    const companyId = req.user!.role === 'superadmin' ? undefined : (req.user!.company_id ?? undefined);
+    const domainContext = await databaseService.getImageDomainContext(companyId);
+    const result = await openAIService.generateImageSystemHints(system_name, description.trim(), domainContext ?? undefined);
     res.json(result);
   } catch (error: any) {
     logger.error('Error generando hints de sistema de imagen:', error);
     res.status(500).json({ error: 'Error al generar con IA' });
+  }
+});
+
+// Contexto de dominio de las capturas + vista previa del prompt real que se
+// envía a la IA en cada auditoría.
+app.get('/api/admin/image-systems/prompt-context', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+  try {
+    const companyId = req.user!.role === 'superadmin' ? undefined : (req.user!.company_id ?? undefined);
+    const [domainContext, prompt] = await Promise.all([
+      databaseService.getImageDomainContext(companyId),
+      evaluatorService.previewImageAnalysisPrompt(companyId),
+    ]);
+    res.json({
+      domain_context: domainContext,
+      default_domain_context: DEFAULT_IMAGE_DOMAIN,
+      prompt,
+    });
+  } catch (error: any) {
+    logger.error('Error obteniendo contexto de prompt de imágenes:', error);
+    res.status(500).json({ error: 'Error al obtener el prompt de imágenes' });
+  }
+});
+
+app.put('/api/admin/image-systems/prompt-context', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
+  try {
+    const { domain_context } = req.body;
+    if (typeof domain_context !== 'string') {
+      return res.status(400).json({ error: 'domain_context es requerido' });
+    }
+    const companyId = req.user!.company_id ?? undefined;
+    if (!companyId) {
+      return res.status(400).json({ error: 'El usuario no pertenece a ninguna empresa' });
+    }
+    await databaseService.setImageDomainContext(companyId, domain_context);
+    const prompt = await evaluatorService.previewImageAnalysisPrompt(companyId);
+    res.json({ domain_context: domain_context.trim() || null, prompt });
+  } catch (error: any) {
+    logger.error('Error guardando contexto de prompt de imágenes:', error);
+    res.status(500).json({ error: 'Error al guardar el contexto' });
   }
 });
 
@@ -3375,6 +3442,12 @@ app.post('/api/batch/validate', authenticateUser, async (req: Request, res: Resp
 // Manejador de errores
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
  logger.error('Unhandled error:', err);
+
+ // Un cuerpo demasiado grande no es un fallo del servidor: dilo como tal para
+ // que el cliente pueda explicarlo (antes salía como un 500 opaco).
+ if ((err as any).type === 'entity.too.large') {
+  return res.status(413).json({ error: 'El archivo es demasiado grande' });
+ }
 
  res.status(500).json({
  error: err.message || 'Error interno del servidor',

@@ -5,14 +5,18 @@ import { logger } from '../utils/logger.js';
 import type { AuditInput, TranscriptResult, ImageAnalysis, EvaluationResult } from '../types/index.js';
 import type { EvaluationBlock } from '../config/evaluation-criteria.js';
 import { getDatabaseService } from './database.service.js';
+import { DEFAULT_IMAGE_DOMAIN } from './claude.service.js';
 import {
   computeScoreTotals,
   hasScoreOptions,
   resolveMaxScore,
+  snapToAllOrNothing,
+  toWholeScore,
   snapToNearestOption,
   type DetailedScore,
   type ScoreOption,
 } from '../utils/scoring.js';
+import { normTopic } from '../utils/matching.js';
 import * as fs from 'fs';
 
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? 'claude-sonnet-5';
@@ -149,12 +153,15 @@ class EvaluatorService {
        const maxScore = resolveMaxScore(t.points, scoreOptions);
        const ai = matcher.match(block.blockName, t.topic);
        if (ai) {
+         // El denominador SIEMPRE lo manda la rubrica de la BD: si se tomara el
+         // max_score del modelo, un valor inventado (p. ej. 2.5) mete decimales.
+         const effectiveMax = maxScore;
          return {
            // Usar el nombre de la BD (no el del modelo): el visor reordena por esta clave
            criterion: criterionKey,
            // Con escala discreta el denominador lo manda la rúbrica, no el modelo
-           score: this.applyScoreOptions(ai.score ?? 0, scoreOptions),
-           maxScore: scoreOptions ? maxScore : (ai.max_score ?? maxScore),
+           score: this.applyScoreOptions(ai.score ?? 0, scoreOptions, effectiveMax),
+           maxScore: effectiveMax,
            observations: ai.justification ?? '',
            criticality: topicCriticalityMap.get(t.topic) || '-',
            scoreOptions,
@@ -173,16 +180,14 @@ class EvaluatorService {
      .filter(Boolean)
  ) as DetailedScore[];
 
- // Conservar evaluaciones del modelo que no coincidieron con ningún criterio de la BD
+ // Las evaluaciones que no corresponden a ningún criterio de la rúbrica se
+ // descartan: la BD es la única fuente de verdad del puntaje. Antes se anexaban
+ // con el max_score que inventara el modelo, inflando el máximo de la auditoría
+ // (p. ej. 178 pts sobre una rúbrica de 121) y calificando rubros inexistentes.
  for (const ev of evaluationsArr) {
    if (!matcher.consumed.has(ev) && ev?.topic) {
-     logger.warn('Evaluación del modelo sin criterio coincidente — se conserva', { block: ev.block, topic: ev.topic });
-     detailedScores.push({
-       criterion: `[${ev.block || 'Sin bloque'}] ${ev.topic}`,
-       score: ev.score ?? 0,
-       maxScore: ev.max_score ?? 0,
-       observations: ev.justification ?? '',
-       criticality: '-',
+     logger.warn('Evaluación del modelo sin criterio en la rúbrica — se descarta', {
+       block: ev.block, topic: ev.topic, callType: auditInput.callType,
      });
    }
  }
@@ -255,8 +260,60 @@ class EvaluatorService {
   * nombres largos. Lleva registro de las evaluaciones ya consumidas para
   * poder conservar las que no hicieron match.
   */
+ /**
+  * Ordena y deduplica los pasos del guion antes de mandárselos al modelo.
+  *
+  * En la BD conviven filas repetidas del mismo `step_key` (FRAUDE/ROEXT tiene 21
+  * filas activas para 11 pasos) y varias comparten `step_order`, así que el
+  * `reduce` anterior descartaba ~la mitad y el ganador dependía del orden que
+  * devolviera Postgres: el guion que veía la IA podía cambiar entre corridas del
+  * mismo caso. Aquí el criterio es explícito y estable — gana la fila con más
+  * frases; a igualdad, el mayor `step_order`; a igualdad, el `id` menor.
+  */
+ private buildScriptSteps(
+   rows: any[],
+   callType: string,
+ ): Array<{ order: number; key: string; label: string; lines: string[] }> {
+   const best = new Map<string, any>();
+   for (const r of rows ?? []) {
+     const key = String(r?.step_key ?? '').trim();
+     if (!key) continue;
+     const current = best.get(key);
+     if (!current) { best.set(key, r); continue; }
+     const lines = (r.lines || []).length;
+     const currentLines = (current.lines || []).length;
+     const wins =
+       lines !== currentLines ? lines > currentLines
+       : (r.step_order ?? 0) !== (current.step_order ?? 0) ? (r.step_order ?? 0) > (current.step_order ?? 0)
+       : String(r.id ?? '') < String(current.id ?? '');
+     if (wins) best.set(key, r);
+   }
+
+   const discarded = (rows?.length ?? 0) - best.size;
+   if (discarded > 0) {
+     logger.warn('Guion con pasos duplicados en la BD — se usa una sola versión por paso', {
+       callType, filas: rows.length, pasos: best.size, descartadas: discarded,
+     });
+   }
+   if (best.size === 0) {
+     logger.warn('No hay guion configurado para este call_type — la IA evaluará sin guion de referencia', { callType });
+   }
+
+   return [...best.values()]
+     .map((r: any) => ({
+       order: r.step_order ?? 0,
+       key: String(r.step_key),
+       label: String(r.step_label ?? r.step_key),
+       lines: Array.isArray(r.lines) ? r.lines : [],
+     }))
+     .sort((a, b) => (a.order - b.order) || a.key.localeCompare(b.key));
+ }
+
  private createAiResultMatcher(evaluations: any[]) {
-   const norm = (s: any) => String(s ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
+   // normTopic quita acentos, mayúsculas y el prefijo de enumeración que el
+   // modelo copia del prompt ("5. Subir Excel" → "subir excel"). Sin eso, el
+   // criterio real quedaba en 0 y la evaluación se colaba como rubro fantasma.
+   const norm = normTopic;
    const byBlockTopic = new Map<string, any>();
    const byTopic = new Map<string, any>();
    for (const ev of evaluations) {
@@ -267,21 +324,27 @@ class EvaluatorService {
    }
    const consumed = new Set<any>();
    const match = (blockName: string, topic: string): any | null => {
-     const exact = byBlockTopic.get(`${norm(blockName)}|||${norm(topic)}`) ?? byTopic.get(norm(topic));
-     if (exact) { consumed.add(exact); return exact; }
-     // Contención: nombres largos que el modelo recorta o amplía
+     const nb = norm(blockName);
      const nt = norm(topic);
-     if (nt.length >= 12) {
+     const exact = byBlockTopic.get(`${nb}|||${nt}`) ?? byTopic.get(nt);
+     if (exact && !consumed.has(exact)) { consumed.add(exact); return exact; }
+     if (!nt) return null;
+     // Contención: nombres largos que el modelo recorta o amplía. Se prueba
+     // primero dentro del mismo bloque para no robar el rubro de otro (p. ej.
+     // "Bloquea tarjeta" está contenido en "Desbloquea tarjeta BLKI, BLKT...").
+     const containment = (sameBlockOnly: boolean) => {
        for (const ev of evaluations) {
          if (consumed.has(ev)) continue;
+         if (sameBlockOnly && norm(ev.block) !== nb) continue;
          const et = norm(ev.topic);
-         if (et.length >= 12 && (et.includes(nt) || nt.includes(et))) {
+         if (et.length >= 8 && nt.length >= 8 && (et.includes(nt) || nt.includes(et))) {
            consumed.add(ev);
            return ev;
          }
        }
-     }
-     return null;
+       return null;
+     };
+     return containment(true) ?? containment(false);
    };
    return { match, consumed };
  }
@@ -356,15 +419,22 @@ class EvaluatorService {
        const scoreOptions = (t as any).scoreOptions ?? null;
        const maxScore = resolveMaxScore(t.points, scoreOptions);
        const ai = matcher.match(block.blockName, t.topic);
-       if (ai) return { criterion: criterionKey, score: this.applyScoreOptions(ai.score ?? 0, scoreOptions), maxScore: scoreOptions ? maxScore : (ai.max_score ?? maxScore), observations: ai.justification ?? '', criticality: topicCriticalityMap.get(t.topic) || '-', scoreOptions };
+       if (ai) {
+         // El denominador SIEMPRE lo manda la rubrica de la BD: si se tomara el
+         // max_score del modelo, un valor inventado (p. ej. 2.5) mete decimales.
+         const effectiveMax = maxScore;
+         return { criterion: criterionKey, score: this.applyScoreOptions(ai.score ?? 0, scoreOptions, effectiveMax), maxScore: effectiveMax, observations: ai.justification ?? '', criticality: topicCriticalityMap.get(t.topic) || '-', scoreOptions };
+       }
        return { criterion: criterionKey, score: 0, maxScore, observations: 'No evaluado por el modelo — asigna el puntaje manualmente.', criticality: topicCriticalityMap.get(t.topic) || '-', scoreOptions };
      }).filter(Boolean)
    ) as DetailedScore[];
 
-   // Conservar evaluaciones del modelo sin criterio coincidente
+   // Descartar evaluaciones del modelo sin criterio en la rúbrica (ver evaluate()).
    for (const ev of evaluationsArr) {
      if (!matcher.consumed.has(ev) && ev?.topic) {
-       detailedScores.push({ criterion: `[${ev.block || 'Sin bloque'}] ${ev.topic}`, score: ev.score ?? 0, maxScore: ev.max_score ?? 0, observations: ev.justification ?? '', criticality: '-' });
+       logger.warn('Evaluación del modelo sin criterio en la rúbrica — se descarta', {
+         block: ev.block, topic: ev.topic, callType: auditInput.callType,
+       });
      }
    }
 
@@ -527,18 +597,33 @@ class EvaluatorService {
  private async getEnhancedAnalysisPrompt(rubroHints?: string): Promise<string> {
   // Config de sistemas de imagen pertenece a PositivoS+ (origen GPF).
   const imgCompanyId = await getDatabaseService().getPositivosCompanyId();
-  const systems = await getDatabaseService().getImageSystems(imgCompanyId ?? undefined);
+  return this.buildAnalysisPromptForCompany(imgCompanyId ?? undefined, rubroHints);
+ }
+
+ /**
+  * El mismo prompt que se envía a la IA en cada auditoría, para mostrarlo en
+  * Administración → Pantallas de proceso. Lo que se ve es lo que corre.
+  */
+ async previewImageAnalysisPrompt(companyId?: string): Promise<string> {
+  const resolved = companyId ?? (await getDatabaseService().getPositivosCompanyId()) ?? undefined;
+  return this.buildAnalysisPromptForCompany(resolved);
+ }
+
+ private async buildAnalysisPromptForCompany(companyId?: string, rubroHints?: string): Promise<string> {
+  const systems = await getDatabaseService().getImageSystems(companyId);
+  const domain = await getDatabaseService().getImageDomainContext(companyId);
   const activeSystems = systems.filter((s: any) => s.is_active !== false);
   if (activeSystems.length === 0) {
-   return this.buildGenericAnalysisPrompt(rubroHints);
+   return this.buildGenericAnalysisPrompt(rubroHints, domain ?? undefined);
   }
-  return this.buildPromptFromSystems(activeSystems, rubroHints);
+  return this.buildPromptFromSystems(activeSystems, rubroHints, domain ?? undefined);
  }
 
  /**
   * Construye el prompt de análisis de imágenes dinámicamente desde los sistemas en BD
   */
- private buildPromptFromSystems(systems: any[], rubroHints?: string): string {
+ private buildPromptFromSystems(systems: any[], rubroHints?: string, domainContext?: string): string {
+  const domain = (domainContext ?? '').trim() || DEFAULT_IMAGE_DOMAIN;
   const systemNames = systems.map((s: any) => s.system_name).join('|');
 
   // PASO 1: detección
@@ -560,26 +645,26 @@ class EvaluatorService {
 
   const systemNamesFormatted = systems.map((s: any) => `"${s.system_name}"`).join(', ');
 
-  return `Analiza esta captura de pantalla de sistema bancario con MÁXIMA PRECISIÓN y EXTRAE TODOS LOS DATOS VISIBLES.
+  return `Analiza esta captura de ${domain} con MÁXIMA PRECISIÓN y EXTRAE TODOS LOS DATOS VISIBLES.
 
-**PASO 1: IDENTIFICA EL SISTEMA**
+**PASO 1: IDENTIFICA LA PANTALLA**
 
-Los sistemas posibles son: ${systemNamesFormatted}
+Las pantallas posibles son: ${systemNamesFormatted}
 
-Pistas de detección por sistema:
+Pistas de detección por pantalla:
 ${paso1Lines}
 
-IMPORTANTE: Si ves una pantalla de "Signon to CICS", "CICS login", o pantalla de inicio de sesión IBM, busca en el APPLID o en el contenido la pista del sistema real. Si no puedes determinar el sistema, elige el que más se acerque según los campos visibles. NUNCA devuelvas "CICS" como system — siempre elige uno de los sistemas listados arriba.
+IMPORTANTE: Si la captura es una pantalla de acceso, de login o un paso intermedio (por ejemplo un "Signon" de terminal), busca en el identificador de la sesión o en el contenido la pista de la pantalla real. Si no puedes determinarla, elige la que más se acerque según los campos visibles. NUNCA devuelvas como "system" el nombre de la pantalla de login — siempre elige una de las listadas arriba.
 
 **PASO 2: EXTRAE TODOS LOS CAMPOS VISIBLES**
 
-Lee CADA LÍNEA de texto visible. Para cada sistema, extrae:
+Lee CADA LÍNEA de texto visible. Para cada pantalla, extrae:
 
 ${paso2Sections}
 
 **PASO 3: IDENTIFICA CAMPOS CRÍTICOS**
 
-Para cada hallazgo importante, márcalo en "critical_fields":
+Para cada hallazgo importante, márcalo en "critical_fields". Usa las banderas de abajo cuando apliquen y añade las que hagan falta para esta pantalla:
 
 {
  "has_case_number": true/false,
@@ -618,8 +703,9 @@ Los siguientes rubros requieren validación en imágenes. Presta especial atenci
 ${rubroHints}` : ''}`;
  }
 
- private buildGenericAnalysisPrompt(rubroHints?: string): string {
-  return `Analiza esta captura de pantalla de sistema bancario y extrae TODOS los datos visibles.
+ private buildGenericAnalysisPrompt(rubroHints?: string, domainContext?: string): string {
+  const domain = (domainContext ?? '').trim() || DEFAULT_IMAGE_DOMAIN;
+  return `Analiza esta captura de ${domain} y extrae TODOS los datos visibles.
 
 Devuelve SOLO un JSON con esta estructura exacta:
 
@@ -641,12 +727,14 @@ REGLAS:
  }
 
  /**
- * Ajusta el puntaje que devolvió el modelo a la escala discreta del rubro.
- * Sin escala configurada, el valor pasa tal cual.
+ * Ajusta el puntaje que devolvió el modelo a la escala del rubro.
+ * Con escala discreta → opción más cercana.
+ * Sin escala discreta → todo o nada (0 o el máximo): no hay parciales.
  */
- private applyScoreOptions(score: number, scoreOptions: ScoreOption[] | null): number {
-   if (!hasScoreOptions(scoreOptions)) return score;
-   const snapped = snapToNearestOption(score, scoreOptions);
+ private applyScoreOptions(score: number, scoreOptions: ScoreOption[] | null, maxScore: number): number {
+   const snapped = hasScoreOptions(scoreOptions)
+     ? snapToNearestOption(score, scoreOptions)
+     : snapToAllOrNothing(score, maxScore);
    if (snapped !== score) {
      logger.warn('Puntaje del modelo ajustado a la escala del rubro', { original: score, ajustado: snapped });
    }
@@ -704,12 +792,14 @@ REGLAS:
  const maxPossibleScore = topicsToEvaluate.reduce((sum, t) => sum + t.maxScore, 0)
    + manualTopics.reduce((sum, t) => sum + t.maxScore, 0);
 
- // Cargar script desde BD
- const dbScripts = await getDatabaseService().getScriptsForCallType(auditInput.callType, auditInput.subCalificacion);
- const scriptSteps = dbScripts.reduce((acc: any, s: any) => {
-   acc[s.step_key] = s.lines;
-   return acc;
- }, {});
+ // Cargar guion desde BD (filtrado por empresa: sin companyId se mezclarían los
+ // guiones de todos los clientes en el mismo call_type).
+ const dbScripts = await getDatabaseService().getScriptsForCallType(
+   auditInput.callType,
+   auditInput.subCalificacion,
+   auditInput.companyId ?? undefined,
+ );
+ const scriptSteps = this.buildScriptSteps(dbScripts, auditInput.callType);
 
  // Construir prompt con MATCHING MEJORADO
  const prompt = this.buildEnhancedMatchingPrompt(
@@ -825,6 +915,20 @@ ${fieldsSection}`;
  })
  .join('\n\n');
 
+ // Guion oficial: se rinde con el nombre del paso y sus frases en orden, no como
+ // JSON crudo indexado por step_key (ahí se perdían la etiqueta y el orden, y un
+ // guion vacío llegaba como "{}" sin que el modelo supiera que faltaba).
+ const steps: Array<{ order: number; key: string; label: string; lines: string[] }> =
+   Array.isArray(scriptSteps) ? scriptSteps : [];
+ const scriptSection = steps.length === 0
+   ? '(No hay guion configurado para este tipo de llamada. NO penalices los rubros de script por ausencia de guion: márcalos con el puntaje más bajo y explícalo en la justificación.)'
+   : steps.map((s, i) => {
+       const lines = s.lines.length > 0
+         ? s.lines.map((l, j) => `   ${j + 1}. ${l}`).join('\n')
+         : '   (paso sin frases configuradas)';
+       return `PASO ${i + 1} — ${s.label}\n${lines}`;
+     }).join('\n\n');
+
  // Construir sección GPF estructurada
  const gpfSection = gpfData ? (() => {
   const fields = gpfData.attentionFields || {};
@@ -919,7 +1023,7 @@ SCRIPT OFICIAL DE REFERENCIA (${auditInput.callType})
 ╚═════════════════════════════════════╝
 
 PASOS OBLIGATORIOS DEL SCRIPT:
-${JSON.stringify(scriptSteps, null, 2)}
+${scriptSection}
 
 El agente debe seguir estos pasos en orden para cumplir el script.
 
@@ -945,9 +1049,10 @@ ${topics.map((t, i) => {
 - Evidencia ausente o contradictoria → ${Math.min(...usableOptions.map(o => o.value as number))}
 - NO inventes valores intermedios ni puntos parciales fuera de la escala.
 - NO uses N/A: si el rubro no aplica, califícalo con el valor más bajo y explícalo en la justificación; el analista lo marcará como N/A.`
-    : `- Si encuentras la evidencia específica en la fuente correcta → ${t.maxScore} puntos
-- Si la evidencia es parcial → Otorga puntos parciales proporcionalmente
-- Si NO hay evidencia en la fuente requerida o contradice → 0 puntos`;
+    : `TODO O NADA — "score" debe ser EXACTAMENTE ${t.maxScore} o 0. NO existen calificaciones parciales.
+- El criterio se cumple por completo con evidencia en la fuente correcta → ${t.maxScore} puntos
+- El criterio se cumple a medias, no hay evidencia en la fuente requerida o la evidencia lo contradice → 0 puntos
+- PROHIBIDO devolver valores intermedios (ni decimales ni fracciones de ${t.maxScore}).`;
   return `
 ┌────────────────────────────────────┐
 ${i + 1}. ${t.topic}
@@ -981,7 +1086,7 @@ Responde con JSON válido siguiendo este formato:
  {
  "block": "<nombre exacto del campo Bloque del tópico>",
  "topic": "<nombre exacto del tópico numerado>",
- "score": 0 o puntos_completos o puntos_parciales,
+ "score": 0 o los puntos completos del tópico (nunca un valor intermedio),
  "max_score": puntos_maximos,
  "justification": "EVIDENCIA CONCRETA ENCONTRADA: [cita campos específicos]. Por lo tanto, [conclusión].",
  "evidence": [
@@ -1109,5 +1214,8 @@ export const getEvaluatorService = () => {
 export const evaluatorService = {
  evaluate: async (auditInput: any, transcript: any, imageAnalyses: any) => {
  return getEvaluatorService().evaluate(auditInput, transcript, imageAnalyses);
+ },
+ previewImageAnalysisPrompt: async (companyId?: string) => {
+ return getEvaluatorService().previewImageAnalysisPrompt(companyId);
  }
 };

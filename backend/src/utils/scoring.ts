@@ -62,12 +62,15 @@ export function normalizeScoreOptions(raw: unknown): ScoreOption[] | null {
     const candidate = entry as Record<string, unknown>;
 
     // `value` ausente, null o 'n/a' → N/A
+    // Los valores de la escala se guardan siempre como enteros: la columna
+    // `evaluations.total_score` puede ser INTEGER y una opcion con decimales
+    // (p. ej. 2.5) hace que Postgres rechace el guardado de la auditoria.
     const rawValue = candidate.value;
     let value: number | null;
     if (rawValue === null || rawValue === undefined) {
       value = null;
     } else if (typeof rawValue === 'number') {
-      value = Number.isFinite(rawValue) ? rawValue : null;
+      value = Number.isFinite(rawValue) ? Math.round(rawValue) : null;
     } else {
       const text = String(rawValue).trim();
       if (text === '' || text.toLowerCase() === 'n/a' || text.toLowerCase() === 'na') {
@@ -75,7 +78,7 @@ export function normalizeScoreOptions(raw: unknown): ScoreOption[] | null {
       } else {
         const parsed = Number(text);
         if (!Number.isFinite(parsed)) continue;
-        value = parsed;
+        value = Math.round(parsed);
       }
     }
 
@@ -204,4 +207,31 @@ export function computeScoreTotals(detailedScores: DetailedScore[]): ScoreTotals
     criticalFailure,
     failedCriticalCriteria,
   };
+}
+
+/**
+ * Ajusta un puntaje libre a "todo o nada" (0 o el máximo del rubro).
+ *
+ * Los rubros sin escala discreta configurada no admiten calificación parcial:
+ * ni la pantalla de Criterios ni la de Evaluación ofrecen valores intermedios,
+ * así que el criterio se cumple (máximo) o no se cumple (0). Si el modelo
+ * devuelve un valor intermedio se redondea al extremo más cercano.
+ */
+export function snapToAllOrNothing(score: number, maxScore: number): number {
+  if (!Number.isFinite(score) || !Number.isFinite(maxScore) || maxScore <= 0) return score;
+  if (score <= 0) return 0;
+  if (score >= maxScore) return maxScore;
+  return score * 2 >= maxScore ? maxScore : 0;
+}
+
+/**
+ * Los puntajes que llegan del modelo (sin rubro que los respalde) no pueden
+ * traer decimales: la columna `evaluations.total_score` puede ser INTEGER y un
+ * 76.5 tumba el guardado de toda la auditoria. La rubrica manda; lo que invente
+ * el modelo se redondea.
+ */
+export function toWholeScore(value: unknown, fallback = 0): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.round(n);
 }

@@ -2,7 +2,8 @@
 
 import { supabaseAdmin } from '../config/supabase.js';
 import { logger } from '../utils/logger.js';
-import { normalizeScoreOptions, resolveMaxScore } from '../utils/scoring.js';
+import { normalizeScoreOptions, resolveMaxScore, computeScoreTotals, type DetailedScore } from '../utils/scoring.js';
+import { normSubcalificacion, pickTipoCierreOverride, dedupeTipoCierreOverrides, normCriterionKey, splitCriterionKey } from '../utils/matching.js';
 import type { 
   AuditInput, 
   TranscriptResult, 
@@ -27,6 +28,57 @@ function isMissingScoreOptionsColumn(error: any): boolean {
   const code = error.code;
   const message = String(error.message ?? '');
   return (code === '42703' || code === 'PGRST204') && message.includes('score_options');
+}
+
+/**
+ * Columnas de `evaluations` declaradas como INTEGER en bases antiguas
+ * (total_score / max_possible_score / percentage). Si llega un valor con
+ * decimales -por ejemplo 76.5 puntos- Postgres responde 22P02
+ * "invalid input syntax for type integer" y la auditoria completa se pierde
+ * despues de haber pagado transcripcion y evaluacion.
+ *
+ * Reintentamos redondeando esos tres campos para no perder el trabajo, y
+ * avisamos en el log para que las columnas se migren a NUMERIC.
+ */
+const DECIMAL_EVAL_COLUMNS = ['total_score', 'max_possible_score', 'percentage'] as const;
+
+export function isIntegerColumnSyntaxError(error: any): boolean {
+  if (!error) return false;
+  const message = String(error.message ?? '');
+  return error.code === '22P02' && /invalid input syntax for type integer/i.test(message);
+}
+
+export function roundEvaluationScoreFields<T extends Record<string, any>>(payload: T): T {
+  const rounded: Record<string, any> = { ...payload };
+  for (const column of DECIMAL_EVAL_COLUMNS) {
+    const value = rounded[column];
+    if (typeof value === 'number' && Number.isFinite(value) && !Number.isInteger(value)) {
+      rounded[column] = Math.round(value);
+    }
+  }
+  return rounded as T;
+}
+
+/**
+ * Ejecuta una escritura sobre `evaluations`; si la BD rechaza los decimales,
+ * reintenta con los totales redondeados.
+ */
+export async function runEvaluationWrite<T extends Record<string, any>>(
+  payload: T,
+  run: (body: T) => PromiseLike<{ error: any }>
+): Promise<void> {
+  const { error } = await run(payload);
+  if (!error) return;
+  if (!isIntegerColumnSyntaxError(error)) throw error;
+
+  const rounded = roundEvaluationScoreFields(payload);
+  logger.warn(
+    'La BD rechazo decimales en evaluations (columna INTEGER): se guardaron los totales redondeados. ' +
+    'Migra total_score / max_possible_score / percentage a NUMERIC para conservar los decimales.',
+    { original: { total_score: payload.total_score, max_possible_score: payload.max_possible_score, percentage: payload.percentage } }
+  );
+  const retry = await run(rounded);
+  if (retry.error) throw retry.error;
 }
 
 async function runWithoutMissingScoreOptions<T extends Record<string, any>>(
@@ -216,23 +268,19 @@ class DatabaseService {
     try {
       const { auditId, evaluation, excelFilename, excelPath, openaiResponse } = params;
 
-      const { error } = await supabaseAdmin
-        .from('evaluations')
-        .insert({
-          audit_id: auditId,
-          total_score: evaluation.totalScore,
-          max_possible_score: evaluation.maxPossibleScore,
-          percentage: evaluation.percentage,
-          detailed_scores: evaluation.detailedScores,
-          observations: evaluation.observations,
-          recommendations: evaluation.recommendations,
-          key_moments: evaluation.keyMoments,
-          openai_response: openaiResponse,
-          excel_filename: excelFilename,
-          excel_path: excelPath
-        });
-
-      if (error) throw error;
+      await runEvaluationWrite({
+        audit_id: auditId,
+        total_score: evaluation.totalScore,
+        max_possible_score: evaluation.maxPossibleScore,
+        percentage: evaluation.percentage,
+        detailed_scores: evaluation.detailedScores,
+        observations: evaluation.observations,
+        recommendations: evaluation.recommendations,
+        key_moments: evaluation.keyMoments,
+        openai_response: openaiResponse,
+        excel_filename: excelFilename,
+        excel_path: excelPath
+      }, (body) => supabaseAdmin.from('evaluations').insert(body));
 
       logger.success('âœ… Evaluation saved to database', { auditId });
     } catch (error) {
@@ -362,7 +410,7 @@ class DatabaseService {
       }
 
       // 3. Guardar evaluación
-      const { error: evalError } = await supabaseAdmin.from('evaluations').insert({
+      await runEvaluationWrite({
         audit_id: auditId,
         ...cid,
         total_score: evaluation.totalScore,
@@ -376,8 +424,7 @@ class DatabaseService {
         excel_filename: excelFilename,
         excel_path: excelFilename,
         excel_data: excelBase64
-      });
-      if (evalError) throw evalError;
+      }, (body) => supabaseAdmin.from('evaluations').insert(body));
 
       // 4. Guardar costos
       await this.saveAPICosts(auditId, costs, companyId);
@@ -622,7 +669,11 @@ class DatabaseService {
       // Enriquecer detailed_scores con criticidad actual de la BD
       if (evaluation && Array.isArray(evaluation.detailed_scores) && audit.call_type) {
         try {
-          const currentCriteria = await this.getCriteriaForCallType(audit.call_type, audit.sub_calificacion || undefined);
+          const currentCriteria = await this.getCriteriaForCallType(
+            audit.call_type,
+            audit.sub_calificacion || undefined,
+            (companyId ?? audit.company_id) || undefined,
+          );
           const topicCriticalityMap = new Map<string, string>();
           const topicScoreOptionsMap = new Map<string, any>();
           for (const block of currentCriteria) {
@@ -659,9 +710,39 @@ class DatabaseService {
             }
           }
           if (orderedKeys.length > 0) {
-            const scoreMap = new Map(evaluation.detailed_scores.map((s: any) => [s.criterion, s]));
+            // Emparejar por llave NORMALIZADA (sin acentos, sin mayúsculas, sin el
+            // prefijo numérico que el modelo copia del prompt). Con la comparación
+            // exacta anterior, renombrar un criterio o un simple cambio de mayúscula
+            // dejaba el criterio real en 0 "no evaluado" y colaba el guardado como
+            // un rubro extra con puntos propios, inflando el máximo de la auditoría.
+            const exactMap = new Map<string, any>();
+            const scoreMap = new Map<string, any>();
+            const byTopicOnly = new Map<string, any>();
+            const claimed = new Set<any>();
+            for (const s of evaluation.detailed_scores) {
+              if (!exactMap.has(s.criterion)) exactMap.set(s.criterion, s);
+              const key = normCriterionKey(s.criterion);
+              if (!scoreMap.has(key)) scoreMap.set(key, s);
+              const { topic } = splitCriterionKey(s.criterion);
+              if (topic && !byTopicOnly.has(topic)) byTopicOnly.set(topic, s);
+            }
+            // Renombres aplicados: los comentarios del auditor se guardan por
+            // nombre de criterio, así que hay que moverlos junto con el rubro.
+            const renamed = new Map<string, string>();
+            const takeStored = (k: string) => {
+              const { topic } = splitCriterionKey(k);
+              // El nombre exacto gana: si el modelo devolvió el rubro dos veces
+              // (una con el prefijo numérico del prompt), vale la versión literal.
+              const hit = exactMap.get(k) ?? scoreMap.get(normCriterionKey(k)) ?? byTopicOnly.get(topic);
+              if (!hit || claimed.has(hit)) return null;
+              claimed.add(hit);
+              if (hit.criterion && hit.criterion !== k) renamed.set(hit.criterion, k);
+              // El nombre vigente de la rúbrica manda: el visor reordena por esta clave.
+              return { ...hit, criterion: k };
+            };
             const sorted = orderedKeys.map((k: string) => {
-              if (scoreMap.has(k)) return scoreMap.get(k);
+              const stored = takeStored(k);
+              if (stored) return stored;
               // Inyectar criterio faltante (evaluaciones ya guardadas sin ese rubro)
               const meta = topicMetaMap.get(k);
               if (meta?.requiresManualReview) {
@@ -688,8 +769,49 @@ class DatabaseService {
               }
               return null;
             }).filter(Boolean);
-            const extra = evaluation.detailed_scores.filter((s: any) => !orderedKeys.includes(s.criterion));
-            evaluation.detailed_scores = [...sorted, ...extra];
+            // Los guardados que no corresponden a ningún criterio vigente (rubros
+            // borrados o inventados por el modelo) se descartan: la rúbrica es la
+            // única fuente de verdad del puntaje. Antes se anexaban con sus puntos.
+            const orphans = evaluation.detailed_scores.filter((s: any) => !claimed.has(s));
+            if (orphans.length > 0) {
+              logger.warn('Auditoría con criterios fuera de la rúbrica vigente — se descartan del puntaje', {
+                auditId,
+                callType: audit.call_type,
+                descartados: orphans.map((s: any) => s.criterion),
+              });
+            }
+            evaluation.detailed_scores = sorted;
+            // Reenganchar los comentarios del auditor a los rubros renombrados y a
+            // los que quedaron sobre una copia duplicada del mismo criterio (p. ej.
+            // el comentario escrito sobre "5. Subir Excel" pertenece a "Subir Excel").
+            // Las llaves que no encuentran destino se conservan tal cual: el
+            // comentario no se muestra, pero tampoco se pierde en la BD.
+            if (evaluation.supervisor_comments && typeof evaluation.supervisor_comments === 'object') {
+              const liveExact = new Set<string>((sorted as any[]).map((s) => s.criterion));
+              const liveByNorm = new Map<string, string>();
+              for (const s of sorted as any[]) liveByNorm.set(normCriterionKey(s.criterion), s.criterion);
+              const taken = new Set<string>(
+                Object.keys(evaluation.supervisor_comments as Record<string, string>).filter((k) => liveExact.has(k)),
+              );
+              const remapped: Record<string, string> = {};
+              for (const [key, text] of Object.entries(evaluation.supervisor_comments as Record<string, string>)) {
+                let target = renamed.get(key) ?? key;
+                if (!liveExact.has(target)) {
+                  const sibling = liveByNorm.get(normCriterionKey(key));
+                  // Sólo si el rubro vivo aún no tiene comentario propio.
+                  if (sibling && !taken.has(sibling) && !remapped[sibling]) target = sibling;
+                }
+                remapped[target] = text;
+              }
+              evaluation.supervisor_comments = remapped;
+            }
+            // Recalcular los totales sobre la rúbrica vigente: el visor lee
+            // total_score/max_possible_score guardados, y si no se recalculan
+            // seguiría mostrando el máximo inflado por los criterios descartados.
+            const totals = computeScoreTotals(evaluation.detailed_scores as DetailedScore[]);
+            evaluation.total_score = totals.totalScore;
+            evaluation.max_possible_score = totals.maxPossibleScore;
+            evaluation.percentage = totals.percentage;
           }
         } catch {
           // Si falla el enriquecimiento, usar los valores guardados
@@ -768,9 +890,8 @@ class DatabaseService {
     // La cache guarda la fila completa (con overrides); aplicamos el override aquí
     // para no invalidar la cache cuando cambia la subcalificación.
     if (subCalificacion) {
-      const target = subCalificacion.toUpperCase().trim();
       return rows.map((r: any) => {
-        const ov = r.tipo_cierre_overrides?.[target] ?? r.tipo_cierre_overrides?.[subCalificacion];
+        const ov = pickTipoCierreOverride<any>(r.tipo_cierre_overrides, subCalificacion);
         if (ov && Array.isArray(ov.lines)) {
           return { ...r, lines: ov.lines };
         }
@@ -821,9 +942,12 @@ class DatabaseService {
     is_active: boolean;
     tipo_cierre_overrides: Record<string, unknown>;
   }>): Promise<any> {
+    const body = payload.tipo_cierre_overrides
+      ? { ...payload, tipo_cierre_overrides: dedupeTipoCierreOverrides(payload.tipo_cierre_overrides) }
+      : payload;
     const { data, error } = await supabaseAdmin
       .from('call_scripts')
-      .update(payload)
+      .update(body)
       .eq('id', id)
       .select()
       .single();
@@ -914,16 +1038,14 @@ class DatabaseService {
     // Filtrar secciones por subcalificación: si un bloque define
     // applicable_tipo_cierres (no vacío), solo aplica cuando la subcalificación
     // de la auditoría está en esa lista. Lista vacía/null = aplica a todas.
-    const stripText = (s: string) => String(s ?? '').toUpperCase().trim()
-      .normalize('NFD').replace(/[̀-ͯ]/g, '');
     let applicableBlocks = blocks;
     if (subCalificacion) {
-      const target = stripText(subCalificacion);
+      const target = normSubcalificacion(subCalificacion);
       applicableBlocks = blocks.filter((b: any) => {
         const list: string[] = Array.isArray(b.applicable_tipo_cierres)
           ? b.applicable_tipo_cierres.filter(Boolean) : [];
         if (list.length === 0) return true;
-        return list.some((tc: string) => stripText(tc) === target);
+        return list.some((tc: string) => normSubcalificacion(tc) === target);
       });
       if (applicableBlocks.length === 0) {
         logger.warn(`getCriteriaForCallType: ningún bloque aplica a la subcalificación "${subCalificacion}" — se usan todos los bloques de "${normalized}"`);
@@ -970,7 +1092,9 @@ class DatabaseService {
           let requiresManualReview: boolean = c.requires_manual_review ?? false;
           let scoreOptions = normalizeScoreOptions(c.score_options);
           if (subCalificacion && c.tipo_cierre_overrides) {
-            const ov = c.tipo_cierre_overrides[subCalificacion];
+            // Tolerante a mayúsculas/acentos: GPF manda "INTERNET" y la plantilla
+            // histórica guardó "Internet"; ambas deben resolver al mismo override.
+            const ov = pickTipoCierreOverride<any>(c.tipo_cierre_overrides, subCalificacion);
             if (ov) {
               if (ov.applies !== undefined) applies = ov.applies;
               if (ov.what_to_look_for !== undefined) whatToLookFor = ov.what_to_look_for || '';
@@ -1118,7 +1242,10 @@ class DatabaseService {
     tipo_cierre_overrides: Record<string, unknown>;
     score_options: unknown;
   }>): Promise<any> {
-    const data = await runWithoutMissingScoreOptions(payload, (body) =>
+    const body0 = payload.tipo_cierre_overrides
+      ? { ...payload, tipo_cierre_overrides: dedupeTipoCierreOverrides(payload.tipo_cierre_overrides) as Record<string, unknown> }
+      : payload;
+    const data = await runWithoutMissingScoreOptions(body0, (body) =>
       supabaseAdmin.from('evaluation_criteria').update(body).eq('id', id).select().single()
     );
     this.invalidateCriteriaCache();
@@ -1420,6 +1547,47 @@ class DatabaseService {
     const result = data || [];
     this.imageSystemsCache.set(cacheKey, { data: result, timestamp: Date.now() });
     return result;
+  }
+
+  /**
+   * Contexto de dominio de las capturas de una empresa ("pantalla de un
+   * aplicativo bancario", "pantalla de un CRM de atención"…). Entra al prompt
+   * de análisis de imágenes en lugar del antiguo "sistema bancario" fijo.
+   * Vive en companies.integration_config para no requerir migración.
+   */
+  async getImageDomainContext(companyId?: string): Promise<string | null> {
+    if (!companyId) return null;
+    const { data, error } = await supabaseAdmin
+      .from('companies')
+      .select('integration_config')
+      .eq('id', companyId)
+      .maybeSingle();
+    if (error) {
+      logger.warn('No se pudo leer el contexto de dominio de imágenes', { error: error.message });
+      return null;
+    }
+    const value = (data?.integration_config as Record<string, unknown> | null)?.image_domain_context;
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+  }
+
+  async setImageDomainContext(companyId: string, context: string): Promise<void> {
+    const { data, error: readError } = await supabaseAdmin
+      .from('companies')
+      .select('integration_config')
+      .eq('id', companyId)
+      .single();
+    if (readError) throw readError;
+
+    const config = { ...((data?.integration_config as Record<string, unknown> | null) ?? {}) };
+    const trimmed = context.trim();
+    if (trimmed) config.image_domain_context = trimmed;
+    else delete config.image_domain_context;
+
+    const { error } = await supabaseAdmin
+      .from('companies')
+      .update({ integration_config: config, updated_at: new Date().toISOString() })
+      .eq('id', companyId);
+    if (error) throw error;
   }
 
   async createImageSystem(payload: {
@@ -2254,6 +2422,8 @@ export const databaseService = {
   deleteWordBoostTerm: (id: string) => getDatabaseService().deleteWordBoostTerm(id),
   // Image Systems
   getImageSystems: (companyId?: string) => getDatabaseService().getImageSystems(companyId),
+  getImageDomainContext: (companyId?: string) => getDatabaseService().getImageDomainContext(companyId),
+  setImageDomainContext: (companyId: string, context: string) => getDatabaseService().setImageDomainContext(companyId, context),
   createImageSystem: (payload: Parameters<DatabaseService['createImageSystem']>[0]) => getDatabaseService().createImageSystem(payload),
   updateImageSystem: (id: string, payload: Parameters<DatabaseService['updateImageSystem']>[1]) => getDatabaseService().updateImageSystem(id, payload),
   deleteImageSystem: (id: string) => getDatabaseService().deleteImageSystem(id),

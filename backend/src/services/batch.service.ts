@@ -19,11 +19,14 @@ import { gpfFetch } from '../utils/gpf-fetch.js';
 import {
   computeScoreTotals,
   hasScoreOptions,
+  snapToAllOrNothing,
+  toWholeScore,
   resolveMaxScore,
   snapToNearestOption,
   type DetailedScore,
   type ScoreOption,
 } from '../utils/scoring.js';
+import { normTopic } from '../utils/matching.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -768,8 +771,8 @@ class BatchService {
     // Already in the expected format (e.g. already normalized)
     if (Array.isArray(raw.detailedScores)) return raw;
 
-    const totalScore = raw.total_score ?? raw.totalScore ?? 0;
-    const maxScore = raw.max_possible_score ?? raw.max_score ?? raw.maxPossibleScore ?? 100;
+    const totalScore = toWholeScore(raw.total_score ?? raw.totalScore);
+    const maxScore = toWholeScore(raw.max_possible_score ?? raw.max_score ?? raw.maxPossibleScore, 100);
     const percentage = raw.percentage ?? (maxScore > 0 ? (totalScore / maxScore) * 100 : 0);
 
     // Build detailedScores from evaluations array (OpenAI batch response format)
@@ -788,8 +791,8 @@ class BatchService {
         const topic = ev.topic ?? ev.topico ?? ev.criterio ?? '';
         detailedScores.push({
           criterion: block && topic ? `[${block}] ${topic}` : (topic || block || 'Criterio'),
-          score: ev.score ?? ev.puntaje ?? 0,
-          maxScore: ev.max_score ?? ev.puntaje_maximo ?? ev.maxScore ?? 10,
+          score: toWholeScore(ev.score ?? ev.puntaje),
+          maxScore: toWholeScore(ev.max_score ?? ev.puntaje_maximo ?? ev.maxScore, 10),
           observations: ev.justification ?? ev.justificacion ?? ev.observations ?? '',
           criticality: ev.criticality ?? ev.criticidad ?? '-',
         });
@@ -821,13 +824,13 @@ class BatchService {
         if (META_KEYS.has(blockKey) || blockVal === null || blockVal === undefined) continue;
         const v = blockVal as any;
         if (typeof v === 'number') {
-          detailedScores.push({ criterion: blockKey, score: v, maxScore: 10, observations: '', criticality: '-' });
+          detailedScores.push({ criterion: blockKey, score: toWholeScore(v), maxScore: 10, observations: '', criticality: '-' });
         } else if (typeof v === 'object' && ('score' in v || 'puntaje' in v)) {
           // Bloque es directamente un criterio con score
           detailedScores.push({
             criterion: blockKey,
-            score: v.score ?? v.puntaje ?? 0,
-            maxScore: v.max_score ?? v.puntaje_maximo ?? v.maxScore ?? 10,
+            score: toWholeScore(v.score ?? v.puntaje),
+            maxScore: toWholeScore(v.max_score ?? v.puntaje_maximo ?? v.maxScore, 10),
             observations: v.justification ?? v.justificacion ?? v.observations ?? v.observaciones ?? '',
             criticality: v.criticality ?? v.criticidad ?? '-',
           });
@@ -837,8 +840,8 @@ class BatchService {
             const sv = subVal as any;
             detailedScores.push({
               criterion: `[${blockKey}] ${subKey}`,
-              score: typeof sv === 'number' ? sv : (sv?.score ?? sv?.puntaje ?? 0),
-              maxScore: sv?.max_score ?? sv?.puntaje_maximo ?? sv?.maxScore ?? 10,
+              score: toWholeScore(typeof sv === 'number' ? sv : (sv?.score ?? sv?.puntaje)),
+              maxScore: toWholeScore(sv?.max_score ?? sv?.puntaje_maximo ?? sv?.maxScore, 10),
               observations: sv?.justification ?? sv?.justificacion ?? sv?.observations ?? sv?.observaciones ?? '',
               criticality: sv?.criticality ?? sv?.criticidad ?? '-',
             });
@@ -901,7 +904,8 @@ class BatchService {
         : [];
       const scaleLine = usable.length > 0
         ? `\n   ESCALA CERRADA — "score" debe ser exactamente uno de: ${usable.map(o => o.value).join(', ')} (sin valores intermedios)`
-        : '';
+        : `
+   TODO O NADA - "score" debe ser exactamente ${t.maxScore} (se cumple) o 0 (no se cumple o se cumple a medias). No hay calificaciones parciales.`;
       return `${i + 1}. ${t.topic}\n   Bloque: ${t.block}\n   Puntos máximos: ${t.maxScore}\n   Criticidad: ${t.criticality}${scaleLine}\n   Qué buscar: ${t.whatToLookFor || 'Evaluar según contexto'}`;
     }).join('\n\n');
 
@@ -950,7 +954,9 @@ REGLA CRÍTICA: Los campos "block" y "topic" deben ser EXACTAMENTE iguales a los
   }
 
   private parseBatchEvalResult(rawEval: any, criteria: any[]): any {
-    const norm = (s: any) => String(s ?? '').toLowerCase().trim();
+    // Misma normalización que el evaluador en tiempo real: sin acentos, sin
+    // mayúsculas y sin el prefijo de enumeración que el modelo copia del prompt.
+    const norm = normTopic;
 
     const topicCriticalityMap = new Map<string, string>(
       criteria.flatMap((block: any) =>
@@ -992,11 +998,15 @@ REGLA CRÍTICA: Los campos "block" y "topic" deben ser EXACTAMENTE iguales a los
             ?? aiByTopic.get(norm(t.topic));
           if (ai) consumed.add(ai);
           const rawScore = ai?.score ?? 0;
+          // El denominador SIEMPRE lo manda la rubrica de la BD, nunca el modelo.
+          const effectiveMax = maxScore;
           return {
             criterion: `[${block.blockName}] ${t.topic}`,
             // Con escala discreta se ajusta el valor del modelo y el denominador lo manda la rúbrica
-            score: hasScoreOptions(scoreOptions) ? snapToNearestOption(rawScore, scoreOptions) : rawScore,
-            maxScore: scoreOptions ? maxScore : (ai?.max_score ?? maxScore),
+            score: hasScoreOptions(scoreOptions)
+              ? snapToNearestOption(rawScore, scoreOptions)
+              : snapToAllOrNothing(rawScore, effectiveMax),
+            maxScore: effectiveMax,
             observations: ai?.justification ?? (ai ? '' : 'No evaluado por el modelo'),
             criticality: topicCriticalityMap.get(norm(t.topic)) || '-',
             scoreOptions,
@@ -1004,21 +1014,14 @@ REGLA CRÍTICA: Los campos "block" y "topic" deben ser EXACTAMENTE iguales a los
         })
     ).filter(Boolean);
 
-    // Nunca descartar calificaciones del modelo: si una evaluación no hizo match
-    // con los criterios (p. ej. el criterio fue editado/desactivado entre fases),
-    // se conserva igualmente para que el auditor la vea.
+    // Las evaluaciones que no corresponden a ningún criterio de la rúbrica se
+    // descartan: si se conservaran, aportarían su propio max_score al denominador
+    // y el auditor vería rubros que nadie configuró.
     if (Array.isArray(evaluations)) {
       for (const ev of evaluations) {
         if (!consumed.has(ev) && ev?.topic) {
-          logger.warn('Batch: evaluación del modelo sin criterio coincidente — se conserva', {
+          logger.warn('Batch: evaluación del modelo sin criterio en la rúbrica — se descarta', {
             block: ev.block, topic: ev.topic,
-          });
-          detailedScores.push({
-            criterion: `[${ev.block || 'Sin bloque'}] ${ev.topic}`,
-            score: ev.score ?? 0,
-            maxScore: ev.max_score ?? 0,
-            observations: ev.justification ?? '',
-            criticality: topicCriticalityMap.get(norm(ev.topic)) || '-',
           });
         }
       }

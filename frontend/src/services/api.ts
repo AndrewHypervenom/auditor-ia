@@ -856,6 +856,37 @@ export interface ImageSystem {
   updated_at: string;
 }
 
+/** Un campo que la IA encontró en la captura, con su recomendación. */
+export interface ScreenshotAnalysisField {
+  field_name: string;
+  description: string;
+  example: string;
+  how_to_evaluate: string;
+  /** Si conviene extraerlo por defecto. */
+  recommended: boolean;
+  /** Una frase que explica por qué conviene (o no). */
+  reason: string;
+  /** Dato personal del cliente. */
+  sensitive: boolean;
+}
+
+export interface ScreenshotAnalysis {
+  proposed_system_name: string;
+  /** Pantalla ya configurada con la que coincide, o null si es nueva. */
+  matched_system: string | null;
+  match_confidence: number;
+  screen_summary: string;
+  detection_hints: string;
+  fields: ScreenshotAnalysisField[];
+}
+
+export interface ImagePromptContext {
+  domain_context: string | null;
+  default_domain_context: string;
+  /** El prompt real que se envía a la IA en cada auditoría. */
+  prompt: string;
+}
+
 export const imageSystemsService = {
   async getAll(): Promise<ImageSystem[]> {
     const response = await api.get('/admin/image-systems');
@@ -872,10 +903,19 @@ export const imageSystemsService = {
   async analyzeScreenshot(payload: {
     image_base64: string;
     mime_type: string;
-    system_name: string;
+    /** Opcional: sin nombre, la IA decide si coincide con una pantalla existente o propone una nueva. */
+    system_name?: string;
     user_description: string;
-  }): Promise<{ detection_hints: string; fields: Array<{ field_name: string; description: string; example: string; how_to_evaluate: string }> }> {
+  }): Promise<ScreenshotAnalysis> {
     const response = await api.post('/admin/image-systems/analyze-screenshot', payload);
+    return response.data as ScreenshotAnalysis;
+  },
+  async getPromptContext(): Promise<ImagePromptContext> {
+    const response = await api.get('/admin/image-systems/prompt-context');
+    return response.data as ImagePromptContext;
+  },
+  async setDomainContext(domain_context: string): Promise<{ domain_context: string | null; prompt: string }> {
+    const response = await api.put('/admin/image-systems/prompt-context', { domain_context });
     return response.data;
   },
   async generateHints(system_name: string, description: string): Promise<{ detection_hints: string; suggested_fields: ImageSystemField[] }> {

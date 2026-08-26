@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import AppHeader from '../components/AppHeader';
+import AuditErrorNote from '../components/AuditErrorNote';
 import { useAuth, useRole } from '../contexts/AuthContext';
 import { auditService, getAuditTotalCost, type Audit } from '../services/api';
 import { 
@@ -1051,6 +1052,10 @@ export default function AuditsViewPage() {
  )}
  </div>
 
+ {audit.status === 'error' && (
+ <AuditErrorNote message={audit.error_message} className="mb-4" />
+ )}
+
  {/* Score */}
  {audit.evaluations && audit.evaluations.length > 0 && (
  <div className="pt-4 border-t border-slate-700/50">
@@ -1200,6 +1205,9 @@ export default function AuditsViewPage() {
  </td>
  <td className="px-4 py-4">
  {getStatusBadge(audit.status)}
+ {audit.status === 'error' && (
+ <AuditErrorNote message={audit.error_message} compact className="mt-1" />
+ )}
  </td>
  <td className="px-4 py-4 whitespace-nowrap">
  {audit.evaluations?.[0] ? (

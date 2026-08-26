@@ -11,6 +11,7 @@ import {
   Monitor, Moon, Search, RefreshCw, LogOut, BookOpen, KeyRound,
 } from 'lucide-react';
 import AppHeader from '../components/AppHeader';
+import AuditErrorNote from '../components/AuditErrorNote';
 import DateRangeFilter from '../components/DateRangeFilter';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
@@ -94,6 +95,10 @@ function AuditCard({ audit, onView, onDownload }: {
   const hasRealCriteria = Array.isArray(score?.detailed_scores) && score.detailed_scores.length > 0;
   const emptyEval = batch && audit.status === 'completed' && (!score || !hasRealCriteria);
   const isMonitoreo = (audit.call_type || '').toUpperCase() === 'MONITOREO';
+  // Calificacion / subcalificacion de GPF: mas util en la tarjeta que el socio.
+  const gpfFields = audit.gpf_data?.attentionFields ?? {};
+  const calificacion = String(audit.calificacion || gpfFields['Calificacion'] || gpfFields['Calificación'] || audit.call_type || '').trim();
+  const subCalificacion = String(audit.sub_calificacion || gpfFields['Sub-calificacion'] || gpfFields['Sub-calificación'] || '').trim();
 
   return (
     <motion.div
@@ -161,9 +166,20 @@ function AuditCard({ audit, onView, onDownload }: {
           </h3>
           <div className="flex items-center gap-3 mt-1.5 text-[11px] text-slate-500 flex-wrap">
             <span>Caso {audit.gpf_data?.attentionFields?.['Caso'] ?? audit.executive_id}</span>
-            {audit.client_id && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-500/10 border border-brand-500/25 text-brand-300 font-semibold">
-                {t('analyst.partner')} {audit.client_id}
+            {calificacion && (
+              <span
+                title={t('analyst.rating')}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-500/10 border border-brand-500/25 text-brand-300 font-semibold max-w-[14rem] truncate"
+              >
+                {calificacion}
+              </span>
+            )}
+            {subCalificacion && (
+              <span
+                title={t('analyst.subRating')}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-500/10 border border-slate-500/25 text-slate-300 max-w-[16rem] truncate"
+              >
+                {subCalificacion}
               </span>
             )}
             <span className="text-slate-700">·</span>
@@ -225,7 +241,18 @@ function AuditCard({ audit, onView, onDownload }: {
           </div>
         )}
 
-        {!score && !emptyEval && audit.status !== 'processing' && (
+        {audit.status === 'error' && (
+          <div className="mt-3 pt-3 border-t border-red-500/20 flex items-start gap-2">
+            <AuditErrorNote message={audit.error_message} className="flex-1 min-w-0" />
+            <button onClick={(e) => { e.stopPropagation(); onView(); }}
+              className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-700/50 transition-all flex-shrink-0"
+              title={t('analyst.viewAudit')}>
+              <Eye className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {!score && !emptyEval && audit.status !== 'processing' && audit.status !== 'error' && (
           <div className="mt-3 pt-3 border-t border-slate-700/40 flex justify-end">
             <button onClick={(e) => { e.stopPropagation(); onView(); }}
               className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-slate-700/50 transition-all"

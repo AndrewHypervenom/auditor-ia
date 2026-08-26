@@ -37,6 +37,7 @@ import ModeSelector, { type AdminMode } from '../components/ModeSelector';
 import CallTypeSelectorShared from '../components/CallTypeSelector';
 import { useCallTypesConfig } from '../hooks/useCallTypesConfig';
 import { useSubcalificaciones } from '../hooks/useSubcalificaciones';
+import { pickTipoCierreOverride, setTipoCierreOverride } from '../utils/tipoCierre';
 
 function getOverrideValue<K extends keyof CriteriaItemOverride>(
   item: CriteriaItem,
@@ -45,7 +46,7 @@ function getOverrideValue<K extends keyof CriteriaItemOverride>(
   base: CriteriaItemOverride[K]
 ): CriteriaItemOverride[K] {
   if (!tipoCierre) return base;
-  const ov = item.tipo_cierre_overrides?.[tipoCierre];
+  const ov = pickTipoCierreOverride<any>(item.tipo_cierre_overrides, tipoCierre);
   return ov && ov[field] !== undefined ? ov[field] : base;
 }
 
@@ -453,20 +454,18 @@ function CriteriaReadRow({
 
   const effectiveApplies = getOverrideValue(item, selectedTipoCierre, 'applies', item.applies) as boolean;
   const effectiveWtlf = getOverrideValue(item, selectedTipoCierre, 'what_to_look_for', item.what_to_look_for) as string | null;
-  const hasOverride = selectedTipoCierre && !!item.tipo_cierre_overrides?.[selectedTipoCierre];
+  const hasOverride = selectedTipoCierre && pickTipoCierreOverride<any>(item.tipo_cierre_overrides, selectedTipoCierre) !== undefined;
 
   const handleToggleApplies = async () => {
     if (toggling) return;
     setToggling(true);
     try {
       if (selectedTipoCierre) {
-        const ov = {
-          ...(item.tipo_cierre_overrides || {}),
-          [selectedTipoCierre]: {
-            ...(item.tipo_cierre_overrides?.[selectedTipoCierre] || {}),
-            applies: !effectiveApplies,
-          },
-        };
+        const ov = setTipoCierreOverride<any>(
+          item.tipo_cierre_overrides,
+          selectedTipoCierre,
+          { ...(pickTipoCierreOverride<any>(item.tipo_cierre_overrides, selectedTipoCierre) || {}), applies: !effectiveApplies },
+        );
         await criteriaService.updateCriteria(item.id, { tipo_cierre_overrides: ov });
       } else {
         await criteriaService.updateCriteria(item.id, { applies: !item.applies });
@@ -656,7 +655,9 @@ function ScriptStepReadCard({ step, selectedTipoCierre }: { step: ScriptStep; se
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
-  const overrideLines = selectedTipoCierre ? step.tipo_cierre_overrides?.[selectedTipoCierre]?.lines : undefined;
+  const overrideLines: string[] | undefined = selectedTipoCierre
+    ? pickTipoCierreOverride<{ lines?: string[] }>(step.tipo_cierre_overrides, selectedTipoCierre)?.lines
+    : undefined;
   const hasOverride = Array.isArray(overrideLines);
   const lines = overrideLines ?? step.lines;
 

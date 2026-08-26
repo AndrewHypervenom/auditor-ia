@@ -40,6 +40,7 @@ import {
   ImageIcon,
   Filter,
   Layers,
+  Upload,
 } from 'lucide-react';
 import {
   scriptsService,
@@ -59,6 +60,8 @@ import {
   type WordBoostTerm,
   type ImageSystem,
   type ImageSystemField,
+  type ScreenshotAnalysis,
+  type ScreenshotAnalysisField,
   type CallTypeConfig,
   type BinesItem,
   type GeneratedBlock,
@@ -70,6 +73,7 @@ import ModeSelector, { type AdminMode } from '../components/ModeSelector';
 import CallTypeSelectorShared from '../components/CallTypeSelector';
 import { useCallTypesConfig, invalidateCallTypesConfigCache } from '../hooks/useCallTypesConfig';
 import { useSubcalificaciones } from '../hooks/useSubcalificaciones';
+import { pickTipoCierreOverride, setTipoCierreOverride, removeTipoCierreOverride } from '../utils/tipoCierre';
 import {
   DEFAULT_SCORE_OPTIONS,
   RECOMMENDED_SCORE_OPTIONS,
@@ -534,7 +538,7 @@ function ScriptsTab() {
             </button>
             {availableTipoCierres.map(tc => {
               const isSelected = selectedTipoCierre === tc;
-              const hasOverride = currentSteps.some(s => Array.isArray(s.tipo_cierre_overrides?.[tc]?.lines));
+              const hasOverride = currentSteps.some(s => Array.isArray(pickTipoCierreOverride<any>(s.tipo_cierre_overrides, tc)?.lines));
               return (
                 <button
                   key={tc}
@@ -612,7 +616,7 @@ function ScriptStepCard({ step, onUpdate, totalSteps, selectedTipoCierre }: Scri
 
   // En modo subcalificación se trabaja sobre el override; si no hay override aún,
   // partimos del guion base (las frases efectivas que se ven hoy en esa sub).
-  const overrideLines = selectedTipoCierre ? step.tipo_cierre_overrides?.[selectedTipoCierre]?.lines : undefined;
+  const overrideLines = selectedTipoCierre ? pickTipoCierreOverride<any>(step.tipo_cierre_overrides, selectedTipoCierre)?.lines : undefined;
   const hasOverride = Array.isArray(overrideLines);
   const effectiveLines = overrideLines ?? step.lines;
 
@@ -629,10 +633,7 @@ function ScriptStepCard({ step, onUpdate, totalSteps, selectedTipoCierre }: Scri
     setSaving(true);
     try {
       if (selectedTipoCierre) {
-        const overrides = {
-          ...(step.tipo_cierre_overrides || {}),
-          [selectedTipoCierre]: { lines: newLines },
-        };
+        const overrides = setTipoCierreOverride<any>(step.tipo_cierre_overrides, selectedTipoCierre, { lines: newLines });
         await scriptsService.update(step.id, { tipo_cierre_overrides: overrides });
       } else {
         await scriptsService.update(step.id, { lines: newLines });
@@ -650,8 +651,7 @@ function ScriptStepCard({ step, onUpdate, totalSteps, selectedTipoCierre }: Scri
     if (!selectedTipoCierre) return;
     setSaving(true);
     try {
-      const overrides = { ...(step.tipo_cierre_overrides || {}) };
-      delete overrides[selectedTipoCierre];
+      const overrides = removeTipoCierreOverride<any>(step.tipo_cierre_overrides, selectedTipoCierre);
       await scriptsService.update(step.id, { tipo_cierre_overrides: overrides });
       toast.success(t('scriptsAdmin.configReset'));
       onUpdate();
@@ -1563,7 +1563,7 @@ function CriteriaBlockCard({ block, mutate }: CriteriaBlockCardProps) {
               </button>
               {availableTipoCierres.map(tc => {
                 const isSelected = selectedTipoCierre === tc;
-                const hasOverride = criteria.some(c => c.tipo_cierre_overrides?.[tc]);
+                const hasOverride = criteria.some(c => pickTipoCierreOverride<any>(c.tipo_cierre_overrides, tc) !== undefined);
                 const sectionOff = !sectionAppliesIn(tc);
                 return (
                   <button
@@ -1696,7 +1696,7 @@ function getOverrideValue<K extends keyof CriteriaItemOverride>(
   base: CriteriaItemOverride[K]
 ): CriteriaItemOverride[K] {
   if (!tipoCierre) return base;
-  const ov = item.tipo_cierre_overrides?.[tipoCierre];
+  const ov = pickTipoCierreOverride<any>(item.tipo_cierre_overrides, tipoCierre);
   return ov && ov[field] !== undefined ? ov[field] : base;
 }
 
@@ -1708,7 +1708,7 @@ function CriteriaViewRow({ item, blockId, onEdit, mutate, selectedTipoCierre }: 
   const effectiveWtlf = getOverrideValue(item, selectedTipoCierre, 'what_to_look_for', item.what_to_look_for);
   const effectiveValidation = getOverrideValue(item, selectedTipoCierre, 'validation_source', item.validation_source);
   const effectiveManual = getOverrideValue(item, selectedTipoCierre, 'requires_manual_review', item.requires_manual_review)!;
-  const hasOverride = selectedTipoCierre && !!item.tipo_cierre_overrides?.[selectedTipoCierre];
+  const hasOverride = selectedTipoCierre && pickTipoCierreOverride<any>(item.tipo_cierre_overrides, selectedTipoCierre) !== undefined;
 
   const handleDelete = async () => {
     if (!confirm(t('scriptsAdmin.deleteCriterionConfirm', { name: item.topic }))) return;
@@ -1730,13 +1730,11 @@ function CriteriaViewRow({ item, blockId, onEdit, mutate, selectedTipoCierre }: 
   ) => {
     const patch: Partial<CriteriaItem> = selectedTipoCierre
       ? {
-          tipo_cierre_overrides: {
-            ...(item.tipo_cierre_overrides || {}),
-            [selectedTipoCierre]: {
-              ...(item.tipo_cierre_overrides?.[selectedTipoCierre] || {}),
-              [field]: nextValue,
-            },
-          },
+          tipo_cierre_overrides: setTipoCierreOverride<any>(
+            item.tipo_cierre_overrides,
+            selectedTipoCierre,
+            { ...(pickTipoCierreOverride<any>(item.tipo_cierre_overrides, selectedTipoCierre) || {}), [field]: nextValue },
+          ),
         }
       : { [field]: nextValue };
     const previous: Partial<CriteriaItem> = selectedTipoCierre
@@ -1916,7 +1914,7 @@ interface CriteriaEditRowProps {
 
 function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: CriteriaEditRowProps) {
   const { t } = useTranslation();
-  const existingOverride = selectedTipoCierre ? item.tipo_cierre_overrides?.[selectedTipoCierre] : undefined;
+  const existingOverride = selectedTipoCierre ? pickTipoCierreOverride<any>(item.tipo_cierre_overrides, selectedTipoCierre) : undefined;
   const isSubcalMode = !!selectedTipoCierre;
 
   const [topic, setTopic] = useState(item.topic);
@@ -1941,10 +1939,11 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
     try {
       const patch: Partial<CriteriaItem> = isSubcalMode
         ? {
-            tipo_cierre_overrides: {
-              ...(item.tipo_cierre_overrides || {}),
-              [selectedTipoCierre!]: { applies, what_to_look_for: whatToLookFor, validation_source: validationSource },
-            },
+            tipo_cierre_overrides: setTipoCierreOverride<any>(
+              item.tipo_cierre_overrides,
+              selectedTipoCierre!,
+              { applies, what_to_look_for: whatToLookFor, validation_source: validationSource },
+            ),
           }
         : {
             topic,
@@ -1969,8 +1968,7 @@ function CriteriaEditRow({ item, onSave, onCancel, selectedTipoCierre }: Criteri
     if (!selectedTipoCierre) return;
     setSaving(true);
     try {
-      const newOverrides = { ...(item.tipo_cierre_overrides || {}) };
-      delete newOverrides[selectedTipoCierre];
+      const newOverrides = removeTipoCierreOverride<any>(item.tipo_cierre_overrides, selectedTipoCierre);
       await criteriaService.updateCriteria(item.id, { tipo_cierre_overrides: newOverrides });
       toast.success(t('scriptsAdmin.configReset'));
       onSave({ tipo_cierre_overrides: newOverrides });
@@ -2802,7 +2800,7 @@ interface CriteriaEditDrawerProps {
 
 function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, onClose }: CriteriaEditDrawerProps) {
   const { t } = useTranslation();
-  const existingOverride = selectedTipoCierre ? item.tipo_cierre_overrides?.[selectedTipoCierre] : undefined;
+  const existingOverride = selectedTipoCierre ? pickTipoCierreOverride<any>(item.tipo_cierre_overrides, selectedTipoCierre) : undefined;
   const isSubcalMode = !!selectedTipoCierre;
 
   const [topic, setTopic] = useState(item.topic);
@@ -2880,10 +2878,11 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
     try {
       const patch: Partial<CriteriaItem> = isSubcalMode
         ? {
-            tipo_cierre_overrides: {
-              ...(item.tipo_cierre_overrides || {}),
-              [selectedTipoCierre!]: { applies, what_to_look_for: whatToLookFor, validation_source: validationSource },
-            },
+            tipo_cierre_overrides: setTipoCierreOverride<any>(
+              item.tipo_cierre_overrides,
+              selectedTipoCierre!,
+              { applies, what_to_look_for: whatToLookFor, validation_source: validationSource },
+            ),
           }
         : {
             topic,
@@ -2908,8 +2907,7 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
     if (!selectedTipoCierre) return;
     setSaving(true);
     try {
-      const newOverrides = { ...(item.tipo_cierre_overrides || {}) };
-      delete newOverrides[selectedTipoCierre];
+      const newOverrides = removeTipoCierreOverride<any>(item.tipo_cierre_overrides, selectedTipoCierre);
       await criteriaService.updateCriteria(item.id, { tipo_cierre_overrides: newOverrides });
       toast.success(t('scriptsAdmin.configReset'));
       onSave({ tipo_cierre_overrides: newOverrides });
@@ -3178,12 +3176,13 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
                 <div className="flex flex-wrap gap-1.5">
                   {availableImageSystems.map(sys => {
                     const isSelected = specificSystems.includes(sys.system_name);
+                    const fieldCount = Array.isArray(sys.fields_schema) ? sys.fields_schema.length : 0;
                     return (
                       <button
                         key={sys.id}
                         type="button"
                         onClick={() => toggleImageSystem(sys.system_name)}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-all duration-150 ${
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold border transition-all duration-150 ${
                           isSelected
                             ? 'bg-purple-500/15 border-purple-500/30 text-purple-300'
                             : 'bg-slate-800/60 border-slate-700/50 text-slate-500 hover:text-purple-300 hover:border-purple-500/20'
@@ -3191,11 +3190,57 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
                         title={sys.description}
                       >
                         {sys.system_name}
+                        <span className={`font-sans font-medium text-[10px] ${fieldCount === 0 ? 'text-amber-400' : 'opacity-60'}`}>
+                          {fieldCount === 0 ? t('scriptsAdmin.imgNoFieldsShort') : t('scriptsAdmin.fieldsCount', { count: fieldCount })}
+                        </span>
                         {isSelected && <Check size={10} />}
                       </button>
                     );
                   })}
                 </div>
+
+                {/* Qué campos mirará la IA en las pantallas elegidas */}
+                {(() => {
+                  const picked = availableImageSystems.filter(s => specificSystems.includes(s.system_name));
+                  const previewFields = picked.flatMap(s => (Array.isArray(s.fields_schema) ? s.fields_schema : []).map(f => f.field_name));
+                  const emptyPicked = picked.filter(s => !Array.isArray(s.fields_schema) || s.fields_schema.length === 0);
+                  if (picked.length === 0) return null;
+                  return (
+                    <div className="mt-3 space-y-2.5 animate-fadeIn">
+                      {previewFields.length > 0 && (
+                        <div className="rounded-xl bg-slate-950/60 border border-slate-700/40 px-3.5 py-3">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                            {t('scriptsAdmin.imgWillLookAt')}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {previewFields.slice(0, 14).map((name, i) => (
+                              <span key={i} className="font-mono text-[11px] text-sky-300 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded-md">
+                                {name}
+                              </span>
+                            ))}
+                            {previewFields.length > 14 && (
+                              <span className="text-[11px] text-slate-600 self-center">
+                                {t('scriptsAdmin.imgAndMore', { count: previewFields.length - 14 })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {emptyPicked.length > 0 && (
+                        <div className="flex items-center gap-2.5 rounded-xl bg-amber-500/8 border border-amber-500/28 px-3.5 py-3">
+                          <AlertTriangle size={14} className="text-amber-400 flex-shrink-0" />
+                          <span className="flex-1 text-xs text-slate-300 leading-relaxed">
+                            <strong className="text-amber-400">
+                              {t('scriptsAdmin.imgScreenHasNoFields', { name: emptyPicked.map(s => s.system_name).join(', ') })}
+                            </strong>{' '}
+                            {t('scriptsAdmin.imgScreenHasNoFieldsHint')}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {specificSystems.length > 0 && (
                   <p className="text-[10px] text-slate-600 mt-2">
                     {t('scriptsAdmin.aiWillSearchIn')} <strong className="text-slate-500">{specificSystems.join(', ')}</strong>
@@ -4271,6 +4316,8 @@ function ImageSystemsTab() {
   const [showAdd, setShowAdd] = useState(false);
   const [showImporter, setShowImporter] = useState(false);
   const [newSystem, setNewSystem] = useState({ system_name: '', description: '', detection_hints: '' });
+  const [teachTarget, setTeachTarget] = useState<ImageSystem | null>(null);
+  const [analyzerOpen, setAnalyzerOpen] = useState(false);
 
   // No se vuelve a poner `loading` en true: `loading` arranca en true y solo se
   // apaga tras la primera carga. Recargar tras guardar ya NO desmonta la lista
@@ -4356,30 +4403,38 @@ function ImageSystemsTab() {
 
   if (loading) return <SkeletonLoader />;
 
+  const showAnalyzer = systems.length > 0 || analyzerOpen || teachTarget !== null;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <ImageAnalyticsBanner onQuickEdit={handleQuickEdit} />
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <p className="text-sm text-slate-400 leading-relaxed flex-1 min-w-[200px]">
-          {t('scriptsAdmin.systemsIntro')}
-        </p>
+
+      <div className="flex items-start justify-between gap-6 flex-wrap">
+        <div className="flex-1 min-w-[240px]">
+          <h2 className="text-lg font-bold text-slate-100 tracking-tight mb-1.5">{t('scriptsAdmin.imgTabTitle')}</h2>
+          <p className="text-sm text-slate-400 leading-relaxed max-w-3xl">{t('scriptsAdmin.imgTabIntro')}</p>
+        </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <button
-            onClick={() => { setShowImporter(!showImporter); setShowAdd(false); }}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold
-                       bg-teal-500/10 border border-teal-500/25 text-teal-300
-                       hover:bg-teal-500/20 transition-all whitespace-nowrap"
-          >
-            <RefreshCw size={13} /> {t('scriptsAdmin.importDetected')}
-          </button>
-          <button
-            onClick={() => { setShowAdd(!showAdd); setShowImporter(false); }}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold
-                       bg-purple-500/10 border border-purple-500/30 text-purple-300
-                       hover:bg-purple-500/20 transition-all whitespace-nowrap"
-          >
-            <Plus size={14} /> {t('scriptsAdmin.newSystem')}
-          </button>
+          <ActionTooltip text={t('scriptsAdmin.importDetectedTip')}>
+            <button
+              onClick={() => { setShowImporter(!showImporter); setShowAdd(false); }}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold
+                         bg-teal-500/10 border border-teal-500/25 text-teal-300
+                         hover:bg-teal-500/20 transition-all whitespace-nowrap"
+            >
+              <RefreshCw size={13} /> {t('scriptsAdmin.importDetected')}
+            </button>
+          </ActionTooltip>
+          <ActionTooltip text={t('scriptsAdmin.imgBlankScreenTip')}>
+            <button
+              onClick={() => { setShowAdd(!showAdd); setShowImporter(false); }}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold
+                         bg-purple-500/10 border border-purple-500/30 text-purple-300
+                         hover:bg-purple-500/20 transition-all whitespace-nowrap"
+            >
+              <Plus size={14} /> {t('scriptsAdmin.imgBlankScreen')}
+            </button>
+          </ActionTooltip>
         </div>
       </div>
 
@@ -4392,7 +4447,7 @@ function ImageSystemsTab() {
         />
       )}
 
-      {/* Formulario nuevo sistema */}
+      {/* Formulario nueva pantalla en blanco */}
       {showAdd && (
         <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 space-y-3">
           <p className="text-xs font-semibold text-slate-300">{t('scriptsAdmin.newImageSystem')}</p>
@@ -4400,6 +4455,7 @@ function ImageSystemsTab() {
             <div>
               <label className="block text-xs text-slate-400 mb-1">{t('scriptsAdmin.systemName')}</label>
               <input
+                autoFocus
                 value={newSystem.system_name}
                 onChange={e => setNewSystem(p => ({ ...p, system_name: e.target.value }))}
                 placeholder={t('scriptsAdmin.phEgFalcon')}
@@ -4449,49 +4505,770 @@ function ImageSystemsTab() {
         </div>
       )}
 
-      {/* Lista de sistemas */}
+      <DomainContextRow />
+
+      {/* Punto de entrada principal: la captura */}
+      {showAnalyzer && (
+        <ScreenshotAnalyzerCard
+          systems={systems}
+          target={teachTarget}
+          onClearTarget={() => { setTeachTarget(null); setAnalyzerOpen(false); }}
+          onSaved={() => { setTeachTarget(null); load(); }}
+        />
+      )}
+
+      {/* Lista de pantallas */}
       {systems.length === 0 ? (
-        <div className="flex flex-col items-center gap-4 py-12 px-4">
-          <div className="w-14 h-14 rounded-2xl bg-slate-900/60 border border-slate-800/60 flex items-center justify-center">
-            <ImageIcon size={24} className="text-slate-600" />
+        <ImageSystemsEmptyState
+          onUpload={() => setAnalyzerOpen(true)}
+          onImport={() => setShowImporter(true)}
+          onBlank={() => setShowAdd(true)}
+        />
+      ) : (
+        <>
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              {t('scriptsAdmin.imgScreensConfigured', { count: systems.length })}
+            </span>
+            <span className="text-[11.5px] text-slate-600">{t('scriptsAdmin.imgOnlyActive')}</span>
           </div>
-          <div className="text-center max-w-sm">
-            <p className="text-slate-300 font-semibold mb-1">{t('scriptsAdmin.noSystems')}</p>
-            <p className="text-slate-500 text-sm">{t('scriptsAdmin.noSystemsHint')}</p>
+          <div className="space-y-3">
+            {systems.map(sys => (
+              <div key={sys.id} id={`sys-card-${sys.id}`}
+                className={`transition-all duration-500 rounded-xl ${highlightedSystem === sys.id ? 'ring-2 ring-purple-500/50 ring-offset-1 ring-offset-slate-950' : ''}`}>
+              <ImageSystemCard
+                system={sys}
+                expanded={expandedId === sys.id}
+                onToggleExpand={() => setExpandedId(expandedId === sys.id ? null : sys.id)}
+                editing={editingId === sys.id}
+                editData={editData}
+                onStartEdit={() => { setEditingId(sys.id); setEditData({ description: sys.description, detection_hints: sys.detection_hints ?? '' }); }}
+                onCancelEdit={() => { setEditingId(null); setEditData({}); }}
+                onSaveEdit={handleSaveEdit}
+                onEditDataChange={setEditData}
+                onToggleActive={() => handleToggleActive(sys)}
+                onDelete={() => handleDelete(sys.id)}
+                onFieldsChange={(fields) => handleFieldUpdate(sys.id, fields)}
+                onTeach={() => {
+                  setTeachTarget(sys);
+                  setTimeout(() => document.getElementById('screenshot-analyzer')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+                }}
+                saving={saving}
+              />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+    </div>
+  );
+}
+
+// ── Tooltip sobre un botón de acción ────────────────────────────────────
+
+function ActionTooltip({ text, children }: { text: string; children: React.ReactNode }) {
+  return (
+    <span className="relative group/act inline-flex">
+      {children}
+      <span className="pointer-events-none absolute right-0 top-full mt-2
+                       w-64 whitespace-normal rounded-xl px-3 py-2 text-[11px] leading-relaxed
+                       bg-slate-900 border border-slate-700/60 text-slate-300 shadow-xl
+                       opacity-0 group-hover/act:opacity-100 transition-opacity duration-150 z-[60]">
+        {text}
+      </span>
+    </span>
+  );
+}
+
+// ── Estado vacío: tres formas de empezar ─────────────────────────────────
+
+interface ImageSystemsEmptyStateProps {
+  onUpload: () => void;
+  onImport: () => void;
+  onBlank: () => void;
+}
+
+function ImageSystemsEmptyState({ onUpload, onImport, onBlank }: ImageSystemsEmptyStateProps) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-col items-center py-8 px-4">
+      <div className="p-3.5 rounded-2xl bg-brand-500/8 border border-brand-700/30 text-brand-400 mb-4">
+        <Monitor size={26} strokeWidth={1.7} />
+      </div>
+      <h3 className="text-xl font-bold text-slate-100 tracking-tight mb-2 text-center">{t('scriptsAdmin.imgEmptyTitle')}</h3>
+      <p className="text-sm text-slate-400 leading-relaxed max-w-xl text-center mb-7">{t('scriptsAdmin.imgEmptyIntro')}</p>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 w-full max-w-4xl mb-8">
+        <div className="rounded-2xl bg-gradient-to-br from-dark-card to-dark-surface border border-brand-700/35 shadow-card-glow p-5 flex flex-col gap-2.5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-[10px] bg-brand-500/15 border border-brand-700/40 flex items-center justify-center text-brand-400">
+              <Upload size={16} />
+            </div>
+            <span className="text-[10px] font-bold text-brand-300 bg-brand-500/12 border border-brand-700/35 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+              {t('scriptsAdmin.imgEmptyFastest')}
+            </span>
+          </div>
+          <div className="flex-1">
+            <p className="text-[15px] font-bold text-slate-100 mb-1">{t('scriptsAdmin.imgEmptyUploadTitle')}</p>
+            <p className="text-xs text-slate-400 leading-relaxed">{t('scriptsAdmin.imgEmptyUploadBody')}</p>
           </div>
           <button
-            onClick={() => setShowImporter(true)}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold
-                       bg-teal-500/15 border border-teal-500/30 text-teal-300
-                       hover:bg-teal-500/25 transition-all"
+            onClick={onUpload}
+            className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold
+                       bg-brand-500 border border-brand-300/30 text-black shadow-glow
+                       hover:bg-brand-400 transition-all"
           >
-            <RefreshCw size={14} />
-            {t('scriptsAdmin.importFromPrevious')}
+            {t('scriptsAdmin.imgEmptyUploadCta')}
           </button>
-          <p className="text-[11px] text-slate-600">{t('scriptsAdmin.orUseNewSystem')}</p>
         </div>
-      ) : (
-        <div className="space-y-3">
-          {systems.map(sys => (
-            <div key={sys.id} id={`sys-card-${sys.id}`}
-              className={`transition-all duration-500 rounded-xl ${highlightedSystem === sys.id ? 'ring-2 ring-purple-500/50 ring-offset-1 ring-offset-slate-950' : ''}`}>
-            <ImageSystemCard
-              system={sys}
-              expanded={expandedId === sys.id}
-              onToggleExpand={() => setExpandedId(expandedId === sys.id ? null : sys.id)}
-              editing={editingId === sys.id}
-              editData={editData}
-              onStartEdit={() => { setEditingId(sys.id); setEditData({ description: sys.description, detection_hints: sys.detection_hints ?? '' }); }}
-              onCancelEdit={() => { setEditingId(null); setEditData({}); }}
-              onSaveEdit={handleSaveEdit}
-              onEditDataChange={setEditData}
-              onToggleActive={() => handleToggleActive(sys)}
-              onDelete={() => handleDelete(sys.id)}
-              onFieldsChange={(fields) => handleFieldUpdate(sys.id, fields)}
-              saving={saving}
-            />
+
+        <div className="rounded-2xl bg-slate-900/50 border border-slate-700/40 p-5 flex flex-col gap-2.5">
+          <div className="w-8 h-8 rounded-[10px] bg-teal-500/10 border border-teal-500/28 flex items-center justify-center text-teal-300">
+            <RefreshCw size={16} />
+          </div>
+          <div className="flex-1">
+            <p className="text-[15px] font-bold text-slate-100 mb-1">{t('scriptsAdmin.imgEmptyImportTitle')}</p>
+            <p className="text-xs text-slate-400 leading-relaxed">{t('scriptsAdmin.imgEmptyImportBody')}</p>
+          </div>
+          <button
+            onClick={onImport}
+            className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-semibold
+                       bg-teal-500/10 border border-teal-500/28 text-teal-300 hover:bg-teal-500/20 transition-all"
+          >
+            {t('scriptsAdmin.imgEmptyImportCta')}
+          </button>
+        </div>
+
+        <div className="rounded-2xl bg-slate-900/50 border border-slate-700/40 p-5 flex flex-col gap-2.5">
+          <div className="w-8 h-8 rounded-[10px] bg-purple-500/10 border border-purple-500/28 flex items-center justify-center text-purple-300">
+            <Plus size={16} />
+          </div>
+          <div className="flex-1">
+            <p className="text-[15px] font-bold text-slate-100 mb-1">{t('scriptsAdmin.imgEmptyBlankTitle')}</p>
+            <p className="text-xs text-slate-400 leading-relaxed">{t('scriptsAdmin.imgEmptyBlankBody')}</p>
+          </div>
+          <button
+            onClick={onBlank}
+            className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-semibold
+                       bg-purple-500/10 border border-purple-500/28 text-purple-300 hover:bg-purple-500/20 transition-all"
+          >
+            {t('scriptsAdmin.imgEmptyBlankCta')}
+          </button>
+        </div>
+      </div>
+
+      <div className="w-full max-w-4xl rounded-2xl bg-slate-900/35 border border-slate-700/30 px-6 py-5">
+        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-4">{t('scriptsAdmin.imgHowItWorks')}</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {[1, 2, 3].map(n => (
+            <div key={n} className="flex items-start gap-3">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-brand-500/10 border border-brand-700/35 text-brand-300 text-xs font-bold flex-shrink-0">
+                {n}
+              </span>
+              <div>
+                <p className="text-[13px] font-semibold text-slate-300 mb-0.5">{t(`scriptsAdmin.imgStep${n}Title`)}</p>
+                <p className="text-xs text-slate-500 leading-relaxed">{t(`scriptsAdmin.imgStep${n}Body`)}</p>
+              </div>
             </div>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Analizador de capturas: el punto de entrada del flujo ────────────────
+
+interface ScreenshotAnalyzerCardProps {
+  systems: ImageSystem[];
+  /** Pantalla concreta a la que se le está enseñando (o null: la IA decide). */
+  target: ImageSystem | null;
+  onClearTarget: () => void;
+  onSaved: () => void;
+}
+
+type ReviewField = ScreenshotAnalysisField & { selected: boolean };
+
+const ANALYZER_CHIP_KEYS = ['imgChipStatus', 'imgChipCase', 'imgChipDate', 'imgChipAmount', 'imgChipComments', 'imgChipCodes'];
+
+function ScreenshotAnalyzerCard({ systems, target, onClearTarget, onSaved }: ScreenshotAnalyzerCardProps) {
+  const { t } = useTranslation();
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState('');
+  const [desc, setDesc] = useState('');
+  const [chips, setChips] = useState<string[]>([]);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState<ScreenshotAnalysis | null>(null);
+  const [screenName, setScreenName] = useState('');
+  const [hints, setHints] = useState('');
+  const [fields, setFields] = useState<ReviewField[]>([]);
+  const [expandedField, setExpandedField] = useState<number | null>(null);
+
+  const reset = () => {
+    setFile(null); setPreview(''); setDesc(''); setChips([]);
+    setResult(null); setFields([]); setHints(''); setScreenName('');
+    setExpandedField(null);
+  };
+
+  // El servidor acepta hasta 25 MB de JSON y el base64 crece ~33%: se corta antes.
+  const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+
+  const handleFile = useCallback((f: File | null) => {
+    if (!f) return;
+    if (f.size > MAX_IMAGE_BYTES) {
+      toast.error(t('scriptsAdmin.imgTooLarge', { mb: Math.round(MAX_IMAGE_BYTES / 1024 / 1024) }));
+      return;
+    }
+    setFile(f);
+    setResult(null);
+    const reader = new FileReader();
+    reader.onload = ev => setPreview(ev.target?.result as string);
+    reader.readAsDataURL(f);
+  }, [MAX_IMAGE_BYTES, t]);
+
+  // Pegar con Ctrl+V mientras la tarjeta está en pantalla.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const item = Array.from(e.clipboardData?.items ?? []).find(i => i.type.startsWith('image/'));
+      if (item) handleFile(item.getAsFile());
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [handleFile]);
+
+  const handleAnalyze = async () => {
+    if (!file || !preview) return;
+    const picked = chips.map(k => t(`scriptsAdmin.${k}`)).join(', ');
+    const userDescription = [desc.trim(), picked ? `${t('scriptsAdmin.imgChipsPrefix')} ${picked}` : '']
+      .filter(Boolean).join('. ');
+
+    setAnalyzing(true);
+    try {
+      const analysis = await imageSystemsService.analyzeScreenshot({
+        image_base64: preview.split(',')[1],
+        mime_type: file.type || 'image/png',
+        system_name: target?.system_name,
+        user_description: userDescription,
+      });
+      setResult(analysis);
+      setScreenName(target?.system_name ?? analysis.matched_system ?? analysis.proposed_system_name);
+      setHints(analysis.detection_hints);
+      setFields(analysis.fields.map(f => ({ ...f, selected: f.recommended })));
+      setExpandedField(null);
+    } catch (err) {
+      const res = (err as { response?: { status?: number; data?: { error?: string } } })?.response;
+      if (res?.status === 413) {
+        toast.error(t('scriptsAdmin.imgTooLarge', { mb: Math.round(MAX_IMAGE_BYTES / 1024 / 1024) }));
+      } else if (res?.status === 502 && res.data?.error) {
+        // El mensaje viene de la API de Claude: mostrarlo tal cual ahorra
+        // adivinar si el problema es la imagen o la cuenta.
+        toast.error(res.data.error, { duration: 8000 });
+      } else {
+        toast.error(t('scriptsAdmin.analyzeImageError'));
+      }
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  // La pantalla destino: la que se está enseñando, la que la IA reconoció, o la
+  // que coincida con el nombre escrito — así nunca se crea una duplicada.
+  const existing = useMemo(() => {
+    if (target) return target;
+    const name = (result?.matched_system || screenName).trim().toUpperCase();
+    if (!name) return null;
+    return systems.find(s => s.system_name.toUpperCase() === name) ?? null;
+  }, [target, result, screenName, systems]);
+
+  const selectedFields = fields.filter(f => f.selected && f.field_name.trim());
+
+  const handleSave = async () => {
+    if (!result) return;
+    const name = screenName.trim().toUpperCase();
+    if (!name) { toast.error(t('scriptsAdmin.nameDescRequired')); return; }
+
+    const newFields: ImageSystemField[] = selectedFields.map(f => ({
+      field_name: f.field_name.trim(),
+      description: `${f.description.trim()}${f.how_to_evaluate.trim() ? ` | ${t('scriptsAdmin.evaluatePrefix')} ${f.how_to_evaluate.trim()}` : ''}`,
+      example: f.example.trim() || undefined,
+    }));
+
+    setSaving(true);
+    try {
+      if (existing) {
+        const current: ImageSystemField[] = Array.isArray(existing.fields_schema) ? existing.fields_schema : [];
+        const merged = [...current, ...newFields.filter(nf => !current.some(c => c.field_name === nf.field_name))];
+        await imageSystemsService.update(existing.id, {
+          fields_schema: merged,
+          detection_hints: hints.trim() || existing.detection_hints || undefined,
+        });
+        toast.success(t('scriptsAdmin.imgSavedUpdated', { name: existing.system_name, count: newFields.length }));
+      } else {
+        await imageSystemsService.create({
+          system_name: name,
+          description: result.screen_summary || t('scriptsAdmin.systemDefaultDesc', { name }),
+          detection_hints: hints.trim() || undefined,
+          fields_schema: newFields,
+          display_order: systems.length + 1,
+        });
+        toast.success(t('scriptsAdmin.imgSavedNew', { name, count: newFields.length }));
+      }
+      reset();
+      onSaved();
+    } catch {
+      toast.error(t('scriptsAdmin.systemAddError'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateField = (idx: number, patch: Partial<ReviewField>) =>
+    setFields(prev => prev.map((f, i) => (i === idx ? { ...f, ...patch } : f)));
+
+  const allSelected = fields.length > 0 && fields.every(f => f.selected);
+
+  return (
+    <div id="screenshot-analyzer" className="rounded-2xl bg-gradient-to-br from-dark-card to-dark-surface border border-brand-700/30 shadow-card-glow overflow-hidden animate-fadeIn">
+      {/* Cabecera */}
+      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-dark-border bg-brand-500/5">
+        <div className="w-[30px] h-[30px] rounded-[9px] bg-brand-500/15 border border-brand-700/35 flex items-center justify-center text-brand-400 flex-shrink-0">
+          <Sparkles size={16} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-brand-300">
+            {target ? t('scriptsAdmin.imgTeachTitle', { name: target.system_name }) : t('scriptsAdmin.imgAnalyzeTitle')}
+          </p>
+          <p className="text-xs text-slate-500 mt-0.5">{t('scriptsAdmin.imgAnalyzeSubtitle')}</p>
+        </div>
+        {target && (
+          <button
+            onClick={() => { reset(); onClearTarget(); }}
+            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 transition-colors flex-shrink-0"
+          >
+            <X size={15} />
+          </button>
+        )}
+      </div>
+
+      {/* Carga + descripción */}
+      <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="flex flex-col gap-2.5">
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{t('scriptsAdmin.screenshot')}</span>
+          <label className={`flex flex-col items-center justify-center gap-3 min-h-[240px] rounded-2xl border-2 border-dashed cursor-pointer transition-all p-4 ${
+            preview ? 'border-brand-700/40 bg-brand-500/5' : 'border-slate-700/60 bg-slate-900/35 hover:border-brand-700/35 hover:bg-brand-500/5'
+          }`}>
+            {preview ? (
+              <img src={preview} alt="" className="max-h-[280px] w-full object-contain rounded-lg" />
+            ) : (
+              <>
+                <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-700/50 text-slate-600">
+                  <Upload size={24} strokeWidth={1.8} />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-semibold text-slate-300 mb-1">{t('scriptsAdmin.imgDropTitle')}</p>
+                  <p className="text-xs text-slate-500">{t('scriptsAdmin.imgDropHint')}</p>
+                </div>
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/80 border border-slate-700/45 text-[11px] text-slate-500">
+                  <Layers size={11} /> {t('scriptsAdmin.imgPasteHint')}
+                </span>
+              </>
+            )}
+            <input type="file" accept="image/png,image/jpeg,image/jpg" className="sr-only"
+              onChange={e => handleFile(e.target.files?.[0] ?? null)} />
+          </label>
+          {file && (
+            <div className="flex items-center justify-between">
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-brand-300">
+                <Check size={12} /> {t('scriptsAdmin.imgReady')}
+              </span>
+              <button onClick={reset} className="text-[11px] text-slate-600 hover:text-red-400 transition-colors">
+                {t('scriptsAdmin.removeImage')}
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2.5">
+          <div className="flex items-baseline justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{t('scriptsAdmin.imgWhatToRead')}</span>
+            <span className="text-[11px] text-slate-600">{t('scriptsAdmin.imgOptional')}</span>
+          </div>
+          <textarea
+            value={desc}
+            onChange={e => setDesc(e.target.value)}
+            rows={4}
+            placeholder={t('scriptsAdmin.extractPlaceholder')}
+            className="w-full bg-slate-900/70 border border-slate-700/55 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 resize-none
+                       focus:outline-none focus:border-brand-600/50 placeholder:text-slate-600 leading-relaxed"
+          />
+          <div>
+            <p className="text-[11.5px] text-slate-500 mb-2">{t('scriptsAdmin.imgChipsIntro')}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {ANALYZER_CHIP_KEYS.map(key => {
+                const on = chips.includes(key);
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setChips(prev => on ? prev.filter(k => k !== key) : [...prev, key])}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-150 ${
+                      on ? 'bg-brand-500/12 border border-brand-700/40 text-brand-300'
+                         : 'bg-slate-900/60 border border-slate-700/50 text-slate-400 hover:text-brand-300 hover:border-brand-700/25'
+                    }`}
+                  >
+                    {on && <Check size={11} />}
+                    {t(`scriptsAdmin.${key}`)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <button
+            onClick={handleAnalyze}
+            disabled={!file || analyzing}
+            className={`mt-auto flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-bold transition-all ${
+              file && !analyzing
+                ? 'bg-brand-500 border border-brand-300/30 text-black shadow-glow hover:bg-brand-400'
+                : 'bg-brand-500/10 border border-brand-700/30 text-brand-300 opacity-50 cursor-not-allowed'
+            }`}
+          >
+            {analyzing ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+            {analyzing ? t('scriptsAdmin.analyzingImage') : result ? t('scriptsAdmin.imgAnalyzeAgain') : t('scriptsAdmin.analyzeAndGenerate')}
+          </button>
+        </div>
+      </div>
+
+      {/* Resultado */}
+      {result && (
+        <div className="border-t border-dark-border animate-fadeIn">
+          {/* Veredicto */}
+          <div className={`flex items-center gap-4 px-5 py-4 ${existing ? 'bg-purple-500/5 border-b border-purple-500/20' : 'bg-brand-500/5 border-b border-brand-700/25'}`}>
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+              existing ? 'bg-purple-500/15 border border-purple-500/35 text-purple-300' : 'bg-brand-500/15 border border-brand-700/40 text-brand-400'
+            }`}>
+              <Check size={19} strokeWidth={2.4} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-slate-200 flex items-center gap-2 flex-wrap">
+                {existing ? t('scriptsAdmin.imgResultMatch') : t('scriptsAdmin.imgResultNew')}
+                <input
+                  value={screenName}
+                  onChange={e => setScreenName(e.target.value.toUpperCase())}
+                  disabled={!!target}
+                  className="font-mono font-bold text-purple-300 bg-purple-500/12 border border-purple-500/30 px-2 py-0.5 rounded-md
+                             focus:outline-none focus:border-purple-500/60 disabled:opacity-90 w-44"
+                />
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                {t('scriptsAdmin.imgResultSummary', { found: fields.length, rec: fields.filter(f => f.recommended).length })}
+                {result.screen_summary ? ` · ${result.screen_summary}` : ''}
+              </p>
+            </div>
+          </div>
+
+          <div className="p-5 space-y-4">
+            {/* Pistas de detección */}
+            <div className="rounded-xl bg-slate-900/50 border border-purple-500/20 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Eye size={13} className="text-purple-300" />
+                <span className="text-[11px] font-bold text-purple-300 uppercase tracking-wider">{t('scriptsAdmin.imgHowToRecognize')}</span>
+                <span className="ml-auto text-[10.5px] text-slate-600">{t('scriptsAdmin.imgHintsUsedFor')}</span>
+              </div>
+              <textarea
+                value={hints}
+                onChange={e => setHints(e.target.value)}
+                rows={3}
+                className="w-full bg-slate-950/70 border border-slate-700/50 rounded-lg px-3 py-2.5 text-xs text-slate-300 resize-y
+                           focus:outline-none focus:border-purple-500/50 leading-relaxed"
+              />
+              <p className="text-[11px] text-slate-600 mt-2">{t('scriptsAdmin.hintsFootnote')}</p>
+              {existing?.detection_hints && hints !== existing.detection_hints && (
+                <button
+                  onClick={() => setHints(existing.detection_hints ?? '')}
+                  className="mt-1.5 flex items-center gap-1.5 text-[11px] text-amber-400 hover:text-amber-300 transition-colors"
+                >
+                  <RotateCcw size={11} /> {t('scriptsAdmin.imgRestoreHints')}
+                </button>
+              )}
+            </div>
+
+            {/* Campos propuestos */}
+            <div>
+              <div className="flex items-center gap-3 mb-3 flex-wrap">
+                <div>
+                  <p className="text-sm font-bold text-slate-100">{t('scriptsAdmin.imgFieldsFound', { count: fields.length })}</p>
+                  <p className="text-[11.5px] text-slate-500 mt-0.5">{t('scriptsAdmin.imgMarkedCount', { count: selectedFields.length })}</p>
+                </div>
+                <div className="ml-auto flex gap-2">
+                  <button
+                    onClick={() => setFields(prev => prev.map(f => ({ ...f, selected: f.recommended })))}
+                    className="px-3 py-1.5 rounded-lg text-[11.5px] font-semibold bg-brand-500/10 border border-brand-700/30 text-brand-300 hover:bg-brand-500/20 transition-all"
+                  >
+                    {t('scriptsAdmin.imgOnlyRecommended')}
+                  </button>
+                  <button
+                    onClick={() => setFields(prev => prev.map(f => ({ ...f, selected: !allSelected })))}
+                    className="px-3 py-1.5 rounded-lg text-[11.5px] font-semibold bg-slate-900/70 border border-slate-700/50 text-slate-400 hover:text-slate-200 transition-all"
+                  >
+                    {allSelected ? t('scriptsAdmin.deselectAll') : t('scriptsAdmin.selectAll')}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {fields.map((f, idx) => {
+                  const open = expandedField === idx;
+                  const tag = f.sensitive ? t('scriptsAdmin.imgTagSensitive')
+                    : f.recommended ? t('scriptsAdmin.imgTagRecommended')
+                    : t('scriptsAdmin.imgTagOptional');
+                  const tagClass = f.sensitive ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                    : f.recommended ? 'bg-brand-500/12 border-brand-700/35 text-brand-300'
+                    : 'bg-slate-900/80 border-slate-700/50 text-slate-500';
+                  return (
+                    <div key={idx} className={`rounded-xl overflow-hidden border transition-all duration-150 ${
+                      open ? 'bg-brand-500/5 border-brand-700/40'
+                        : f.selected ? 'bg-slate-900/50 border-slate-700/45'
+                        : 'bg-slate-900/25 border-slate-700/25 opacity-60'
+                    }`}>
+                      <div className="flex items-start gap-3 p-3">
+                        <button
+                          type="button"
+                          onClick={() => updateField(idx, { selected: !f.selected })}
+                          className={`w-[19px] h-[19px] rounded-md flex items-center justify-center flex-shrink-0 mt-0.5 transition-all ${
+                            f.selected ? 'bg-brand-500 border border-brand-300' : 'bg-slate-950/80 border border-slate-600/60'
+                          }`}
+                        >
+                          {f.selected && <Check size={11} strokeWidth={3.5} className="text-black" />}
+                        </button>
+                        <button type="button" onClick={() => setExpandedField(open ? null : idx)} className="flex-1 min-w-0 text-left">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-[12.5px] font-bold text-slate-200">{f.field_name || t('scriptsAdmin.noName')}</span>
+                            <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full border ${tagClass}`}>{tag}</span>
+                            {f.example && (
+                              <>
+                                <span className="text-[11px] text-slate-600">{t('scriptsAdmin.imgRead')}</span>
+                                <span className="font-mono text-[11px] text-sky-300 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded-md truncate max-w-[220px]">{f.example}</span>
+                              </>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{f.reason || f.description}</p>
+                        </button>
+                        <ChevronDown size={14} className={`text-slate-600 flex-shrink-0 mt-1 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+                      </div>
+
+                      {open && (
+                        <div className="px-3 pb-3.5 pl-[47px] space-y-3 animate-fadeIn">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[10.5px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">{t('scriptsAdmin.fieldName')}</label>
+                              <input
+                                value={f.field_name}
+                                onChange={e => updateField(idx, { field_name: e.target.value })}
+                                className="w-full bg-slate-950/70 border border-slate-700/50 rounded-lg px-3 py-2 text-xs font-mono text-slate-200
+                                           focus:outline-none focus:border-brand-600/50"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10.5px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">{t('scriptsAdmin.example')}</label>
+                              <input
+                                value={f.example}
+                                onChange={e => updateField(idx, { example: e.target.value })}
+                                className="w-full bg-slate-950/70 border border-slate-700/50 rounded-lg px-3 py-2 text-xs font-mono text-slate-200
+                                           focus:outline-none focus:border-brand-600/50"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-[10.5px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">{t('scriptsAdmin.fieldDescription')}</label>
+                            <textarea
+                              value={f.description}
+                              onChange={e => updateField(idx, { description: e.target.value })}
+                              rows={2}
+                              className="w-full bg-slate-950/70 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-slate-300 resize-none
+                                         focus:outline-none focus:border-brand-600/50 leading-relaxed"
+                            />
+                          </div>
+                          <div>
+                            <label className="flex items-center gap-1.5 text-[10.5px] font-bold text-brand-400 uppercase tracking-wider mb-1.5">
+                              <Sparkles size={11} /> {t('scriptsAdmin.imgHowToEvaluate')}
+                            </label>
+                            <textarea
+                              value={f.how_to_evaluate}
+                              onChange={e => updateField(idx, { how_to_evaluate: e.target.value })}
+                              rows={2}
+                              placeholder={t('scriptsAdmin.evaluatorInstructionPlaceholder')}
+                              className="w-full bg-slate-950/70 border border-brand-700/30 rounded-lg px-3 py-2 text-xs text-slate-300 resize-y
+                                         focus:outline-none focus:border-brand-600/50 placeholder:text-slate-600 leading-relaxed"
+                            />
+                          </div>
+                          <div className="flex items-center">
+                            <button
+                              onClick={() => { setFields(prev => prev.filter((_, i) => i !== idx)); setExpandedField(null); }}
+                              className="ml-auto text-[11px] text-slate-600 hover:text-red-400 transition-colors"
+                            >
+                              {t('scriptsAdmin.deleteField')}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                <button
+                  onClick={() => {
+                    setFields(prev => [...prev, { field_name: '', description: '', example: '', how_to_evaluate: '', recommended: true, reason: '', sensitive: false, selected: true }]);
+                    setExpandedField(fields.length);
+                  }}
+                  className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-dashed border-slate-700/60
+                             text-slate-500 text-[12.5px] font-semibold hover:text-brand-300 hover:border-brand-700/40 transition-all"
+                >
+                  <Plus size={13} /> {t('scriptsAdmin.imgAddManualField')}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Pie */}
+          <div className="flex items-center gap-4 px-5 py-4 border-t border-dark-border bg-slate-900/35 flex-wrap">
+            <span className="flex items-center gap-2 text-xs text-slate-400">
+              <Info size={13} className="text-slate-600" /> {t('scriptsAdmin.imgEditableLater')}
+            </span>
+            <div className="ml-auto flex gap-2.5">
+              <button
+                onClick={reset}
+                className="px-4 py-2.5 rounded-xl text-[13px] font-semibold bg-transparent border border-slate-700/50 text-slate-400 hover:text-slate-200 transition-all"
+              >
+                {t('scriptsAdmin.imgDiscard')}
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving || selectedFields.length === 0}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold
+                           bg-brand-500 border border-brand-300/30 text-black shadow-glow
+                           hover:bg-brand-400 disabled:opacity-40 disabled:shadow-none transition-all"
+              >
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                {existing
+                  ? t('scriptsAdmin.imgSaveIntoScreen', { name: existing.system_name, count: selectedFields.length })
+                  : t('scriptsAdmin.imgSaveScreen', { count: selectedFields.length })}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Contexto de dominio de las capturas ─────────────────────────────────
+
+const DOMAIN_PRESETS = [
+  { key: 'imgDomainBank', text: 'una pantalla de un aplicativo bancario (cuentas, tarjetas y transacciones)' },
+  { key: 'imgDomainInsurance', text: 'una pantalla de un aplicativo de seguros (pólizas, siniestros y coberturas)' },
+  { key: 'imgDomainRetail', text: 'una pantalla de un aplicativo de retail (pedidos, devoluciones e inventario)' },
+  { key: 'imgDomainCrm', text: 'una pantalla de un CRM de atención (tickets, casos y contactos)' },
+  { key: 'imgDomainAny', text: 'una pantalla de un sistema o aplicativo interno' },
+];
+
+/**
+ * Una línea: de qué tipo de proceso son estas pantallas. Es lo que sustituye al
+ * antiguo "sistema bancario" fijo del prompt de análisis de imágenes.
+ */
+function DomainContextRow() {
+  const { t } = useTranslation();
+  const [domain, setDomain] = useState('');
+  const [defaultDomain, setDefaultDomain] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    imageSystemsService.getPromptContext()
+      .then(ctx => {
+        setDomain(ctx.domain_context ?? '');
+        setDefaultDomain(ctx.default_domain_context);
+      })
+      .catch(() => { /* sin contexto se usa el genérico por defecto */ })
+      .finally(() => setLoaded(true));
+  }, []);
+
+  const save = async (value: string) => {
+    setSaving(true);
+    try {
+      const res = await imageSystemsService.setDomainContext(value);
+      setDomain(res.domain_context ?? '');
+      setEditing(false);
+      toast.success(t('scriptsAdmin.imgDomainSaved'));
+    } catch {
+      toast.error(t('scriptsAdmin.imgDomainSaveError'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!loaded) return null;
+
+  const current = DOMAIN_PRESETS.find(preset => preset.text === domain);
+
+  return (
+    <div className="flex items-center gap-2.5 flex-wrap px-4 py-2.5 rounded-xl bg-slate-900/40 border border-slate-700/35">
+      <span className="text-xs text-slate-500">{t('scriptsAdmin.imgDomainInline')}</span>
+
+      {!editing ? (
+        <>
+          <span className="text-xs font-semibold text-slate-300">
+            {current ? t(`scriptsAdmin.${current.key}`) : (domain || t('scriptsAdmin.imgDomainAny'))}
+          </span>
+          <button
+            onClick={() => setEditing(true)}
+            className="text-xs font-semibold text-brand-400 hover:text-brand-300 transition-colors"
+          >
+            {t('scriptsAdmin.imgDomainChange')}
+          </button>
+        </>
+      ) : (
+        <div className="flex items-center gap-2 flex-wrap flex-1 min-w-[280px]">
+          {DOMAIN_PRESETS.map(preset => (
+            <button
+              key={preset.key}
+              onClick={() => save(preset.text)}
+              disabled={saving}
+              className={`px-2.5 py-1 rounded-full text-[11.5px] font-semibold transition-all disabled:opacity-50 ${
+                domain === preset.text
+                  ? 'bg-brand-500/15 border border-brand-700/45 text-brand-300'
+                  : 'bg-slate-900/60 border border-slate-700/50 text-slate-400 hover:text-brand-300 hover:border-brand-700/25'
+              }`}
+            >
+              {t(`scriptsAdmin.${preset.key}`)}
+            </button>
+          ))}
+          <input
+            value={domain}
+            onChange={e => setDomain(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') save(domain); }}
+            placeholder={defaultDomain}
+            className="flex-1 min-w-[200px] bg-slate-950/70 border border-slate-700/50 rounded-lg px-2.5 py-1.5 text-[11.5px] text-slate-200
+                       focus:outline-none focus:border-brand-600/50 placeholder:text-slate-600"
+          />
+          <button
+            onClick={() => save(domain)}
+            disabled={saving}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11.5px] font-semibold
+                       bg-brand-500/15 border border-brand-700/35 text-brand-300 hover:bg-brand-500/25 disabled:opacity-40 transition-all"
+          >
+            {saving ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+            {t('common.save')}
+          </button>
+          <button
+            onClick={() => setEditing(false)}
+            className="text-[11.5px] text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            {t('common.cancel')}
+          </button>
         </div>
       )}
     </div>
@@ -4511,12 +5288,14 @@ interface ImageSystemCardProps {
   onToggleActive: () => void;
   onDelete: () => void;
   onFieldsChange: (fields: ImageSystemField[]) => void;
+  /** Abre el analizador de capturas apuntando a esta pantalla. */
+  onTeach: () => void;
   saving: boolean;
 }
 
 function ImageSystemCard({
   system, expanded, onToggleExpand, editing, editData, onStartEdit, onCancelEdit,
-  onSaveEdit, onEditDataChange, onToggleActive, onDelete, onFieldsChange, saving,
+  onSaveEdit, onEditDataChange, onToggleActive, onDelete, onFieldsChange, onTeach, saving,
 }: ImageSystemCardProps) {
   const { t } = useTranslation();
   const [newField, setNewField] = useState<ImageSystemField>({ field_name: '', description: '', example: '' });
@@ -4679,6 +5458,21 @@ function ImageSystemCard({
           </button>
         </div>
       </div>
+
+      {/* Una pantalla sin campos no le sirve de nada a la IA: se dice y se ofrece el arreglo. */}
+      {fields.length === 0 && !editing && (
+        <div className="flex items-center gap-2.5 px-4 pb-3 pt-0.5 border-t border-slate-800/60 flex-wrap">
+          <AlertTriangle size={13} className="text-amber-400 flex-shrink-0 mt-2.5" />
+          <span className="text-xs text-slate-400 flex-1 min-w-[180px] mt-2.5">{t('scriptsAdmin.imgNoFieldsWarn')}</span>
+          <button
+            onClick={onTeach}
+            className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11.5px] font-semibold
+                       bg-brand-500/10 border border-brand-700/30 text-brand-300 hover:bg-brand-500/20 transition-all flex-shrink-0"
+          >
+            <Sparkles size={11} /> {t('scriptsAdmin.imgTeachWithShot')}
+          </button>
+        </div>
+      )}
 
       {/* Edición de metadatos */}
       {editing && (
