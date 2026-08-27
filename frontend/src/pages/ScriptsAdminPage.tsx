@@ -1356,6 +1356,15 @@ function CriteriaBlockCard({ block, mutate }: CriteriaBlockCardProps) {
   const availableTipoCierres = useSubcalificaciones(block.call_type);
   const [selectedTipoCierre, setSelectedTipoCierre] = useState<string | null>(null);
 
+  // Siempre hay una subcalificación activa: la configuración se edita SIEMPRE
+  // dentro de una subcalificación concreta, nunca sobre un "Base" suelto.
+  useEffect(() => {
+    if (availableTipoCierres.length === 0) return;
+    if (selectedTipoCierre === null || !availableTipoCierres.includes(selectedTipoCierre)) {
+      setSelectedTipoCierre(availableTipoCierres[0]);
+    }
+  }, [availableTipoCierres, selectedTipoCierre]);
+
   const criteria = (block.criteria || []).sort((a, b) => a.criteria_order - b.criteria_order);
   const blockPoints = criteria.filter((c) => c.applies && c.points !== null).reduce((s, c) => s + (c.points ?? 0), 0);
   const criticalCount = criteria.filter((c) => c.criticality === 'Crítico' && c.applies).length;
@@ -1551,16 +1560,6 @@ function CriteriaBlockCard({ block, mutate }: CriteriaBlockCardProps) {
               <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mr-1 flex-shrink-0">
                 {t('scriptsAdmin.subQualificationLabel')}
               </span>
-              <button
-                onClick={() => setSelectedTipoCierre(null)}
-                className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-all duration-150 ${
-                  selectedTipoCierre === null
-                    ? 'bg-slate-700/60 border-slate-600/60 text-slate-200'
-                    : 'bg-slate-800/40 border-slate-700/40 text-slate-500 hover:text-slate-300'
-                }`}
-              >
-                {t('scriptsAdmin.base')}
-              </button>
               {availableTipoCierres.map(tc => {
                 const isSelected = selectedTipoCierre === tc;
                 const hasOverride = criteria.some(c => pickTipoCierreOverride<any>(c.tipo_cierre_overrides, tc) !== undefined);
@@ -1568,7 +1567,7 @@ function CriteriaBlockCard({ block, mutate }: CriteriaBlockCardProps) {
                 return (
                   <button
                     key={tc}
-                    onClick={() => setSelectedTipoCierre(isSelected ? null : tc)}
+                    onClick={() => setSelectedTipoCierre(tc)}
                     title={sectionOff ? t('scriptsAdmin.sectionNotEvaluatedHere') : hasOverride ? t('scriptsAdmin.hasCustomConfig') : t('scriptsAdmin.noCustomConfig')}
                     className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-all duration-150 ${
                       isSelected
