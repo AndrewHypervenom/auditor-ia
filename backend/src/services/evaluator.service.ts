@@ -18,9 +18,15 @@ import {
 } from '../utils/scoring.js';
 import { normTopic } from '../utils/matching.js';
 import { computeCallTiming, formatCallTimingForPrompt, type CallTimingMetrics } from '../utils/call-timing.js';
+import { parseModelJson, ModelJsonError } from '../utils/model-json.js';
 import * as fs from 'fs';
 
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? 'claude-sonnet-5';
+
+// Techo de salida de la evaluación. Una rúbrica completa (≈20 criterios con
+// justificación y recomendación) ronda los 7-8k tokens, así que 8192 dejaba
+// margen cero y truncaba el JSON de forma intermitente.
+const EVALUATION_MAX_TOKENS = Number(process.env.EVALUATION_MAX_TOKENS) || 16000;
 
 class EvaluatorService {
  private client: Anthropic;
@@ -820,9 +826,18 @@ REGLAS:
  // Claude no tiene response_format json_object: reforzar salida JSON pura.
  const evaluationSystemPrompt = `${evaluationSystemPromptBase}\n\nIMPORTANTE: Responde ÚNICAMENTE con un objeto JSON válido, sin markdown, sin fences \`\`\`, sin texto antes ni después.`;
 
+ // La evaluación de una rúbrica completa ronda los 7-8k tokens de salida: con
+ // max_tokens=8192 el JSON se cortaba a media justificación de forma
+ // intermitente (el mismo caso fallaba en un intento y pasaba en el siguiente).
+ const maxAttempts = 3;
+ let lastError: Error | null = null;
+ // Los reintentos también se cobran: acumular para no subreportar el costo.
+ const wastedTokens = { input: 0, output: 0 };
+
+ for (let attempt = 1; attempt <= maxAttempts; attempt++) {
  const response = await this.client.messages.create({
  model: CLAUDE_MODEL,
- max_tokens: 8192,
+ max_tokens: EVALUATION_MAX_TOKENS,
  thinking: { type: 'disabled' },
  system: evaluationSystemPrompt,
  messages: [
@@ -842,28 +857,49 @@ REGLAS:
  logger.info(` Evaluation tokens: ${tokensUsed.input} input + ${tokensUsed.output} output`);
 
  const content = this.extractText(response);
+
+ try {
  if (!content) {
  throw new Error('No response from Claude');
  }
+ if (response.stop_reason === 'max_tokens') {
+ throw new ModelJsonError(
+ `La evaluación se cortó por límite de tokens (max_tokens=${EVALUATION_MAX_TOKENS})`,
+ content,
+ true,
+ );
+ }
 
- // Limpieza defensiva: Claude puede envolver el JSON en fences o añadir preámbulo.
- let cleaned = content.trim();
- cleaned = cleaned.replace(/```json\n?/gi, '').replace(/```\n?/g, '').replace(/^﻿/, '').trim();
- // Recortar a los límites del objeto JSON por si hay texto antes/después.
- const firstBrace = cleaned.indexOf('{');
- const lastBrace = cleaned.lastIndexOf('}');
- if (firstBrace > 0 || (lastBrace >= 0 && lastBrace < cleaned.length - 1)) {
- if (firstBrace >= 0 && lastBrace > firstBrace) {
- cleaned = cleaned.slice(firstBrace, lastBrace + 1);
- }
- }
+ const { data } = parseModelJson(content, {
+ stopReason: response.stop_reason,
+ label: 'evaluación',
+ });
 
  // NUEVO: Retornar evaluación, tokens Y tópicos manuales
  return {
- evaluation: JSON.parse(cleaned),
- tokensUsed,
+ evaluation: data,
+ tokensUsed: {
+ input: tokensUsed.input + wastedTokens.input,
+ output: tokensUsed.output + wastedTokens.output,
+ },
  manualTopics
  };
+ } catch (error: any) {
+ lastError = error;
+ wastedTokens.input += tokensUsed.input;
+ wastedTokens.output += tokensUsed.output;
+ logger.warn(`Evaluación no parseable (intento ${attempt}/${maxAttempts})`, {
+ error: error.message,
+ stopReason: response.stop_reason,
+ outputTokens: tokensUsed.output
+ });
+ if (attempt < maxAttempts) {
+ await new Promise(resolve => setTimeout(resolve, 1000));
+ }
+ }
+ }
+
+ throw lastError ?? new Error('No se pudo obtener una evaluación válida del modelo');
  }
 
  /**

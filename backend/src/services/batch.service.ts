@@ -28,6 +28,7 @@ import {
 } from '../utils/scoring.js';
 import { normTopic } from '../utils/matching.js';
 import { computeCallTiming, formatCallTimingForPrompt } from '../utils/call-timing.js';
+import { parseModelJson } from '../utils/model-json.js';
 import type { TranscriptWord } from '../types/index.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -50,7 +51,9 @@ export const BATCH_LIMITS = {
 
 // max_tokens por request de lote (obligatorio en Claude)
 const BATCH_IMAGE_MAX_TOKENS = 4096;
-const BATCH_EVAL_MAX_TOKENS = 8192;
+// Una rúbrica completa ronda los 7-8k tokens de salida: 8192 dejaba margen
+// cero y truncaba el JSON de evaluación de forma intermitente.
+const BATCH_EVAL_MAX_TOKENS = 16000;
 
 /** Extrae el texto concatenado de los bloques de texto de un mensaje de Claude. */
 function extractClaudeText(message: Anthropic.Message): string {
@@ -620,16 +623,27 @@ class BatchService {
             : 'No se encontró resultado de evaluación en el lote');
         }
 
-        // Limpieza defensiva del JSON de evaluación.
-        let cleanedEval = evalText.trim().replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim();
-        const fb = cleanedEval.indexOf('{');
-        const lb = cleanedEval.lastIndexOf('}');
-        if (fb >= 0 && lb > fb) cleanedEval = cleanedEval.slice(fb, lb + 1);
+        // Parseo del JSON de evaluación. En lote no se puede reintentar la
+        // llamada (los resultados llegan horas después), así que una respuesta
+        // truncada por max_tokens se recupera hasta el último criterio completo
+        // en vez de perder el caso entero; los criterios que falten quedan para
+        // revisión manual, igual que los que el modelo no evalúa.
         let evaluation: any;
         try {
-          evaluation = JSON.parse(cleanedEval);
-        } catch {
-          throw new Error('Respuesta de evaluación no es JSON válido');
+          const parsedEval = parseModelJson(evalText, {
+            stopReason: evalMsg?.stop_reason,
+            salvageTruncated: true,
+            label: 'evaluación',
+          });
+          evaluation = parsedEval.data;
+          if (parsedEval.salvaged) {
+            logger.warn('Batch: evaluación truncada por max_tokens — se recuperó la parte completa', {
+              itemId: item.id,
+              outputTokens: evalMsg?.usage?.output_tokens ?? 0,
+            });
+          }
+        } catch (err: any) {
+          throw new Error(err?.message ?? 'Respuesta de evaluación no es JSON válido');
         }
 
         // Construir metadata del audit
