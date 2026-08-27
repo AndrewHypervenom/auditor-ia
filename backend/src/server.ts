@@ -1503,7 +1503,7 @@ app.delete('/api/admin/blocks/:id', authenticateUser, requireAdminOrAnalyst, asy
 
 app.post('/api/admin/criteria', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
-    const { block_id, topic, criticality, points, applies, what_to_look_for, validation_source, criteria_order, requires_manual_review, score_options } = req.body;
+    const { block_id, topic, criticality, points, applies, what_to_look_for, validation_source, criteria_order, requires_manual_review, score_options, instruction_brief } = req.body;
     if (!block_id || !topic) {
       return res.status(400).json({ error: 'block_id y topic son requeridos' });
     }
@@ -1519,7 +1519,8 @@ app.post('/api/admin/criteria', authenticateUser, requireAdminOrAnalyst, async (
       validation_source: Array.isArray(validation_source) ? validation_source : [],
       criteria_order: criteria_order ?? 0,
       requires_manual_review: requires_manual_review === true,
-      score_options: normalizeScoreOptions(score_options)
+      score_options: normalizeScoreOptions(score_options),
+      instruction_brief: instruction_brief ?? null
     });
     res.status(201).json(criteria);
   } catch (error: any) {
@@ -1530,15 +1531,17 @@ app.post('/api/admin/criteria', authenticateUser, requireAdminOrAnalyst, async (
 
 app.post('/api/admin/criteria/generate-prompt', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
-    const { description, topic, call_type } = req.body;
+    const { description, topic, call_type, sub_calificacion, validation_source } = req.body;
     if (!description || !description.trim()) {
       return res.status(400).json({ error: 'description es requerida' });
     }
-    const prompt = await openAIService.generateCriterionPrompt(
-      description.trim(),
-      topic ?? '',
-      call_type ?? ''
-    );
+    const prompt = await openAIService.generateCriterionPrompt({
+      description: description.trim(),
+      topic: topic ?? '',
+      callType: call_type ?? '',
+      subCalificacion: sub_calificacion ?? null,
+      validationSource: Array.isArray(validation_source) ? validation_source : [],
+    });
     res.json({ prompt });
   } catch (error: any) {
     logger.error('Error generando prompt de criterio:', error);
@@ -1549,7 +1552,7 @@ app.post('/api/admin/criteria/generate-prompt', authenticateUser, requireAdminOr
 app.put('/api/admin/criteria/:id', authenticateUser, requireAdminOrAnalyst, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { topic, criticality, points, applies, what_to_look_for, validation_source, criteria_order, is_active, requires_manual_review, tipo_cierre_overrides, score_options } = req.body;
+    const { topic, criticality, points, applies, what_to_look_for, validation_source, criteria_order, is_active, requires_manual_review, tipo_cierre_overrides, score_options, instruction_brief } = req.body;
     const payload: Record<string, any> = {};
     if (topic !== undefined) payload.topic = topic;
     if (criticality !== undefined) payload.criticality = criticality;
@@ -1564,6 +1567,7 @@ app.put('/api/admin/criteria/:id', authenticateUser, requireAdminOrAnalyst, asyn
     // normalizeScoreOptions devuelve null si vienen menos de 2 opciones válidas
     // → el rubro regresa a la escala numérica 0..points.
     if (score_options !== undefined) payload.score_options = normalizeScoreOptions(score_options);
+    if (instruction_brief !== undefined) payload.instruction_brief = instruction_brief;
     const criteria = await databaseService.updateCriteria(id, payload);
     res.json(criteria);
   } catch (error: any) {

@@ -287,6 +287,26 @@
 .animate-slideFromRight { animation: slideFromRight 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
 .animate-pulse-ring { animation: pulse-ring 2s ease-in-out infinite; }
 
+/* Llamada de atención del asistente de instrucciones. Se usa solo mientras el
+   criterio todavía no tiene una instrucción generada: una vez usado, el botón
+   vuelve al estilo tranquilo para no competir con el resto de la vista. */
+@keyframes aiGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 214, 50, 0.35), 0 0 16px -8px rgba(0, 214, 50, 0.45); }
+  50%      { box-shadow: 0 0 0 5px rgba(0, 214, 50, 0), 0 0 26px -4px rgba(0, 214, 50, 0.75); }
+}
+
+@keyframes aiSparkle {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50%      { transform: scale(1.2) rotate(10deg); }
+}
+
+.animate-aiGlow    { animation: aiGlow 2.6s ease-in-out infinite; }
+.animate-aiSparkle { animation: aiSparkle 2.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-aiGlow, .animate-aiSparkle { animation: none; }
+}
+
 /* ── Placeholders ────────────────────────────────────────────────────────── */
 ::placeholder          { color: #4a4a6a; opacity: 1; }
 :-ms-input-placeholder { color: #4a4a6a; }

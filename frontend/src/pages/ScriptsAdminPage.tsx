@@ -67,7 +67,9 @@ import {
   type GeneratedBlock,
   type GeneratedCriterion,
   type GpfAttention,
+  type InstructionBrief,
 } from '../services/api';
+import AiInstructionBuilder, { briefHasContent, normalizeBrief } from '../components/AiInstructionBuilder';
 import PlantillaGPFTab from '../components/PlantillaGPFTab';
 import ModeSelector, { type AdminMode } from '../components/ModeSelector';
 import CallTypeSelectorShared from '../components/CallTypeSelector';
@@ -2691,101 +2693,6 @@ function InfoTooltip({ text }: { text: string }) {
   );
 }
 
-// ─── AiPromptAssistant ────────────────────────────────────────
-
-interface AiPromptAssistantProps {
-  currentTopic: string;
-  callType: string;
-  onUse: (generated: string) => void;
-}
-
-function AiPromptAssistant({ currentTopic, callType, onUse }: AiPromptAssistantProps) {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const [description, setDescription] = useState('');
-  const [generating, setGenerating] = useState(false);
-  const [result, setResult] = useState('');
-
-  const handleGenerate = async () => {
-    if (!description.trim()) return;
-    setGenerating(true);
-    setResult('');
-    try {
-      const { prompt } = await criteriaService.generatePrompt({
-        description: description.trim(),
-        topic: currentTopic,
-        call_type: callType,
-      });
-      setResult(prompt);
-    } catch {
-      toast.error(t('scriptsAdmin.instructionGenError'));
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  return (
-    <div className="mt-2">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-brand-400 transition-colors duration-150"
-      >
-        <Sparkles size={12} />
-        {open ? t('scriptsAdmin.hideAssistant') : t('scriptsAdmin.generateWithAi')}
-        <ChevronDown size={11} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-      </button>
-
-      {open && (
-        <div className="mt-3 p-4 rounded-xl bg-slate-900/60 border border-slate-700/40 animate-fadeIn space-y-3">
-          <p className="text-xs text-slate-400">
-            {t('scriptsAdmin.assistantHint')}
-          </p>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            placeholder={t('scriptsAdmin.assistantPlaceholder')}
-            className="w-full bg-slate-800/60 border border-slate-700/60 rounded-xl px-3 py-2
-                       text-xs text-white resize-none focus:outline-none focus:border-brand-600/60
-                       placeholder:text-slate-600 transition-colors"
-          />
-          <button
-            type="button"
-            onClick={handleGenerate}
-            disabled={generating || !description.trim()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-500/15
-                       border border-brand-700/30 text-brand-300 text-xs font-medium
-                       hover:bg-brand-500/25 disabled:opacity-50 transition-all duration-150"
-          >
-            {generating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-            {generating ? t('reports.generating') : t('scriptsAdmin.generateInstruction')}
-          </button>
-
-          {result && (
-            <div className="animate-fadeIn space-y-2">
-              <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">{t('scriptsAdmin.instructionGenerated')}</p>
-              <div className="bg-slate-800/60 border border-slate-700/40 rounded-xl px-3.5 py-3">
-                <p className="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap">{result}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => { onUse(result); setOpen(false); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg
-                           bg-green-500/15 border border-green-500/25 text-green-300 text-xs font-medium
-                           hover:bg-green-500/25 transition-all duration-150"
-              >
-                <Check size={12} />
-                {t('scriptsAdmin.useInstruction')}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── CriteriaEditDrawer ───────────────────────────────────────
 
 interface CriteriaEditDrawerProps {
@@ -2820,6 +2727,11 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
   );
   const [scoreOptions, setScoreOptions] = useState<ScoreOption[] | null>(
     normalizeScoreOptions(item.score_options)
+  );
+  // Lo que el usuario le indicó a la IA para armar la instrucción. En modo
+  // subcalificación vive dentro del override, para que cada sub conserve el suyo.
+  const [brief, setBrief] = useState<InstructionBrief | null>(
+    normalizeBrief(isSubcalMode ? existingOverride?.instruction_brief : item.instruction_brief)
   );
   const [saving, setSaving] = useState(false);
   const [availableImageSystems, setAvailableImageSystems] = useState<import('../services/api').ImageSystem[]>([]);
@@ -2875,12 +2787,22 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
   const handleSave = async () => {
     setSaving(true);
     try {
+      // El brief solo se guarda si tiene contenido: un criterio escrito a mano
+      // no debe quedar con un briefing vacío que confunda al reabrir el asistente.
+      const briefToSave: InstructionBrief | null = briefHasContent(brief)
+        ? { ...(brief as InstructionBrief), updated_at: new Date().toISOString() }
+        : null;
       const patch: Partial<CriteriaItem> = isSubcalMode
         ? {
             tipo_cierre_overrides: setTipoCierreOverride<any>(
               item.tipo_cierre_overrides,
               selectedTipoCierre!,
-              { applies, what_to_look_for: whatToLookFor, validation_source: validationSource },
+              {
+                applies,
+                what_to_look_for: whatToLookFor,
+                validation_source: validationSource,
+                instruction_brief: briefToSave,
+              },
             ),
           }
         : {
@@ -2891,6 +2813,7 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
             what_to_look_for: whatToLookFor,
             validation_source: validationSource,
             score_options: scoreOptions,
+            instruction_brief: briefToSave,
           };
       await criteriaService.updateCriteria(item.id, patch);
       toast.success(t('scriptsAdmin.criterionUpdated'));
@@ -3264,10 +3187,15 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
                          text-sm text-white resize-y focus:outline-none focus:border-brand-600/60
                          focus:ring-1 focus:ring-brand-500/20 placeholder:text-slate-600 transition-colors"
             />
-            <AiPromptAssistant
-              currentTopic={topic || item.topic}
+            <AiInstructionBuilder
+              brief={brief}
+              onBriefChange={setBrief}
+              instruction={whatToLookFor}
+              onUseInstruction={setWhatToLookFor}
+              topic={topic || item.topic}
               callType={blockCallType}
-              onUse={(generated) => setWhatToLookFor(generated)}
+              subCalificacion={selectedTipoCierre}
+              validationSource={validationSource}
             />
           </div>
 

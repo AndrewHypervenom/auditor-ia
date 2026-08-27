@@ -653,7 +653,13 @@ export const criteriaService = {
     const response = await api.delete(`/admin/criteria/${id}`);
     return response.data;
   },
-  async generatePrompt(payload: { description: string; topic: string; call_type: string }) {
+  async generatePrompt(payload: {
+    description: string;
+    topic: string;
+    call_type: string;
+    sub_calificacion?: string | null;
+    validation_source?: string[];
+  }) {
     const response = await api.post('/admin/criteria/generate-prompt', payload);
     return response.data as { prompt: string };
   },
@@ -713,12 +719,27 @@ export interface GeneratedBlock {
   criteria: GeneratedCriterion[];
 }
 
+/**
+ * Lo que el usuario le indicó a la IA, en sus propias palabras, para generar la
+ * instrucción del criterio. Se conserva junto al criterio para poder reabrir el
+ * asistente, ajustar el texto y regenerar, en vez de reescribir el prompt.
+ */
+export interface InstructionBrief {
+  goal: string;
+  /** Última instrucción devuelta por la IA, antes de ediciones manuales. */
+  generated_prompt?: string;
+  generated_at?: string;
+  updated_at?: string;
+}
+
 export interface CriteriaItemOverride {
   applies?: boolean;
   what_to_look_for?: string | null;
   validation_source?: string[] | null;
   requires_manual_review?: boolean;
   score_options?: ScoreOption[] | null;
+  /** Brief propio de la subcalificación (el de base vive en instruction_brief). */
+  instruction_brief?: InstructionBrief | null;
 }
 
 export interface CriteriaItem {
@@ -732,6 +753,8 @@ export interface CriteriaItem {
   /** Escala discreta de calificación. null = escala numérica 0..points. */
   score_options?: ScoreOption[] | null;
   what_to_look_for: string | null;
+  /** Briefing guiado con el que se generó what_to_look_for (modo base). */
+  instruction_brief?: InstructionBrief | null;
   validation_source: string[] | null;
   tipo_cierre_overrides?: Record<string, CriteriaItemOverride>;
   criteria_order: number;

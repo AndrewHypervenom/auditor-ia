@@ -39,6 +39,30 @@ export interface ScreenshotAnalysis {
  fields: ScreenshotAnalysisField[];
 }
 
+export interface GenerateCriterionPromptInput {
+ /** Lo que el auditor escribió en sus propias palabras. */
+ description: string;
+ topic: string;
+ callType: string;
+ subCalificacion?: string | null;
+ validationSource?: string[];
+}
+
+const SOURCE_LABELS: Record<string, string> = {
+ gpf: 'el registro/gestión GPF',
+ llamada: 'la transcripción de la llamada',
+ imagenes: 'las capturas de pantalla adjuntas',
+};
+
+function describeValidationSources(sources: string[]): string {
+ const labels = sources.map((source) => {
+   if (source.startsWith('imagenes:')) return `la captura de pantalla del sistema ${source.slice(9)}`;
+   return SOURCE_LABELS[source] ?? source;
+ });
+ const unique = [...new Set(labels)];
+ return unique.length > 0 ? unique.join(', ') : 'transcripción de la llamada';
+}
+
 class ClaudeService {
  private client: Anthropic;
 
@@ -513,23 +537,28 @@ Responde SOLO con JSON válido, sin markdown, sin explicaciones adicionales. For
  }
  }
 
- async generateCriterionPrompt(description: string, topic: string, callType: string): Promise<string> {
+ async generateCriterionPrompt(input: GenerateCriterionPromptInput): Promise<string> {
+ const { description, topic, callType, subCalificacion } = input;
+ const sources = describeValidationSources(input.validationSource ?? []);
+
  const systemPrompt = `Eres un experto en calidad y auditoría de call centers bancarios.
 Tu tarea es generar instrucciones técnicas precisas para un sistema de IA que evalúa automáticamente si los agentes de call center cumplen con criterios de calidad.
 
 CONTEXTO DEL SISTEMA:
 - El sistema analiza: transcripciones de llamadas, capturas de pantalla de sistemas internos (VCAS, Falcon, Vision, GPF, VRM) y registros GPF.
 - El criterio de evaluación ya tiene un nombre/descripción: "${topic}"
-- Tipo de llamada: ${callType}
+- Tipo de llamada: ${callType}${subCalificacion ? `\n- Subcalificación (esta instrucción aplica solo a ella): ${subCalificacion}` : ''}
+- Material que la IA tendrá disponible para este criterio: ${sources}
 
 INSTRUCCIONES PARA GENERAR EL PROMPT:
 1. Sé específico sobre QUÉ buscar (campo exacto, valor esperado, ubicación en la pantalla).
 2. Define claramente cuándo es CORRECTO vs INCORRECTO.
 3. Menciona casos especiales o excepciones si los hay.
-4. Usa el mismo lenguaje y formato que los demás criterios del sistema.
-5. Máximo 400 palabras, sin formato markdown innecesario.
+4. No pidas revisar material que no está disponible para este criterio.
+5. Usa el mismo lenguaje y formato que los demás criterios del sistema.
+6. Máximo 400 palabras, sin formato markdown innecesario, sin encabezados ni preámbulos.
 
-El usuario te describirá en lenguaje natural lo que debe verificarse. Genera la instrucción técnica lista para usar.`;
+El usuario te describirá en sus propias palabras -a veces de forma informal o incompleta- lo que debe verificarse. Interpreta su intención y responde ÚNICAMENTE con la instrucción técnica lista para usar.`;
 
  try {
  logger.info('[CLAUDE] Generando instrucción de criterio', { topic, callType });
@@ -577,8 +606,8 @@ export const claudeService = {
  analyzeSentiment: async (utterances: TranscriptWord[]) => {
  return getClaudeService().analyzeSentiment(utterances);
  },
- generateCriterionPrompt: async (description: string, topic: string, callType: string) => {
- return getClaudeService().generateCriterionPrompt(description, topic, callType);
+ generateCriterionPrompt: async (input: GenerateCriterionPromptInput) => {
+ return getClaudeService().generateCriterionPrompt(input);
  },
  generateImageSystemHints: async (systemName: string, userDescription: string, domainContext?: string) => {
  return getClaudeService().generateImageSystemHints(systemName, userDescription, domainContext);

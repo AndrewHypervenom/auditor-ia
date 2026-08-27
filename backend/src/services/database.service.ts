@@ -21,13 +21,23 @@ import type {
  * administración de criterios se cae con 500. Reintentamos sin esa columna para
  * que crear/editar criterios siga funcionando, y avisamos una sola vez en el log.
  */
-let scoreOptionsColumnMissing = false;
+/**
+ * Columnas opcionales de `evaluation_criteria`: existen solo si ya se aplicó su
+ * migración. La clave es la columna y el valor, la migración que la habilita.
+ */
+const OPTIONAL_CRITERIA_COLUMNS: Record<string, string> = {
+  score_options: 'supabase/migrations/20260728_score_options.sql',
+  instruction_brief: 'backend/migrations/add_instruction_brief_to_criteria.sql',
+};
 
-function isMissingScoreOptionsColumn(error: any): boolean {
-  if (!error) return false;
+const missingCriteriaColumns = new Set<string>();
+
+function missingCriteriaColumnOf(error: any, body: Record<string, any>): string | null {
+  if (!error) return null;
   const code = error.code;
+  if (code !== '42703' && code !== 'PGRST204') return null;
   const message = String(error.message ?? '');
-  return (code === '42703' || code === 'PGRST204') && message.includes('score_options');
+  return Object.keys(OPTIONAL_CRITERIA_COLUMNS).find((col) => message.includes(col) && col in body) ?? null;
 }
 
 /**
@@ -81,34 +91,33 @@ export async function runEvaluationWrite<T extends Record<string, any>>(
   if (retry.error) throw retry.error;
 }
 
-async function runWithoutMissingScoreOptions<T extends Record<string, any>>(
+async function runWithoutMissingCriteriaColumns<T extends Record<string, any>>(
   body: T,
   run: (body: Record<string, any>) => PromiseLike<{ data: any; error: any }>
 ): Promise<any> {
-  const strip = (source: T) => {
-    const { score_options, ...rest } = source;
+  const strip = (source: Record<string, any>) => {
+    const rest = { ...source };
+    for (const column of missingCriteriaColumns) delete rest[column];
     return rest;
   };
 
-  if (scoreOptionsColumnMissing) {
-    const { data, error } = await run(strip(body));
-    if (error) throw error;
-    return data;
+  let attempt = strip(body);
+  // Una columna faltante por intento: PostgREST solo reporta la primera.
+  for (let i = 0; i <= Object.keys(OPTIONAL_CRITERIA_COLUMNS).length; i++) {
+    const { data, error } = await run(attempt);
+    if (!error) return data;
+
+    const missing = missingCriteriaColumnOf(error, attempt);
+    if (!missing) throw error;
+
+    missingCriteriaColumns.add(missing);
+    logger.warn(
+      `La columna evaluation_criteria.${missing} no existe: el criterio se guarda sin ese dato. ` +
+      `Aplica ${OPTIONAL_CRITERIA_COLUMNS[missing]} para habilitarlo.`
+    );
+    attempt = strip(attempt);
   }
-
-  const { data, error } = await run(body);
-  if (!error) return data;
-
-  if (!isMissingScoreOptionsColumn(error) || !('score_options' in body)) throw error;
-
-  scoreOptionsColumnMissing = true;
-  logger.warn(
-    'La columna evaluation_criteria.score_options no existe: se guarda el criterio sin escala discreta. ' +
-    'Aplica supabase/migrations/20260728_score_options.sql para habilitar las opciones de calificación.'
-  );
-  const retry = await run(strip(body));
-  if (retry.error) throw retry.error;
-  return retry.data;
+  throw new Error('No fue posible guardar el criterio: demasiadas columnas ausentes en evaluation_criteria');
 }
 
 interface CreateAuditParams {
@@ -1212,13 +1221,14 @@ class DatabaseService {
     criteria_order: number;
     requires_manual_review?: boolean;
     score_options?: unknown;
+    instruction_brief?: unknown;
   }): Promise<any> {
     // evaluation_criteria.company_id es NOT NULL: se hereda del bloque contenedor,
     // que es la única fuente de verdad del tenant al que pertenece el criterio.
     const companyId = await this.getBlockCompanyId(payload.block_id);
     const row = { ...payload, ...(companyId ? { company_id: companyId } : {}) };
 
-    const data = await runWithoutMissingScoreOptions(row, (body) =>
+    const data = await runWithoutMissingCriteriaColumns(row, (body) =>
       supabaseAdmin.from('evaluation_criteria').insert(body).select().single()
     );
     this.invalidateCriteriaCache();
@@ -1247,11 +1257,12 @@ class DatabaseService {
     requires_manual_review: boolean;
     tipo_cierre_overrides: Record<string, unknown>;
     score_options: unknown;
+    instruction_brief: unknown;
   }>): Promise<any> {
     const body0 = payload.tipo_cierre_overrides
       ? { ...payload, tipo_cierre_overrides: dedupeTipoCierreOverrides(payload.tipo_cierre_overrides) as Record<string, unknown> }
       : payload;
-    const data = await runWithoutMissingScoreOptions(body0, (body) =>
+    const data = await runWithoutMissingCriteriaColumns(body0, (body) =>
       supabaseAdmin.from('evaluation_criteria').update(body).eq('id', id).select().single()
     );
     this.invalidateCriteriaCache();
