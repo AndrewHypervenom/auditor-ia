@@ -2792,8 +2792,16 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
       const briefToSave: InstructionBrief | null = briefHasContent(brief)
         ? { ...(brief as InstructionBrief), updated_at: new Date().toISOString() }
         : null;
+      const parsedPoints = points === 'n/a' ? null : parseInt(points, 10);
+      // Los campos base editados desde una subcalificación se guardan en el
+      // criterio (afectan a todas), y solo si el usuario los cambió.
+      const baseEdits: Partial<CriteriaItem> = {};
+      if (topic !== item.topic) baseEdits.topic = topic;
+      if (criticality !== item.criticality) baseEdits.criticality = criticality;
+      if (parsedPoints !== item.points) baseEdits.points = parsedPoints;
       const patch: Partial<CriteriaItem> = isSubcalMode
         ? {
+            ...baseEdits,
             tipo_cierre_overrides: setTipoCierreOverride<any>(
               item.tipo_cierre_overrides,
               selectedTipoCierre!,
@@ -2808,7 +2816,7 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
         : {
             topic,
             criticality,
-            points: points === 'n/a' ? null : parseInt(points, 10),
+            points: parsedPoints,
             applies,
             what_to_look_for: whatToLookFor,
             validation_source: validationSource,
@@ -2900,6 +2908,99 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
         {/* Scrollable content — dos columnas en pantallas anchas */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
         <div className={isSubcalMode ? 'space-y-5' : 'grid lg:grid-cols-2 gap-x-6 gap-y-5 items-start'}>
+
+          {/* Definición base dentro de una subcalificación: el nombre, los puntos y la
+              criticidad viven en el criterio (no en el override), pero deben poder
+              editarse desde aquí — un criterio recién creado nace con el nombre por
+              defecto y la subcalificación es donde el analista lo está armando. */}
+          {isSubcalMode && (
+            <div className="space-y-4 p-4 rounded-xl bg-slate-900/40 border border-slate-800/60">
+              <div className="flex items-start gap-2">
+                <Info size={13} className="text-slate-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-slate-200">{t('scriptsAdmin.baseDefinition')}</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">{t('scriptsAdmin.baseFieldsShared')}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
+                  {t('scriptsAdmin.criterionTopic')}
+                </label>
+                <textarea
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  rows={2}
+                  placeholder={t('scriptsAdmin.topicPlaceholder')}
+                  className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3.5 py-2.5
+                             text-sm text-white resize-none focus:outline-none focus:border-brand-600/60
+                             focus:ring-1 focus:ring-brand-500/20 placeholder:text-slate-600 transition-colors"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
+                    {t('scripts.points')}
+                  </label>
+                  <input
+                    value={points}
+                    onChange={(e) => setPoints(e.target.value)}
+                    placeholder={t('scriptsAdmin.phPointsExample')}
+                    className="w-full bg-slate-900/80 border border-slate-700/60 rounded-xl px-3.5 py-2.5
+                               text-sm text-white focus:outline-none focus:border-brand-600/60
+                               focus:ring-1 focus:ring-brand-500/20 placeholder:text-slate-600 transition-colors"
+                  />
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {POINTS_PRESETS.map((p) => (
+                      <button
+                        key={p.value}
+                        type="button"
+                        onClick={() => setPoints(p.value)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
+                          points === p.value
+                            ? 'bg-brand-500/20 border-brand-500/40 text-brand-300'
+                            : 'bg-slate-900/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-500 mb-1.5">
+                    {t('scriptsAdmin.isCritical')}
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCriticality('Crítico')}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-medium border transition-all duration-150 ${
+                        criticality === 'Crítico'
+                          ? 'bg-red-500/15 border-red-500/30 text-red-300'
+                          : 'bg-slate-900/60 border-slate-700/60 text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      <AlertTriangle size={13} />
+                      {t('common.yes')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCriticality('-')}
+                      className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all duration-150 ${
+                        criticality === '-'
+                          ? 'bg-slate-700/40 border-slate-600/40 text-slate-300'
+                          : 'bg-slate-900/60 border-slate-700/60 text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      {t('common.no')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Columna izquierda: definición del criterio (solo en modo base) */}
           {!isSubcalMode && (
@@ -5248,6 +5349,9 @@ function ImageSystemCard({
   const { t } = useTranslation();
   const [newField, setNewField] = useState<ImageSystemField>({ field_name: '', description: '', example: '' });
   const [showAddField, setShowAddField] = useState(false);
+  // Edición en la propia fila de un campo ya guardado.
+  const [editingFieldIdx, setEditingFieldIdx] = useState<number | null>(null);
+  const [fieldDraft, setFieldDraft] = useState({ field_name: '', description: '', how_to_evaluate: '', example: '' });
   // Asistente IA texto
   const [aiOpen, setAiOpen] = useState(false);
   const [aiUserDesc, setAiUserDesc] = useState('');
@@ -5361,7 +5465,40 @@ function ImageSystemCard({
   };
 
   const handleRemoveField = (idx: number) => {
+    if (editingFieldIdx === idx) setEditingFieldIdx(null);
     onFieldsChange(fields.filter((_, i) => i !== idx));
+  };
+
+  // La descripción guardada junta el "qué es" y el "cómo evaluarlo" en una sola
+  // cadena ("saldo | Evaluar: ..."). Para editarla se vuelven a separar; el
+  // prefijo puede haberse guardado en cualquiera de los idiomas del sistema.
+  const EVAL_SPLIT = /\s*\|\s*(?:Evaluar|Avaliar|Evaluate)\s*:\s*/i;
+
+  const startEditField = (idx: number) => {
+    const f = fields[idx];
+    const [desc, how = ''] = String(f.description ?? '').split(EVAL_SPLIT);
+    setEditingFieldIdx(idx);
+    setFieldDraft({
+      field_name: f.field_name ?? '',
+      description: (desc ?? '').trim(),
+      how_to_evaluate: how.trim(),
+      example: f.example ?? '',
+    });
+  };
+
+  const saveEditField = () => {
+    if (editingFieldIdx === null) return;
+    const name = fieldDraft.field_name.trim();
+    const desc = fieldDraft.description.trim();
+    if (!name || !desc) return;
+    const how = fieldDraft.how_to_evaluate.trim();
+    onFieldsChange(fields.map((f, i) => i === editingFieldIdx ? {
+      field_name: name,
+      description: how ? `${desc} | ${t('scriptsAdmin.evaluatePrefix')} ${how}` : desc,
+      example: fieldDraft.example.trim() || undefined,
+    } : f));
+    setEditingFieldIdx(null);
+    toast.success(t('scriptsAdmin.fieldUpdated'));
   };
 
   return (
@@ -5891,14 +6028,76 @@ function ImageSystemCard({
                   </tr>
                 </thead>
                 <tbody>
-                  {fields.map((f, idx) => (
+                  {fields.map((f, idx) => editingFieldIdx === idx ? (
+                    <tr key={idx} className="border-b border-slate-800/30 bg-slate-900/50">
+                      <td colSpan={4} className="px-3 py-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <input
+                            value={fieldDraft.field_name}
+                            onChange={e => setFieldDraft(prev => ({ ...prev, field_name: e.target.value }))}
+                            placeholder={t('scriptsAdmin.fieldName')}
+                            className="bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1.5 text-xs text-purple-300 font-mono
+                                       focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
+                          />
+                          <input
+                            value={fieldDraft.example}
+                            onChange={e => setFieldDraft(prev => ({ ...prev, example: e.target.value }))}
+                            placeholder={t('scriptsAdmin.exampleOptional')}
+                            className="bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1.5 text-xs text-slate-200
+                                       focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
+                          />
+                          <input
+                            value={fieldDraft.description}
+                            onChange={e => setFieldDraft(prev => ({ ...prev, description: e.target.value }))}
+                            placeholder={t('scriptsAdmin.fieldDescription')}
+                            className="sm:col-span-2 bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1.5 text-xs text-slate-200
+                                       focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
+                          />
+                          <textarea
+                            value={fieldDraft.how_to_evaluate}
+                            onChange={e => setFieldDraft(prev => ({ ...prev, how_to_evaluate: e.target.value }))}
+                            rows={2}
+                            placeholder={t('scriptsAdmin.imgHowToEvaluate')}
+                            className="sm:col-span-2 bg-slate-900/60 border border-slate-700/50 rounded-lg px-2 py-1.5 text-xs text-slate-200 resize-none
+                                       focus:outline-none focus:border-purple-500/50 placeholder:text-slate-600"
+                          />
+                        </div>
+                        <p className="mt-1.5 text-[10px] text-slate-600 leading-relaxed">{t('scriptsAdmin.fieldRenameWarn')}</p>
+                        <div className="mt-2 flex justify-end gap-2">
+                          <button
+                            onClick={() => setEditingFieldIdx(null)}
+                            className="px-3 py-1 rounded-lg text-[11px] text-slate-400 border border-slate-700/40 hover:text-slate-200 transition-all"
+                          >
+                            {t('common.cancel')}
+                          </button>
+                          <button
+                            onClick={saveEditField}
+                            disabled={!fieldDraft.field_name.trim() || !fieldDraft.description.trim()}
+                            className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-semibold
+                                       bg-purple-500/15 border border-purple-500/40 text-purple-300
+                                       hover:bg-purple-500/25 transition-all disabled:opacity-40"
+                          >
+                            <Check size={11} /> {t('common.save')}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
                     <tr key={idx} className="border-b border-slate-800/30 hover:bg-slate-800/20 transition-colors">
                       <td className="px-3 py-2 font-mono text-purple-300/80">{f.field_name}</td>
                       <td className="px-3 py-2 text-slate-300">{f.description}</td>
                       <td className="px-3 py-2 text-slate-500 italic">{f.example || '—'}</td>
-                      <td className="px-3 py-2 text-right">
+                      <td className="px-3 py-2 text-right whitespace-nowrap">
+                        <button
+                          onClick={() => startEditField(idx)}
+                          title={t('scriptsAdmin.editField')}
+                          className="p-1 rounded text-slate-500 hover:text-purple-300 hover:bg-purple-500/10 transition-all"
+                        >
+                          <Pencil size={11} />
+                        </button>
                         <button
                           onClick={() => handleRemoveField(idx)}
+                          title={t('scriptsAdmin.deleteField')}
                           className="p-1 rounded text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-all"
                         >
                           <Trash2 size={11} />
