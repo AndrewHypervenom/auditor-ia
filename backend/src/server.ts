@@ -483,27 +483,25 @@ app.post('/api/evaluate',
  });
  }
 
- // 3. Analizar imágenes con OpenAI
- progressBroadcaster.progress(sseClientId, 'analysis', 50, 'Analizando imágenes...');
+ // 3-4. Analizar capturas y evaluar. Las capturas se leen dentro del evaluador
+ // —con las pantallas configuradas en Administración y los rubros como pista—;
+ // analizarlas aquí antes era una segunda lectura que se pagaba y se descartaba.
+ progressBroadcaster.progress(sseClientId, 'analysis', 50, 'Analizando imágenes y evaluando con IA...');
 
- const imageAnalyses = imageFiles.length > 0 
- ? await openAIService.analyzeMultipleImages(imageFiles.map(f => f.path))
- : [];
+ const evaluation = await evaluatorService.evaluate(
+ metadata,
+ transcription
+ );
 
+ const imageAnalyses = evaluation.imageAnalyses;
  const imageAnalysis = imageAnalyses.length > 0
  ? imageAnalyses.map(img => `${img.system}: ${JSON.stringify(img.data)}`).join('\n\n')
  : 'No se proporcionaron imágenes para analizar';
 
- logger.success(' Image analysis completed');
-
- // 4. Evaluar con criterios
- progressBroadcaster.progress(sseClientId, 'evaluation', 75, 'Evaluando con IA...');
-
- const evaluation = await evaluatorService.evaluate(
- metadata,
- transcription,
- imageAnalyses
- );
+ logger.success(' Image analysis completed', {
+ capturas: imageAnalyses.length,
+ sistemas: imageAnalyses.map(img => img.system),
+ });
 
  logger.success(' Evaluation completed', {
  totalScore: evaluation.totalScore,
@@ -521,9 +519,10 @@ app.post('/api/evaluate',
  sizeKB: (excelResult.buffer.length / 1024).toFixed(1)
  });
 
- // 6. Calcular costos (fix: usar tokens reales del análisis de imágenes)
- const imgInputTokens = imageAnalyses.reduce((s: number, img: any) => s + (img.usage?.input_tokens || 0), 0);
- const imgOutputTokens = imageAnalyses.reduce((s: number, img: any) => s + (img.usage?.output_tokens || 0), 0);
+ // 6. Calcular costos. Los tokens de las capturas ya vienen dentro del total del
+ // evaluador, así que se restan de su paso para no cobrarlos dos veces.
+ const imgInputTokens = evaluation.imageUsage.inputTokens;
+ const imgOutputTokens = evaluation.imageUsage.outputTokens;
  const costs = costCalculatorService.calculateTotalCost({
  audioDurationSeconds: transcription.audio_duration || 0,
  includeNativeSentiment: sentimentProvider === 'assemblyai' && sentimentResults.length > 0,
@@ -532,8 +531,8 @@ app.post('/api/evaluate',
  sentiment: sentimentProvider === 'openai' ? sentimentUsage : { inputTokens: 0, outputTokens: 0 },
  images: { count: imageFiles.length, inputTokens: imgInputTokens, outputTokens: imgOutputTokens },
  evaluation: {
- inputTokens: evaluation.usage?.inputTokens || 0,
- outputTokens: evaluation.usage?.outputTokens || 0,
+ inputTokens: Math.max(0, (evaluation.usage?.inputTokens || 0) - imgInputTokens),
+ outputTokens: Math.max(0, (evaluation.usage?.outputTokens || 0) - imgOutputTokens),
  },
  });
 
@@ -1541,6 +1540,7 @@ app.post('/api/admin/criteria/generate-prompt', authenticateUser, requireAdminOr
       callType: call_type ?? '',
       subCalificacion: sub_calificacion ?? null,
       validationSource: Array.isArray(validation_source) ? validation_source : [],
+      companyId: req.user!.role === 'superadmin' ? undefined : (req.user!.company_id ?? undefined),
     });
     res.json({ prompt });
   } catch (error: any) {
@@ -2825,39 +2825,6 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
 
  logger.success('[PASO 3] Registro de auditoria creado', { auditId });
 
- // ── 4. Analyze images ────────────────────────────────────────────────────
- progressBroadcaster.progress(sseClientId, 'analysis', 50, `[IMAGENES] Analizando ${localPaths.length} capturas con IA...`);
-
- logger.info('[PASO 4] Iniciando analisis de imagenes con OpenAI Vision', {
- imagenesAAnalizar: localPaths.length
- });
-
- let imageAnalyses: any[] = [];
- try {
- if (localPaths.length > 0) {
- imageAnalyses = await openAIService.analyzeMultipleImages(localPaths);
- }
- logger.info('[PASO 4] Resultado analisis de imagenes', {
- imagenesAnalizadas: imageAnalyses.length,
- sistemasDetectados: imageAnalyses.map((i: any) => i.system)
- });
- progressBroadcaster.progress(sseClientId, 'analysis', 55,
- `[IMAGENES] ${imageAnalyses.length}/${localPaths.length} capturas analizadas`);
- } catch (imgError: any) {
- logger.error('[PASO 4] Error analizando imagenes con OpenAI', {
- message: imgError.message,
- code: imgError.code,
- status: imgError.status,
- type: imgError.type
- });
- progressBroadcaster.progress(sseClientId, 'analysis', 52,
- `[IMAGENES] ERROR: ${imgError.message || 'Fallo OpenAI Vision'} | code: ${imgError.code || imgError.status || 'N/A'}`);
- }
-
- const imageAnalysisSummary = imageAnalyses.length > 0
- ? imageAnalyses.map(img => `${img.system}: ${JSON.stringify(img.data)}`).join('\n\n')
- : 'No se encontraron capturas para analizar';
-
  // ── Diagnóstico de calidad de datos ─────────────────────────────────────
  const dataWarnings: string[] = [];
 
@@ -2873,16 +2840,6 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
    }
  } else if (localPaths.length === 0) {
    dataWarnings.push('No se encontraron capturas adjuntas a esta atención. Los criterios de evidencia visual no pueden evaluarse.');
- }
-
- // Todas las capturas clasificadas como sistema desconocido
- if (imageAnalyses.length > 0 && imageAnalyses.every((i: any) => i.system === 'OTRO')) {
-   if (!dataWarnings.some(w => w.includes('capturas son idénticas'))) {
-     dataWarnings.push(
-       'Ninguna captura muestra pantallas operativas reconocibles (Falcon, VCAS, Vision, VRM, BI). ' +
-       'La evidencia visual no pudo asignarse a ningún sistema.'
-     );
-   }
  }
 
  // Datos GPF faltantes
@@ -3080,15 +3037,44 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
  logger.info('[PASO 6] Iniciando evaluacion con IA', {
  fuenteTranscript: audioDurationSeconds > 0 ? 'AUDIO REAL (AssemblyAI)' : 'SINTETICO (datos GPF)',
  longitudTranscript: finalTranscript.text.length,
- imagenesAnalizadas: imageAnalyses.length,
+ capturasDescargadas: localPaths.length,
  callType: metadata.callType
  });
 
  const evaluation = await evaluatorService.evaluate(
  metadata,
- finalTranscript,
- imageAnalyses
+ finalTranscript
  );
+
+ // Las capturas las leyó el evaluador (una sola vez, con las pantallas
+ // configuradas en Administración y los rubros como pista).
+ const imageAnalyses = evaluation.imageAnalyses;
+ const imageAnalysisSummary = imageAnalyses.length > 0
+ ? imageAnalyses.map(img => `${img.system}: ${JSON.stringify(img.data)}`).join('\n\n')
+ : 'No se encontraron capturas para analizar';
+
+ logger.info('[PASO 6] Capturas analizadas dentro de la evaluacion', {
+ imagenesAnalizadas: imageAnalyses.length,
+ imagenesDescargadas: localPaths.length,
+ sistemasDetectados: imageAnalyses.map(img => img.system),
+ });
+
+ // Ninguna captura reconocida como pantalla operativa
+ const sistemasConfigurados = new Set(imageAnalyses.map(img => img.system));
+ if (imageAnalyses.length > 0 && [...sistemasConfigurados].every(sys => sys === 'OTRO')) {
+   if (!dataWarnings.some(w => w.includes('capturas son idénticas'))) {
+     dataWarnings.push(
+       'Ninguna captura muestra pantallas operativas reconocibles. ' +
+       'La evidencia visual no pudo asignarse a ningún sistema.'
+     );
+   }
+ }
+ if (localPaths.length > 0 && imageAnalyses.length < localPaths.length) {
+   dataWarnings.push(
+     `${localPaths.length - imageAnalyses.length} de ${localPaths.length} capturas no pudieron analizarse. ` +
+     'Los criterios que dependen de ellas se evaluaron sin esa evidencia.'
+   );
+ }
 
  logger.success('[PASO 6] Evaluacion completada', {
  puntajeTotal: evaluation.totalScore,
@@ -3160,8 +3146,10 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
  const excelResult = await excelService.generateExcelReport(metadata, evaluation);
 
  // ── 8. Calculate costs (fix: usar tokens reales del análisis de imágenes) ─
- const imgInputTokensGpf = imageAnalyses.reduce((s: number, img: any) => s + (img.usage?.input_tokens || 0), 0);
- const imgOutputTokensGpf = imageAnalyses.reduce((s: number, img: any) => s + (img.usage?.output_tokens || 0), 0);
+ // Los tokens de las capturas vienen dentro del total del evaluador: se restan
+ // de su paso para no cobrarlos dos veces en el desglose.
+ const imgInputTokensGpf = evaluation.imageUsage.inputTokens;
+ const imgOutputTokensGpf = evaluation.imageUsage.outputTokens;
  const costs = costCalculatorService.calculateTotalCost({
  audioDurationSeconds, // en segundos (calculateAssemblyAICost divide entre 60 internamente)
  includeNativeSentiment: sentimentProvider === 'assemblyai' && sentimentResults.length > 0,
@@ -3169,8 +3157,8 @@ app.post('/api/evaluate-from-gpf', authenticateUser, requireAdminOrAnalyst, chec
  sentiment: sentimentProvider === 'openai' ? sentimentUsage : { inputTokens: 0, outputTokens: 0 },
  images: { count: localPaths.length, inputTokens: imgInputTokensGpf, outputTokens: imgOutputTokensGpf },
  evaluation: {
- inputTokens: evaluation.usage?.inputTokens || 0,
- outputTokens: evaluation.usage?.outputTokens || 0,
+ inputTokens: Math.max(0, (evaluation.usage?.inputTokens || 0) - imgInputTokensGpf),
+ outputTokens: Math.max(0, (evaluation.usage?.outputTokens || 0) - imgOutputTokensGpf),
  },
  });
 

@@ -46,6 +46,8 @@ export interface GenerateCriterionPromptInput {
  callType: string;
  subCalificacion?: string | null;
  validationSource?: string[];
+ /** Tenant dueño de las pantallas configuradas (Administración → Pantallas). */
+ companyId?: string;
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -53,6 +55,53 @@ const SOURCE_LABELS: Record<string, string> = {
  llamada: 'la transcripción de la llamada',
  imagenes: 'las capturas de pantalla adjuntas',
 };
+
+/**
+ * Ficha de las pantallas que la IA podrá leer para este criterio: cómo se
+ * reconocen y qué campos extrae de ellas el paso de análisis de imágenes.
+ * Sin esto la instrucción dice "revisa la captura de FALCON" sin explicar cuál
+ * pantalla es ni con qué nombre viene cada campo.
+ */
+async function describeImageSystems(sources: string[], companyId?: string): Promise<string> {
+ const wantsImages = sources.some((s) => s === 'imagenes' || s.startsWith('imagenes:'));
+ if (!wantsImages) return '';
+
+ const picked = sources.filter((s) => s.startsWith('imagenes:')).map((s) => s.slice(9));
+ let systems: any[] = [];
+ try {
+   systems = await getDatabaseService().getImageSystems(companyId);
+ } catch (error: any) {
+   logger.warn('[CLAUDE] No se pudieron cargar las pantallas para el prompt del criterio', { error: error.message });
+   return '';
+ }
+
+ const active = systems.filter((s: any) => s.is_active !== false);
+ const chosen = picked.length > 0 ? active.filter((s: any) => picked.includes(s.system_name)) : active;
+ if (chosen.length === 0) return '';
+
+ // Con pantalla elegida caben todos sus campos. Sin elegir hay que listar
+ // varias, pero recortar de más le quita al modelo justo lo que distingue una
+ // pantalla de otra (los códigos de bloqueo, el folio, el número de caso) y
+ // termina nombrando la equivocada.
+ const maxFields = picked.length > 0 ? 25 : 16;
+ const blocks = chosen.map((s: any) => {
+   const hints = String(s.detection_hints || s.description || '').trim().slice(0, 400);
+   const fields: any[] = Array.isArray(s.fields_schema) ? s.fields_schema : [];
+   const fieldLines = fields.slice(0, maxFields).map((f: any) => {
+     const example = f.example ? ` (ej: "${f.example}")` : '';
+     return `  - ${f.field_name}: ${f.description ?? ''}${example}`;
+   }).join('\n');
+   return `# ${s.system_name}\n  Cómo se reconoce esta pantalla: ${hints || '(sin pistas configuradas)'}\n  Campos que la IA extrae de ella:\n${fieldLines || '  - (sin campos definidos)'}`;
+ }).join('\n\n');
+
+ const header = picked.length > 0
+   ? 'PANTALLA(S) ELEGIDAS PARA ESTE CRITERIO — la instrucción debe nombrarlas y explicar cómo reconocerlas:'
+   : `El usuario NO eligió una pantalla concreta, así que tienes que deducirla. Estas son las configuradas.
+Elige comparando lo que pide el usuario con los CAMPOS de cada pantalla: el campo que contiene el dato a revisar manda sobre el parecido del nombre.
+Si encajan dos, nómbralas ambas y di en cuál mirar primero. Si ninguna encaja con claridad, empieza la instrucción con "PANTALLA A CONFIRMAR:" y describe el dato a buscar en vez de inventar una pantalla:`;
+
+ return `\n\n${header}\n${blocks}`;
+}
 
 function describeValidationSources(sources: string[]): string {
  const labels = sources.map((source) => {
@@ -540,6 +589,7 @@ Responde SOLO con JSON válido, sin markdown, sin explicaciones adicionales. For
  async generateCriterionPrompt(input: GenerateCriterionPromptInput): Promise<string> {
  const { description, topic, callType, subCalificacion } = input;
  const sources = describeValidationSources(input.validationSource ?? []);
+ const screens = await describeImageSystems(input.validationSource ?? [], input.companyId);
 
  const systemPrompt = `Eres un experto en calidad y auditoría de call centers bancarios.
 Tu tarea es generar instrucciones técnicas precisas para un sistema de IA que evalúa automáticamente si los agentes de call center cumplen con criterios de calidad.
@@ -548,15 +598,23 @@ CONTEXTO DEL SISTEMA:
 - El sistema analiza: transcripciones de llamadas, capturas de pantalla de sistemas internos (VCAS, Falcon, Vision, GPF, VRM) y registros GPF.
 - El criterio de evaluación ya tiene un nombre/descripción: "${topic}"
 - Tipo de llamada: ${callType}${subCalificacion ? `\n- Subcalificación (esta instrucción aplica solo a ella): ${subCalificacion}` : ''}
-- Material que la IA tendrá disponible para este criterio: ${sources}
+- Material que la IA tendrá disponible para este criterio: ${sources}${screens}
 
 INSTRUCCIONES PARA GENERAR EL PROMPT:
 1. Sé específico sobre QUÉ buscar (campo exacto, valor esperado, ubicación en la pantalla).
-2. Define claramente cuándo es CORRECTO vs INCORRECTO.
-3. Menciona casos especiales o excepciones si los hay.
-4. No pidas revisar material que no está disponible para este criterio.
-5. Usa el mismo lenguaje y formato que los demás criterios del sistema.
-6. Máximo 400 palabras, sin formato markdown innecesario, sin encabezados ni preámbulos.
+2. Si el criterio se valida con capturas, empieza diciendo EN QUÉ PANTALLA hay que mirar y
+   CÓMO SE RECONOCE (usa las pistas de detección de arriba), para que la IA no confunda esa
+   captura con otra del mismo sistema. Nombra los campos igual que en la lista de arriba:
+   son los que la IA extrae de la imagen, y si los llamas de otra forma no los encontrará.
+3. Define claramente cuándo es CORRECTO vs INCORRECTO.
+4. Menciona casos especiales o excepciones si los hay.
+5. Las capturas de pantalla las adjunta el propio agente: documentar es parte de su
+   trabajo. Si la captura requerida falta, está cortada o es ilegible, la instrucción
+   debe marcar INCUMPLIMIENTO por falta de evidencia; nunca "no aplica" ni "no
+   evaluable", salvo que el usuario pida expresamente lo contrario.
+6. No pidas revisar material que no está disponible para este criterio.
+7. Usa el mismo lenguaje y formato que los demás criterios del sistema.
+8. Máximo 400 palabras, sin formato markdown innecesario, sin encabezados ni preámbulos.
 
 El usuario te describirá en sus propias palabras -a veces de forma informal o incompleta- lo que debe verificarse. Interpreta su intención y responde ÚNICAMENTE con la instrucción técnica lista para usar.`;
 

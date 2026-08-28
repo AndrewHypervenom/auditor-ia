@@ -1320,6 +1320,7 @@
       "proposalEditable": "Você pode editá-la antes de usar",
       "generatedOn": "Instrução gerada com o assistente em {{date}}",
       "editedByHand": "editada manualmente depois",
+      "noScreenWarn": "Você não escolheu a tela: a IA terá que adivinhar qual captura revisar e pode errar. Escolha-a acima antes de gerar.",
       "callout": "Transforme seu texto em um prompt claro para que a IA avalie sempre igual."
     },
     "configureCriterion": "Configurar critério",
@@ -1628,7 +1629,11 @@
     "imgDomainChange": "Alterar",
     "importDetectedTip": "Revisa as capturas já enviadas em auditorias anteriores e mostra quais telas aparecem, para cadastrá-las sem enviar nada.",
     "imgBlankScreenTip": "Cria uma tela vazia, com o nome e os campos escritos por você. Use só se não tiver uma captura à mão.",
-    "imgTooLarge": "A imagem é muito grande (máximo {{mb}} MB). Recorte-a ou salve como JPG."
+    "imgTooLarge": "A imagem é muito grande (máximo {{mb}} MB). Recorte-a ou salve como JPG.",
+    "imgPickScreen": "Escolha a tela que a IA deve revisar.",
+    "imgPickScreenHint": "Sem seleção a IA olha todas as capturas anexadas e não sabe qual corresponde a este critério, e a instrução não pode explicar como reconhecê-la.",
+    "imgNoScreens": "Não há telas configuradas.",
+    "imgNoScreensHint": "Crie-as em Administração → Telas de processo para poder indicar à IA qual deve revisar."
   },
   "reference": {
     "pageTitle": "Critérios, Scripts e Modelo GPF",

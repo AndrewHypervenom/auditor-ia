@@ -87,6 +87,7 @@ export interface ImageAnalysis {
  system: string;
  data: any;
  confidence: number;
+ findings?: string[]; // Hallazgos literales que la IA leyó en la captura
  analysis?: string; // Campo opcional para análisis de texto
 }
 

@@ -47,11 +47,19 @@ class EvaluatorService {
  .join('');
  }
 
+ /**
+  * Analiza las capturas y evalúa. Las capturas se leen aquí una sola vez: el
+  * resultado vuelve en `imageAnalyses` para que quien llame lo guarde y lo
+  * muestre, en vez de analizarlas otra vez por su cuenta.
+  */
  async evaluate(
  auditInput: AuditInput,
  transcript: TranscriptResult,
- imageAnalyses: ImageAnalysis[]
- ): Promise<Omit<EvaluationResult, 'excelUrl'> & { usage?: { inputTokens: number; outputTokens: number; totalTokens: number } }> {
+ ): Promise<Omit<EvaluationResult, 'excelUrl'> & {
+ usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+ imageAnalyses: ImageAnalysis[];
+ imageUsage: { inputTokens: number; outputTokens: number };
+ }> {
  try {
  logger.info('Starting ENHANCED evaluation', {
  callType: auditInput.callType,
@@ -74,7 +82,7 @@ class EvaluatorService {
   ).join('\n');
 
  // PASO 1: Análisis estructurado de evidencia visual MEJORADO
- const { visualEvidence, tokensUsed: visualTokens } = await this.extractVisualEvidenceEnhanced(auditInput.imagePaths || [], imageRubroHints || undefined);
+ const { visualEvidence, analyses: imageAnalyses, tokensUsed: visualTokens } = await this.extractVisualEvidenceEnhanced(auditInput.imagePaths || [], imageRubroHints || undefined);
 
  // NUEVO: Acumular tokens de análisis visual
  totalInputTokens += visualTokens.input;
@@ -231,7 +239,13 @@ class EvaluatorService {
  description: moment.description
  })) || [];
 
- const result: Omit<EvaluationResult, 'excelUrl'> & { usage: { inputTokens: number; outputTokens: number; totalTokens: number } } = {
+ const result: Omit<EvaluationResult, 'excelUrl'> & {
+ usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+ imageAnalyses: ImageAnalysis[];
+ imageUsage: { inputTokens: number; outputTokens: number };
+ } = {
+ imageAnalyses,
+ imageUsage: { inputTokens: visualTokens.input, outputTokens: visualTokens.output },
  totalScore: evaluation.total_score,
  maxPossibleScore: evaluation.max_possible_score,
  percentage: evaluation.percentage,
@@ -480,9 +494,13 @@ class EvaluatorService {
  */
  private async extractVisualEvidenceEnhanced(imagePaths: string[], rubroHints?: string): Promise<{
  visualEvidence: Record<string, any[]>;
+ analyses: ImageAnalysis[];
  tokensUsed: { input: number; output: number };
  }> {
  const evidence: Record<string, any[]> = {};
+ // Lista plana en el formato que guarda y muestra la auditoría: el servidor ya
+ // no vuelve a analizar las capturas por su cuenta, reusa esta.
+ const analyses: ImageAnalysis[] = [];
  // NUEVO: Acumuladores de tokens
  let totalInputTokens = 0;
  let totalOutputTokens = 0;
@@ -539,14 +557,18 @@ class EvaluatorService {
  throw new Error('Empty response from Claude');
  }
 
- // Limpieza robusta
- let cleanedContent = content.trim();
- cleanedContent = cleanedContent.replace(/```json\n?/gi, '');
- cleanedContent = cleanedContent.replace(/```\n?/g, '');
- cleanedContent = cleanedContent.replace(/^\uFEFF/, '');
- cleanedContent = cleanedContent.replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, '\\\\');
-
- const parsed = JSON.parse(cleanedContent);
+ // El modelo a veces añade una frase después del JSON o se queda sin tokens a
+ // media respuesta. parseModelJson distingue ambos casos y rescata la parte
+ // completa, en vez de perder la captura y pagar otro intento.
+ const sanitized = content.replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, '\\\\');
+ const { data: parsed, salvaged } = parseModelJson<any>(sanitized, {
+ stopReason: response.stop_reason,
+ salvageTruncated: true,
+ label: `análisis de la captura ${i + 1}`,
+ });
+ if (salvaged) {
+ logger.warn(`Análisis de la captura ${i + 1} recuperado de una respuesta truncada — puede faltar algún campo`);
+ }
 
  if (!parsed.system || !parsed.data) {
  throw new Error('Invalid JSON structure');
@@ -565,6 +587,14 @@ class EvaluatorService {
  confidence: parsed.confidence || 0.9,
  critical_fields: parsed.critical_fields || {}
  });
+
+ analyses.push({
+ imagePath,
+ system,
+ data: { ...parsed.data, critical_fields: parsed.critical_fields || {} },
+ findings: parsed.findings || [],
+ confidence: parsed.confidence || 0.9,
+ } as ImageAnalysis);
 
  success = true;
  logger.info(`Image ${i + 1}/${imagePaths.length} analyzed successfully (attempt ${attempts})`, {
@@ -592,6 +622,7 @@ class EvaluatorService {
 
  return {
  visualEvidence: evidence,
+ analyses,
  tokensUsed: {
  input: totalInputTokens,
  output: totalOutputTokens
@@ -1270,8 +1301,8 @@ export const getEvaluatorService = () => {
 };
 
 export const evaluatorService = {
- evaluate: async (auditInput: any, transcript: any, imageAnalyses: any) => {
- return getEvaluatorService().evaluate(auditInput, transcript, imageAnalyses);
+ evaluate: async (auditInput: any, transcript: any) => {
+ return getEvaluatorService().evaluate(auditInput, transcript);
  },
  previewImageAnalysisPrompt: async (companyId?: string) => {
  return getEvaluatorService().previewImageAnalysisPrompt(companyId);

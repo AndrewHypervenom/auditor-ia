@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import {
+  AlertTriangle,
   Sparkles,
   ChevronDown,
   Check,
@@ -67,6 +68,9 @@ export default function AiInstructionBuilder({
   const canImportInstruction = !goal.trim() && instruction.trim().length > 2;
   /** Destacado mientras el criterio aún no tiene una instrucción hecha con el asistente. */
   const highlight = !open && !hadSavedBrief;
+  /** Con imágenes pero sin pantalla concreta, la IA deduce en cuál mirar y puede errar. */
+  const imagesWithoutScreen =
+    validationSource.includes('imagenes') && !validationSource.some(s => s.startsWith('imagenes:'));
 
   const handleGenerate = async () => {
     if (!canGenerate) return;
@@ -151,6 +155,15 @@ export default function AiInstructionBuilder({
               <CornerDownLeft size={11} />
               {t('scriptsAdmin.builder.useCurrentText')}
             </button>
+          )}
+
+          {imagesWithoutScreen && (
+            <div className="flex items-start gap-2 rounded-xl bg-amber-500/8 border border-amber-500/28 px-3 py-2.5">
+              <AlertTriangle size={13} className="text-amber-400 flex-shrink-0 mt-0.5" />
+              <span className="flex-1 text-[11px] text-slate-300 leading-relaxed">
+                {t('scriptsAdmin.builder.noScreenWarn')}
+              </span>
+            </div>
           )}
 
           <button

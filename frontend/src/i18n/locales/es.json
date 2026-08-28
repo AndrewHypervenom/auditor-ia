@@ -1320,6 +1320,7 @@
       "proposalEditable": "Puedes editarla antes de usarla",
       "generatedOn": "Instrucción generada con el asistente el {{date}}",
       "editedByHand": "editada a mano después",
+      "noScreenWarn": "No elegiste pantalla: la IA tendrá que adivinar cuál de las capturas revisar y puede equivocarse. Elígela arriba antes de generar.",
       "callout": "Convierte tu texto en un prompt claro para que la IA evalúe siempre igual."
     },
     "configureCriterion": "Configurar criterio",
@@ -1628,7 +1629,11 @@
     "imgDomainChange": "Cambiar",
     "importDetectedTip": "Revisa las capturas que ya subieron en auditorías anteriores y te muestra qué pantallas aparecen, para darlas de alta sin subir nada.",
     "imgBlankScreenTip": "Crea una pantalla vacía, escribiendo tú el nombre y los campos. Úsalo solo si no tienes una captura a mano.",
-    "imgTooLarge": "La imagen pesa demasiado (máximo {{mb}} MB). Recórtala o guárdala como JPG."
+    "imgTooLarge": "La imagen pesa demasiado (máximo {{mb}} MB). Recórtala o guárdala como JPG.",
+    "imgPickScreen": "Elige la pantalla que debe revisar la IA.",
+    "imgPickScreenHint": "Sin selección la IA mira todas las capturas adjuntas y no sabe cuál corresponde a este criterio, y la instrucción no puede explicarle cómo reconocerla.",
+    "imgNoScreens": "No hay pantallas configuradas.",
+    "imgNoScreensHint": "Créalas en Administración → Pantallas de proceso para poder indicarle a la IA cuál debe revisar."
   },
   "reference": {
     "pageTitle": "Criterios, Scripts y Plantilla GPF",

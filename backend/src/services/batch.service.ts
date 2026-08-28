@@ -15,6 +15,7 @@ import { buildSentimentSummary } from '../utils/sentiment.js';
 import { excelService } from './excel.service.js';
 import { costCalculatorService } from './cost-calculator.service.js';
 import { getDatabaseService } from './database.service.js';
+import { getEvaluatorService } from './evaluator.service.js';
 import { gpfFetch } from '../utils/gpf-fetch.js';
 import {
   computeScoreTotals,
@@ -213,7 +214,9 @@ class BatchService {
     }
 
     const databaseService = getDatabaseService();
-    const imageAnalysisPrompt = await databaseService.getPromptByKey('image_analysis') ?? '';
+    // Mismo prompt que usa una auditoría normal: se arma desde las pantallas de
+    // Administración, así el lote lee los campos con los nombres configurados.
+    const imageAnalysisPrompt = await getEvaluatorService().previewImageAnalysisPrompt();
     const model = BATCH_LIMITS.MODEL;
 
     const batchRequests: Array<{

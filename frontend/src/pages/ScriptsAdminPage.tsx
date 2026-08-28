@@ -3091,10 +3091,19 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
                   <p className="text-[11px] font-semibold text-brand-400 uppercase tracking-wider">
                     {t('scriptsAdmin.whichImages')}
                   </p>
-                  {specificSystems.length === 0 && (
-                    <span className="text-[10px] text-slate-600">{t('scriptsAdmin.noSelectionAllImages')}</span>
-                  )}
                 </div>
+
+                {/* Sin pantalla elegida la IA mira todas las capturas y la
+                    instrucción no puede decirle cómo reconocer la correcta. */}
+                {specificSystems.length === 0 && (
+                  <div className="mb-3 flex items-start gap-2.5 rounded-xl bg-amber-500/8 border border-amber-500/28 px-3.5 py-3">
+                    <AlertTriangle size={14} className="text-amber-400 flex-shrink-0 mt-0.5" />
+                    <span className="flex-1 text-xs text-slate-300 leading-relaxed">
+                      <strong className="text-amber-400">{t('scriptsAdmin.imgPickScreen')}</strong>{' '}
+                      {t('scriptsAdmin.imgPickScreenHint')}
+                    </span>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-1.5">
                   {availableImageSystems.map(sys => {
                     const isSelected = specificSystems.includes(sys.system_name);
@@ -3168,6 +3177,18 @@ function CriteriaEditDrawer({ item, selectedTipoCierre, blockCallType, onSave, o
                     {t('scriptsAdmin.aiWillSearchIn')} <strong className="text-slate-500">{specificSystems.join(', ')}</strong>
                   </p>
                 )}
+              </div>
+            )}
+
+            {/* Sin pantallas configuradas no hay nada que elegir: la IA solo
+                recibiría capturas sueltas, sin saber qué mira. */}
+            {hasImages && availableImageSystems.length === 0 && (
+              <div className="mt-3 flex items-start gap-2.5 rounded-xl bg-amber-500/8 border border-amber-500/28 px-3.5 py-3 animate-fadeIn">
+                <AlertTriangle size={14} className="text-amber-400 flex-shrink-0 mt-0.5" />
+                <span className="flex-1 text-xs text-slate-300 leading-relaxed">
+                  <strong className="text-amber-400">{t('scriptsAdmin.imgNoScreens')}</strong>{' '}
+                  {t('scriptsAdmin.imgNoScreensHint')}
+                </span>
               </div>
             )}
           </div>
