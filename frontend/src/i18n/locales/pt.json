@@ -1,4 +1,10 @@
 {
+  "appUpdate": {
+    "title": "Nova versão disponível",
+    "description": "Há uma atualização do site. Salve o que estiver fazendo e atualize quando puder.",
+    "button": "Atualizar site",
+    "updating": "Atualizando..."
+  },
   "auditError": {
     "reason": "Motivo do erro",
     "unknown": "A auditoria falhou sem uma mensagem registrada. Verifique os logs do servidor."

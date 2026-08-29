@@ -24,6 +24,7 @@ import ScriptsReferencePage from './pages/ScriptsReferencePage';
 import BatchPage from './pages/BatchPage';
 import CompaniesPage from './pages/CompaniesPage';
 import { useVersionCheck } from './hooks/useVersionCheck';
+import UpdateBanner from './components/UpdateBanner';
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -211,7 +212,7 @@ function AnimatedRoutes() {
 }
 
 function App() {
-  useVersionCheck();
+  const { updateAvailable, applyUpdate } = useVersionCheck();
   return (
     <BrowserRouter>
       <AuthProvider>
@@ -238,6 +239,8 @@ function App() {
             },
           }}
         />
+
+        <UpdateBanner visible={updateAvailable} onUpdate={applyUpdate} />
 
         <AnimatedRoutes />
       </AuthProvider>
